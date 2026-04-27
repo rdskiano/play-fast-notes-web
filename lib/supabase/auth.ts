@@ -3,15 +3,39 @@ import { useEffect, useState } from 'react';
 
 import { supabase } from './client';
 
-export async function signInWithOtp(email: string): Promise<void> {
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo:
-        typeof window !== 'undefined' ? window.location.origin : undefined,
-    },
+/**
+ * Sign in OR sign up with the same email/password. Tries sign-in first;
+ * if no account exists, falls through to sign-up (which creates the account
+ * and signs the user in immediately — assumes Supabase email confirmation
+ * is disabled).
+ *
+ * Throws a friendly Error on failure (incorrect password, weak password, etc.).
+ */
+export async function continueWithPassword(
+  email: string,
+  password: string,
+): Promise<void> {
+  const trimmedEmail = email.trim();
+
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: trimmedEmail,
+    password,
   });
-  if (error) throw error;
+  if (!signInError) return;
+
+  // Sign-in failed — try creating an account with these credentials.
+  const { error: signUpError } = await supabase.auth.signUp({
+    email: trimmedEmail,
+    password,
+  });
+  if (!signUpError) return;
+
+  // Both failed. Most common cause: account exists, password is wrong.
+  const msg = (signUpError.message ?? '').toLowerCase();
+  if (msg.includes('already') || msg.includes('registered')) {
+    throw new Error('That email already has an account. Check your password and try again.');
+  }
+  throw signUpError;
 }
 
 export async function signOut(): Promise<void> {

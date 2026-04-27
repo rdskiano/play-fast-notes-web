@@ -7,55 +7,35 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { signInWithOtp } from '@/lib/supabase/auth';
+import { continueWithPassword } from '@/lib/supabase/auth';
+
+const MIN_PASSWORD = 6;
 
 type Status =
   | { kind: 'idle' }
-  | { kind: 'sending' }
-  | { kind: 'sent'; email: string }
+  | { kind: 'submitting' }
   | { kind: 'error'; message: string };
 
 export default function SignInScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
+  const emailOk = email.trim().length > 0 && email.includes('@');
+  const passwordOk = password.length >= MIN_PASSWORD;
+  const canSubmit = emailOk && passwordOk && status.kind !== 'submitting';
+
   async function onSubmit() {
-    const trimmed = email.trim();
-    if (!trimmed) return;
-    setStatus({ kind: 'sending' });
+    if (!canSubmit) return;
+    setStatus({ kind: 'submitting' });
     try {
-      await signInWithOtp(trimmed);
-      setStatus({ kind: 'sent', email: trimmed });
+      await continueWithPassword(email, password);
+      // Auth gate in _layout.tsx will detect the new session and route to Library.
     } catch (e) {
       setStatus({ kind: 'error', message: e instanceof Error ? e.message : String(e) });
     }
-  }
-
-  if (status.kind === 'sent') {
-    return (
-      <ThemedView style={styles.container}>
-        <View style={styles.card}>
-          <ThemedText type="title" style={styles.title}>
-            Check your inbox
-          </ThemedText>
-          <ThemedText style={styles.body}>
-            We sent a sign-in link to {status.email}. Open the email and tap the link to come
-            back here.
-          </ThemedText>
-          <Button
-            label="Use a different email"
-            variant="ghost"
-            size="sm"
-            onPress={() => {
-              setEmail('');
-              setStatus({ kind: 'idle' });
-            }}
-          />
-        </View>
-      </ThemedView>
-    );
   }
 
   return (
@@ -65,7 +45,8 @@ export default function SignInScreen() {
           Play Fast Notes
         </ThemedText>
         <ThemedText style={styles.body}>
-          Enter your email and we will send you a one-time link to sign in.
+          Enter your email and a password. New emails create an account; existing
+          emails sign in.
         </ThemedText>
 
         <TextInput
@@ -80,14 +61,29 @@ export default function SignInScreen() {
             styles.input,
             { borderColor: C.icon, color: C.text, backgroundColor: C.background },
           ]}
-          editable={status.kind !== 'sending'}
+          editable={status.kind !== 'submitting'}
+        />
+
+        <TextInput
+          value={password}
+          onChangeText={setPassword}
+          placeholder={`Password (${MIN_PASSWORD}+ characters)`}
+          placeholderTextColor={C.icon}
+          autoCapitalize="none"
+          autoCorrect={false}
+          secureTextEntry
+          style={[
+            styles.input,
+            { borderColor: C.icon, color: C.text, backgroundColor: C.background },
+          ]}
+          editable={status.kind !== 'submitting'}
           onSubmitEditing={onSubmit}
         />
 
         <Button
-          label={status.kind === 'sending' ? 'Sending…' : 'Send sign-in link'}
+          label={status.kind === 'submitting' ? 'Signing in…' : 'Continue'}
           onPress={onSubmit}
-          disabled={status.kind === 'sending' || email.trim().length === 0}
+          disabled={!canSubmit}
           fullWidth
         />
 
