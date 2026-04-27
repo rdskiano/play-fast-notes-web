@@ -16,7 +16,21 @@ function newPieceId(): string {
   return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-type Picked = { file: File; previewUrl: string };
+type Picked = { file: File; previewUrl: string; aspectRatio: number };
+
+function readImageAspectRatio(url: string): Promise<number> {
+  if (typeof window === 'undefined') return Promise.resolve(1);
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const w = img.naturalWidth || 1;
+      const h = img.naturalHeight || 1;
+      resolve(w / h);
+    };
+    img.onerror = () => resolve(1);
+    img.src = url;
+  });
+}
 
 export default function UploadScreen() {
   const router = useRouter();
@@ -39,11 +53,13 @@ export default function UploadScreen() {
     fileInputRef.current?.click();
   }
 
-  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (picked?.previewUrl) URL.revokeObjectURL(picked.previewUrl);
-    setPicked({ file, previewUrl: URL.createObjectURL(file) });
+    const previewUrl = URL.createObjectURL(file);
+    const aspectRatio = await readImageAspectRatio(previewUrl);
+    setPicked({ file, previewUrl, aspectRatio });
   }
 
   function clearPicked() {
@@ -148,7 +164,7 @@ export default function UploadScreen() {
             <View style={[styles.previewWrap, { borderColor: C.icon }]}>
               <Image
                 source={{ uri: picked.previewUrl }}
-                style={styles.preview}
+                style={[styles.preview, { aspectRatio: picked.aspectRatio }]}
                 contentFit="contain"
               />
               <View style={styles.previewActions}>
@@ -249,7 +265,7 @@ const styles = StyleSheet.create({
   },
   preview: {
     width: '100%',
-    aspectRatio: 1,
+    maxHeight: 400,
     borderRadius: Radii.sm,
   },
   previewActions: {
