@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
@@ -89,8 +89,11 @@ export default function UploadScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <View style={styles.card}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled">
+      <ThemedView style={styles.card}>
         <ThemedText type="title" style={{ textAlign: 'center' }}>
           Add a piece
         </ThemedText>
@@ -198,14 +201,15 @@ export default function UploadScreen() {
             style={{ flex: 1 }}
           />
         </View>
-      </View>
-    </ThemedView>
+      </ThemedView>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  scroll: { flex: 1 },
+  scrollContent: {
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: Spacing.lg,
