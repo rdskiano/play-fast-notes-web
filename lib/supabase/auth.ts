@@ -24,16 +24,25 @@ export async function continueWithPassword(
   if (!signInError) return;
 
   // Sign-in failed — try creating an account with these credentials.
-  const { error: signUpError } = await supabase.auth.signUp({
+  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email: trimmedEmail,
     password,
   });
-  if (!signUpError) return;
+  if (!signUpError) {
+    // Sign-up succeeded. If a session is set, we're signed in.
+    if (signUpData.session) return;
+    // No session = Supabase is requiring email confirmation. Tell the user.
+    throw new Error(
+      'Account created but email confirmation is required. Disable "Confirm email" in Supabase Auth -> Providers -> Email and try again.',
+    );
+  }
 
   // Both failed. Most common cause: account exists, password is wrong.
   const msg = (signUpError.message ?? '').toLowerCase();
   if (msg.includes('already') || msg.includes('registered')) {
-    throw new Error('That email already has an account. Check your password and try again.');
+    throw new Error(
+      'That email already has an account. Either use the password you set last time, or delete this user in Supabase -> Authentication -> Users and sign up again.',
+    );
   }
   throw signUpError;
 }
