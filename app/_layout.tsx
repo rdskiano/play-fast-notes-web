@@ -39,6 +39,10 @@ export default function RootLayout() {
           options={{ presentation: 'modal', title: 'Add a piece' }}
         />
         <Stack.Screen name="piece/[id]/index" options={{ title: 'Piece' }} />
+        <Stack.Screen
+          name="piece/[id]/tempo-ladder"
+          options={{ title: 'Tempo Ladder' }}
+        />
       </Stack>
       <StatusBar style="dark" />
     </ThemeProvider>
