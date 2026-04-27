@@ -30,6 +30,12 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# iCloud Drive sync stubs and duplicate-name conflicts
+*.icloud
+.*.icloud
+* 2.*
+* 2/
+
 # local env files
 .env*.local
 
