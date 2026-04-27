@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
@@ -17,6 +18,7 @@ type Status =
   | { kind: 'error'; message: string };
 
 export default function SignInScreen() {
+  const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const [email, setEmail] = useState('');
@@ -32,7 +34,10 @@ export default function SignInScreen() {
     setStatus({ kind: 'submitting' });
     try {
       await continueWithPassword(email, password);
-      // Auth gate in _layout.tsx will detect the new session and route to Library.
+      // Successful sign-in. The auth state listener in _layout will see the
+      // session, but the URL is still /sign-in — push to Library explicitly so
+      // the user lands somewhere on success.
+      router.replace('/library');
     } catch (e) {
       setStatus({ kind: 'error', message: e instanceof Error ? e.message : String(e) });
     }
