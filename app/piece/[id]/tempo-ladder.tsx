@@ -1,6 +1,7 @@
+import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
@@ -325,87 +326,70 @@ export default function TempoLadderScreen() {
   }
 
   // phase === 'active'
-  const progress = ((currentTempo - startTempo) / (goalTempo - startTempo)) * 100;
-  const progressClamped = Math.max(0, Math.min(100, progress));
-
   return (
-    <ThemedView style={styles.container}>
-      <View style={styles.activeHeader}>
-        <ThemedText style={[styles.composer, { color: C.icon }]}>
-          {piece.title}
-          {piece.composer ? ` · ${piece.composer}` : ''}
-        </ThemedText>
-      </View>
-
-      <View style={styles.tempoWrap}>
-        <ThemedText style={[styles.tempoBig, { color: C.tint }]}>{currentTempo}</ThemedText>
-        <ThemedText style={[styles.tempoUnit, { color: C.icon }]}>BPM</ThemedText>
-      </View>
-
-      <View style={[styles.progressTrack, { backgroundColor: C.icon + '33' }]}>
-        <View
-          style={[
-            styles.progressFill,
-            { width: `${progressClamped}%`, backgroundColor: C.tint },
-          ]}
+    <View style={styles.playRoot}>
+      {piece.source_uri ? (
+        <Image
+          source={{ uri: piece.source_uri }}
+          style={StyleSheet.absoluteFill}
+          contentFit="contain"
         />
-      </View>
-      <ThemedText style={[styles.progressLabel, { color: C.icon }]}>
-        {startTempo} → {goalTempo} BPM
-      </ThemedText>
+      ) : null}
 
-      <View style={styles.streakWrap}>
-        <ThemedText style={styles.streakLabel}>Clean reps in a row</ThemedText>
-        <View style={styles.dots}>
+      <View style={[styles.topOverlay, { backgroundColor: scheme === 'dark' ? '#000000cc' : '#ffffffd0', borderBottomColor: C.icon + '44' }]}>
+        <Pressable onPress={endSession} hitSlop={8} style={styles.endBtn}>
+          <ThemedText style={[styles.endBtnText, { color: C.tint }]}>End</ThemedText>
+        </Pressable>
+
+        <View style={styles.streakDots}>
           {Array.from({ length: targetReps }).map((_, i) => (
             <View
               key={i}
               style={[
                 styles.dot,
-                {
-                  backgroundColor: i < currentStreak ? C.tint : 'transparent',
-                  borderColor: C.tint,
-                },
+                i < currentStreak
+                  ? { backgroundColor: Status.success, borderColor: Status.success }
+                  : { borderColor: C.icon },
               ]}
             />
           ))}
         </View>
-        <ThemedText style={[styles.streakCount, { color: C.icon }]}>
-          {currentStreak} / {targetReps}
+
+        <View style={styles.transportRow}>
+          <Pressable onPress={onMissed} hitSlop={4} style={[styles.headerPill, styles.missBtn]}>
+            <ThemedText style={styles.headerPillText}>✗</ThemedText>
+          </Pressable>
+          <Pressable onPress={onClean} hitSlop={4} style={[styles.headerPill, styles.cleanBtn]}>
+            <ThemedText style={styles.headerPillText}>✓</ThemedText>
+          </Pressable>
+          <ThemedText style={[styles.headerBpm, { color: C.text }]}>{currentTempo}</ThemedText>
+          <Pressable
+            onPress={() => setMetronomeOn(!metronomeOn)}
+            style={[
+              styles.headerPlayBtn,
+              {
+                backgroundColor: metronomeOn ? C.tint : 'transparent',
+                borderColor: C.tint,
+              },
+            ]}>
+            <ThemedText
+              style={{
+                color: metronomeOn ? '#fff' : C.tint,
+                fontWeight: Type.weight.bold,
+                fontSize: 13,
+              }}>
+              {metronomeOn ? '■' : '▶'}
+            </ThemedText>
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={styles.statusBar}>
+        <ThemedText style={[styles.statusText, { color: scheme === 'dark' ? '#ffffffaa' : '#000000aa' }]}>
+          {startTempo} → {goalTempo} BPM · {repsClean} clean · {repsMissed} missed
         </ThemedText>
       </View>
-
-      <View style={styles.metRow}>
-        <Button
-          label={metronomeOn ? '■ Stop metronome' : '▶ Start metronome'}
-          variant={metronomeOn ? 'danger' : 'outline'}
-          onPress={() => setMetronomeOn(!metronomeOn)}
-          fullWidth
-        />
-      </View>
-
-      <View style={styles.row}>
-        <Button
-          label="Missed"
-          variant="outline"
-          onPress={onMissed}
-          style={{ flex: 1 }}
-        />
-        <Button
-          label="✓ Clean"
-          onPress={onClean}
-          style={{ flex: 1 }}
-        />
-      </View>
-
-      <View style={styles.statsRow}>
-        <ThemedText style={[styles.statText, { color: C.icon }]}>
-          Clean: {repsClean} · Missed: {repsMissed}
-        </ThemedText>
-      </View>
-
-      <Button label="Done" variant="ghost" onPress={endSession} />
-    </ThemedView>
+    </View>
   );
 }
 
@@ -424,7 +408,6 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   header: { gap: Spacing.xs },
-  activeHeader: { alignItems: 'center', gap: Spacing.xs },
   composer: { fontSize: Type.size.md },
   intro: {
     fontSize: Type.size.sm,
@@ -439,46 +422,74 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', gap: Spacing.md },
   warn: { fontSize: Type.size.sm, textAlign: 'center' },
-  tempoWrap: {
+
+  // Active phase — full-bleed score with floating top overlay
+  playRoot: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  topOverlay: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingTop: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  endBtn: { paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs },
+  endBtnText: { fontSize: Type.size.lg, fontWeight: Type.weight.semibold },
+  streakDots: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
-    gap: Spacing.sm,
   },
-  tempoBig: {
-    fontSize: 96,
-    fontWeight: Type.weight.black,
-    lineHeight: 100,
-  },
-  tempoUnit: {
-    fontSize: Type.size.xl,
-    fontWeight: Type.weight.semibold,
-  },
-  progressTrack: {
-    height: 8,
-    borderRadius: Radii.pill,
-    overflow: 'hidden',
-  },
-  progressFill: { height: '100%' },
-  progressLabel: {
-    fontSize: Type.size.xs,
-    textAlign: 'center',
-  },
-  streakWrap: { gap: Spacing.sm, alignItems: 'center' },
-  streakLabel: {
-    fontSize: Type.size.sm,
-    fontWeight: Type.weight.semibold,
-    opacity: 0.8,
-  },
-  dots: { flexDirection: 'row', gap: Spacing.sm },
   dot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: Borders.thick,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2.5,
+    backgroundColor: 'transparent',
   },
-  streakCount: { fontSize: Type.size.sm },
-  metRow: { gap: Spacing.md },
-  statsRow: { alignItems: 'center' },
-  statText: { fontSize: Type.size.sm },
+  transportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerPill: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  missBtn: { backgroundColor: '#e74c3c' },
+  cleanBtn: { backgroundColor: Status.success },
+  headerPillText: { color: '#fff', fontWeight: Type.weight.bold, fontSize: Type.size.sm },
+  headerBpm: { fontSize: Type.size.md, fontWeight: Type.weight.heavy, marginHorizontal: 6 },
+  headerPlayBtn: {
+    borderWidth: Borders.medium,
+    borderRadius: Radii.sm,
+    width: 32,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusBar: {
+    position: 'absolute',
+    bottom: 12,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  statusText: {
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.semibold,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
+    backgroundColor: '#00000033',
+  },
 });

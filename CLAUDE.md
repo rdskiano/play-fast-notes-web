@@ -23,10 +23,47 @@ If `playweb` doesn't exist yet, the user can run `npm run web` from this folder 
 
 ## Supabase
 
-- One project, owned by the user. URL + anon key live in `.env.local` (gitignored). Vercel reads them from environment variables in production.
+- The user has **multiple Supabase projects** in their account. The web app talks to the project whose ref appears in `.env.local` as `EXPO_PUBLIC_SUPABASE_URL`. Currently `uugodzwxuxgfwujnwpuq` (project name "play-fast-notes-web"). Always confirm the dashboard URL bar matches this ref before running SQL or making bucket changes — running setup against the wrong project looks identical and silently fails to apply.
 - Schema lives in `db/schema.sql` — the user pastes this into Supabase's SQL editor once, when setting up the project. Re-run is idempotent (`create table if not exists`).
 - Auth is **email + password**, configured in `lib/supabase/auth.ts`. The single `continueWithPassword(email, password)` helper tries `signInWithPassword`, falls through to `signUp` if no account exists, and surfaces a friendly error otherwise. **Email confirmation must be OFF** in Supabase (Auth → Providers → Email → "Confirm email" toggle), otherwise signup returns no session and the UI hangs. We chose password over magic link for testing-phase friction; magic link will likely come back at Phase 4.4 alongside Stripe.
 - Every table has Row Level Security with policy `auth.uid() = user_id`. Inserts auto-fill `user_id` via a column-level `default auth.uid()`, so repos don't need to set it manually.
+
+### Storage bucket setup (one-time, dashboard-only — not in `db/schema.sql`)
+
+`db/schema.sql` covers tables only. Storage bucket policies live on `storage.objects` and must be set up separately in the Supabase dashboard. Symptom of missing setup: image uploads fail with `new row violates row-level security policy` while title-only saves succeed.
+
+Setup steps (per project):
+
+1. Dashboard → Storage → "New bucket". Name it exactly `pieces` (lowercase). Leave "Public bucket" OFF — the SQL below grants public read.
+2. Dashboard → SQL Editor → paste and run:
+
+```sql
+drop policy if exists "pieces_public_read" on storage.objects;
+create policy "pieces_public_read"
+on storage.objects for select to public
+using (bucket_id = 'pieces');
+
+drop policy if exists "pieces_owner_insert" on storage.objects;
+create policy "pieces_owner_insert"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'pieces'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+drop policy if exists "pieces_owner_update" on storage.objects;
+create policy "pieces_owner_update"
+on storage.objects for update to authenticated
+using (bucket_id = 'pieces' and auth.uid()::text = (storage.foldername(name))[1])
+with check (bucket_id = 'pieces' and auth.uid()::text = (storage.foldername(name))[1]);
+
+drop policy if exists "pieces_owner_delete" on storage.objects;
+create policy "pieces_owner_delete"
+on storage.objects for delete to authenticated
+using (bucket_id = 'pieces' and auth.uid()::text = (storage.foldername(name))[1]);
+```
+
+The `upsert: true` flag in `lib/supabase/storage.ts` requires the update policy in addition to insert. The path scheme is `<user_id>/<piece_id>.<ext>`, so the foldername check pins each user to their own subfolder.
 
 ## Persistence layer
 

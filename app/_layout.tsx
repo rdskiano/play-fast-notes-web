@@ -2,6 +2,8 @@ import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Redirect, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
+import { PracticeTimerAlertModal } from '@/components/PracticeTimerAlertModal';
+import { PracticeTimersProvider } from '@/components/PracticeTimersContext';
 import { useSession } from '@/lib/supabase/auth';
 
 export const unstable_settings = {
@@ -31,19 +33,24 @@ export default function RootLayout() {
   // Signed in — full app stack. New screens get registered here as they get ported.
   return (
     <ThemeProvider value={DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="upload"
-          options={{ presentation: 'modal', title: 'Add a piece' }}
-        />
-        <Stack.Screen name="piece/[id]/index" options={{ title: 'Piece' }} />
-        <Stack.Screen
-          name="piece/[id]/tempo-ladder"
-          options={{ title: 'Tempo Ladder' }}
-        />
-      </Stack>
+      <PracticeTimersProvider>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="upload"
+            options={{ presentation: 'modal', title: 'Add a piece' }}
+          />
+          <Stack.Screen name="piece/[id]/index" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="piece/[id]/tempo-ladder"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen name="settings" options={{ headerShown: false }} />
+          <Stack.Screen name="library-log" options={{ headerShown: false }} />
+        </Stack>
+        <PracticeTimerAlertModal />
+      </PracticeTimersProvider>
       <StatusBar style="dark" />
     </ThemeProvider>
   );
