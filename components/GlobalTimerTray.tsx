@@ -24,7 +24,7 @@ const TIMER_INFO: { icon: string; title: string; body: string }[] = [
     icon: '🧠',
     title: 'Microbreak Timer',
     body:
-      "New motor skills consolidate during short rests, not during playing. When you pause, your brain replays the passage up to 20× faster and actually locks in the improvement. In Tempo Ladder, breaks fire every 3 clean reps (and on your final rep). In Interleaved Click-Up, every 10 reps.",
+      "New motor skills consolidate during short rests, not during playing. When you pause, your brain replays the passage up to 20× faster and actually locks in the improvement. In Tempo Ladder, breaks fire every 3 clean reps. In Interleaved Click-Up, every 10 reps.",
   },
   {
     icon: '❄️',
