@@ -150,8 +150,8 @@ export default function PieceDetailScreen() {
             </ThemedText>
           </Pressable>
           <Pressable
-            disabled
-            style={[styles.outlinePill, { borderColor: C.icon, opacity: 0.4 }]}>
+            onPress={() => router.push(`/piece/${piece.id}/crop`)}
+            style={[styles.outlinePill, { borderColor: C.icon }]}>
             <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
               Crop
             </ThemedText>

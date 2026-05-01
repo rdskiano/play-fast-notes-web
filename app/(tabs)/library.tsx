@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Modal,
@@ -11,7 +11,9 @@ import {
   View,
 } from 'react-native';
 
+import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
+import { MoveToPicker } from '@/components/MoveToPicker';
 import { PromptModal } from '@/components/PromptModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -20,9 +22,12 @@ import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Overlays, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
+  getFolder,
   getFolderPath,
   insertFolder,
+  listAllFolders,
   listFoldersInParent,
+  moveFolder,
   rehomeOrphans,
   renameFolder,
   softDeleteFolder,
@@ -30,7 +35,9 @@ import {
   type Folder,
 } from '@/lib/db/repos/folders';
 import {
+  getPiece,
   listPiecesInFolder,
+  movePiece,
   renamePiece,
   softDeletePiece,
   updatePieceSortOrder,
@@ -48,6 +55,23 @@ type Prompt =
   | { kind: 'rename_piece'; id: string; initial: string }
   | null;
 
+type MoveTarget =
+  | { kind: 'folder'; id: string }
+  | { kind: 'piece'; id: string }
+  | null;
+
+type ActionTarget =
+  | { kind: 'folder'; folder: Folder }
+  | { kind: 'piece'; piece: Piece }
+  | null;
+
+type UndoMove = {
+  kind: 'folder' | 'piece';
+  id: string;
+  fromParent: string | null;
+  label: string;
+};
+
 function confirmDelete(label: string, message: string): boolean {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     return window.confirm(`Delete "${label}"?\n\n${message}`);
@@ -64,9 +88,11 @@ type FolderCardProps = {
   canMoveUp: boolean;
   canMoveDown: boolean;
   onEnter: () => void;
+  onLongPress: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRename: () => void;
+  onMove: () => void;
   onDelete: () => void;
 };
 
@@ -79,14 +105,18 @@ function FolderCard({
   canMoveUp,
   canMoveDown,
   onEnter,
+  onLongPress,
   onMoveUp,
   onMoveDown,
   onRename,
+  onMove,
   onDelete,
 }: FolderCardProps) {
   return (
     <Pressable
       onPress={editMode ? undefined : onEnter}
+      onLongPress={editMode ? undefined : onLongPress}
+      delayLongPress={400}
       style={[styles.card, { borderColor }]}>
       <View style={[styles.folderIcon, { backgroundColor: tintColor + '22' }]}>
         <IconSymbol name="folder.fill" size={44} color={tintColor} />
@@ -119,6 +149,9 @@ function FolderCard({
             <Pressable hitSlop={6} onPress={onRename} style={styles.editActionBtn}>
               <ThemedText style={[styles.editActionText, { color: tintColor }]}>Rename</ThemedText>
             </Pressable>
+            <Pressable hitSlop={6} onPress={onMove} style={styles.editActionBtn}>
+              <ThemedText style={[styles.editActionText, { color: tintColor }]}>Move</ThemedText>
+            </Pressable>
             <Pressable hitSlop={6} onPress={onDelete} style={styles.editActionBtn}>
               <ThemedText style={[styles.editActionText, { color: '#c0392b' }]}>Delete</ThemedText>
             </Pressable>
@@ -139,9 +172,11 @@ type PieceCardProps = {
   canMoveDown: boolean;
   scuPct: number | null;
   onOpen: () => void;
+  onLongPress: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRename: () => void;
+  onMove: () => void;
   onDelete: () => void;
 };
 
@@ -155,14 +190,18 @@ function PieceCard({
   canMoveDown,
   scuPct,
   onOpen,
+  onLongPress,
   onMoveUp,
   onMoveDown,
   onRename,
+  onMove,
   onDelete,
 }: PieceCardProps) {
   return (
     <Pressable
       onPress={editMode ? undefined : onOpen}
+      onLongPress={editMode ? undefined : onLongPress}
+      delayLongPress={400}
       style={[styles.card, { borderColor }]}>
       {piece.thumbnail_uri ? (
         <Image
@@ -206,6 +245,9 @@ function PieceCard({
             <Pressable hitSlop={6} onPress={onRename} style={styles.editActionBtn}>
               <ThemedText style={[styles.editActionText, { color: tintColor }]}>Rename</ThemedText>
             </Pressable>
+            <Pressable hitSlop={6} onPress={onMove} style={styles.editActionBtn}>
+              <ThemedText style={[styles.editActionText, { color: tintColor }]}>Move</ThemedText>
+            </Pressable>
             <Pressable hitSlop={6} onPress={onDelete} style={styles.editActionBtn}>
               <ThemedText style={[styles.editActionText, { color: '#c0392b' }]}>Delete</ThemedText>
             </Pressable>
@@ -225,24 +267,31 @@ export default function LibraryScreen() {
   const [path, setPath] = useState<Folder[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [pieces, setPieces] = useState<Piece[]>([]);
+  const [allFolders, setAllFolders] = useState<Folder[]>([]);
   const [scuProgress, setScuProgress] = useState<Record<string, number>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [prompt, setPrompt] = useState<Prompt>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [progressionOpen, setProgressionOpen] = useState(false);
+  const [moveTarget, setMoveTarget] = useState<MoveTarget>(null);
+  const [actionTarget, setActionTarget] = useState<ActionTarget>(null);
+  const [undoMove, setUndoMove] = useState<UndoMove | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       await rehomeOrphans();
-      const [f, p, pathF] = await Promise.all([
+      const [f, p, all, pathF] = await Promise.all([
         listFoldersInParent(currentFolderId),
         listPiecesInFolder(currentFolderId),
+        listAllFolders(),
         getFolderPath(currentFolderId),
       ]);
       setFolders(f);
       setPieces(p);
+      setAllFolders(all);
       setPath(pathF);
       if (p.length > 0) {
         const rows = await getTempoLadderProgressForPieces(p.map((x) => x.id));
@@ -270,6 +319,12 @@ export default function LibraryScreen() {
       refresh();
     }, [refresh]),
   );
+
+  useEffect(() => {
+    return () => {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    };
+  }, []);
 
   const q = searchQuery.trim().toLowerCase();
   const filteredFolders = q
@@ -303,18 +358,29 @@ export default function LibraryScreen() {
     id: string,
     direction: -1 | 1,
   ) {
+    console.log('[library] moveItem fired', { kind, id, direction });
     const list = kind === 'folder' ? folders.map((f) => f.id) : pieces.map((p) => p.id);
     const idx = list.indexOf(id);
     const target = idx + direction;
-    if (idx < 0 || target < 0 || target >= list.length) return;
+    console.log('[library] moveItem indices', { idx, target, listLen: list.length });
+    if (idx < 0 || target < 0 || target >= list.length) {
+      console.log('[library] moveItem early-return — out of range');
+      return;
+    }
     const reordered = [...list];
     [reordered[idx], reordered[target]] = [reordered[target], reordered[idx]];
-    for (let i = 0; i < reordered.length; i++) {
-      if (kind === 'folder') {
-        await updateFolderSortOrder(reordered[i], i);
-      } else {
-        await updatePieceSortOrder(reordered[i], i);
-      }
+    console.log('[library] moveItem writing new order', reordered);
+    try {
+      await Promise.all(
+        reordered.map((rid, i) =>
+          kind === 'folder'
+            ? updateFolderSortOrder(rid, i)
+            : updatePieceSortOrder(rid, i),
+        ),
+      );
+      console.log('[library] moveItem writes complete');
+    } catch (e) {
+      console.warn('[library] reorder failed', e);
     }
     refresh();
   }
@@ -351,6 +417,175 @@ export default function LibraryScreen() {
   function onDeletePiece(p: Piece) {
     if (!confirmDelete(p.title, 'This removes the piece from your library.')) return;
     softDeletePiece(p.id).then(refresh).catch(() => undefined);
+  }
+
+  function destinationLabel(targetFolderId: string | null): string {
+    if (targetFolderId === null) return 'Library root';
+    const f = allFolders.find((x) => x.id === targetFolderId);
+    return f?.name ?? 'folder';
+  }
+
+  function scheduleUndoClear() {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => setUndoMove(null), 5000);
+  }
+
+  async function performMoveWithUndo(
+    dragged: { kind: 'folder' | 'piece'; id: string },
+    targetFolderId: string | null,
+  ) {
+    let fromParent: string | null = null;
+    if (dragged.kind === 'folder') {
+      if (dragged.id === targetFolderId) return;
+      const f = await getFolder(dragged.id);
+      if (!f) return;
+      fromParent = f.parent_folder_id;
+      if (fromParent === targetFolderId) return;
+      await moveFolder(dragged.id, targetFolderId);
+    } else {
+      const p = await getPiece(dragged.id);
+      if (!p) return;
+      fromParent = p.folder_id;
+      if (fromParent === targetFolderId) return;
+      await movePiece(dragged.id, targetFolderId);
+    }
+    setUndoMove({
+      kind: dragged.kind,
+      id: dragged.id,
+      fromParent,
+      label: `Moved to ${destinationLabel(targetFolderId)}`,
+    });
+    scheduleUndoClear();
+    refresh();
+  }
+
+  async function onUndoMove() {
+    if (!undoMove) return;
+    const m = undoMove;
+    setUndoMove(null);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    if (m.kind === 'folder') {
+      await moveFolder(m.id, m.fromParent);
+    } else {
+      await movePiece(m.id, m.fromParent);
+    }
+    refresh();
+  }
+
+  async function onPickMove(targetId: string | null) {
+    if (!moveTarget) return;
+    const target = moveTarget;
+    setMoveTarget(null);
+    await performMoveWithUndo(target, targetId);
+  }
+
+  const disabledIdsForMove =
+    moveTarget?.kind === 'folder' ? new Set([moveTarget.id]) : undefined;
+
+  function buildActionItems(): ActionSheetItem[] {
+    if (!actionTarget) return [];
+    const close = () => setActionTarget(null);
+
+    if (actionTarget.kind === 'folder') {
+      const f = actionTarget.folder;
+      const idx = folders.findIndex((x) => x.id === f.id);
+      const items: ActionSheetItem[] = [
+        {
+          label: 'Rename',
+          onPress: () => {
+            close();
+            setPrompt({ kind: 'rename_folder', id: f.id, initial: f.name });
+          },
+        },
+        {
+          label: 'Move to…',
+          onPress: () => {
+            close();
+            setMoveTarget({ kind: 'folder', id: f.id });
+          },
+        },
+      ];
+      if (idx > 0) {
+        items.push({
+          label: '↑ Move up',
+          onPress: () => {
+            close();
+            moveItem('folder', f.id, -1);
+          },
+        });
+      }
+      if (idx >= 0 && idx < folders.length - 1) {
+        items.push({
+          label: '↓ Move down',
+          onPress: () => {
+            close();
+            moveItem('folder', f.id, 1);
+          },
+        });
+      }
+      items.push({
+        label: 'Delete',
+        destructive: true,
+        onPress: () => {
+          close();
+          onDeleteFolder(f);
+        },
+      });
+      return items;
+    }
+
+    const p = actionTarget.piece;
+    const idx = pieces.findIndex((x) => x.id === p.id);
+    const items: ActionSheetItem[] = [
+      {
+        label: 'Rename',
+        onPress: () => {
+          close();
+          setPrompt({ kind: 'rename_piece', id: p.id, initial: p.title });
+        },
+      },
+      {
+        label: 'Move to…',
+        onPress: () => {
+          close();
+          setMoveTarget({ kind: 'piece', id: p.id });
+        },
+      },
+      {
+        label: 'Edit / Crop',
+        onPress: () => {
+          close();
+          router.push(`/piece/${p.id}/crop`);
+        },
+      },
+    ];
+    if (idx > 0) {
+      items.push({
+        label: '↑ Move up',
+        onPress: () => {
+          close();
+          moveItem('piece', p.id, -1);
+        },
+      });
+    }
+    if (idx >= 0 && idx < pieces.length - 1) {
+      items.push({
+        label: '↓ Move down',
+        onPress: () => {
+          close();
+          moveItem('piece', p.id, 1);
+        },
+      });
+    }
+    items.push({
+      label: 'Delete',
+      destructive: true,
+      onPress: () => {
+        close();
+        onDeletePiece(p);
+      },
+    });
+    return items;
   }
 
   const isAtRoot = path.length === 0;
@@ -418,11 +653,12 @@ export default function LibraryScreen() {
         <View style={[styles.editHintBanner, { borderColor: C.tint + '44', backgroundColor: C.tint + '11' }]}>
           <ThemedText style={[styles.editHintText, { color: C.text }]}>
             Tap <ThemedText style={styles.editHintBold}>↑ ↓</ThemedText> to reorder ·{' '}
+            <ThemedText style={styles.editHintBold}>Move</ThemedText> to send to another folder ·{' '}
             <ThemedText style={styles.editHintBold}>Rename</ThemedText> /{' '}
             <ThemedText style={styles.editHintBold}>Delete</ThemedText> as needed
           </ThemedText>
           <ThemedText style={[styles.editHintSub, { color: C.icon }]}>
-            Outside Edit: tap a folder or piece to open it.
+            Outside Edit: tap to open, or long-press for more options.
           </ThemedText>
         </View>
       )}
@@ -512,11 +748,13 @@ export default function LibraryScreen() {
                   canMoveUp={folderIdx > 0}
                   canMoveDown={folderIdx >= 0 && folderIdx < filteredFolders.length - 1}
                   onEnter={() => enterFolder(item.folder.id)}
+                  onLongPress={() => setActionTarget({ kind: 'folder', folder: item.folder })}
                   onMoveUp={() => moveItem('folder', item.folder.id, -1)}
                   onMoveDown={() => moveItem('folder', item.folder.id, 1)}
                   onRename={() =>
                     setPrompt({ kind: 'rename_folder', id: item.folder.id, initial: item.folder.name })
                   }
+                  onMove={() => setMoveTarget({ kind: 'folder', id: item.folder.id })}
                   onDelete={() => onDeleteFolder(item.folder)}
                 />
               );
@@ -533,11 +771,13 @@ export default function LibraryScreen() {
                 canMoveDown={pieceIdx >= 0 && pieceIdx < filteredPieces.length - 1}
                 scuPct={scuProgress[item.piece.id] ?? null}
                 onOpen={() => router.push(`/piece/${item.piece.id}`)}
+                onLongPress={() => setActionTarget({ kind: 'piece', piece: item.piece })}
                 onMoveUp={() => moveItem('piece', item.piece.id, -1)}
                 onMoveDown={() => moveItem('piece', item.piece.id, 1)}
                 onRename={() =>
                   setPrompt({ kind: 'rename_piece', id: item.piece.id, initial: item.piece.title })
                 }
+                onMove={() => setMoveTarget({ kind: 'piece', id: item.piece.id })}
                 onDelete={() => onDeletePiece(item.piece)}
               />
             );
@@ -581,6 +821,46 @@ export default function LibraryScreen() {
         visible={progressionOpen}
         onClose={() => setProgressionOpen(false)}
       />
+
+      <MoveToPicker
+        visible={moveTarget !== null}
+        title={moveTarget?.kind === 'folder' ? 'Move folder to…' : 'Move piece to…'}
+        folders={allFolders}
+        disabledIds={disabledIdsForMove}
+        onPick={onPickMove}
+        onCancel={() => setMoveTarget(null)}
+      />
+
+      <ActionSheet
+        visible={actionTarget !== null}
+        title={
+          actionTarget?.kind === 'folder'
+            ? actionTarget.folder.name
+            : actionTarget?.kind === 'piece'
+              ? actionTarget.piece.title
+              : undefined
+        }
+        items={buildActionItems()}
+        onCancel={() => setActionTarget(null)}
+      />
+
+      {undoMove && (
+        <View pointerEvents="box-none" style={styles.toastAnchor}>
+          <View
+            style={[
+              styles.toast,
+              {
+                backgroundColor: scheme === 'dark' ? '#1f2123' : '#222',
+                borderColor: C.tint,
+              },
+            ]}>
+            <ThemedText style={styles.toastText}>{undoMove.label}</ThemedText>
+            <Pressable onPress={onUndoMove} hitSlop={8} style={styles.toastBtn}>
+              <ThemedText style={[styles.toastBtnText, { color: C.tint }]}>Undo</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      )}
     </ThemedView>
   );
 }
@@ -828,4 +1108,29 @@ const styles = StyleSheet.create({
   progressionBulletText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.md },
   progressionTitle: { fontWeight: Type.weight.heavy, fontSize: 15 },
   progressionBody: { fontSize: Type.size.sm, lineHeight: 18 },
+  toastAnchor: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 24,
+    alignItems: 'center',
+  },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: Radii.lg,
+    borderWidth: Borders.thin,
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 10,
+    maxWidth: 420,
+  },
+  toastText: { color: '#fff', fontWeight: Type.weight.semibold, fontSize: Type.size.md },
+  toastBtn: { paddingHorizontal: Spacing.xs, paddingVertical: 2 },
+  toastBtnText: { fontWeight: Type.weight.heavy, fontSize: Type.size.md },
 });

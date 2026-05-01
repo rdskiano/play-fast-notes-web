@@ -27,7 +27,11 @@ export async function uploadPieceImage(
   if (error) throw error;
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  // Cache-bust: when a piece is re-cropped, the path is identical (upsert
+  // overwrites at <userId>/<pieceId>.<ext>) so browsers and the Supabase CDN
+  // would otherwise keep serving the previous bytes. The version query forces
+  // a fresh fetch each time the row is updated.
+  return `${data.publicUrl}?v=${Date.now()}`;
 }
 
 function inferExt(file: File): string {

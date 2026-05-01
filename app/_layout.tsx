@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import { PracticeTimerAlertModal } from '@/components/PracticeTimerAlertModal';
 import { PracticeTimersProvider } from '@/components/PracticeTimersContext';
+import { StrategyColorsProvider } from '@/components/StrategyColorsContext';
 import { useSession } from '@/lib/supabase/auth';
 
 export const unstable_settings = {
@@ -33,24 +34,34 @@ export default function RootLayout() {
   // Signed in — full app stack. New screens get registered here as they get ported.
   return (
     <ThemeProvider value={DefaultTheme}>
-      <PracticeTimersProvider>
-        <Stack>
+      <StrategyColorsProvider>
+        <PracticeTimersProvider>
+          <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="sign-in" options={{ headerShown: false }} />
           <Stack.Screen
             name="upload"
             options={{ presentation: 'modal', title: 'Add a piece' }}
           />
+          <Stack.Screen
+            name="multi-page"
+            options={{ presentation: 'modal', title: 'Two-page passage' }}
+          />
           <Stack.Screen name="piece/[id]/index" options={{ headerShown: false }} />
           <Stack.Screen
             name="piece/[id]/tempo-ladder"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="piece/[id]/crop"
             options={{ headerShown: false }}
           />
           <Stack.Screen name="settings" options={{ headerShown: false }} />
           <Stack.Screen name="library-log" options={{ headerShown: false }} />
         </Stack>
         <PracticeTimerAlertModal />
-      </PracticeTimersProvider>
+        </PracticeTimersProvider>
+      </StrategyColorsProvider>
       <StatusBar style="dark" />
     </ThemeProvider>
   );

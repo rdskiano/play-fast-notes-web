@@ -68,43 +68,71 @@ export async function getPracticeLogForPiece(
 }
 
 export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntry[]> {
-  const { data, error } = await supabase
-    .from('practice_log')
-    .select(
-      `id, piece_id, strategy, practiced_at, data_json, exercise_id,
-       exercises(name),
-       pieces!inner(title, folder_id, deleted_at, folders(name))`,
-    )
-    .order('practiced_at', { ascending: false });
-  if (error) throw error;
-  return ((data ?? []) as unknown as Array<{
+  // PostgREST cannot infer FKs between practice_log/pieces/exercises/folders in
+  // this project's schema cache, so embedded joins (e.g. `pieces!inner(...)`) 400.
+  // Fetch each table separately and join in JS.
+  const [logsRes, piecesRes, exercisesRes, foldersRes] = await Promise.all([
+    supabase
+      .from('practice_log')
+      .select('id, piece_id, strategy, practiced_at, data_json, exercise_id')
+      .order('practiced_at', { ascending: false }),
+    supabase
+      .from('pieces')
+      .select('id, title, folder_id, deleted_at')
+      .is('deleted_at', null),
+    supabase.from('exercises').select('id, name'),
+    supabase.from('folders').select('id, name').is('deleted_at', null),
+  ]);
+  if (logsRes.error) throw logsRes.error;
+  if (piecesRes.error) throw piecesRes.error;
+  if (exercisesRes.error) throw exercisesRes.error;
+  if (foldersRes.error) throw foldersRes.error;
+
+  const pieceById = new Map<
+    string,
+    { title: string; folder_id: string | null }
+  >();
+  for (const p of (piecesRes.data ?? []) as Array<{
+    id: string;
+    title: string;
+    folder_id: string | null;
+  }>) {
+    pieceById.set(p.id, { title: p.title, folder_id: p.folder_id });
+  }
+  const exerciseNames = new Map<string, string>();
+  for (const e of (exercisesRes.data ?? []) as Array<{ id: string; name: string | null }>) {
+    if (e.name) exerciseNames.set(e.id, e.name);
+  }
+  const folderNames = new Map<string, string>();
+  for (const f of (foldersRes.data ?? []) as Array<{ id: string; name: string | null }>) {
+    if (f.name) folderNames.set(f.id, f.name);
+  }
+
+  return ((logsRes.data ?? []) as unknown as Array<{
     id: number;
     piece_id: string;
     strategy: string;
     practiced_at: number;
     data_json: string | null;
     exercise_id: string | null;
-    exercises: { name: string | null } | null;
-    pieces: {
-      title: string;
-      folder_id: string | null;
-      deleted_at: number | null;
-      folders: { name: string | null } | null;
-    };
   }>)
-    .filter((r) => r.pieces.deleted_at === null)
-    .map((r) => ({
-      id: r.id,
-      piece_id: r.piece_id,
-      strategy: r.strategy,
-      practiced_at: r.practiced_at,
-      data_json: r.data_json,
-      exercise_id: r.exercise_id,
-      exercise_name: r.exercises?.name ?? null,
-      piece_title: r.pieces.title,
-      folder_id: r.pieces.folder_id,
-      folder_name: r.pieces.folders?.name ?? null,
-    }));
+    .map((r) => {
+      const piece = pieceById.get(r.piece_id);
+      if (!piece) return null;
+      return {
+        id: r.id,
+        piece_id: r.piece_id,
+        strategy: r.strategy,
+        practiced_at: r.practiced_at,
+        data_json: r.data_json,
+        exercise_id: r.exercise_id,
+        exercise_name: r.exercise_id ? exerciseNames.get(r.exercise_id) ?? null : null,
+        piece_title: piece.title,
+        folder_id: piece.folder_id,
+        folder_name: piece.folder_id ? folderNames.get(piece.folder_id) ?? null : null,
+      };
+    })
+    .filter((r): r is LibraryPracticeLogEntry => r !== null);
 }
 
 export async function updatePracticeLogMoodNote(
