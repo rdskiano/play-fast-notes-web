@@ -56,6 +56,23 @@ export default function RootLayout() {
             name="piece/[id]/crop"
             options={{ headerShown: false }}
           />
+          <Stack.Screen name="piece/[id]/history" />
+          <Stack.Screen
+            name="piece/[id]/click-up"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="piece/[id]/rhythmic"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="piece/[id]/rhythm-list"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="piece/[id]/rhythm-builder"
+            options={{ headerShown: false }}
+          />
           <Stack.Screen name="settings" options={{ headerShown: false }} />
           <Stack.Screen name="library-log" options={{ headerShown: false }} />
         </Stack>

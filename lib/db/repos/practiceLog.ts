@@ -42,20 +42,32 @@ export async function logPractice(
 export async function getPracticeLogForPiece(
   piece_id: string,
 ): Promise<PracticeLogEntry[]> {
-  const { data, error } = await supabase
-    .from('practice_log')
-    .select('id, piece_id, strategy, practiced_at, data_json, exercise_id, exercises(name)')
-    .eq('piece_id', piece_id)
-    .order('practiced_at', { ascending: false });
-  if (error) throw error;
-  return ((data ?? []) as unknown as Array<{
+  // PostgREST cannot infer the practice_log → exercises FK in this Supabase
+  // project, so embedded `exercises(name)` joins 400. Fetch the two tables
+  // separately and join in JS.
+  const [logsRes, exercisesRes] = await Promise.all([
+    supabase
+      .from('practice_log')
+      .select('id, piece_id, strategy, practiced_at, data_json, exercise_id')
+      .eq('piece_id', piece_id)
+      .order('practiced_at', { ascending: false }),
+    supabase.from('exercises').select('id, name').eq('piece_id', piece_id),
+  ]);
+  if (logsRes.error) throw logsRes.error;
+  if (exercisesRes.error) throw exercisesRes.error;
+
+  const exerciseNames = new Map<string, string>();
+  for (const e of (exercisesRes.data ?? []) as Array<{ id: string; name: string | null }>) {
+    if (e.name) exerciseNames.set(e.id, e.name);
+  }
+
+  return ((logsRes.data ?? []) as unknown as Array<{
     id: number;
     piece_id: string;
     strategy: string;
     practiced_at: number;
     data_json: string | null;
     exercise_id: string | null;
-    exercises: { name: string | null } | null;
   }>).map((r) => ({
     id: r.id,
     piece_id: r.piece_id,
@@ -63,7 +75,7 @@ export async function getPracticeLogForPiece(
     practiced_at: r.practiced_at,
     data_json: r.data_json,
     exercise_id: r.exercise_id,
-    exercise_name: r.exercises?.name ?? null,
+    exercise_name: r.exercise_id ? exerciseNames.get(r.exercise_id) ?? null : null,
   }));
 }
 

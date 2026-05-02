@@ -76,7 +76,40 @@ Repos in `lib/db/repos/*.ts` mirror the function signatures of `../learn-fast-no
 
 ## Audio (metronome)
 
-The metronome on web is a hand-rolled Web Audio API scheduler at `lib/audio/useMetronome.ts` (~80 lines). The iPad app uses `react-native-audio-api`; we intentionally did not depend on that on web because Web Audio is a clean, stable interface and the dependency isn't needed. The scheduler uses an `AudioContext` clock with a 100ms lookahead — stable timing despite main-thread jitter. Browsers require a user gesture before audio plays (the Start metronome button satisfies this).
+The metronome on web is a hand-rolled Web Audio API scheduler at `lib/audio/useMetronome.ts`. The iPad app uses `react-native-audio-api`; we intentionally did not depend on that on web because Web Audio is a clean, stable interface and the dependency isn't needed. The scheduler uses an `AudioContext` clock with a 100ms lookahead — stable timing despite main-thread jitter. Browsers require a user gesture before audio plays (the Start metronome button satisfies this).
+
+The hook also includes a **rhythm-pattern looper** (`startRhythmLoop` / `stopRhythmLoop` / `toggleRhythmLoop` + `rhythmLooping`) used by Rhythmic Variation. It walks an array of `RhythmToken`s and schedules each click at `tokenQuarterFraction × (4 / beatDenominator) × (60 / bpm)` seconds. A dedicated `GainNode` (`rhythmGate`) lets stop calls mute anything already queued in the lookahead window.
+
+## Notation rendering (abcjs)
+
+`components/AbcStaffView.tsx` renders ABC notation as a staff snippet for Rhythmic Variation. abcjs is **loaded from the unpkg CDN at runtime via a script-tag injection** — no `npm install abcjs` is needed. The first call adds `<script src="https://unpkg.com/abcjs@6/dist/abcjs-basic-min.js">` and resolves a shared promise on `script.onload`; subsequent renders read `window.ABCJS` directly.
+
+iPad's AbcStaffView lives in a WebView and uses scale 1.0 for centered (small) usages and 1.6 for the playing-card. The web port mirrors those scales and uses `staffwidth = width - 10`, **without** `responsive: 'resize'`. With `responsive: 'resize'`, abcjs stretches notes to fill the parent container — fine for big cards but ugly when the parent is narrow. Keeping it off makes notes render at their natural compact size.
+
+`lib/notation/buildAbc.ts` is a direct copy of the iPad version — it converts a `RhythmPattern` into an ABC string with auto-beam grouping based on time signature.
+
+## Floating cards: drag + pinch
+
+`FloatingSlowClickUpControls`, `FloatingClickUpControls`, `FloatingMetronome`, `FloatingRhythmCard` are draggable + pinch-resizable. iPad uses `useDraggableCard` (Reanimated + react-native-gesture-handler). Web uses pointer events directly:
+
+- One pointer on the drag handle → drag
+- Two pointers anywhere on the card → pinch (track distance change, scale 0.6–1.6)
+- `wheel` event with `ctrlKey: true` → trackpad pinch on Mac (Chrome/Safari fire this for trackpad pinch)
+- The card is `position: absolute` with `transform: scale(...)` and `transformOrigin: 'top left'`
+
+## Supabase quirks worth knowing
+
+- **PostgREST cannot infer FKs between `practice_log`, `pieces`, `exercises`, `folders`** in this project. Embedded joins (e.g. `practice_log?select=...,exercises(name)`) return `PGRST200`. Workaround: fetch tables separately and join client-side via `Map<id, row>`. See `lib/db/repos/practiceLog.ts` for the pattern (`getPracticeLogForLibrary`, `getPracticeLogForPiece` both use it).
+- **Storage URLs need a cache-buster.** When a piece is re-cropped, the upsert path is the same (`<userId>/<pieceId>.<ext>`), so the public URL is identical. Browsers and the Supabase CDN serve the stale bytes. `lib/supabase/storage.ts` appends `?v=<Date.now()>` to the returned URL, and that goes into `pieces.source_uri` — every save invalidates the cache.
+- **No `subdivision` column on `tempo_ladder_progress`.** Subdivision is metronome state, ephemeral, not persisted.
+
+## Adding a new route file
+
+Expo-router 6 sometimes does not detect a brand-new file under `app/` until Metro is restarted. Symptom: navigating to the URL renders the bare path (e.g. `piece/[id]/click-up`) as text instead of the screen. Fix: tell the user to **Ctrl+C** the dev server and run `playweb` again. HMR-only edits to existing files don't have this issue.
+
+## iPad references for porting
+
+`reference-screenshots/ipad/<route>.png` (and `<route>-state.png` for screens with multiple states) captures the iPad ground truth. Workflow: ask the user for one fresh screenshot per port, drop into the convention path, then read/diff after the port. Convention names already in tree: `library-log`, `library-add-modal`, `upload`, `multi-page-preview1..6`, `tempo-ladder-{setup,practice}`, `click-up-{marking,setup,practice}`, `piece-history`, `rhythm-1`/`rhythm-2`/`rhythm-3` (Rhythmic Variation).
 
 ## Deploy
 

@@ -1,0 +1,231 @@
+// AUTO-GENERATED from Rhythm Pattern Database CSV. Do not edit by hand.
+// 175 rhythm patterns, grouped 3..8 notes per pattern.
+
+export type RhythmToken =
+  | "h"
+  | "q" | "q."
+  | "8" | "8." | "8t"
+  | "16" | "16." | "16t"
+  | "32" | "32t";
+
+export type Grouping = 3 | 4 | 5 | 6 | 7 | 8;
+
+/**
+ * Sounding duration of each token as a multiple of a quarter note.
+ * Triplet tokens use exact fractions (not the abcjs layout units from
+ * TOKEN_UNITS) so playback lines up with real time.
+ */
+/**
+ * Extract the lower numeral (beat unit) from a time signature string
+ * like "3/8" → 8. Used so playback tempo can be interpreted as "BPM
+ * of one beat of the denominator" instead of always-quarters.
+ */
+export function parseBeatDenominator(timeSig: string): number {
+  const parts = timeSig.split('/');
+  const d = parseInt(parts[1] ?? '4', 10);
+  return Number.isFinite(d) && d > 0 ? d : 4;
+}
+
+export const TOKEN_QUARTER_FRACTIONS: Record<RhythmToken, number> = {
+  h: 2,
+  q: 1,
+  'q.': 1.5,
+  '8': 0.5,
+  '8.': 0.75,
+  '8t': 1 / 3,
+  '16': 0.25,
+  '16.': 0.375,
+  '16t': 1 / 6,
+  '32': 0.125,
+  '32t': 1 / 12,
+};
+
+export type RhythmPattern = {
+  id: number;
+  grouping: Grouping;
+  timeSig: string;
+  beaming: string | null;
+  notes: RhythmToken[];
+};
+
+export const RHYTHM_PATTERNS: RhythmPattern[] = [
+  { id: 1, grouping: 3, timeSig: "2/8", beaming: null, notes: ["8", "16", "16"] },
+  { id: 2, grouping: 3, timeSig: "2/8", beaming: null, notes: ["16", "16", "8"] },
+  { id: 3, grouping: 3, timeSig: "2/8", beaming: null, notes: ["16", "8", "16"] },
+  { id: 4, grouping: 3, timeSig: "2/8", beaming: null, notes: ["8", "16.", "32"] },
+  { id: 5, grouping: 3, timeSig: "2/8", beaming: null, notes: ["8.", "32", "32"] },
+  { id: 6, grouping: 3, timeSig: "2/8", beaming: null, notes: ["32", "32", "8."] },
+  { id: 7, grouping: 3, timeSig: "2/8", beaming: "0", notes: ["32", "8.", "32"] },
+  { id: 8, grouping: 3, timeSig: "3/8", beaming: "2+1", notes: ["8.", "16", "8"] },
+  { id: 9, grouping: 3, timeSig: "3/8", beaming: "1+2", notes: ["8", "8.", "16"] },
+  { id: 10, grouping: 3, timeSig: "3/8", beaming: null, notes: ["8", "16", "8."] },
+  { id: 11, grouping: 3, timeSig: "5/8", beaming: null, notes: ["q.", "8", "8"] },
+  { id: 12, grouping: 3, timeSig: "5/8", beaming: null, notes: ["8", "8", "q."] },
+  { id: 13, grouping: 3, timeSig: "5/8", beaming: null, notes: ["8", "q.", "8"] },
+  { id: 14, grouping: 3, timeSig: "5/8", beaming: null, notes: ["q", "q", "8"] },
+  { id: 15, grouping: 3, timeSig: "5/8", beaming: null, notes: ["q", "8", "q"] },
+  { id: 16, grouping: 3, timeSig: "5/8", beaming: null, notes: ["8.", "16", "q."] },
+  { id: 17, grouping: 3, timeSig: "5/8", beaming: null, notes: ["q.", "8.", "16"] },
+  { id: 25, grouping: 4, timeSig: "3/8", beaming: null, notes: ["8", "8", "16", "16"] },
+  { id: 26, grouping: 4, timeSig: "3/8", beaming: null, notes: ["16", "16", "8", "8"] },
+  { id: 27, grouping: 4, timeSig: "3/8", beaming: null, notes: ["8", "16", "16", "8"] },
+  { id: 28, grouping: 4, timeSig: "3/8", beaming: "3", notes: ["16", "8", "8", "16"] },
+  { id: 29, grouping: 4, timeSig: "3/8", beaming: "2+1", notes: ["8.", "16", "16", "16"] },
+  { id: 30, grouping: 4, timeSig: "3/8", beaming: "1+2", notes: ["16", "16", "8.", "16"] },
+  { id: 31, grouping: 4, timeSig: "3/8", beaming: null, notes: ["16", "8.", "16", "16"] },
+  { id: 32, grouping: 4, timeSig: "3/8", beaming: null, notes: ["16", "16", "16", "8."] },
+  { id: 33, grouping: 4, timeSig: "2/4", beaming: null, notes: ["8.", "16", "8", "8"] },
+  { id: 34, grouping: 4, timeSig: "2/4", beaming: null, notes: ["8", "8", "8.", "16"] },
+  { id: 35, grouping: 4, timeSig: "2/4", beaming: "4", notes: ["8", "8.", "16", "8"] },
+  { id: 36, grouping: 4, timeSig: "2/4", beaming: null, notes: ["16", "8.", "8", "8"] },
+  { id: 37, grouping: 4, timeSig: "2/4", beaming: null, notes: ["8.", "16", "16", "8."] },
+  { id: 38, grouping: 4, timeSig: "2/4", beaming: null, notes: ["16", "8.", "8.", "16"] },
+  { id: 39, grouping: 4, timeSig: "5/8", beaming: null, notes: ["q", "8", "8", "8"] },
+  { id: 40, grouping: 4, timeSig: "5/8", beaming: null, notes: ["8", "q", "8", "8"] },
+  { id: 41, grouping: 4, timeSig: "5/8", beaming: null, notes: ["q", "8.", "16", "8"] },
+  { id: 42, grouping: 4, timeSig: "5/8", beaming: null, notes: ["8.", "16", "q", "8"] },
+  { id: 43, grouping: 4, timeSig: "7/8", beaming: null, notes: ["q", "8", "q", "q"] },
+  { id: 44, grouping: 4, timeSig: "7/8", beaming: null, notes: ["q", "q", "8", "q"] },
+  { id: 45, grouping: 4, timeSig: "7/8", beaming: "3+3+2", notes: ["q.", "8.", "16", "q"] },
+  { id: 46, grouping: 5, timeSig: "3/8", beaming: null, notes: ["8", "16", "16", "16", "16"] },
+  { id: 47, grouping: 5, timeSig: "3/8", beaming: null, notes: ["16", "16", "16", "16", "8"] },
+  { id: 48, grouping: 5, timeSig: "3/8", beaming: null, notes: ["16", "16", "8", "16", "16"] },
+  { id: 49, grouping: 5, timeSig: "3/8", beaming: null, notes: ["8", "16.", "32", "16.", "32"] },
+  { id: 50, grouping: 5, timeSig: "3/8", beaming: null, notes: ["16.", "32", "16.", "32", "8"] },
+  { id: 51, grouping: 5, timeSig: "3/8", beaming: null, notes: ["8", "8", "16t", "16t", "16t"] },
+  { id: 52, grouping: 5, timeSig: "3/8", beaming: null, notes: ["16t", "16t", "16t", "8", "8"] },
+  { id: 53, grouping: 5, timeSig: "3/8", beaming: null, notes: ["8", "16t", "16t", "16t", "8"] },
+  { id: 54, grouping: 5, timeSig: "2/4", beaming: null, notes: ["q", "16", "16", "16", "16"] },
+  { id: 55, grouping: 5, timeSig: "2/4", beaming: null, notes: ["16", "16", "16", "16", "q"] },
+  { id: 56, grouping: 5, timeSig: "2/4", beaming: null, notes: ["8", "8", "8t", "8t", "8t"] },
+  { id: 57, grouping: 5, timeSig: "2/4", beaming: null, notes: ["8t", "8t", "8t", "8", "8"] },
+  { id: 58, grouping: 5, timeSig: "2/4", beaming: null, notes: ["8.", "16", "8t", "8t", "8t"] },
+  { id: 59, grouping: 5, timeSig: "2/4", beaming: null, notes: ["8t", "8t", "8t", "8.", "16"] },
+  { id: 60, grouping: 5, timeSig: "5/16", beaming: null, notes: ["16.", "32", "16", "16", "16"] },
+  { id: 61, grouping: 5, timeSig: "5/16", beaming: null, notes: ["16", "16", "16", "16.", "32"] },
+  { id: 62, grouping: 5, timeSig: "5/16", beaming: null, notes: ["8", "16", "16", "32", "32"] },
+  { id: 63, grouping: 5, timeSig: "5/16", beaming: null, notes: ["32", "32", "16", "16", "8"] },
+  { id: 64, grouping: 5, timeSig: "5/8", beaming: null, notes: ["8.", "16", "8.", "16", "8"] },
+  { id: 65, grouping: 5, timeSig: "5/8", beaming: null, notes: ["8.", "16", "8", "8.", "16"] },
+  { id: 66, grouping: 5, timeSig: "7/16", beaming: null, notes: ["8", "8", "16", "16", "16"] },
+  { id: 67, grouping: 5, timeSig: "7/16", beaming: null, notes: ["8", "16", "16", "8", "16"] },
+  { id: 68, grouping: 5, timeSig: "7/16", beaming: null, notes: ["8", "16", "16", "16", "8"] },
+  { id: 69, grouping: 5, timeSig: "7/16", beaming: null, notes: ["16", "16", "8", "8", "16"] },
+  { id: 70, grouping: 5, timeSig: "7/16", beaming: "3+4", notes: ["16", "16", "16", "8.", "16"] },
+  { id: 71, grouping: 6, timeSig: "3/4", beaming: null, notes: ["8.", "16", "8.", "16", "8.", "16"] },
+  { id: 72, grouping: 6, timeSig: "3/4", beaming: null, notes: ["16", "8.", "16", "8.", "16", "8."] },
+  { id: 73, grouping: 6, timeSig: "2/4", beaming: null, notes: ["8", "8", "16", "16", "16", "16"] },
+  { id: 74, grouping: 6, timeSig: "2/4", beaming: null, notes: ["8", "16", "16", "16", "16", "8"] },
+  { id: 75, grouping: 6, timeSig: "2/4", beaming: null, notes: ["16", "16", "16", "16", "8", "8"] },
+  { id: 76, grouping: 6, timeSig: "2/4", beaming: null, notes: ["16", "16", "8", "8", "16", "16"] },
+  { id: 77, grouping: 6, timeSig: "2/4", beaming: null, notes: ["16", "8", "16", "8", "16", "16"] },
+  { id: 78, grouping: 6, timeSig: "2/4", beaming: null, notes: ["16", "8", "16", "16", "16", "8"] },
+  { id: 79, grouping: 6, timeSig: "2/4", beaming: null, notes: ["16", "8", "8", "16", "16", "16"] },
+  { id: 80, grouping: 6, timeSig: "2/4", beaming: null, notes: ["8", "16", "16", "16", "8", "16"] },
+  { id: 81, grouping: 6, timeSig: "2/4", beaming: "2+2", notes: ["8", "8", "8", "16t", "16t", "16t"] },
+  { id: 82, grouping: 6, timeSig: "2/4", beaming: "2+2", notes: ["8", "8", "16t", "16t", "16t", "8"] },
+  { id: 83, grouping: 6, timeSig: "2/4", beaming: "2+2", notes: ["8", "16t", "16t", "16t", "8", "8"] },
+  { id: 84, grouping: 6, timeSig: "2/4", beaming: "2+2", notes: ["16t", "16t", "16t", "8", "8", "8"] },
+  { id: 85, grouping: 6, timeSig: "2/4", beaming: null, notes: ["8.", "16", "16", "16", "16", "16"] },
+  { id: 86, grouping: 6, timeSig: "2/4", beaming: "2", notes: ["16", "16", "8.", "16", "16", "16"] },
+  { id: 87, grouping: 6, timeSig: "2/4", beaming: null, notes: ["16", "16", "16", "16", "16", "8."] },
+  { id: 88, grouping: 6, timeSig: "2/4", beaming: null, notes: ["16", "8.", "16", "16", "16", "16"] },
+  { id: 89, grouping: 6, timeSig: "2/4", beaming: "2+2", notes: ["8.", "32t", "32t", "32t", "8.", "16"] },
+  { id: 90, grouping: 6, timeSig: "2/4", beaming: "2+2", notes: ["8.", "16", "8.", "32t", "32t", "32t"] },
+  { id: 91, grouping: 6, timeSig: "2/4", beaming: "2+2", notes: ["32t", "32t", "32t", "8.", "16", "8."] },
+  { id: 92, grouping: 6, timeSig: "3/8", beaming: null, notes: ["8", "8", "32", "32", "32", "32"] },
+  { id: 93, grouping: 6, timeSig: "3/8", beaming: null, notes: ["32", "32", "32", "32", "8", "8"] },
+  { id: 94, grouping: 6, timeSig: "3/8", beaming: "3", notes: ["32", "32", "8", "8", "32", "32"] },
+  { id: 95, grouping: 6, timeSig: "3/8", beaming: null, notes: ["8", "16", "16", "16t", "16t", "16t"] },
+  { id: 96, grouping: 6, timeSig: "3/8", beaming: null, notes: ["16t", "16t", "16t", "16", "16", "8"] },
+  { id: 97, grouping: 6, timeSig: "3/8", beaming: null, notes: ["16t", "16t", "16t", "8.", "32", "32"] },
+  { id: 98, grouping: 6, timeSig: "6/8", beaming: null, notes: ["8", "8", "8", "8.", "16", "8"] },
+  { id: 99, grouping: 6, timeSig: "6/8", beaming: null, notes: ["8.", "16", "8", "8", "8", "8"] },
+  { id: 100, grouping: 6, timeSig: "6/8", beaming: null, notes: ["8", "8.", "16", "8.", "16", "8"] },
+  { id: 101, grouping: 6, timeSig: "6/8", beaming: null, notes: ["8.", "16", "8", "8", "8.", "16"] },
+  { id: 102, grouping: 6, timeSig: "5/8", beaming: null, notes: ["16", "16", "8", "8", "8", "8"] },
+  { id: 103, grouping: 6, timeSig: "5/8", beaming: null, notes: ["8", "16", "16", "8", "8", "8"] },
+  { id: 104, grouping: 6, timeSig: "5/8", beaming: null, notes: ["8", "8", "16", "16", "8", "8"] },
+  { id: 105, grouping: 6, timeSig: "5/8", beaming: null, notes: ["8", "8", "8", "16", "16", "8"] },
+  { id: 106, grouping: 6, timeSig: "5/8", beaming: null, notes: ["8", "8", "8", "8", "16", "16"] },
+  { id: 107, grouping: 6, timeSig: "5/8", beaming: null, notes: ["16", "16", "8", "8.", "16", "8"] },
+  { id: 108, grouping: 6, timeSig: "5/8", beaming: null, notes: ["8.", "16", "8", "8", "16", "16"] },
+  { id: 109, grouping: 6, timeSig: "5/8", beaming: "3+2", notes: ["16", "16", "8.", "16", "8.", "16"] },
+  { id: 110, grouping: 6, timeSig: "5/8", beaming: null, notes: ["8.", "16", "8.", "16", "16", "16"] },
+  { id: 111, grouping: 6, timeSig: "7/8", beaming: null, notes: ["q", "8", "8", "8", "8", "8"] },
+  { id: 112, grouping: 6, timeSig: "7/8", beaming: "3+2+2", notes: ["8", "8", "8", "q", "8", "8"] },
+  { id: 113, grouping: 6, timeSig: "7/8", beaming: null, notes: ["8", "q", "8", "8", "8", "8"] },
+  { id: 114, grouping: 6, timeSig: "7/8", beaming: "3+2+2", notes: ["q", "8", "8.", "16", "8.", "16"] },
+  { id: 115, grouping: 6, timeSig: "7/8", beaming: "3+2+2", notes: ["8.", "16", "8", "q", "16", "8."] },
+  { id: 116, grouping: 6, timeSig: "7/8", beaming: null, notes: ["q", "8.", "16", "8.", "16", "8"] },
+  { id: 117, grouping: 7, timeSig: "2/4", beaming: null, notes: ["8", "16", "16", "16", "16", "16", "16"] },
+  { id: 118, grouping: 7, timeSig: "2/4", beaming: null, notes: ["16", "16", "16", "16", "16", "16", "8"] },
+  { id: 119, grouping: 7, timeSig: "2/4", beaming: null, notes: ["16", "16", "8", "16", "16", "16", "16"] },
+  { id: 120, grouping: 7, timeSig: "2/4", beaming: null, notes: ["16", "8", "16", "16", "16", "16", "16"] },
+  { id: 121, grouping: 7, timeSig: "2/4", beaming: null, notes: ["8", "16.", "32", "16.", "32", "16.", "32"] },
+  { id: 122, grouping: 7, timeSig: "2/4", beaming: null, notes: ["32", "16.", "32", "16.", "32", "16.", "8"] },
+  { id: 123, grouping: 7, timeSig: "2/4", beaming: null, notes: ["q", "16t", "16t", "16t", "16t", "16t", "16t"] },
+  { id: 124, grouping: 7, timeSig: "2/4", beaming: null, notes: ["16t", "16t", "16t", "16t", "16t", "16t", "q"] },
+  { id: 125, grouping: 7, timeSig: "2/4", beaming: null, notes: ["16t", "16t", "16t", "q", "16t", "16t", "16t"] },
+  { id: 126, grouping: 7, timeSig: "2/4", beaming: null, notes: ["16", "16", "16", "16", "8t", "8t", "8t"] },
+  { id: 127, grouping: 7, timeSig: "2/4", beaming: null, notes: ["8t", "8t", "8t", "16", "16", "16", "16"] },
+  { id: 128, grouping: 7, timeSig: "3/8", beaming: null, notes: ["8", "16t", "16t", "16t", "16t", "16t", "16t"] },
+  { id: 129, grouping: 7, timeSig: "3/8", beaming: null, notes: ["16t", "16t", "16t", "8", "16t", "16t", "16t"] },
+  { id: 130, grouping: 7, timeSig: "3/8", beaming: null, notes: ["16t", "16t", "16t", "16t", "16t", "16t", "8"] },
+  { id: 131, grouping: 7, timeSig: "3/8", beaming: null, notes: ["8", "16", "16", "32", "32", "32", "32"] },
+  { id: 132, grouping: 7, timeSig: "3/8", beaming: null, notes: ["32", "32", "32", "32", "16", "16", "8"] },
+  { id: 133, grouping: 7, timeSig: "3/8", beaming: null, notes: ["32", "32", "32", "32", "8", "16", "16"] },
+  { id: 134, grouping: 7, timeSig: "3/4", beaming: null, notes: ["8.", "16", "16", "8", "16", "16", "8."] },
+  { id: 135, grouping: 7, timeSig: "3/4", beaming: "4+2", notes: ["16", "8", "8", "8", "16", "8.", "16"] },
+  { id: 136, grouping: 7, timeSig: "5/8", beaming: null, notes: ["8", "8", "8", "16", "16", "16", "16"] },
+  { id: 137, grouping: 7, timeSig: "5/8", beaming: null, notes: ["16", "16", "16", "16", "8", "8", "8"] },
+  { id: 138, grouping: 7, timeSig: "5/8", beaming: null, notes: ["8", "8", "16", "16", "8", "16", "16"] },
+  { id: 139, grouping: 7, timeSig: "5/8", beaming: null, notes: ["8", "16", "16", "8", "16", "16", "8"] },
+  { id: 140, grouping: 7, timeSig: "5/8", beaming: null, notes: ["16", "16", "8", "8", "8", "16", "16"] },
+  { id: 143, grouping: 7, timeSig: "5/8", beaming: "5", notes: ["8.", "16", "16", "8", "16", "16", "16"] },
+  { id: 144, grouping: 7, timeSig: "5/8", beaming: null, notes: ["8.", "16", "8", "16.", "32", "16.", "32"] },
+  { id: 145, grouping: 7, timeSig: "5/8", beaming: null, notes: ["16.", "32", "16.", "32", "8.", "16", "8"] },
+  { id: 147, grouping: 7, timeSig: "7/8", beaming: null, notes: ["8.", "16", "8.", "16", "8.", "16", "8"] },
+  { id: 148, grouping: 7, timeSig: "7/8", beaming: "3+4", notes: ["8.", "16", "8", "8.", "16", "8.", "16"] },
+  { id: 149, grouping: 7, timeSig: "7/8", beaming: null, notes: ["8.", "16", "8.", "16", "8", "8.", "16"] },
+  { id: 150, grouping: 8, timeSig: "2/4", beaming: null, notes: ["16.", "32", "16", "16", "16", "16", "16", "16"] },
+  { id: 151, grouping: 8, timeSig: "2/4", beaming: null, notes: ["32", "16.", "16", "16", "16", "16", "16", "16"] },
+  { id: 152, grouping: 8, timeSig: "2/4", beaming: null, notes: ["16", "16", "16", "16", "16.", "32", "16", "16"] },
+  { id: 153, grouping: 8, timeSig: "2/4", beaming: null, notes: ["16", "16", "16", "16", "16", "16", "32", "16."] },
+  { id: 154, grouping: 8, timeSig: "2/4", beaming: null, notes: ["16.", "32", "16", "16", "16", "16", "32", "16."] },
+  { id: 155, grouping: 8, timeSig: "2/4", beaming: null, notes: ["16", "16", "32", "16.", "16.", "32", "16", "16"] },
+  { id: 156, grouping: 8, timeSig: "2/4", beaming: null, notes: ["16", "16", "16", "16", "16.", "32", "16.", "32"] },
+  { id: 157, grouping: 8, timeSig: "2/4", beaming: null, notes: ["32", "16.", "32", "16.", "16", "16", "16", "16"] },
+  { id: 158, grouping: 8, timeSig: "2/4", beaming: null, notes: ["16", "16", "16.", "32", "16.", "32", "16", "16"] },
+  { id: 159, grouping: 8, timeSig: "4/4", beaming: null, notes: ["8.", "16", "8.", "16", "16", "8.", "16", "8."] },
+  { id: 160, grouping: 8, timeSig: "4/4", beaming: null, notes: ["16", "8.", "16", "8.", "8.", "16", "8.", "16"] },
+  { id: 161, grouping: 8, timeSig: "4/4", beaming: null, notes: ["8.", "16", "16", "8.", "16", "8.", "8.", "16"] },
+  { id: 162, grouping: 8, timeSig: "4/4", beaming: null, notes: ["16", "8.", "8.", "16", "16", "8.", "8.", "16"] },
+  { id: 163, grouping: 8, timeSig: "6/8", beaming: null, notes: ["8", "8", "16", "16", "16", "16", "8", "8"] },
+  { id: 164, grouping: 8, timeSig: "6/8", beaming: null, notes: ["8", "16", "16", "8", "8", "8", "16", "16"] },
+  { id: 165, grouping: 8, timeSig: "6/8", beaming: null, notes: ["16", "16", "8", "8", "8", "16", "16", "8"] },
+  { id: 166, grouping: 8, timeSig: "6/8", beaming: null, notes: ["8", "16", "16", "16", "16", "8.", "16", "8"] },
+  { id: 167, grouping: 8, timeSig: "6/8", beaming: null, notes: ["8.", "16", "16", "16", "16", "16", "16", "8."] },
+  { id: 168, grouping: 8, timeSig: "6/8", beaming: null, notes: ["8", "8.", "16", "16", "16", "16", "16", "8"] },
+  { id: 169, grouping: 8, timeSig: "6/8", beaming: null, notes: ["16", "8", "8", "16", "16", "16", "8", "8"] },
+  { id: 171, grouping: 8, timeSig: "6/8", beaming: null, notes: ["8", "8", "16", "16", "16", "8", "8", "16"] },
+  { id: 172, grouping: 8, timeSig: "2/4", beaming: null, notes: ["8", "16t", "16t", "16t", "16t", "16t", "16t", "8"] },
+  { id: 173, grouping: 8, timeSig: "2/4", beaming: null, notes: ["16t", "16t", "16t", "8", "8", "16t", "16t", "16t"] },
+  { id: 174, grouping: 8, timeSig: "2/4", beaming: null, notes: ["8", "16t", "16t", "16t", "16", "16", "16", "16"] },
+  { id: 175, grouping: 8, timeSig: "2/4", beaming: null, notes: ["16.", "32", "16.", "32", "16t", "16t", "16t", "8"] },
+  { id: 176, grouping: 8, timeSig: "2/4", beaming: null, notes: ["8t", "8t", "8t", "8", "32", "32", "32", "32"] },
+  { id: 177, grouping: 8, timeSig: "2/4", beaming: null, notes: ["32", "32", "32", "32", "8", "8t", "8t", "8t"] },
+  { id: 178, grouping: 8, timeSig: "5/8", beaming: null, notes: ["8", "8", "16", "16", "16", "16", "16", "16"] },
+  { id: 179, grouping: 8, timeSig: "5/8", beaming: null, notes: ["16", "16", "16", "16", "8", "16", "16", "8"] },
+  { id: 180, grouping: 8, timeSig: "5/8", beaming: null, notes: ["16.", "32", "16.", "32", "16.", "32", "8.", "16"] },
+  { id: 186, grouping: 8, timeSig: "7/8", beaming: null, notes: ["8", "8", "8", "8", "8", "8", "16", "16"] },
+  { id: 187, grouping: 8, timeSig: "7/8", beaming: null, notes: ["8", "8", "8", "16", "16", "8", "8", "8"] },
+  { id: 188, grouping: 8, timeSig: "7/8", beaming: null, notes: ["8.", "16", "8.", "16", "8.", "16", "16", "16"] },
+  { id: 189, grouping: 8, timeSig: "7/8", beaming: null, notes: ["16", "8", "8", "16", "8.", "16", "16", "8."] },
+  { id: 190, grouping: 8, timeSig: "7/8", beaming: null, notes: ["16", "16", "8", "8", "8", "8.", "16", "8"] },
+  { id: 191, grouping: 8, timeSig: "7/8", beaming: null, notes: ["8.", "16", "8", "8.", "16", "8", "16", "16"] },
+];
+
+export function patternsByGrouping(grouping: Grouping): RhythmPattern[] {
+  return RHYTHM_PATTERNS.filter((p) => p.grouping === grouping);
+}
