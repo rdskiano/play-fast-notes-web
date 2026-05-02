@@ -66,6 +66,10 @@ export default function RootLayout() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
+            name="piece/[id]/chunking"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
             name="piece/[id]/rhythm-list"
             options={{ headerShown: false }}
           />

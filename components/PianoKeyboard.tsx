@@ -128,7 +128,7 @@ export function PianoKeyboard({
             return (
               <Pressable
                 key={midi}
-                onPress={() => handlePress(midi)}
+                onPressIn={() => handlePress(midi)}
                 style={[
                   styles.whiteKey,
                   {
@@ -173,7 +173,7 @@ export function PianoKeyboard({
           return (
             <Pressable
               key={b.midi}
-              onPress={() => handlePress(b.midi)}
+              onPressIn={() => handlePress(b.midi)}
               style={[
                 styles.blackKey,
                 {

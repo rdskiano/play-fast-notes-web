@@ -155,10 +155,10 @@ export default function PieceDetailScreen() {
         <View style={styles.pillRow}>
           {STRATEGIES.map(renderPill)}
           <Pressable
-            disabled
-            style={[styles.outlinePill, { borderColor: C.tint, opacity: 0.4 }]}>
+            onPress={() => router.push(`/piece/${piece.id}/chunking`)}
+            style={[styles.outlinePill, { borderColor: C.tint }]}>
             <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
-              Unguided ▾
+              Chunking
             </ThemedText>
           </Pressable>
           <View style={{ flex: 1 }} />

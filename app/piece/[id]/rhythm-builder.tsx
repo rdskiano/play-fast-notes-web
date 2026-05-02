@@ -16,6 +16,7 @@ import { GroupingPicker } from '@/components/GroupingPicker';
 import { NoteCardEditor } from '@/components/NoteCardEditor';
 import { PianoKeyboard } from '@/components/PianoKeyboard';
 import { PitchStaff } from '@/components/PitchStaff';
+import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
@@ -30,6 +31,8 @@ import {
   type Exercise,
 } from '@/lib/db/repos/exercises';
 import { getPiece, type Piece } from '@/lib/db/repos/pieces';
+import { logPractice } from '@/lib/db/repos/practiceLog';
+import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import {
   CLEFS,
   INSTRUMENTS,
@@ -42,6 +45,7 @@ import {
   type KeySignature,
   type Pitch,
 } from '@/lib/music/pitch';
+import { buildExerciseHtml } from '@/lib/export/buildExerciseHtml';
 import { buildExerciseAbc } from '@/lib/notation/buildExerciseAbc';
 import {
   patternsByGrouping,
@@ -97,6 +101,7 @@ export default function RhythmBuilderScreen() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
   const [imageAspect, setImageAspect] = useState<number | null>(null);
+  const [notePromptVisible, setNotePromptVisible] = useState(false);
 
   const metronome = useMetronome(80);
   const historyRef = useRef<Pitch[][]>([]);
@@ -134,6 +139,9 @@ export default function RhythmBuilderScreen() {
         }
         if (Array.isArray(cfg.pitches)) {
           setPitches(cfg.pitches);
+          // If the exercise already has notes entered, jump straight to the
+          // exercises (practice) phase instead of starting back at Setup.
+          if (cfg.pitches.length > 0) setPhase('generate');
         }
         setHydrated(true);
       });
@@ -177,6 +185,33 @@ export default function RhythmBuilderScreen() {
   ]);
 
   function exitSession() {
+    metronome.stop();
+    metronome.stopPitchSequence();
+    router.back();
+  }
+
+  function doneSession() {
+    setNotePromptVisible(true);
+  }
+
+  async function finishLog(mood: string | null, note: string | null) {
+    setNotePromptVisible(false);
+    if (id) {
+      try {
+        await stampLastUsed(id, 'rhythmic');
+        const data: Record<string, unknown> = {};
+        if (mood) data.mood = mood;
+        if (note) data.note = note;
+        await logPractice(
+          id,
+          'rhythmic',
+          Object.keys(data).length > 0 ? data : undefined,
+          exerciseIdParam ?? null,
+        );
+      } catch {
+        // ignore — keep navigation flowing
+      }
+    }
     metronome.stop();
     metronome.stopPitchSequence();
     router.back();
@@ -259,6 +294,43 @@ export default function RhythmBuilderScreen() {
     setPhase('entry');
   }
 
+  // ── PDF export ──────────────────────────────────────────────────────────
+  // Mirrors iPad's expo-print pipeline: builds a fresh print-friendly HTML
+  // document, opens it in a new window, lets abcjs render at the page's
+  // print staffwidth (so wrapping is correct), then triggers window.print()
+  // in the popup. Browser print dialog has "Save as PDF" as a destination.
+  function exportPdf() {
+    if (typeof window === 'undefined' || !piece) return;
+    const patterns = patternsByGrouping(grouping);
+    const html = buildExerciseHtml(
+      exercise?.name && exercise.name.trim().length > 0
+        ? exercise.name
+        : (piece.title ?? 'Exercises'),
+      pitches,
+      keySignature,
+      clef,
+      patterns,
+    );
+    const w = window.open('', '_blank');
+    if (!w) {
+      alert(
+        'PDF export needs a popup window. Please allow popups for this site and try again.',
+      );
+      return;
+    }
+    // Trigger print after abcjs has had a moment to render every exercise.
+    const printTrigger = `<script>
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          try { window.focus(); window.print(); } catch (e) {}
+        }, 700);
+      });
+    </script>`;
+    w.document.open();
+    w.document.write(html.replace('</body>', printTrigger + '</body>'));
+    w.document.close();
+  }
+
   if (!piece) {
     return (
       <ThemedView style={styles.centered}>
@@ -275,24 +347,49 @@ export default function RhythmBuilderScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SessionTopBar
-        onExit={exitSession}
-        center={
-          <View style={{ alignItems: 'center', maxWidth: '100%' }}>
-            <ThemedText style={styles.topCenter} numberOfLines={1}>
-              {exerciseName}
-            </ThemedText>
-            <ThemedText style={styles.topSubCenter} numberOfLines={1}>
-              {phase === 'setup'
-                ? 'Setup'
-                : phase === 'entry'
-                  ? 'Enter pitches'
-                  : 'Exercises'}
-            </ThemedText>
-          </View>
-        }
-        right={<PracticeTimersPill />}
-      />
+      <View {...({ dataSet: { printHide: '1' } } as object)}>
+        <SessionTopBar
+          onExit={exitSession}
+          center={
+            <View style={{ alignItems: 'center', maxWidth: '100%' }}>
+              <ThemedText style={styles.topCenter} numberOfLines={1}>
+                {exerciseName}
+              </ThemedText>
+              <ThemedText style={styles.topSubCenter} numberOfLines={1}>
+                {phase === 'setup'
+                  ? 'Setup'
+                  : phase === 'entry'
+                    ? 'Enter pitches'
+                    : 'Exercises'}
+              </ThemedText>
+            </View>
+          }
+          right={
+            phase === 'generate' ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <PracticeTimersPill />
+                <Pressable
+                  onPress={exportPdf}
+                  hitSlop={6}
+                  style={[styles.pdfBtn, { borderColor: '#2980b9' }]}>
+                  <ThemedText style={[styles.pdfBtnText, { color: '#2980b9' }]}>
+                    PDF
+                  </ThemedText>
+                </Pressable>
+                <Button
+                  label="EDIT"
+                  variant="outline"
+                  size="sm"
+                  onPress={() => setPhase('entry')}
+                />
+                <Button label="DONE" variant="danger" size="sm" onPress={doneSession} />
+              </View>
+            ) : (
+              <PracticeTimersPill />
+            )
+          }
+        />
+      </View>
 
       {phase === 'setup' && (
         <ScrollView
@@ -517,6 +614,17 @@ export default function RhythmBuilderScreen() {
         />
       )}
 
+      <PracticeLogNotePrompt
+        visible={notePromptVisible}
+        emoji="🎉"
+        title="Exercise Builder — session complete"
+        subtitle={piece?.title ?? undefined}
+        submitLabel="Save & finish"
+        cancelLabel="Skip"
+        onSubmit={({ mood, note }) => finishLog(mood, note)}
+        onSkip={() => finishLog(null, null)}
+      />
+
       <NoteCardEditor
         visible={editingIndex !== null}
         pitch={editingIndex !== null ? pitches[editingIndex] ?? null : null}
@@ -636,7 +744,10 @@ function ExercisesPhase({
           />
         ))}
 
-      <Pressable onPress={onBack} style={[exerciseStyles.backBtn, { borderColor: C.tint }]}>
+      <Pressable
+        onPress={onBack}
+        {...({ dataSet: { printHide: '1' } } as object)}
+        style={[exerciseStyles.backBtn, { borderColor: C.tint }]}>
         <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
           ← Back to pitch entry
         </ThemedText>
@@ -674,11 +785,13 @@ function ExerciseCard({
 
   return (
     <View
+      {...({ dataSet: { exerciseCard: '1' } } as object)}
       style={[exerciseStyles.card, { borderBottomColor: C.icon + '44' }]}>
       <View style={exerciseStyles.header}>
         <Pressable
           onPress={onPlayToggle}
           hitSlop={8}
+          {...({ dataSet: { printHide: '1' } } as object)}
           style={[
             exerciseStyles.playBtn,
             { backgroundColor: isPlaying ? '#c0392b' : C.tint },
@@ -864,5 +977,15 @@ const styles = StyleSheet.create({
     fontSize: Type.size.md,
     lineHeight: 20,
     maxWidth: 460,
+  },
+  pdfBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radii.sm,
+    borderWidth: Borders.thin,
+  },
+  pdfBtnText: {
+    fontWeight: Type.weight.semibold,
+    fontSize: Type.size.sm,
   },
 });
