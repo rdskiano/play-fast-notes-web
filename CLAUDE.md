@@ -107,6 +107,26 @@ iPad's AbcStaffView lives in a WebView and uses scale 1.0 for centered (small) u
 
 Expo-router 6 sometimes does not detect a brand-new file under `app/` until Metro is restarted. Symptom: navigating to the URL renders the bare path (e.g. `piece/[id]/click-up`) as text instead of the screen. Fix: tell the user to **Ctrl+C** the dev server and run `playweb` again. HMR-only edits to existing files don't have this issue.
 
+## PDF export
+
+iPad uses `expo-print` to render Exercise Builder exercises into a PDF. The web equivalent lives in `lib/export/buildExerciseHtml.ts` (a direct copy of the iPad helper) plus a popup-window pipeline in `app/piece/[id]/rhythm-builder.tsx`'s `exportPdf()`:
+
+1. Build a fresh standalone HTML document via `buildExerciseHtml(...)`. abcjs in that document renders each exercise at `staffwidth: 680` with `responsive: 'resize'` — sized for the printable area of a US-letter page (8.5" - 2 × 0.6" margins ≈ 700 px).
+2. `window.open('', '_blank')` and `document.write(...)` the HTML. abcjs lays out fresh in that window, so measure wrapping is correct (a regression vs. trying to repurpose the on-screen abcjs SVGs, which were sized for the iPad viewport).
+3. After ~700 ms (enough for abcjs to render every exercise), the popup auto-calls `window.print()`. The browser's print dialog has "Save as PDF" as a destination.
+
+If the popup is blocked, the user gets a one-time browser bar to allow popups for the site. Browsers only open a popup when the call is synchronous in the click handler, so do not stick `await` calls before `window.open(...)`.
+
+## Low-latency taps on RN Web Pressables
+
+`Pressable` on React Native Web waits for full press recognition (touchstart → touchend / mousedown → mouseup) before firing `onPress`, which adds ~80–150 ms of perceived delay. For the piano keyboard in the Exercise Builder, that lag is felt as audible note-trigger latency. Switching to `onPressIn` (touchdown / mousedown) makes notes fire immediately. Use `onPressIn` on any Pressable that needs musician-grade response time; `onPress` is fine elsewhere.
+
+## Exercise Builder structure
+
+The Exercise Builder in `app/piece/[id]/rhythm-builder.tsx` has three phases — `setup`, `entry`, `generate` — driven by a `phase` state. Loading an exercise that already has saved pitches auto-routes to `generate`; new exercises start at `setup`. The entire phase state is persisted to `exercises.config_json` (debounced 400 ms) — `instrumentId`, `keyId`, `clefId`, `grouping`, `pitches`, `useSharps`. Pieces' `units_json` is unused by the rhythmic flow; it is reserved for Click-Up markers.
+
+`exercises.config_json` is the persistence seam. There is no separate `rhythm_builder_config` table — everything is stuffed in there as JSON. Schema unchanged from iPad.
+
 ## iPad references for porting
 
 `reference-screenshots/ipad/<route>.png` (and `<route>-state.png` for screens with multiple states) captures the iPad ground truth. Workflow: ask the user for one fresh screenshot per port, drop into the convention path, then read/diff after the port. Convention names already in tree: `library-log`, `library-add-modal`, `upload`, `multi-page-preview1..6`, `tempo-ladder-{setup,practice}`, `click-up-{marking,setup,practice}`, `piece-history`, `rhythm-1`/`rhythm-2`/`rhythm-3` (Rhythmic Variation).

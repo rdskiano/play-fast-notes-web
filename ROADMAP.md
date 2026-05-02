@@ -1,6 +1,6 @@
 # Play Fast Notes — Web Roadmap
 
-_Last updated: 2026-05-01_
+_Last updated: 2026-05-02_
 
 Granular roadmap for the web companion. Sibling to the iPad app at
 `../learn-fast-notes/`. Product direction, vocabulary, and design principles
@@ -68,26 +68,61 @@ auth, practice log, and (later) subscription state.
   (`/multi-page` route), per-page crop via `InlineCropper`, canvas-stacked
   composite save, `dismissAll` + push so back-from-piece returns to library.
 - **Phase 2 chunk 7 — settings**: settings screen ported.
+- **Phase 2 chunk 8 — Exercise Builder (Rhythmic Variation, Exercise Builder
+  branch)** shipped in 4 slices:
+  - Slice A: `rhythm-list` (saved-exercises list with Edit/Rename/Delete + new-exercise
+    PromptModal). Reached from the Rhythmic Variation modal on piece detail.
+  - Slice B: builder Setup phase — score thumb, Instrument / Key / Clef
+    `DropdownField`s, `GroupingPicker` (3-8). Selections persisted to
+    `exercises.config_json`. Ports `lib/music/pitch.ts` (instruments, clefs,
+    key signatures, transposition, key-aware spelling).
+  - Slice C: builder Entry phase — full 88-key `PianoKeyboard` (`onPressIn`
+    so taps fire instantly), `PitchStaff` powered by `buildPitchAbc`,
+    `NoteCardEditor` (enharmonic respell, courtesy accidental, insert
+    before/after, delete), transport row (Play / Switch sharps↔flats /
+    Undo / Clear / Generate). `useMetronome` extended with `playPitch`,
+    `playPitchSequence`, `playPitchRhythm`, `stopPitchSequence`. Pitches
+    persisted to `exercises.config_json` (debounced 400 ms).
+  - Slice D: builder Generate phase — one row per rhythm pattern with
+    a row header (`#71 · 3/4`, rhythm tokens) and a wrapped pitched staff
+    rendered by an extended `AbcStaffView` (`wrap`, `preferredMeasuresPerLine`,
+    `fallbackText`, `onNoteTap`, `activeNoteIndex`). PDF export mirrors iPad's
+    `expo-print` pipeline by opening a popup window with `lib/export/buildExerciseHtml.ts`
+    and triggering `window.print()`. Per-pattern playback uses
+    `playPitchRhythm`. EDIT button returns to Entry; DONE opens
+    `PracticeLogNotePrompt` and logs a `rhythmic` practice entry tied to the
+    exercise; auto-routes to Generate when re-opening an exercise that has
+    saved pitches.
+- **Phase 2 chunk 9 — Chunking**: ported `piece/[id]/chunking.tsx` with the
+  How-to-chunk help modal and DONE flow that logs a `chunking` practice entry.
+  Reached via the Chunking pill on piece detail (replaced the iPad's
+  `Unguided ▾` since chunking is currently the only unguided strategy on
+  web).
 - **Vercel deploy + `playfastnotes.com`**: live, auto-deploys on push to
   `master`.
 
 ### 🚧 Next up (in priority order)
 
-1. **Chunking** (`piece/[id]/chunking`) — straightforward port; uses score
-   markers like Click-Up.
-2. **Folder Log** (`folder-log`) — log filtered to one folder; shares most
+1. **Folder Log** (`folder-log`) — log filtered to one folder; shares most
    logic with Library Log.
-3. **Serial Practice (Interleaved)** — the iPad's `interleaved.tsx`. Complex;
+2. **Serial Practice (Interleaved)** — the iPad's `interleaved.tsx`. Complex;
    the iPad's `_activeSession` module-level state needs a state-management
    plan first.
-4. **Exercise Builder** (`rhythm-builder`, `rhythm-list`) — the second branch
-   of the Rhythmic Variation modal that is currently stubbed as "Coming soon
-   to web." Generates fully notated exercises from user-entered pitches; the
-   most complex remaining port.
-5. **Library polish v2**: edit mode (rename, move, delete, reorder), folder
+3. **Library polish v2**: edit mode (rename, move, delete, reorder), folder
    creation, move-to picker. Up/down arrows first; defer drag-and-drop.
-6. **Self-Led strategies index** (Phase 2 of iPad roadmap).
-7. **Search across pieces and exercises**.
+4. **Self-Led strategies index** (Phase 2 of iPad roadmap).
+5. **Search across pieces and exercises**.
+
+### ⏳ Polish for shipped screens
+
+- **rhythm-list edit mode**: drag-to-reorder uses Reanimated long-press +
+  pan on iPad. Up/down arrows first on web; defer drag-and-drop.
+- **Exercise Builder PDF**: PDF export currently strips per-exercise time
+  signature and rhythm-token labels (intentional, per request) — only the
+  pattern number remains. Revisit if the labels need to come back.
+- **AI score-scan + mic-based pitch entry** (the two non-keyboard pitch entry
+  modes from iPad's Exercise Builder) — deferred. Browser file-input is the
+  permanent fallback; mic recording is feasible but unprioritised.
 
 ### ⏳ Later
 
@@ -118,9 +153,11 @@ The iPad roadmap names this entire effort "Phase 4 — Web version migration."
 Within Phase 4 there are sub-phases:
 
 - **Phase 4.1** (port design tokens) — ✅ done.
-- **Phase 4.2** (rebuild web UI to match) — ~85% complete. ~12 of 14 screens
-  functional. Remaining: chunking, folder-log, interleaved, Exercise Builder
-  (rhythm-builder + rhythm-list), library polish.
+- **Phase 4.2** (rebuild web UI to match) — ~95% complete. All single-piece
+  practice screens are functional (Tempo Ladder, Click-Up, Rhythmic
+  Variation patterns-only path, Rhythmic Variation Exercise Builder all 4
+  slices, Chunking, Practice History). Remaining: folder-log, Serial
+  Practice (interleaved), library polish.
 - **Phase 4.3** (shared backend) — partially done. Auth + per-user data
   isolation work; cross-surface sync deferred.
 - **Phase 4.4** (Stripe subscriptions) — not started. Schema slot exists.
