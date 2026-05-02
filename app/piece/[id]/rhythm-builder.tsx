@@ -12,6 +12,7 @@ import {
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
 import { DropdownField } from '@/components/DropdownField';
+import { FloatingMetronome } from '@/components/FloatingMetronome';
 import { GroupingPicker } from '@/components/GroupingPicker';
 import { NoteCardEditor } from '@/components/NoteCardEditor';
 import { PianoKeyboard } from '@/components/PianoKeyboard';
@@ -601,17 +602,31 @@ export default function RhythmBuilderScreen() {
       )}
 
       {phase === 'generate' && (
-        <ExercisesPhase
-          pieceTitle={piece.title ?? 'Exercises'}
-          pitches={pitches}
-          grouping={grouping}
-          keySignature={keySignature}
-          clef={clef}
-          instrument={instrument}
-          metronome={metronome}
-          viewportWidth={winWidth}
-          onBack={() => setPhase('entry')}
-        />
+        <>
+          <ExercisesPhase
+            pieceTitle={piece.title ?? 'Exercises'}
+            pitches={pitches}
+            grouping={grouping}
+            keySignature={keySignature}
+            clef={clef}
+            instrument={instrument}
+            metronome={metronome}
+            viewportWidth={winWidth}
+            onBack={() => setPhase('entry')}
+          />
+          <FloatingMetronome
+            bpm={metronome.bpm}
+            subdivision={metronome.subdivision}
+            running={metronome.running}
+            volume={metronome.volume}
+            onBpm={metronome.setBpm}
+            onSubdivision={metronome.setSubdivision}
+            onVolume={metronome.setVolume}
+            onToggle={metronome.toggle}
+            initialX={16}
+            initialY={160}
+          />
+        </>
       )}
 
       <PracticeLogNotePrompt
