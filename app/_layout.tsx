@@ -79,6 +79,7 @@ export default function RootLayout() {
           />
           <Stack.Screen name="settings" options={{ headerShown: false }} />
           <Stack.Screen name="library-log" options={{ headerShown: false }} />
+          <Stack.Screen name="interleaved" options={{ headerShown: false }} />
         </Stack>
         <PracticeTimerAlertModal />
         </PracticeTimersProvider>

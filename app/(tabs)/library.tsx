@@ -671,8 +671,8 @@ export default function LibraryScreen() {
             <ThemedText style={styles.modeSegActiveText}>Blocked</ThemedText>
           </Pressable>
           <Pressable
-            disabled
-            style={[styles.modeSeg, { borderColor: C.tint, opacity: Opacity.muted }]}>
+            onPress={() => router.push('/interleaved')}
+            style={[styles.modeSeg, { borderColor: C.tint }]}>
             <ThemedText style={[styles.modeSegText, { color: C.tint }]}>
               Serial Practice
             </ThemedText>

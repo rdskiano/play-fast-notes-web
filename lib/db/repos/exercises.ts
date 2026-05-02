@@ -1,6 +1,11 @@
 import { supabase } from '@/lib/supabase/client';
 
-export type Strategy = 'tempo_ladder' | 'click_up' | 'rhythmic' | 'chunking';
+export type Strategy =
+  | 'tempo_ladder'
+  | 'click_up'
+  | 'rhythmic'
+  | 'chunking'
+  | 'interleaved';
 
 export type Exercise = {
   id: string;

@@ -13,6 +13,14 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
+/**
+ * Selectable chip used for mode/order/target choices in config screens.
+ * Flexes to fill its row by default. Selected state fills with the tint
+ * color and inverts the label color; unselected shows a bordered chip
+ * with neutral text. Pass `subtitle` for a secondary line below the
+ * label (the small description under chips like "Number of correct reps
+ * in a row").
+ */
 export function Chip({ label, subtitle, selected, onPress, style }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
