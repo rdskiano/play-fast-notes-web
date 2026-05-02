@@ -1,6 +1,6 @@
 # Play Fast Notes — Web Roadmap
 
-_Last updated: 2026-05-02_
+_Last updated: 2026-05-02 (afternoon)_
 
 Granular roadmap for the web companion. Sibling to the iPad app at
 `../learn-fast-notes/`. Product direction, vocabulary, and design principles
@@ -98,6 +98,29 @@ auth, practice log, and (later) subscription state.
   Reached via the Chunking pill on piece detail (replaced the iPad's
   `Unguided ▾` since chunking is currently the only unguided strategy on
   web).
+- **Phase 2 chunk 10 — Serial Practice (Interleaved)** shipped in 3 slices:
+  - Slice A: `/interleaved` route with **config** (Practice mode + Order +
+    helper copy + numeric chip row that swaps between Clean reps 3/5/10 and
+    Minutes per passage 3/5/10/15) and **select** (folder-grouped piece
+    multi-select; Serial shows order numbers, Interleaved shows
+    checkmarks). Library top-bar Serial Practice toggle wired up. Ports
+    `Chip` primitive.
+  - Slice B: **Consistency-mode active screen** — passage title + completed
+    count + N streak dots + END button, floating metronome, score
+    full-bleed, Clean/Miss buttons. Serial walks the array in entry order
+    skipping completed. Interleaved uses the iPad lap algorithm (each
+    uncompleted passage once per lap, missed passages front-loaded next
+    lap). Celebration on all-complete; Save & finish writes one
+    `practice_log` row per passage tagged `interleaved` with `mode`,
+    `order`, `target_reps`, `streak`, `completed`, `tempo`, `mood`, `note`.
+  - Slice C: **Timer-mode active screen + cross-screen session
+    singleton** (`lib/sessions/serialPractice.ts`). Module-level state +
+    `setInterval` so the countdown keeps ticking when the user taps a
+    strategy launch button (Tempo Ladder / Click-Up / Rhythmic Variation)
+    and navigates to that screen. `useSyncExternalStore` re-syncs the
+    component on mount, so coming back resumes the session. Bottom timer
+    bar with `M:SS · passage title · Next Serial piece`. Manual advance
+    only — when time hits 0:00 the bar turns red but no auto-advance.
 - **Vercel deploy + `playfastnotes.com`**: live, auto-deploys on push to
   `master`.
 
@@ -105,13 +128,10 @@ auth, practice log, and (later) subscription state.
 
 1. **Folder Log** (`folder-log`) — log filtered to one folder; shares most
    logic with Library Log.
-2. **Serial Practice (Interleaved)** — the iPad's `interleaved.tsx`. Complex;
-   the iPad's `_activeSession` module-level state needs a state-management
-   plan first.
-3. **Library polish v2**: edit mode (rename, move, delete, reorder), folder
+2. **Library polish v2**: edit mode (rename, move, delete, reorder), folder
    creation, move-to picker. Up/down arrows first; defer drag-and-drop.
-4. **Self-Led strategies index** (Phase 2 of iPad roadmap).
-5. **Search across pieces and exercises**.
+3. **Self-Led strategies index** (Phase 2 of iPad roadmap).
+4. **Search across pieces and exercises**.
 
 ### ⏳ Polish for shipped screens
 
@@ -153,11 +173,12 @@ The iPad roadmap names this entire effort "Phase 4 — Web version migration."
 Within Phase 4 there are sub-phases:
 
 - **Phase 4.1** (port design tokens) — ✅ done.
-- **Phase 4.2** (rebuild web UI to match) — ~95% complete. All single-piece
-  practice screens are functional (Tempo Ladder, Click-Up, Rhythmic
-  Variation patterns-only path, Rhythmic Variation Exercise Builder all 4
-  slices, Chunking, Practice History). Remaining: folder-log, Serial
-  Practice (interleaved), library polish.
+- **Phase 4.2** (rebuild web UI to match) — feature-complete for all
+  practice flows. Single-piece (Tempo Ladder, Click-Up, Rhythmic Variation
+  patterns-only path, Rhythmic Variation Exercise Builder all 4 slices,
+  Chunking, Practice History) and multi-piece (Serial Practice in both
+  Consistency and Timer modes). Remaining: folder-log, library polish v2,
+  Self-Led strategies index, search.
 - **Phase 4.3** (shared backend) — partially done. Auth + per-user data
   isolation work; cross-surface sync deferred.
 - **Phase 4.4** (Stripe subscriptions) — not started. Schema slot exists.

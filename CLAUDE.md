@@ -127,6 +127,19 @@ The Exercise Builder in `app/piece/[id]/rhythm-builder.tsx` has three phases —
 
 `exercises.config_json` is the persistence seam. There is no separate `rhythm_builder_config` table — everything is stuffed in there as JSON. Schema unchanged from iPad.
 
+## Cross-screen session state (Serial Practice)
+
+Most screens own their session state locally — fine, because the user does not navigate away mid-session. **Serial Practice in Timer mode is the exception**: the user taps a strategy launch button (Tempo Ladder / Click-Up / Rhythmic Variation) mid-session, which `router.push`es to that strategy's screen. The Serial Practice timer must keep ticking while away, and coming back must resume the same session.
+
+The pattern lives in `lib/sessions/serialPractice.ts`:
+- A module-level mutable `_state` object holds the entire timer-mode session (spots, currentIndex, secondsLeft, etc.).
+- A module-level `setInterval` decrements `secondsLeft` every second. The interval lives outside any React component, so unmounting `/interleaved` does not stop it.
+- `subscribe(cb)` / `getSnapshot()` form an external-store pair compatible with React's built-in `useSyncExternalStore`.
+- `/interleaved` consumes via `useSyncExternalStore(subscribe, getSnapshot, () => null)`, so on remount it instantly re-renders from the live singleton — the user sees the time as if they never left.
+- `clearSession()` is called on celebration / END to release the interval and reset state.
+
+Mirror of iPad's `_activeSession` module-level pattern from `learn-fast-notes/hooks/useInterleavedSession.ts`. Reuse this pattern for any future flow where state must survive in-flight navigation. Consistency-mode Serial Practice keeps state local to the component because it does not navigate away mid-session — same screen for every Clean/Miss tap.
+
 ## iPad references for porting
 
 `reference-screenshots/ipad/<route>.png` (and `<route>-state.png` for screens with multiple states) captures the iPad ground truth. Workflow: ask the user for one fresh screenshot per port, drop into the convention path, then read/diff after the port. Convention names already in tree: `library-log`, `library-add-modal`, `upload`, `multi-page-preview1..6`, `tempo-ladder-{setup,practice}`, `click-up-{marking,setup,practice}`, `piece-history`, `rhythm-1`/`rhythm-2`/`rhythm-3` (Rhythmic Variation).
