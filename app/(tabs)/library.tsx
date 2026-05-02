@@ -15,6 +15,7 @@ import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
 import { MoveToPicker } from '@/components/MoveToPicker';
 import { PromptModal } from '@/components/PromptModal';
+import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -166,6 +167,7 @@ type PieceCardProps = {
   piece: Piece;
   borderColor: string;
   tintColor: string;
+  tempoColor: string;
   moreColor: string;
   editMode: boolean;
   canMoveUp: boolean;
@@ -184,6 +186,7 @@ function PieceCard({
   piece,
   borderColor,
   tintColor,
+  tempoColor,
   moreColor,
   editMode,
   canMoveUp,
@@ -219,7 +222,7 @@ function PieceCard({
         )}
       </ThemedView>
       {!editMode && scuPct !== null && (
-        <View style={[styles.scuBadge, { backgroundColor: tintColor }]}>
+        <View style={[styles.scuBadge, { backgroundColor: tempoColor }]}>
           <ThemedText style={styles.scuBadgeText}>Tempo {scuPct}%</ThemedText>
         </View>
       )}
@@ -262,6 +265,7 @@ export default function LibraryScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const { colors: strategyColors } = useStrategyColors();
 
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [path, setPath] = useState<Folder[]>([]);
@@ -358,18 +362,12 @@ export default function LibraryScreen() {
     id: string,
     direction: -1 | 1,
   ) {
-    console.log('[library] moveItem fired', { kind, id, direction });
     const list = kind === 'folder' ? folders.map((f) => f.id) : pieces.map((p) => p.id);
     const idx = list.indexOf(id);
     const target = idx + direction;
-    console.log('[library] moveItem indices', { idx, target, listLen: list.length });
-    if (idx < 0 || target < 0 || target >= list.length) {
-      console.log('[library] moveItem early-return — out of range');
-      return;
-    }
+    if (idx < 0 || target < 0 || target >= list.length) return;
     const reordered = [...list];
     [reordered[idx], reordered[target]] = [reordered[target], reordered[idx]];
-    console.log('[library] moveItem writing new order', reordered);
     try {
       await Promise.all(
         reordered.map((rid, i) =>
@@ -378,7 +376,6 @@ export default function LibraryScreen() {
             : updatePieceSortOrder(rid, i),
         ),
       );
-      console.log('[library] moveItem writes complete');
     } catch (e) {
       console.warn('[library] reorder failed', e);
     }
@@ -615,7 +612,19 @@ export default function LibraryScreen() {
                 label="Practice Log"
                 variant="outline"
                 size="sm"
-                onPress={() => router.push('/library-log')}
+                onPress={() => {
+                  if (currentFolderId) {
+                    router.push({
+                      pathname: '/folder-log',
+                      params: {
+                        folderId: currentFolderId,
+                        folderName: currentFolderName,
+                      },
+                    });
+                  } else {
+                    router.push('/library-log');
+                  }
+                }}
               />
               <Button
                 label="⚙"
@@ -765,6 +774,7 @@ export default function LibraryScreen() {
                 piece={item.piece}
                 borderColor={C.icon}
                 tintColor={C.tint}
+                tempoColor={strategyColors.tempo_ladder ?? C.tint}
                 moreColor={C.icon}
                 editMode={editMode}
                 canMoveUp={pieceIdx > 0}

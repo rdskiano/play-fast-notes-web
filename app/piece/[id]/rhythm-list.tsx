@@ -22,6 +22,7 @@ import {
   listExercisesForPiece,
   renameExercise,
   softDeleteExercise,
+  updateExerciseSortOrder,
   type Exercise,
 } from '@/lib/db/repos/exercises';
 import { getPiece, type Piece } from '@/lib/db/repos/pieces';
@@ -111,6 +112,23 @@ export default function RhythmListScreen() {
     const name = value.trim();
     if (!name) return;
     await renameExercise(current.id, name);
+    refresh();
+  }
+
+  async function moveExercise(exerciseId: string, direction: -1 | 1) {
+    const list = exercises.map((e) => e.id);
+    const idx = list.indexOf(exerciseId);
+    const target = idx + direction;
+    if (idx < 0 || target < 0 || target >= list.length) return;
+    const reordered = [...list];
+    [reordered[idx], reordered[target]] = [reordered[target], reordered[idx]];
+    try {
+      await Promise.all(
+        reordered.map((rid, i) => updateExerciseSortOrder(rid, i)),
+      );
+    } catch (e) {
+      console.warn('[rhythm-list] reorder failed', e);
+    }
     refresh();
   }
 
@@ -213,25 +231,50 @@ export default function RhythmListScreen() {
                   </ThemedText>
                 </View>
                 {editMode && (
-                  <View style={styles.editActions}>
-                    <Pressable
-                      hitSlop={6}
-                      onPress={() =>
-                        setPrompt({ kind: 'rename', id: item.id, initial: label })
-                      }
-                      style={styles.editActionBtn}>
-                      <ThemedText style={[styles.editActionText, { color: '#9b59b6' }]}>
-                        Rename
-                      </ThemedText>
-                    </Pressable>
-                    <Pressable
-                      hitSlop={6}
-                      onPress={() => confirmDelete(item, label)}
-                      style={styles.editActionBtn}>
-                      <ThemedText style={[styles.editActionText, { color: '#c0392b' }]}>
-                        Delete
-                      </ThemedText>
-                    </Pressable>
+                  <View style={styles.editActionsRow}>
+                    <View style={styles.reorderColumn}>
+                      <Pressable
+                        hitSlop={6}
+                        onPress={index > 0 ? () => moveExercise(item.id, -1) : undefined}
+                        disabled={index === 0}
+                        style={[styles.reorderBtn, { opacity: index > 0 ? 1 : 0.25 }]}>
+                        <ThemedText style={[styles.reorderArrow, { color: C.icon }]}>↑</ThemedText>
+                      </Pressable>
+                      <Pressable
+                        hitSlop={6}
+                        onPress={
+                          index < exercises.length - 1
+                            ? () => moveExercise(item.id, 1)
+                            : undefined
+                        }
+                        disabled={index >= exercises.length - 1}
+                        style={[
+                          styles.reorderBtn,
+                          { opacity: index < exercises.length - 1 ? 1 : 0.25 },
+                        ]}>
+                        <ThemedText style={[styles.reorderArrow, { color: C.icon }]}>↓</ThemedText>
+                      </Pressable>
+                    </View>
+                    <View style={styles.editActions}>
+                      <Pressable
+                        hitSlop={6}
+                        onPress={() =>
+                          setPrompt({ kind: 'rename', id: item.id, initial: label })
+                        }
+                        style={styles.editActionBtn}>
+                        <ThemedText style={[styles.editActionText, { color: '#9b59b6' }]}>
+                          Rename
+                        </ThemedText>
+                      </Pressable>
+                      <Pressable
+                        hitSlop={6}
+                        onPress={() => confirmDelete(item, label)}
+                        style={styles.editActionBtn}>
+                        <ThemedText style={[styles.editActionText, { color: '#c0392b' }]}>
+                          Delete
+                        </ThemedText>
+                      </Pressable>
+                    </View>
                   </View>
                 )}
               </Pressable>
@@ -303,7 +346,17 @@ const styles = StyleSheet.create({
   },
   iconText: { fontSize: Type.size['3xl'], fontWeight: Type.weight.heavy },
   cardText: { flex: 1, gap: Spacing.xs },
+  editActionsRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   editActions: { alignItems: 'flex-end', gap: 6 },
   editActionBtn: { paddingHorizontal: 6, paddingVertical: 2 },
   editActionText: { fontSize: Type.size.sm, fontWeight: Type.weight.bold },
+  reorderColumn: { alignItems: 'center', gap: 2 },
+  reorderBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 6,
+  },
+  reorderArrow: { fontSize: Type.size.xl, fontWeight: Type.weight.heavy },
 });

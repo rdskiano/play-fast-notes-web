@@ -8,6 +8,7 @@ import { Button } from '@/components/Button';
 import type { Grouping } from '@/lib/strategies/rhythmPatterns';
 
 import { PracticeTimersPill } from '@/components/GlobalTimerTray';
+import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
@@ -22,14 +23,13 @@ type StrategyKey = 'tempo_ladder' | 'click_up' | 'rhythmic';
 type StrategyDef = {
   key: StrategyKey;
   label: string;
-  color: string;
   enabled: boolean;
 };
 
 const STRATEGIES: StrategyDef[] = [
-  { key: 'tempo_ladder', label: 'Tempo Ladder', color: '#2ecc71', enabled: true },
-  { key: 'click_up', label: 'Interleaved Click-Up', color: '#154360', enabled: true },
-  { key: 'rhythmic', label: 'Rhythmic Variation', color: '#4a235a', enabled: true },
+  { key: 'tempo_ladder', label: 'Tempo Ladder', enabled: true },
+  { key: 'click_up', label: 'Interleaved Click-Up', enabled: true },
+  { key: 'rhythmic', label: 'Rhythmic Variation', enabled: true },
 ];
 
 const GROUPING_CHOICES: { n: Grouping; abc: string; w: number }[] = [
@@ -46,6 +46,7 @@ export default function PieceDetailScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const { colors: strategyColors } = useStrategyColors();
 
   const [piece, setPiece] = useState<Piece | null>(null);
   const [tempoLadder, setTempoLadder] = useState<TempoLadderProgress | null>(null);
@@ -124,6 +125,7 @@ export default function PieceDetailScreen() {
         ? Math.round(tempoLadderProgress * 100)
         : null;
     const label = pct !== null ? `${s.label} ${pct}%` : s.label;
+    const color = strategyColors[s.key] ?? C.icon;
     return (
       <Pressable
         key={s.key}
@@ -132,7 +134,7 @@ export default function PieceDetailScreen() {
         onPress={() => openStrategy(s.key)}
         style={[
           styles.stratPill,
-          { backgroundColor: s.color, opacity: s.enabled ? 1 : 0.35 },
+          { backgroundColor: color, opacity: s.enabled ? 1 : 0.35 },
         ]}>
         <ThemedText style={styles.stratLabel}>{label}</ThemedText>
       </Pressable>
