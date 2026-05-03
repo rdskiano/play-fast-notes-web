@@ -2,6 +2,7 @@ import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Redirect, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
+import { FeedbackButton } from '@/components/FeedbackButton';
 import { PracticeTimerAlertModal } from '@/components/PracticeTimerAlertModal';
 import { PracticeTimersProvider } from '@/components/PracticeTimersContext';
 import { StrategyColorsProvider } from '@/components/StrategyColorsContext';
@@ -84,6 +85,7 @@ export default function RootLayout() {
           <Stack.Screen name="interleaved" options={{ headerShown: false }} />
         </Stack>
         <PracticeTimerAlertModal />
+        <FeedbackButton />
         </PracticeTimersProvider>
       </StrategyColorsProvider>
       <StatusBar style="dark" />
