@@ -1,6 +1,6 @@
 # Play Fast Notes — Web Roadmap
 
-_Last updated: 2026-05-02 (afternoon)_
+_Last updated: 2026-05-03_
 
 Granular roadmap for the web companion. Sibling to the iPad app at
 `../learn-fast-notes/`. Product direction, vocabulary, and design principles
@@ -122,21 +122,55 @@ auth, practice log, and (later) subscription state.
     bar with `M:SS · passage title · Next Serial piece`. Manual advance
     only — when time hits 0:00 the bar turns red but no auto-advance.
 - **Vercel deploy + `playfastnotes.com`**: live, auto-deploys on push to
-  `master`.
+  `master`. **`vercel.json` SPA rewrite** added 2026-05-03 so deep links and
+  reloads on `/library`, `/piece/[id]/...` etc. resolve to `index.html`
+  instead of 404 (Expo Web exports a single index.html and routes
+  client-side).
+- **Folder Log** (`folder-log`) — per-folder practice log mirroring
+  iPad's `folder-log.tsx`. Library's Practice Log button routes by context:
+  inside a folder it pushes `/folder-log?folderId=...`, at root it pushes
+  `/library-log`. (Initial port had `getPracticeLogForFolder` using
+  embedded PostgREST joins which silently returned empty; rewrote to
+  separate-fetch + JS join, matching the rest of `practiceLog.ts`.)
+- **rhythm-list edit-mode reorder**: ↑↓ buttons in Edit mode (mirrors the
+  Library reorder pattern). Lighter than iPad's drag gesture but
+  functional. Calls `updateExerciseSortOrder`.
+- **iPad-parity audit fixes** (2026-05-02):
+  - Strategy color customization now actually applies on web. Piece-detail
+    pills + library tempo % badge read from `useStrategyColors()` instead
+    of hard-coded hex.
+  - Stray `console.log`s removed from `library.tsx` reorder path.
+- **rhythm-builder floating metronome**: same `FloatingMetronome` used by
+  Rhythmic Variation patterns-only path now mounts on the Exercise Builder
+  generate phase, so the user can practice along with ticks. Reuses the
+  existing `useMetronome` instance already plumbed through `ExercisesPhase`.
+- **Branded icon + favicon + apple-touch-icon**: replaced React-template
+  defaults with the Midjourney-generated music-notes-with-motion-lines
+  icon. 1024×1024 `assets/images/icon.png`, 48×48 `assets/images/favicon.png`,
+  180×180 `public/apple-touch-icon.png` (iOS Safari Add-to-Home-Screen
+  doesn't read the standard favicon — looks for this file at the root).
+- **Feedback button**: floating bottom-right `💬 Feedback` button on every
+  signed-in screen (`components/FeedbackButton.tsx`), POSTs to a Formspree
+  endpoint (`mjglgqve`) with the user's signed-in email, Supabase userId,
+  current page URL, user agent, and timestamp. Email field is the Formspree
+  reply-to convention so hitting Reply in Gmail jumps straight to the user.
+  Override the endpoint via `EXPO_PUBLIC_FORMSPREE_URL` if needed.
+- **`/import-seed` dev tool** (`app/import-seed.tsx`): unlinked one-off
+  route to load an iPad seed-export.json into Supabase for testing,
+  including base64-decoded image upload to the `pieces` storage bucket.
+  Per-table `.neq(col, '__never__')` wipe predicate so it works against
+  every table regardless of which timestamp columns exist. Reach via
+  direct URL only.
 
 ### 🚧 Next up (in priority order)
 
-1. **Folder Log** (`folder-log`) — log filtered to one folder; shares most
-   logic with Library Log.
-2. **Library polish v2**: edit mode (rename, move, delete, reorder), folder
+1. **Library polish v2**: edit mode (rename, move, delete, reorder), folder
    creation, move-to picker. Up/down arrows first; defer drag-and-drop.
-3. **Self-Led strategies index** (Phase 2 of iPad roadmap).
-4. **Search across pieces and exercises**.
+2. **Self-Led strategies index** (Phase 2 of iPad roadmap).
+3. **Search across pieces and exercises**.
 
 ### ⏳ Polish for shipped screens
 
-- **rhythm-list edit mode**: drag-to-reorder uses Reanimated long-press +
-  pan on iPad. Up/down arrows first on web; defer drag-and-drop.
 - **Exercise Builder PDF**: PDF export currently strips per-exercise time
   signature and rhythm-token labels (intentional, per request) — only the
   pattern number remains. Revisit if the labels need to come back.

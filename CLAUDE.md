@@ -99,7 +99,7 @@ iPad's AbcStaffView lives in a WebView and uses scale 1.0 for centered (small) u
 
 ## Supabase quirks worth knowing
 
-- **PostgREST cannot infer FKs between `practice_log`, `pieces`, `exercises`, `folders`** in this project. Embedded joins (e.g. `practice_log?select=...,exercises(name)`) return `PGRST200`. Workaround: fetch tables separately and join client-side via `Map<id, row>`. See `lib/db/repos/practiceLog.ts` for the pattern (`getPracticeLogForLibrary`, `getPracticeLogForPiece` both use it).
+- **PostgREST cannot infer FKs between `practice_log`, `pieces`, `exercises`, `folders`** in this project. Embedded joins (e.g. `practice_log?select=...,exercises(name)`) return `PGRST200` *or worse*: with `.eq('pieces.folder_id', ...)` chained off an embedded join the request silently returns zero rows instead of erroring (this bit `getPracticeLogForFolder` on first port — Folder Log appeared empty regardless of data). Workaround: fetch tables separately and join client-side via `Map<id, row>`. Every reader in `lib/db/repos/practiceLog.ts` (`getPracticeLogForLibrary`, `getPracticeLogForPiece`, `getPracticeLogForFolder`) uses this pattern — keep it that way.
 - **Storage URLs need a cache-buster.** When a piece is re-cropped, the upsert path is the same (`<userId>/<pieceId>.<ext>`), so the public URL is identical. Browsers and the Supabase CDN serve the stale bytes. `lib/supabase/storage.ts` appends `?v=<Date.now()>` to the returned URL, and that goes into `pieces.source_uri` — every save invalidates the cache.
 - **No `subdivision` column on `tempo_ladder_progress`.** Subdivision is metronome state, ephemeral, not persisted.
 
@@ -149,8 +149,42 @@ Mirror of iPad's `_activeSession` module-level pattern from `learn-fast-notes/ho
 - Hosted on Vercel, auto-deploys on push to `master`.
 - Public domain: `playfastnotes.com`.
 - Build command: `npx expo export -p web` → output dir: `dist`.
-- Env vars in Vercel project settings: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
+- Env vars in Vercel project settings: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`. `EXPO_PUBLIC_FORMSPREE_URL` is optional (a working endpoint is hard-coded as fallback in `FeedbackButton.tsx`).
 - Auth redirect URLs configured in Supabase Auth → URL Configuration. For local dev: add `http://localhost:8081/**` to the **Redirect URLs** allowlist (the wildcard pattern). Site URL should be the bare domain (`http://localhost:8081` for local, `https://playfastnotes.com` for production).
+- **`vercel.json` SPA rewrite** routes any path that is not a real static file (`_expo/*`, `assets/*`, `favicon.ico`, anything with a dot) to `/`, so deep links and reloads on `/library`, `/piece/[id]/...` etc. resolve to `index.html` instead of 404. Without this rule Vercel returns 404 for any URL that isn't a file on disk — Expo Web exports a single `index.html` and routes client-side.
+
+## iOS Add-to-Home-Screen icon
+
+iOS Safari ignores the standard favicon when adding a site as a home-screen shortcut and instead looks for `/apple-touch-icon.png` (180×180) at the site root. Without it, the shortcut shows the first letter of the page title on a generic gradient placeholder. The file lives in `public/apple-touch-icon.png` (Expo's `public/` directory is copied to the dist root on `expo export`). After updating, the user must **long-press → Remove Bookmark** on the existing shortcut and re-add via Share → Add to Home Screen — iOS won't refetch the icon for an already-created shortcut.
+
+`public/apple-touch-icon-precomposed.png` is the same bytes under the legacy filename for older iOS fallback.
+
+## Feedback button (Formspree)
+
+`components/FeedbackButton.tsx` is a floating bottom-right "💬 Feedback" button mounted in `app/_layout.tsx` (signed-in branch only). Tap → modal with a textarea → POST to a Formspree endpoint with this JSON shape:
+
+```json
+{
+  "email": "<signed-in user>",
+  "userId": "<supabase auth.uid>",
+  "feedback": "<textarea content>",
+  "page": "<window.location.href>",
+  "userAgent": "<navigator.userAgent>",
+  "timestamp": "<ISO8601>"
+}
+```
+
+The `email` field is the Formspree reply-to convention — hitting Reply in Gmail goes straight to the user. The endpoint defaults to `https://formspree.io/f/mjglgqve` (rdskiano@gmail.com inbox, free tier 50/month) and is overridable via `EXPO_PUBLIC_FORMSPREE_URL`.
+
+**This is a deliberate web-only addition** — the iPad-parity rule normally forbids web-only UI, but the user explicitly opted in for the testing-phase feedback channel. Don't extrapolate this exception to other web-only controls.
+
+## /import-seed dev tool
+
+`app/import-seed.tsx` is a one-off route to load an iPad `seed-export.json` into Supabase for testing — drag-and-drop the JSON, optionally wipe existing data, runs `supabase.from(t).insert(rows)` per table in dependency order. Pieces with image bytes in `seed.files` get base64-decoded and uploaded to the `pieces` storage bucket; the row's `source_uri` / `thumbnail_uri` are rewritten to the public URL.
+
+Important: the wipe step uses a per-table primary-key column (`TABLE_FILTERS` map) with `.neq(col, '__never__')` because **not every table has `updated_at` or `created_at`** — `settings`, `strategy_last_used`, and `practice_log` lack those columns, so a generic `.gte('updated_at', 0)` predicate silently throws and aborts the import. Use the per-table filter pattern.
+
+The route is unlinked — reach it by typing `/import-seed` in the URL bar. Auth-gated via the same `useSession` shell as the rest of the app. Safe to leave deployed since RLS prevents cross-user contamination; but it's a power tool, not user-facing UI.
 
 ## Don'ts
 
