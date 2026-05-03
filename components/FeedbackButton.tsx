@@ -12,6 +12,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSession } from '@/lib/supabase/auth';
 
 // Public Formspree endpoint — safe to ship in the bundle. Override with
 // EXPO_PUBLIC_FORMSPREE_URL if you ever need to point at a different inbox.
@@ -21,6 +22,7 @@ const FORMSPREE_URL =
 export function FeedbackButton() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const session = useSession();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -48,6 +50,8 @@ export function FeedbackButton() {
         typeof window !== 'undefined' ? window.location.href : 'unknown';
       const userAgent =
         typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown';
+      const userEmail = session?.user.email ?? 'anonymous';
+      const userId = session?.user.id ?? 'anonymous';
       const res = await fetch(FORMSPREE_URL, {
         method: 'POST',
         headers: {
@@ -55,6 +59,11 @@ export function FeedbackButton() {
           Accept: 'application/json',
         },
         body: JSON.stringify({
+          // The `email` field is the Formspree convention for the
+          // reply-to address — replying to the notification email goes
+          // straight to the user.
+          email: userEmail,
+          userId,
           feedback: trimmed,
           page,
           userAgent,
@@ -109,7 +118,8 @@ export function FeedbackButton() {
               Send feedback
             </ThemedText>
             <ThemedText style={[styles.hint, { color: C.icon }]}>
-              The current page URL and timestamp are included automatically.
+              Your email, the current page, and a timestamp are included
+              automatically.
             </ThemedText>
 
             <TextInput
