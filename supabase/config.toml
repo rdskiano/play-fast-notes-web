@@ -1,0 +1,4 @@
+project_id = "uugodzwxuxgfwujnwpuq"
+
+[functions.pdf-render-page]
+verify_jwt = false
