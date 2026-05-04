@@ -15,7 +15,7 @@ import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getOrCreateExercise } from '@/lib/db/repos/exercises';
-import { getPiece, type Piece } from '@/lib/db/repos/pieces';
+import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { getTempoLadder, type TempoLadderProgress } from '@/lib/db/repos/tempoLadder';
 
 type StrategyKey = 'tempo_ladder' | 'click_up' | 'rhythmic';
@@ -41,14 +41,14 @@ const GROUPING_CHOICES: { n: Grouping; abc: string; w: number }[] = [
   { n: 8, abc: 'X:1\nM:none\nL:1/16\nK:none clef=none stafflines=0\nBBBBBBBB', w: 140 },
 ];
 
-export default function PieceDetailScreen() {
+export default function PassageDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { colors: strategyColors } = useStrategyColors();
 
-  const [piece, setPiece] = useState<Piece | null>(null);
+  const [passage, setPassage] = useState<Passage | null>(null);
   const [tempoLadder, setTempoLadder] = useState<TempoLadderProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [rhythmicSheetOpen, setRhythmicSheetOpen] = useState(false);
@@ -60,9 +60,9 @@ export default function PieceDetailScreen() {
       let cancelled = false;
       (async () => {
         try {
-          const p = await getPiece(id);
+          const p = await getPassage(id);
           if (cancelled) return;
-          setPiece(p);
+          setPassage(p);
           try {
             const ex = await getOrCreateExercise(id, 'tempo_ladder');
             const tl = await getTempoLadder(ex.id);
@@ -88,10 +88,10 @@ export default function PieceDetailScreen() {
     );
   }
 
-  if (!piece) {
+  if (!passage) {
     return (
       <ThemedView style={styles.centered}>
-        <ThemedText>Piece not found.</ThemedText>
+        <ThemedText>Passage not found.</ThemedText>
         <Pressable onPress={() => router.replace('/library')} hitSlop={10}>
           <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
             ‹ Back to Library
@@ -107,11 +107,11 @@ export default function PieceDetailScreen() {
       : null;
 
   function openStrategy(key: StrategyKey) {
-    if (!piece) return;
+    if (!passage) return;
     if (key === 'tempo_ladder') {
-      router.push(`/piece/${piece.id}/tempo-ladder`);
+      router.push(`/passage/${passage.id}/tempo-ladder`);
     } else if (key === 'click_up') {
-      router.push(`/piece/${piece.id}/click-up`);
+      router.push(`/passage/${passage.id}/click-up`);
     } else if (key === 'rhythmic') {
       setRhythmicStep('mode');
       setRhythmicSheetOpen(true);
@@ -150,14 +150,14 @@ export default function PieceDetailScreen() {
             <ThemedText style={[styles.backArrow, { color: C.tint }]}>‹</ThemedText>
           </Pressable>
           <ThemedText style={styles.topTitle} numberOfLines={1}>
-            {piece.title}
+            {passage.title}
           </ThemedText>
           <PracticeTimersPill />
         </View>
         <View style={styles.pillRow}>
           {STRATEGIES.map(renderPill)}
           <Pressable
-            onPress={() => router.push(`/piece/${piece.id}/chunking`)}
+            onPress={() => router.push(`/passage/${passage.id}/chunking`)}
             style={[styles.outlinePill, { borderColor: C.tint }]}>
             <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
               Chunking
@@ -165,14 +165,14 @@ export default function PieceDetailScreen() {
           </Pressable>
           <View style={{ flex: 1 }} />
           <Pressable
-            onPress={() => router.push(`/piece/${piece.id}/history`)}
+            onPress={() => router.push(`/passage/${passage.id}/history`)}
             style={[styles.outlinePill, { borderColor: C.icon }]}>
             <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
               Practice History
             </ThemedText>
           </Pressable>
           <Pressable
-            onPress={() => router.push(`/piece/${piece.id}/crop`)}
+            onPress={() => router.push(`/passage/${passage.id}/crop`)}
             style={[styles.outlinePill, { borderColor: C.icon }]}>
             <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
               Crop
@@ -182,9 +182,9 @@ export default function PieceDetailScreen() {
       </View>
 
       <View style={styles.body}>
-        {piece.source_uri ? (
+        {passage.source_uri ? (
           <Image
-            source={{ uri: piece.source_uri }}
+            source={{ uri: passage.source_uri }}
             style={styles.scoreFill}
             contentFit="contain"
           />
@@ -241,8 +241,8 @@ export default function PieceDetailScreen() {
                     onPress={() => {
                       setRhythmicSheetOpen(false);
                       router.push({
-                        pathname: '/piece/[id]/rhythm-list',
-                        params: { id: piece.id },
+                        pathname: '/passage/[id]/rhythm-list',
+                        params: { id: passage.id },
                       });
                     }}
                     style={{ backgroundColor: '#9b59b6' }}
@@ -271,8 +271,8 @@ export default function PieceDetailScreen() {
                         onPress={() => {
                           setRhythmicSheetOpen(false);
                           router.push({
-                            pathname: '/piece/[id]/rhythmic',
-                            params: { id: piece.id, grouping: String(n) },
+                            pathname: '/passage/[id]/rhythmic',
+                            params: { id: passage.id, grouping: String(n) },
                           });
                         }}
                         style={[styles.groupingChip, { borderColor: C.icon }]}>

@@ -8,7 +8,7 @@ import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { listAllFolders, type Folder } from '@/lib/db/repos/folders';
-import { listPieces, type Piece } from '@/lib/db/repos/pieces';
+import { listPassages, type Passage } from '@/lib/db/repos/passages';
 
 type Props = {
   visible: boolean;
@@ -18,7 +18,7 @@ type Props = {
   title?: string;
 };
 
-export function PiecePickerModal({
+export function PassagePickerModal({
   visible,
   selectedId,
   onClose,
@@ -27,26 +27,26 @@ export function PiecePickerModal({
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
-  const [pieces, setPieces] = useState<Piece[]>([]);
+  const [passages, setPassages] = useState<Passage[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
 
   useEffect(() => {
     if (!visible) return;
     (async () => {
-      const [p, f] = await Promise.all([listPieces(), listAllFolders()]);
-      setPieces(p);
+      const [p, f] = await Promise.all([listPassages(), listAllFolders()]);
+      setPassages(p);
       setFolders(f);
     })();
   }, [visible]);
 
   const sections = useMemo(() => {
-    const byFolder = new Map<string | null, Piece[]>();
-    for (const p of pieces) {
+    const byFolder = new Map<string | null, Passage[]>();
+    for (const p of passages) {
       const key = p.folder_id ?? null;
       if (!byFolder.has(key)) byFolder.set(key, []);
       byFolder.get(key)!.push(p);
     }
-    const out: { title: string; items: Piece[] }[] = [];
+    const out: { title: string; items: Passage[] }[] = [];
     for (const f of folders) {
       const list = byFolder.get(f.id);
       if (!list || list.length === 0) continue;
@@ -57,7 +57,7 @@ export function PiecePickerModal({
       out.push({ title: 'Unfiled', items: unfiled });
     }
     return out;
-  }, [pieces, folders]);
+  }, [passages, folders]);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -72,7 +72,7 @@ export function PiecePickerModal({
         <ScrollView contentContainerStyle={styles.content}>
           {sections.length === 0 ? (
             <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>
-              No pieces yet.
+              No passages yet.
             </ThemedText>
           ) : (
             sections.map((s, i) => (

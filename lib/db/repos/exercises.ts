@@ -104,7 +104,7 @@ export async function getExerciseById(id: string): Promise<Exercise | null> {
   return (data as Exercise | null) ?? null;
 }
 
-export async function listExercisesForPiece(
+export async function listExercisesForPassage(
   piece_id: string,
   strategy?: Strategy,
 ): Promise<Exercise[]> {

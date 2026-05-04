@@ -80,14 +80,14 @@ function dateKey(ts: number): string {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-type PieceGroup = {
-  pieceTitle: string;
+type PassageGroup = {
+  passageTitle: string;
   entries: PracticeLogWithTitle[];
 };
 
 type DayGroup = {
   dateLabel: string;
-  pieces: PieceGroup[];
+  passages: PassageGroup[];
 };
 
 export default function FolderLogScreen() {
@@ -110,31 +110,31 @@ export default function FolderLogScreen() {
     const entries = await getPracticeLogForFolder(resolvedFolderId);
     const dayMap = new Map<
       string,
-      { dateLabel: string; pieceMap: Map<string, PieceGroup> }
+      { dateLabel: string; passageMap: Map<string, PassageGroup> }
     >();
     for (const e of entries) {
       const dk = dateKey(e.practiced_at);
       if (!dayMap.has(dk)) {
         dayMap.set(dk, {
           dateLabel: formatDate(e.practiced_at),
-          pieceMap: new Map(),
+          passageMap: new Map(),
         });
       }
       const day = dayMap.get(dk)!;
       const pk = e.piece_id;
-      if (!day.pieceMap.has(pk)) {
-        day.pieceMap.set(pk, {
-          pieceTitle: e.piece_title || 'Untitled',
+      if (!day.passageMap.has(pk)) {
+        day.passageMap.set(pk, {
+          passageTitle: e.piece_title || 'Untitled',
           entries: [],
         });
       }
-      day.pieceMap.get(pk)!.entries.push(e);
+      day.passageMap.get(pk)!.entries.push(e);
     }
     const result: DayGroup[] = [];
     for (const day of dayMap.values()) {
       result.push({
         dateLabel: day.dateLabel,
-        pieces: Array.from(day.pieceMap.values()),
+        passages: Array.from(day.passageMap.values()),
       });
     }
     setDays(result);
@@ -197,13 +197,13 @@ export default function FolderLogScreen() {
           {days.map((day) => (
             <View key={day.dateLabel}>
               <ThemedText style={styles.dateHeader}>{day.dateLabel}</ThemedText>
-              <View style={styles.pieceGrid}>
-                {day.pieces.map((pg, pi) => (
+              <View style={styles.passageGrid}>
+                {day.passages.map((pg, pi) => (
                   <View
                     key={pi}
-                    style={[styles.pieceCard, { borderColor: C.icon + '33' }]}>
-                    <ThemedText style={styles.pieceName} numberOfLines={1}>
-                      {pg.pieceTitle}
+                    style={[styles.passageCard, { borderColor: C.icon + '33' }]}>
+                    <ThemedText style={styles.passageName} numberOfLines={1}>
+                      {pg.passageTitle}
                     </ThemedText>
                     <View style={styles.pillRow}>
                       {pg.entries.map((e) => {
@@ -276,12 +276,12 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
-  pieceGrid: {
+  passageGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.sm,
   },
-  pieceCard: {
+  passageCard: {
     flexBasis: '48%',
     flexGrow: 1,
     borderWidth: Borders.thin,
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 6,
   },
-  pieceName: {
+  passageName: {
     fontWeight: Type.weight.bold,
     fontSize: Type.size.sm,
   },

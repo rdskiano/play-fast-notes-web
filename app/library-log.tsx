@@ -96,8 +96,8 @@ function parseMoodNote(entry: LibraryPracticeLogEntry): {
 
 type ViewMode = 'date' | 'folder';
 
-type PieceGroup = {
-  pieceTitle: string;
+type PassageGroup = {
+  passageTitle: string;
   folderName: string | null;
   entries: LibraryPracticeLogEntry[];
 };
@@ -105,14 +105,14 @@ type PieceGroup = {
 type DayFolderGroup = {
   folderId: string | null;
   folderName: string;
-  pieces: PieceGroup[];
+  passages: PassageGroup[];
 };
 
 type DayGroup = { dateLabel: string; folders: DayFolderGroup[] };
 
 type FolderDayGroup = {
   dateLabel: string;
-  pieces: PieceGroup[];
+  passages: PassageGroup[];
 };
 
 type FolderGroup = {
@@ -175,7 +175,7 @@ export default function LibraryLogScreen() {
     ]);
   }
 
-  // ── By-date grouping: day → folder → piece → pills ─────────────────────
+  // ── By-date grouping: day → folder → passage → pills ─────────────────────
   // Folder order within a day follows the Library's folder sort order;
   // "Unfiled" (folder_id = null) comes last.
   const folderOrderIndex = new Map<string | null, number>();
@@ -190,7 +190,7 @@ export default function LibraryLogScreen() {
         dateLabel: string;
         folderMap: Map<string | null, {
           folderName: string;
-          pieceMap: Map<string, PieceGroup>;
+          passageMap: Map<string, PassageGroup>;
         }>;
       }
     >();
@@ -210,18 +210,18 @@ export default function LibraryLogScreen() {
             fKey === null
               ? 'Unfiled'
               : e.folder_name || folders.find((f) => f.id === fKey)?.name || 'Folder',
-          pieceMap: new Map(),
+          passageMap: new Map(),
         });
       }
       const folder = day.folderMap.get(fKey)!;
-      if (!folder.pieceMap.has(e.piece_id)) {
-        folder.pieceMap.set(e.piece_id, {
-          pieceTitle: e.piece_title || 'Untitled',
+      if (!folder.passageMap.has(e.piece_id)) {
+        folder.passageMap.set(e.piece_id, {
+          passageTitle: e.piece_title || 'Untitled',
           folderName: e.folder_name,
           entries: [],
         });
       }
-      folder.pieceMap.get(e.piece_id)!.entries.push(e);
+      folder.passageMap.get(e.piece_id)!.entries.push(e);
     }
     for (const day of dayMap.values()) {
       const folderKeys = Array.from(day.folderMap.keys()).sort(
@@ -233,7 +233,7 @@ export default function LibraryLogScreen() {
         return {
           folderId: fKey,
           folderName: f.folderName,
-          pieces: Array.from(f.pieceMap.values()),
+          passages: Array.from(f.passageMap.values()),
         };
       });
       dayGroups.push({
@@ -269,32 +269,32 @@ export default function LibraryLogScreen() {
           : list[0].folder_name || folders.find((f) => f.id === key)?.name || 'Folder';
       const dayMap = new Map<
         string,
-        { dateLabel: string; pieceMap: Map<string, PieceGroup> }
+        { dateLabel: string; passageMap: Map<string, PassageGroup> }
       >();
       for (const e of list) {
         const dk = dateKey(e.practiced_at);
         if (!dayMap.has(dk)) {
           dayMap.set(dk, {
             dateLabel: formatDate(e.practiced_at),
-            pieceMap: new Map(),
+            passageMap: new Map(),
           });
         }
         const day = dayMap.get(dk)!;
-        if (!day.pieceMap.has(e.piece_id)) {
-          day.pieceMap.set(e.piece_id, {
-            pieceTitle: e.piece_title || 'Untitled',
+        if (!day.passageMap.has(e.piece_id)) {
+          day.passageMap.set(e.piece_id, {
+            passageTitle: e.piece_title || 'Untitled',
             folderName: e.folder_name,
             entries: [],
           });
         }
-        day.pieceMap.get(e.piece_id)!.entries.push(e);
+        day.passageMap.get(e.piece_id)!.entries.push(e);
       }
       folderGroups.push({
         folderId: key,
         folderName,
         dayGroups: Array.from(dayMap.values()).map((d) => ({
           dateLabel: d.dateLabel,
-          pieces: Array.from(d.pieceMap.values()),
+          passages: Array.from(d.passageMap.values()),
         })),
       });
     }
@@ -380,12 +380,12 @@ export default function LibraryLogScreen() {
                         </ThemedText>
                       </View>
                       <View style={styles.grid}>
-                        {folder.pieces.map((pg, j) => (
+                        {folder.passages.map((pg, j) => (
                           <View
                             key={j}
                             style={[styles.card, { borderColor: C.icon + '33' }]}>
-                            <ThemedText style={styles.pieceName} numberOfLines={1}>
-                              {pg.pieceTitle}
+                            <ThemedText style={styles.passageName} numberOfLines={1}>
+                              {pg.passageTitle}
                             </ThemedText>
                             <View style={styles.pillRow}>
                               {pg.entries.map((e) => (
@@ -458,13 +458,13 @@ export default function LibraryLogScreen() {
                           {dg.dateLabel}
                         </ThemedText>
                       </View>
-                      <View style={styles.pieceStack}>
-                        {dg.pieces.map((pg, k) => (
+                      <View style={styles.passageStack}>
+                        {dg.passages.map((pg, k) => (
                           <View
                             key={k}
-                            style={[styles.pieceRow, { borderColor: C.tint + '88' }]}>
-                            <ThemedText style={styles.pieceName} numberOfLines={1}>
-                              {pg.pieceTitle}
+                            style={[styles.passageRow, { borderColor: C.tint + '88' }]}>
+                            <ThemedText style={styles.passageName} numberOfLines={1}>
+                              {pg.passageTitle}
                             </ThemedText>
                             <View style={styles.pillRow}>
                               {pg.entries.map((e) => (
@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 6,
   },
-  pieceName: { fontWeight: Type.weight.bold, fontSize: Type.size.sm },
+  passageName: { fontWeight: Type.weight.bold, fontSize: Type.size.sm },
   folderSubtitle: { fontSize: Type.size.xs, fontWeight: Type.weight.semibold, marginTop: -2 },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
   pillRowWide: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
@@ -615,8 +615,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  pieceStack: { gap: 6, marginLeft: Spacing.xs },
-  pieceRow: {
+  passageStack: { gap: 6, marginLeft: Spacing.xs },
+  passageRow: {
     gap: Spacing.xs,
     borderLeftWidth: Borders.thick,
     paddingLeft: 10,

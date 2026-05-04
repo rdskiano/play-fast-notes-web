@@ -15,10 +15,10 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { insertPiece, updatePieceAssets } from '@/lib/db/repos/pieces';
-import { uploadPieceImage } from '@/lib/supabase/storage';
+import { insertPassage, updatePassageAssets } from '@/lib/db/repos/passages';
+import { uploadPassageImage } from '@/lib/supabase/storage';
 
-function newPieceId(): string {
+function newPassageId(): string {
   return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
@@ -77,9 +77,9 @@ export default function UploadScreen() {
     if (!canSave || !picked) return;
     setSaving(true);
     setError(null);
-    const id = newPieceId();
+    const id = newPassageId();
     try {
-      await insertPiece({
+      await insertPassage({
         id,
         title: 'Untitled',
         composer: null,
@@ -88,10 +88,10 @@ export default function UploadScreen() {
         thumbnail_uri: null,
         folder_id: targetFolderId,
       });
-      const publicUrl = await uploadPieceImage(id, picked.file);
-      await updatePieceAssets(id, publicUrl, publicUrl);
+      const publicUrl = await uploadPassageImage(id, picked.file);
+      await updatePassageAssets(id, publicUrl, publicUrl);
       if (picked.previewUrl) URL.revokeObjectURL(picked.previewUrl);
-      router.replace(`/piece/${id}/crop`);
+      router.replace(`/passage/${id}/crop`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setSaving(false);
@@ -102,7 +102,7 @@ export default function UploadScreen() {
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <ThemedView style={{ gap: 14 }}>
-          <ThemedText type="title">Add a piece</ThemedText>
+          <ThemedText type="title">Add a passage</ThemedText>
 
           <View style={styles.sourceRow}>
             <Button

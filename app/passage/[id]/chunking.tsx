@@ -12,7 +12,7 @@ import { Button } from '@/components/Button';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getPiece, type Piece } from '@/lib/db/repos/pieces';
+import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 
@@ -40,13 +40,13 @@ export default function ChunkingScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
 
-  const [piece, setPiece] = useState<Piece | null>(null);
+  const [passage, setPassage] = useState<Passage | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    getPiece(id).then(setPiece);
+    getPassage(id).then(setPassage);
   }, [id]);
 
   function onDone() {
@@ -94,9 +94,9 @@ export default function ChunkingScreen() {
         sub={<PracticeTimersPill />}
       />
 
-      {piece?.source_uri ? (
+      {passage?.source_uri ? (
         <Image
-          source={{ uri: piece.source_uri }}
+          source={{ uri: passage.source_uri }}
           style={styles.scoreFill}
           contentFit="contain"
         />
@@ -114,7 +114,7 @@ export default function ChunkingScreen() {
         visible={notePromptVisible}
         emoji="🎉"
         title="Chunking — session complete"
-        subtitle={piece?.title ?? undefined}
+        subtitle={passage?.title ?? undefined}
         submitLabel="Save & finish"
         cancelLabel="Skip"
         onSubmit={({ mood, note }) => finishLog(mood, note)}

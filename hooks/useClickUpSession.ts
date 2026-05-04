@@ -10,12 +10,12 @@ import {
 } from '@/lib/db/repos/clickUp';
 import { getOrCreateExercise, updateExerciseConfig } from '@/lib/db/repos/exercises';
 import {
-  getPiece,
+  getPassage,
   parseMarkers,
-  updatePieceUnits,
+  updatePassageUnits,
   type Marker,
-  type Piece,
-} from '@/lib/db/repos/pieces';
+  type Passage,
+} from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import { useMetronome } from '@/lib/audio/useMetronome';
@@ -40,7 +40,7 @@ export function useClickUpSession(id: string | undefined) {
   const repCounterRef = useRef(0);
 
   const [phase, setPhase] = useState<ClickUpPhase>('marking');
-  const [piece, setPiece] = useState<Piece | null>(null);
+  const [passage, setPassage] = useState<Passage | null>(null);
   const [exerciseId, setExerciseId] = useState<string | null>(null);
   const [storedConfig, setStoredConfig] = useState<StoredConfig | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -55,9 +55,9 @@ export function useClickUpSession(id: string | undefined) {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    getPiece(id).then((p) => {
+    getPassage(id).then((p) => {
       if (cancelled) return;
-      setPiece(p);
+      setPassage(p);
       if (p) setMarkers(parseMarkers(p.units_json));
     });
     getOrCreateExercise(id, 'click_up').then(async (ex) => {
@@ -108,8 +108,8 @@ export function useClickUpSession(id: string | undefined) {
   async function commitMarkersAndConfigure() {
     if (!id) return;
     if (markers.length < MIN_MARKERS) return;
-    await updatePieceUnits(id, markers);
-    if (piece) setPiece({ ...piece, units_json: JSON.stringify(markers) });
+    await updatePassageUnits(id, markers);
+    if (passage) setPassage({ ...passage, units_json: JSON.stringify(markers) });
     setPhase('config');
   }
 
@@ -203,7 +203,7 @@ export function useClickUpSession(id: string | undefined) {
 
   return {
     phase,
-    piece,
+    passage,
     markers,
     storedConfig,
     currentIndex,

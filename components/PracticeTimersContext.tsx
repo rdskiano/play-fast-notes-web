@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { getPiece, type Piece } from '@/lib/db/repos/pieces';
+import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 
 // ── Config types ────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ type PlayItColdHook = {
   config: PlayItColdConfig;
   setConfig: (next: Partial<PlayItColdConfig>) => void;
   firing: boolean;
-  piece: Piece | null;
+  passage: Passage | null;
   dismiss: () => void;
 };
 
@@ -108,7 +108,7 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
   const [breakSecondsLeft, setBreakSecondsLeft] = useState(0);
   const breakTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [coldPiece, setColdPiece] = useState<Piece | null>(null);
+  const [coldPassage, setColdPassage] = useState<Passage | null>(null);
 
   const moveOnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const coldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -213,12 +213,12 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
     coldTimeoutRef.current = setTimeout(async () => {
       const cfgNow = playItColdCfgRef.current;
       if (!cfgNow.enabled || !cfgNow.pieceId) return;
-      const piece = await getPiece(cfgNow.pieceId);
-      if (!piece) {
+      const passage = await getPassage(cfgNow.pieceId);
+      if (!passage) {
         schedulePlayItCold();
         return;
       }
-      setColdPiece(piece);
+      setColdPassage(passage);
       enqueueFire('playItCold');
     }, ms);
   }, [enqueueFire]);
@@ -250,7 +250,7 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
   const dismissPlayItCold = useCallback(() => {
     if (firingRef.current !== 'playItCold') return;
     setFiring(null);
-    setColdPiece(null);
+    setColdPassage(null);
     drainQueue();
     schedulePlayItCold();
   }, [drainQueue, schedulePlayItCold]);
@@ -302,7 +302,7 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
       config: playItColdCfg,
       setConfig: setPlayItColdConfig,
       firing: firing === 'playItCold',
-      piece: coldPiece,
+      passage: coldPassage,
       dismiss: dismissPlayItCold,
     },
   };
@@ -331,7 +331,7 @@ function useCtx(): Ctx {
         config: DEFAULT_PLAY_IT_COLD,
         setConfig: () => {},
         firing: false,
-        piece: null,
+        passage: null,
         dismiss: () => {},
       },
     };

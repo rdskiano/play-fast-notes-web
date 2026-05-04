@@ -42,40 +42,40 @@ export default function RootLayout() {
           <Stack.Screen name="sign-in" options={{ headerShown: false }} />
           <Stack.Screen
             name="upload"
-            options={{ presentation: 'modal', title: 'Add a piece' }}
+            options={{ presentation: 'modal', title: 'Add a passage' }}
           />
           <Stack.Screen
             name="multi-page"
             options={{ presentation: 'modal', title: 'Two-page passage' }}
           />
-          <Stack.Screen name="piece/[id]/index" options={{ headerShown: false }} />
+          <Stack.Screen name="passage/[id]/index" options={{ headerShown: false }} />
           <Stack.Screen
-            name="piece/[id]/tempo-ladder"
+            name="passage/[id]/tempo-ladder"
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="piece/[id]/crop"
+            name="passage/[id]/crop"
             options={{ headerShown: false }}
           />
-          <Stack.Screen name="piece/[id]/history" />
+          <Stack.Screen name="passage/[id]/history" />
           <Stack.Screen
-            name="piece/[id]/click-up"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="piece/[id]/rhythmic"
+            name="passage/[id]/click-up"
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="piece/[id]/chunking"
+            name="passage/[id]/rhythmic"
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="piece/[id]/rhythm-list"
+            name="passage/[id]/chunking"
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="piece/[id]/rhythm-builder"
+            name="passage/[id]/rhythm-list"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="passage/[id]/rhythm-builder"
             options={{ headerShown: false }}
           />
           <Stack.Screen name="settings" options={{ headerShown: false }} />

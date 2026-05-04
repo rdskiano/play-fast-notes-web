@@ -9,7 +9,7 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { Borders, Radii, Status, Type } from '@/constants/tokens';
-import type { Marker } from '@/lib/db/repos/pieces';
+import type { Marker } from '@/lib/db/repos/passages';
 
 type Props = {
   uri: string;

@@ -1,4 +1,4 @@
-import type { Piece } from '@/lib/db/repos/pieces';
+import type { Passage } from '@/lib/db/repos/passages';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -8,7 +8,7 @@ export type RepTarget = 3 | 5 | 10;
 export type TimerMinutes = 3 | 5 | 10 | 15;
 
 export type SpotState = {
-  piece: Piece;
+  passage: Passage;
   streak: number;
   justMissed: boolean;
   completed: boolean;
@@ -26,7 +26,7 @@ export type SessionState = {
   timerExpired: boolean;
   celebrating: boolean;
   visitedCount: number;
-  engagedTempoByPiece: Record<string, number>;
+  engagedTempoByPassage: Record<string, number>;
 };
 
 // ── Module-level singleton ─────────────────────────────────────────────────
@@ -84,19 +84,19 @@ function startTicker() {
 }
 
 export function startTimerSession(params: {
-  pieces: Piece[];
+  passages: Passage[];
   order: Order;
   timerMinutes: TimerMinutes;
 }) {
-  const spots: SpotState[] = params.pieces.map((piece) => ({
-    piece,
+  const spots: SpotState[] = params.passages.map((passage) => ({
+    passage,
     streak: 0,
     justMissed: false,
     completed: false,
     visited: false,
   }));
   const first =
-    params.order === 'serial' ? 0 : Math.floor(Math.random() * params.pieces.length);
+    params.order === 'serial' ? 0 : Math.floor(Math.random() * params.passages.length);
   spots[first].visited = true;
   _state = {
     spots,
@@ -109,7 +109,7 @@ export function startTimerSession(params: {
     timerExpired: false,
     celebrating: false,
     visitedCount: 1,
-    engagedTempoByPiece: {},
+    engagedTempoByPassage: {},
   };
   startTicker();
   emit();
@@ -121,11 +121,11 @@ export function clearSession() {
   emit();
 }
 
-export function setEngagedTempo(pieceId: string, bpm: number) {
+export function setEngagedTempo(passageId: string, bpm: number) {
   if (!_state) return;
-  _state.engagedTempoByPiece = {
-    ..._state.engagedTempoByPiece,
-    [pieceId]: bpm,
+  _state.engagedTempoByPassage = {
+    ..._state.engagedTempoByPassage,
+    [passageId]: bpm,
   };
   emit();
 }

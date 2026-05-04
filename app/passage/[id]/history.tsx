@@ -9,10 +9,10 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Opacity, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getPiece, type Piece } from '@/lib/db/repos/pieces';
+import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import {
   deletePracticeLog,
-  getPracticeLogForPiece,
+  getPracticeLogForPassage,
   updatePracticeLogMoodNote,
   type PracticeLogEntry,
 } from '@/lib/db/repos/practiceLog';
@@ -112,13 +112,13 @@ export default function HistoryScreen() {
   const { colors: STRATEGY_COLORS } = useStrategyColors();
 
   const router = useRouter();
-  const [piece, setPiece] = useState<Piece | null>(null);
+  const [passage, setPassage] = useState<Passage | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [editing, setEditing] = useState<PracticeLogEntry | null>(null);
 
   const refresh = useCallback(async () => {
     if (!id) return;
-    const entries = await getPracticeLogForPiece(id);
+    const entries = await getPracticeLogForPassage(id);
     const groups = new Map<string, { title: string; data: PracticeLogEntry[] }>();
     for (const e of entries) {
       const key = dateKey(e.practiced_at);
@@ -132,7 +132,7 @@ export default function HistoryScreen() {
 
   useEffect(() => {
     if (!id) return;
-    getPiece(id).then(setPiece);
+    getPassage(id).then(setPassage);
     refresh();
   }, [id, refresh]);
 
@@ -166,13 +166,13 @@ export default function HistoryScreen() {
     ]);
   }
 
-  if (!piece) return <ThemedView style={{ flex: 1 }} />;
+  if (!passage) return <ThemedView style={{ flex: 1 }} />;
 
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen
         options={{
-          title: `${piece.title} — History`,
+          title: `${passage.title} — History`,
           headerBackVisible: false,
           headerLeft: () => (
             <Pressable

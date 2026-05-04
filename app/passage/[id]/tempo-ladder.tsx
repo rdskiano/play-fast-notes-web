@@ -33,7 +33,7 @@ export default function TempoLadderScreen() {
   const session = useTempoLadderSession(id);
   const {
     phase,
-    piece,
+    passage,
     progress,
     celebrating,
     mode,
@@ -66,7 +66,7 @@ export default function TempoLadderScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.topBar, { borderBottomColor: C.icon + '44' }]}>
           <Pressable onPress={() => router.back()} hitSlop={14} style={styles.backBtn}>
-            <ThemedText style={[styles.backText, { color: C.tint }]}>‹ Piece</ThemedText>
+            <ThemedText style={[styles.backText, { color: C.tint }]}>‹ Passage</ThemedText>
           </Pressable>
           <ThemedText style={styles.topTitle}>Tempo Ladder</ThemedText>
           <PracticeTimersPill />
@@ -258,9 +258,9 @@ export default function TempoLadderScreen() {
         <PracticeTimersPill />
       </View>
 
-      {piece?.source_uri && (
+      {passage?.source_uri && (
         <Image
-          source={{ uri: piece.source_uri }}
+          source={{ uri: passage.source_uri }}
           style={styles.scoreFill}
           contentFit="contain"
         />
@@ -301,7 +301,7 @@ export default function TempoLadderScreen() {
             ? `Goal tempo reached — ${progress.goal_tempo} BPM!`
             : 'How did that go?'
         }
-        subtitle={piece?.title ?? 'Tempo Ladder'}
+        subtitle={passage?.title ?? 'Tempo Ladder'}
         submitLabel="Save & finish"
         cancelLabel="Skip"
         onSubmit={({ mood, note }) => {

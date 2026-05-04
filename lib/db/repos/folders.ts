@@ -117,7 +117,7 @@ export async function softDeleteFolder(id: string): Promise<void> {
   if (deleteErr) throw deleteErr;
 }
 
-export async function rehomeOrphans(): Promise<{ pieces: number; folders: number }> {
+export async function rehomeOrphans(): Promise<{ passages: number; folders: number }> {
   // The iPad version does this via SQL subqueries; on Supabase we read the
   // live folder ids first, then run two scoped updates. RLS already filters
   // to the current user.
@@ -163,7 +163,7 @@ export async function rehomeOrphans(): Promise<{ pieces: number; folders: number
     if (error) throw error;
   }
 
-  return { pieces: orphanPieceIds.length, folders: orphanFolderIds.length };
+  return { passages: orphanPieceIds.length, folders: orphanFolderIds.length };
 }
 
 export async function listAllFolders(): Promise<Folder[]> {

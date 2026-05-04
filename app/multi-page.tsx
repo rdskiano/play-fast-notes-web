@@ -15,8 +15,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { insertPiece, renamePiece, updatePieceAssets } from '@/lib/db/repos/pieces';
-import { uploadPieceImage } from '@/lib/supabase/storage';
+import { insertPassage, renamePassage, updatePassageAssets } from '@/lib/db/repos/passages';
+import { uploadPassageImage } from '@/lib/supabase/storage';
 
 type Step = 'pick_1' | 'crop_1' | 'pick_2' | 'crop_2' | 'preview';
 type PageNum = 1 | 2;
@@ -24,7 +24,7 @@ type CroppedPage = { url: string; w: number; h: number; blob: Blob };
 
 const COMPOSITE_WIDTH = 1600;
 
-function newPieceId(): string {
+function newPassageId(): string {
   return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
@@ -70,7 +70,7 @@ export default function MultiPageScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [namePromptVisible, setNamePromptVisible] = useState(false);
-  const [savedPieceId, setSavedPieceId] = useState<string | null>(null);
+  const [savedPassageId, setSavedPassageId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingPageRef = useRef<PageNum>(1);
@@ -161,10 +161,10 @@ export default function MultiPageScreen() {
     if (!cropped1 || !cropped2) return;
     setSaving(true);
     setError(null);
-    const id = newPieceId();
+    const id = newPassageId();
     try {
       const compositeBlob = await buildComposite(cropped1, cropped2);
-      await insertPiece({
+      await insertPassage({
         id,
         title: 'Untitled',
         composer: null,
@@ -174,9 +174,9 @@ export default function MultiPageScreen() {
         folder_id: targetFolderId,
       });
       const file = new File([compositeBlob], `${id}.jpg`, { type: 'image/jpeg' });
-      const publicUrl = await uploadPieceImage(id, file);
-      await updatePieceAssets(id, publicUrl, publicUrl);
-      setSavedPieceId(id);
+      const publicUrl = await uploadPassageImage(id, file);
+      await updatePassageAssets(id, publicUrl, publicUrl);
+      setSavedPassageId(id);
       setNamePromptVisible(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -186,20 +186,20 @@ export default function MultiPageScreen() {
   }
 
   async function handleName(name: string) {
-    if (!savedPieceId) return;
+    if (!savedPassageId) return;
     setNamePromptVisible(false);
     const trimmed = name.trim();
     if (trimmed) {
       try {
-        await renamePiece(savedPieceId, trimmed);
+        await renamePassage(savedPassageId, trimmed);
       } catch {
         // ignore — fall through to navigation anyway
       }
     }
-    // Pop both modals (/upload and /multi-page) so back from the piece detail
+    // Pop both modals (/upload and /multi-page) so back from the passage detail
     // returns the user to /library — not back into the upload flow.
     router.dismissAll();
-    router.push(`/piece/${savedPieceId}`);
+    router.push(`/passage/${savedPassageId}`);
   }
 
   function renderPickStep(page: PageNum) {

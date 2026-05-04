@@ -31,7 +31,7 @@ import {
   updateExerciseConfig,
   type Exercise,
 } from '@/lib/db/repos/exercises';
-import { getPiece, type Piece } from '@/lib/db/repos/pieces';
+import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import {
@@ -87,7 +87,7 @@ export default function RhythmBuilderScreen() {
   const { width: winWidth } = useWindowDimensions();
 
   const [phase, setPhase] = useState<Phase>('setup');
-  const [piece, setPiece] = useState<Piece | null>(null);
+  const [passage, setPassage] = useState<Passage | null>(null);
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
@@ -108,12 +108,12 @@ export default function RhythmBuilderScreen() {
   const historyRef = useRef<Pitch[][]>([]);
   const [historyVersion, setHistoryVersion] = useState(0);
 
-  // Load piece + exercise.
+  // Load passage + exercise.
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    getPiece(id).then((p) => {
-      if (!cancelled) setPiece(p);
+    getPassage(id).then((p) => {
+      if (!cancelled) setPassage(p);
     });
     if (exerciseIdParam) {
       getExerciseById(exerciseIdParam).then((ex) => {
@@ -301,12 +301,12 @@ export default function RhythmBuilderScreen() {
   // print staffwidth (so wrapping is correct), then triggers window.print()
   // in the popup. Browser print dialog has "Save as PDF" as a destination.
   function exportPdf() {
-    if (typeof window === 'undefined' || !piece) return;
+    if (typeof window === 'undefined' || !passage) return;
     const patterns = patternsByGrouping(grouping);
     const html = buildExerciseHtml(
       exercise?.name && exercise.name.trim().length > 0
         ? exercise.name
-        : (piece.title ?? 'Exercises'),
+        : (passage.title ?? 'Exercises'),
       pitches,
       keySignature,
       clef,
@@ -332,7 +332,7 @@ export default function RhythmBuilderScreen() {
     w.document.close();
   }
 
-  if (!piece) {
+  if (!passage) {
     return (
       <ThemedView style={styles.centered}>
         <ThemedText style={{ opacity: Opacity.muted }}>Loading…</ThemedText>
@@ -397,14 +397,14 @@ export default function RhythmBuilderScreen() {
           style={{ flex: 1 }}
           contentContainerStyle={styles.setupControls}
           keyboardShouldPersistTaps="handled">
-          {piece.source_uri ? (
+          {passage.source_uri ? (
             <View
               style={[
                 styles.setupScore,
                 imageAspect ? { aspectRatio: imageAspect } : null,
               ]}>
               <Image
-                source={{ uri: piece.source_uri }}
+                source={{ uri: passage.source_uri }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 onLoad={(e: ImageLoadEventData) => {
@@ -479,14 +479,14 @@ export default function RhythmBuilderScreen() {
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingBottom: Spacing['2xl'] }}>
-          {piece.source_uri ? (
+          {passage.source_uri ? (
             <View
               style={[
                 styles.entryScore,
                 imageAspect ? { aspectRatio: imageAspect } : null,
               ]}>
               <Image
-                source={{ uri: piece.source_uri }}
+                source={{ uri: passage.source_uri }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 onLoad={(e: ImageLoadEventData) => {
@@ -604,7 +604,7 @@ export default function RhythmBuilderScreen() {
       {phase === 'generate' && (
         <>
           <ExercisesPhase
-            pieceTitle={piece.title ?? 'Exercises'}
+            passageTitle={passage.title ?? 'Exercises'}
             pitches={pitches}
             grouping={grouping}
             keySignature={keySignature}
@@ -633,7 +633,7 @@ export default function RhythmBuilderScreen() {
         visible={notePromptVisible}
         emoji="🎉"
         title="Exercise Builder — session complete"
-        subtitle={piece?.title ?? undefined}
+        subtitle={passage?.title ?? undefined}
         submitLabel="Save & finish"
         cancelLabel="Skip"
         onSubmit={({ mood, note }) => finishLog(mood, note)}
@@ -669,7 +669,7 @@ const _useHistoryVersion = (v: number) => v;
 // ── Exercises (Generate) phase ────────────────────────────────────────────
 
 function ExercisesPhase({
-  pieceTitle,
+  passageTitle,
   pitches,
   grouping,
   keySignature,
@@ -679,7 +679,7 @@ function ExercisesPhase({
   viewportWidth,
   onBack,
 }: {
-  pieceTitle: string;
+  passageTitle: string;
   pitches: Pitch[];
   grouping: Grouping;
   keySignature: KeySignature;
@@ -737,7 +737,7 @@ function ExercisesPhase({
   return (
     <ScrollView contentContainerStyle={exerciseStyles.wrap}>
       <ThemedText type="subtitle" style={{ textAlign: 'center' }} numberOfLines={1}>
-        {pieceTitle}
+        {passageTitle}
       </ThemedText>
       <ThemedText style={exerciseStyles.summary}>
         {pitches.length > 0

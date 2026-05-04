@@ -9,8 +9,8 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getPiece, renamePiece, updatePieceAssets, type Piece } from '@/lib/db/repos/pieces';
-import { uploadPieceImage } from '@/lib/supabase/storage';
+import { getPassage, renamePassage, updatePassageAssets, type Passage } from '@/lib/db/repos/passages';
+import { uploadPassageImage } from '@/lib/supabase/storage';
 
 type Rect = { x: number; y: number; w: number; h: number };
 type Handle = 'move' | 'tl' | 'tr' | 'bl' | 'br';
@@ -58,7 +58,7 @@ export default function CropScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
 
-  const [piece, setPiece] = useState<Piece | null>(null);
+  const [passage, setPassage] = useState<Passage | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,9 +77,9 @@ export default function CropScreen() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    getPiece(id)
+    getPassage(id)
       .then((p) => {
-        if (!cancelled) setPiece(p);
+        if (!cancelled) setPassage(p);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => {
@@ -128,13 +128,13 @@ export default function CropScreen() {
   }, []);
 
   useEffect(() => {
-    if (!piece?.source_uri) return;
+    if (!passage?.source_uri) return;
     function onResize() {
       measureImg();
     }
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [piece?.source_uri, measureImg]);
+  }, [passage?.source_uri, measureImg]);
 
   function onImgLoad() {
     measureImg();
@@ -204,15 +204,15 @@ export default function CropScreen() {
   );
 
   function onSkip() {
-    if (piece?.title === 'Untitled') {
+    if (passage?.title === 'Untitled') {
       setNamePromptVisible(true);
     } else {
-      router.replace(`/piece/${id}`);
+      router.replace(`/passage/${id}`);
     }
   }
 
   async function onSave() {
-    if (!piece || !crop || !imgRect || !naturalSize) return;
+    if (!passage || !crop || !imgRect || !naturalSize) return;
     setSaving(true);
     setError(null);
     try {
@@ -224,14 +224,14 @@ export default function CropScreen() {
         w: crop.w * ratio,
         h: crop.h * ratio,
       };
-      const blob = await getCroppedBlob(piece.source_uri, area);
-      const file = new File([blob], `${piece.id}.jpg`, { type: 'image/jpeg' });
-      const publicUrl = await uploadPieceImage(piece.id, file);
-      await updatePieceAssets(piece.id, publicUrl, publicUrl);
-      if (piece.title === 'Untitled') {
+      const blob = await getCroppedBlob(passage.source_uri, area);
+      const file = new File([blob], `${passage.id}.jpg`, { type: 'image/jpeg' });
+      const publicUrl = await uploadPassageImage(passage.id, file);
+      await updatePassageAssets(passage.id, publicUrl, publicUrl);
+      if (passage.title === 'Untitled') {
         setNamePromptVisible(true);
       } else {
-        router.replace(`/piece/${piece.id}`);
+        router.replace(`/passage/${passage.id}`);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -242,16 +242,16 @@ export default function CropScreen() {
 
   async function handleName(name: string) {
     setNamePromptVisible(false);
-    if (!piece) return;
+    if (!passage) return;
     const trimmed = name.trim();
     if (trimmed) {
       try {
-        await renamePiece(piece.id, trimmed);
+        await renamePassage(passage.id, trimmed);
       } catch {
         // ignore
       }
     }
-    router.replace(`/piece/${piece.id}`);
+    router.replace(`/passage/${passage.id}`);
   }
 
   if (loading) {
@@ -262,7 +262,7 @@ export default function CropScreen() {
     );
   }
 
-  if (!piece || !piece.source_uri) {
+  if (!passage || !passage.source_uri) {
     return (
       <ThemedView style={styles.centered}>
         <ThemedText style={{ textAlign: 'center' }}>No image to crop.</ThemedText>
@@ -305,7 +305,7 @@ export default function CropScreen() {
           }}>
           <img
             ref={imgRef}
-            src={piece.source_uri}
+            src={passage.source_uri}
             alt=""
             onLoad={onImgLoad}
             crossOrigin="anonymous"

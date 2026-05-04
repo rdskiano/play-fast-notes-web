@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import { getOrCreateExercise } from '@/lib/db/repos/exercises';
-import { getPiece, type Piece } from '@/lib/db/repos/pieces';
+import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice, updatePracticeLogMoodNote } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import {
@@ -33,7 +33,7 @@ export function useTempoLadderSession(id: string | undefined) {
   const metronome = useMetronome(60);
   const microbreak = useMicrobreakTimer();
 
-  const [piece, setPiece] = useState<Piece | null>(null);
+  const [passage, setPassage] = useState<Passage | null>(null);
   const [exerciseId, setExerciseId] = useState<string | null>(null);
   const [progress, setProgress] = useState<TempoLadderProgress | null>(null);
   const [phase, setPhase] = useState<'config' | 'playing'>('config');
@@ -52,8 +52,8 @@ export function useTempoLadderSession(id: string | undefined) {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    getPiece(id).then((p) => {
-      if (!cancelled) setPiece(p);
+    getPassage(id).then((p) => {
+      if (!cancelled) setPassage(p);
     });
     getOrCreateExercise(id, 'tempo_ladder').then(async (ex) => {
       if (cancelled) return;
@@ -279,7 +279,7 @@ export function useTempoLadderSession(id: string | undefined) {
 
   return {
     phase,
-    piece,
+    passage,
     progress,
     celebrating,
     mode,

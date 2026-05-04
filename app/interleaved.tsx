@@ -20,7 +20,7 @@ import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { listAllFolders, type Folder } from '@/lib/db/repos/folders';
-import { listPieces, type Piece } from '@/lib/db/repos/pieces';
+import { listPassages, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import { useMetronome } from '@/lib/audio/useMetronome';
@@ -47,11 +47,11 @@ type Phase = 'config' | 'select' | 'playing';
 type Section = {
   title: string;
   folderId: string | null;
-  data: Piece[];
+  data: Passage[];
 };
 
 type SpotState = {
-  piece: Piece;
+  passage: Passage;
   streak: number;
   justMissed: boolean;
   completed: boolean;
@@ -149,7 +149,7 @@ export default function InterleavedScreen() {
   const [timerMinutes, setTimerMinutes] = useState<TimerMinutes>(5);
 
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [pieces, setPieces] = useState<Piece[]>([]);
+  const [passages, setPassages] = useState<Passage[]>([]);
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -160,17 +160,17 @@ export default function InterleavedScreen() {
   const [celebrating, setCelebrating] = useState(false);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   const metronome = useMetronome(80);
-  // Tracks the BPM the user actually engaged with on each piece — saved
-  // into the practice log for that piece so they can recall the tempo
+  // Tracks the BPM the user actually engaged with on each passage — saved
+  // into the practice log for that passage so they can recall the tempo
   // they were actually working at.
   const engagedTempoMap = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([listAllFolders(), listPieces()]).then(([flds, pcs]) => {
+    Promise.all([listAllFolders(), listPassages()]).then(([flds, pcs]) => {
       if (cancelled) return;
       setFolders(flds);
-      setPieces(pcs);
+      setPassages(pcs);
     });
     return () => {
       cancelled = true;
@@ -199,12 +199,12 @@ export default function InterleavedScreen() {
     if (!metronome.running) return;
     if (mode === 'timer') {
       const cur = timerSession?.spots[timerSession.currentIndex];
-      if (cur) setTimerEngagedTempo(cur.piece.id, metronome.bpm);
+      if (cur) setTimerEngagedTempo(cur.passage.id, metronome.bpm);
       return;
     }
     const cur = spots[currentIndex];
     if (!cur) return;
-    engagedTempoMap.current.set(cur.piece.id, metronome.bpm);
+    engagedTempoMap.current.set(cur.passage.id, metronome.bpm);
   }, [phase, mode, currentIndex, spots, timerSession, metronome.bpm, metronome.running]);
 
   function exit() {
@@ -223,21 +223,21 @@ export default function InterleavedScreen() {
 
   function startPlaying() {
     if (selectedIds.length < 2) return;
-    const orderedPieces = selectedIds
-      .map((id) => pieces.find((p) => p.id === id))
-      .filter((p): p is Piece => !!p);
+    const orderedPassages = selectedIds
+      .map((id) => passages.find((p) => p.id === id))
+      .filter((p): p is Passage => !!p);
 
     if (mode === 'timer') {
       // Timer-mode session lives in the module-level singleton so the
       // countdown survives navigation to Tempo Ladder etc.
-      startTimerSession({ pieces: orderedPieces, order, timerMinutes });
+      startTimerSession({ passages: orderedPassages, order, timerMinutes });
       setPhase('playing');
       return;
     }
 
     // Consistency mode: keep state local to the component.
-    const initial: SpotState[] = orderedPieces.map((piece) => ({
-      piece,
+    const initial: SpotState[] = orderedPassages.map((passage) => ({
+      passage,
       streak: 0,
       justMissed: false,
       completed: false,
@@ -315,7 +315,7 @@ export default function InterleavedScreen() {
     setCelebrating(false);
     for (const spot of spots) {
       try {
-        await stampLastUsed(spot.piece.id, 'interleaved');
+        await stampLastUsed(spot.passage.id, 'interleaved');
         const data: Record<string, unknown> = {
           mode,
           order,
@@ -323,11 +323,11 @@ export default function InterleavedScreen() {
           streak: spot.streak,
           completed: spot.completed,
         };
-        const tempo = engagedTempoMap.current.get(spot.piece.id);
+        const tempo = engagedTempoMap.current.get(spot.passage.id);
         if (tempo != null) data.tempo = tempo;
         if (mood) data.mood = mood;
         if (note) data.note = note;
-        await logPractice(spot.piece.id, 'interleaved', data);
+        await logPractice(spot.passage.id, 'interleaved', data);
       } catch {
         // ignore — keep navigation flowing
       }
@@ -340,9 +340,9 @@ export default function InterleavedScreen() {
   const sections: Section[] = (() => {
     const q = search.trim().toLowerCase();
     const visible = q
-      ? pieces.filter((p) => (p.title ?? '').toLowerCase().includes(q))
-      : pieces;
-    const byFolder = new Map<string | null, Piece[]>();
+      ? passages.filter((p) => (p.title ?? '').toLowerCase().includes(q))
+      : passages;
+    const byFolder = new Map<string | null, Passage[]>();
     for (const p of visible) {
       const key = p.folder_id ?? null;
       if (!byFolder.has(key)) byFolder.set(key, []);
@@ -517,7 +517,7 @@ export default function InterleavedScreen() {
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Search pieces"
+            placeholder="Search passages"
             placeholderTextColor={C.icon}
             style={[styles.searchInput, { color: C.text }]}
           />
@@ -531,36 +531,36 @@ export default function InterleavedScreen() {
                   📁 {section.title}
                 </ThemedText>
               </View>
-              {section.data.map((piece) => {
-                const orderIndex = selectedIds.indexOf(piece.id);
+              {section.data.map((passage) => {
+                const orderIndex = selectedIds.indexOf(passage.id);
                 const isSelected = orderIndex >= 0;
                 return (
                   <Pressable
-                    key={piece.id}
-                    onPress={() => toggleSelect(piece.id)}
+                    key={passage.id}
+                    onPress={() => toggleSelect(passage.id)}
                     style={[
-                      styles.pieceRow,
+                      styles.passageRow,
                       {
                         borderColor: isSelected ? C.tint : C.icon + '55',
                         backgroundColor: isSelected ? C.tint + '11' : 'transparent',
                       },
                     ]}>
-                    {piece.thumbnail_uri ? (
+                    {passage.thumbnail_uri ? (
                       <Image
-                        source={{ uri: piece.thumbnail_uri }}
-                        style={styles.pieceThumb}
+                        source={{ uri: passage.thumbnail_uri }}
+                        style={styles.passageThumb}
                         contentFit="cover"
                       />
                     ) : (
                       <View
                         style={[
-                          styles.pieceThumb,
+                          styles.passageThumb,
                           { backgroundColor: C.icon + '22' },
                         ]}
                       />
                     )}
-                    <ThemedText style={[styles.pieceTitle, { flex: 1 }]} numberOfLines={1}>
-                      {piece.title || 'Untitled'}
+                    <ThemedText style={[styles.passageTitle, { flex: 1 }]} numberOfLines={1}>
+                      {passage.title || 'Untitled'}
                     </ThemedText>
                     <View
                       style={[
@@ -629,7 +629,7 @@ export default function InterleavedScreen() {
         center={
           <View style={{ alignItems: 'center', maxWidth: '100%' }}>
             <ThemedText style={styles.topCenter} numberOfLines={1}>
-              {currentSpot?.piece.title ?? 'Passage'}
+              {currentSpot?.passage.title ?? 'Passage'}
             </ThemedText>
             <ThemedText style={styles.topSubCenter}>
               {completedCount}/{spots.length} complete
@@ -659,9 +659,9 @@ export default function InterleavedScreen() {
         }
       />
 
-      {currentSpot?.piece.source_uri && (
+      {currentSpot?.passage.source_uri && (
         <Image
-          source={{ uri: currentSpot.piece.source_uri }}
+          source={{ uri: currentSpot.passage.source_uri }}
           style={styles.scoreFill}
           contentFit="contain"
         />
@@ -694,7 +694,7 @@ export default function InterleavedScreen() {
       </View>
 
       <ThemedText style={[styles.tempoHint, { color: C.icon }]}>
-        Your tempo is saved for each piece.
+        Your tempo is saved for each passage.
       </ThemedText>
 
       <PracticeLogNotePrompt
@@ -767,18 +767,18 @@ function TimerActive({
     if (snap) {
       for (const spot of snap.spots) {
         try {
-          await stampLastUsed(spot.piece.id, 'interleaved');
+          await stampLastUsed(spot.passage.id, 'interleaved');
           const data: Record<string, unknown> = {
             mode: 'timer',
             order: snap.order,
             timerMinutes: snap.timerMinutes,
             visited: spot.visited,
           };
-          const tempo = snap.engagedTempoByPiece[spot.piece.id];
+          const tempo = snap.engagedTempoByPassage[spot.passage.id];
           if (tempo != null) data.tempo = tempo;
           if (mood) data.mood = mood;
           if (note) data.note = note;
-          await logPractice(spot.piece.id, 'interleaved', data);
+          await logPractice(spot.passage.id, 'interleaved', data);
         } catch {
           // ignore — keep navigation flowing
         }
@@ -793,21 +793,21 @@ function TimerActive({
     if (!cur) return;
     if (path === 'rhythmic') {
       router.push({
-        pathname: '/piece/[id]/rhythmic',
-        params: { id: cur.piece.id },
+        pathname: '/passage/[id]/rhythmic',
+        params: { id: cur.passage.id },
       });
       return;
     }
     if (path === 'tempo-ladder') {
       router.push({
-        pathname: '/piece/[id]/tempo-ladder',
-        params: { id: cur.piece.id },
+        pathname: '/passage/[id]/tempo-ladder',
+        params: { id: cur.passage.id },
       });
       return;
     }
     router.push({
-      pathname: '/piece/[id]/click-up',
-      params: { id: cur.piece.id },
+      pathname: '/passage/[id]/click-up',
+      params: { id: cur.passage.id },
     });
   }
 
@@ -820,7 +820,7 @@ function TimerActive({
         center={
           <View style={{ alignItems: 'center', maxWidth: '100%' }}>
             <ThemedText style={styles.topCenter} numberOfLines={1}>
-              {cur?.piece.title ?? 'Passage'}
+              {cur?.passage.title ?? 'Passage'}
             </ThemedText>
             <ThemedText style={styles.topSubCenter}>
               Passage {timerSession.visitedCount} of {timerSession.spots.length}
@@ -850,9 +850,9 @@ function TimerActive({
         </Pressable>
       </View>
 
-      {cur?.piece.source_uri && (
+      {cur?.passage.source_uri && (
         <Image
-          source={{ uri: cur.piece.source_uri }}
+          source={{ uri: cur.passage.source_uri }}
           style={styles.scoreFill}
           contentFit="contain"
         />
@@ -882,7 +882,7 @@ function TimerActive({
           {timerSession.timerExpired
             ? "Time's up · "
             : `${timeLabel} · `}
-          {cur?.piece.title ?? ''}
+          {cur?.passage.title ?? ''}
         </ThemedText>
         <Pressable
           onPress={advanceTimerPassage}
@@ -890,7 +890,7 @@ function TimerActive({
           <ThemedText style={styles.nextBtnText}>
             {timerSession.visitedCount >= timerSession.spots.length
               ? 'Finish session →'
-              : 'Next Serial piece →'}
+              : 'Next Serial passage →'}
           </ThemedText>
         </Pressable>
       </View>
@@ -1066,7 +1066,7 @@ const styles = StyleSheet.create({
     fontWeight: Type.weight.bold,
     fontSize: Type.size.sm,
   },
-  pieceRow: {
+  passageRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
@@ -1075,12 +1075,12 @@ const styles = StyleSheet.create({
     borderRadius: Radii.md,
     marginBottom: 6,
   },
-  pieceThumb: {
+  passageThumb: {
     width: 48,
     height: 32,
     borderRadius: Radii.sm,
   },
-  pieceTitle: {
+  passageTitle: {
     fontSize: Type.size.md,
     fontWeight: Type.weight.semibold,
   },

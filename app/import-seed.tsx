@@ -107,7 +107,7 @@ export default function ImportSeedScreen() {
         const fileCount = Object.keys(parsed.files ?? {}).length;
         if (fileCount === 0) {
           append(
-            'Note: no image files in this seed — piece score images will be missing on web.',
+            'Note: no image files in this seed — passage score images will be missing on web.',
           );
         } else {
           append(
@@ -152,7 +152,7 @@ export default function ImportSeedScreen() {
     return data.publicUrl;
   }
 
-  async function processPieces(
+  async function processPassages(
     rows: Row[],
     files: Record<string, string>,
     userId: string,
@@ -218,8 +218,8 @@ export default function ImportSeedScreen() {
         }
         let prepared: Row[];
         if (t === 'pieces') {
-          append(`  ${t}: uploading ${rows.length} pieces…`);
-          prepared = await processPieces(rows, seedFiles, userId);
+          append(`  ${t}: uploading ${rows.length} passages…`);
+          prepared = await processPassages(rows, seedFiles, userId);
         } else {
           prepared = sanitizePlainRows(t, rows);
         }
@@ -269,7 +269,7 @@ export default function ImportSeedScreen() {
         <ThemedText style={[styles.intro, { color: C.icon }]}>
           One-off tool to load an iPad seed-export.json into your Supabase data
           for testing. Image files in the seed are uploaded to Supabase Storage
-          and the piece rows are rewritten to point at the public URLs.
+          and the passage rows are rewritten to point at the public URLs.
         </ThemedText>
 
         <View style={[styles.card, { borderColor: C.icon + '55' }]}>

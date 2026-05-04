@@ -19,13 +19,13 @@ import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   insertExercise,
-  listExercisesForPiece,
+  listExercisesForPassage,
   renameExercise,
   softDeleteExercise,
   updateExerciseSortOrder,
   type Exercise,
 } from '@/lib/db/repos/exercises';
-import { getPiece, type Piece } from '@/lib/db/repos/pieces';
+import { getPassage, type Passage } from '@/lib/db/repos/passages';
 
 function parseGrouping(config_json: string): number | null {
   try {
@@ -64,7 +64,7 @@ export default function RhythmListScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
 
-  const [piece, setPiece] = useState<Piece | null>(null);
+  const [passage, setPassage] = useState<Passage | null>(null);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [prompt, setPrompt] = useState<Prompt>(null);
@@ -72,10 +72,10 @@ export default function RhythmListScreen() {
   const refresh = useCallback(async () => {
     if (!id) return;
     const [p, ex] = await Promise.all([
-      getPiece(id),
-      listExercisesForPiece(id, 'rhythmic'),
+      getPassage(id),
+      listExercisesForPassage(id, 'rhythmic'),
     ]);
-    setPiece(p);
+    setPassage(p);
     setExercises(ex);
   }, [id]);
 
@@ -88,7 +88,7 @@ export default function RhythmListScreen() {
   function openExercise(exerciseId: string) {
     if (!id) return;
     router.push({
-      pathname: '/piece/[id]/rhythm-builder',
+      pathname: '/passage/[id]/rhythm-builder',
       params: { id, exerciseId },
     });
   }
@@ -100,7 +100,7 @@ export default function RhythmListScreen() {
     const created = await insertExercise(id, 'rhythmic', name, '{}');
     await refresh();
     router.push({
-      pathname: '/piece/[id]/rhythm-builder',
+      pathname: '/passage/[id]/rhythm-builder',
       params: { id, exerciseId: created.id },
     });
   }
@@ -141,14 +141,14 @@ export default function RhythmListScreen() {
       const ok =
         typeof window !== 'undefined' &&
         window.confirm(
-          `Delete "${label}"? This removes the exercise. You can still find past practice logs on the piece history.`,
+          `Delete "${label}"? This removes the exercise. You can still find past practice logs on the passage history.`,
         );
       if (ok) performDelete();
       return;
     }
     Alert.alert(
       `Delete "${label}"?`,
-      'This removes the exercise. You can still find past practice logs on the piece history.',
+      'This removes the exercise. You can still find past practice logs on the passage history.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: performDelete },
@@ -156,7 +156,7 @@ export default function RhythmListScreen() {
     );
   }
 
-  const title = piece?.title ?? 'Rhythmic exercises';
+  const title = passage?.title ?? 'Rhythmic exercises';
 
   return (
     <ThemedView style={{ flex: 1 }}>
@@ -182,7 +182,7 @@ export default function RhythmListScreen() {
         }
       />
 
-      <View style={styles.pieceLabel}>
+      <View style={styles.passageLabel}>
         <ThemedText style={{ opacity: 0.7 }} numberOfLines={1}>
           {title}
         </ThemedText>
@@ -308,7 +308,7 @@ export default function RhythmListScreen() {
 
 const styles = StyleSheet.create({
   topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
-  pieceLabel: {
+  passageLabel: {
     paddingHorizontal: Spacing.lg,
     paddingTop: 10,
     paddingBottom: Spacing.xs,

@@ -15,7 +15,7 @@ export async function stampLastUsed(piece_id: string, strategy: Strategy): Promi
   if (error) throw error;
 }
 
-export async function getStalenessForPiece(piece_id: string): Promise<StalenessRow[]> {
+export async function getStalenessForPassage(piece_id: string): Promise<StalenessRow[]> {
   const { data, error } = await supabase
     .from('strategy_last_used')
     .select('strategy, last_used_at')

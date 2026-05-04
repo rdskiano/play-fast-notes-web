@@ -6,10 +6,11 @@ const BUCKET = 'pieces';
  * Upload an image file to the pieces bucket under the current user's folder.
  * Returns the public URL of the uploaded file.
  *
- * Path scheme: `<user_id>/<piece_id>.<ext>`. RLS policies in Supabase ensure
- * only the owning user can write to their own folder.
+ * Path scheme: `<user_id>/<piece_id>.<ext>` (storage path uses SQL identifiers).
+ * RLS policies in Supabase ensure only the owning user can write to their own
+ * folder.
  */
-export async function uploadPieceImage(
+export async function uploadPassageImage(
   pieceId: string,
   file: File,
 ): Promise<string> {
@@ -27,7 +28,7 @@ export async function uploadPieceImage(
   if (error) throw error;
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  // Cache-bust: when a piece is re-cropped, the path is identical (upsert
+  // Cache-bust: when a passage is re-cropped, the path is identical (upsert
   // overwrites at <userId>/<pieceId>.<ext>) so browsers and the Supabase CDN
   // would otherwise keep serving the previous bytes. The version query forces
   // a fresh fetch each time the row is updated.

@@ -79,15 +79,15 @@ export async function updateTempoLadderState(
   if (error) throw error;
 }
 
-export type PieceTempoLadderProgress = {
+export type PassageTempoLadderProgress = {
   piece_id: string;
   current_tempo: number;
   goal_tempo: number;
 };
 
-export async function getTempoLadderProgressForPieces(
+export async function getTempoLadderProgressForPassages(
   piece_ids: string[],
-): Promise<PieceTempoLadderProgress[]> {
+): Promise<PassageTempoLadderProgress[]> {
   if (piece_ids.length === 0) return [];
   const { data, error } = await supabase
     .from('exercises')

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
-import { PiecePickerModal } from '@/components/PiecePickerModal';
+import { PassagePickerModal } from '@/components/PassagePickerModal';
 import {
   useMicrobreakTimer,
   useMoveOnTimer,
@@ -134,7 +134,7 @@ export function PracticeTimersPill() {
 
       <TimerInfoModal visible={infoOpen} onClose={() => setInfoOpen(false)} />
 
-      <PiecePickerModal
+      <PassagePickerModal
         visible={pickerOpen}
         selectedId={playItCold.config.pieceId}
         onClose={() => setPickerOpen(false)}

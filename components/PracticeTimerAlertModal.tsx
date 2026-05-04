@@ -89,18 +89,18 @@ export function PracticeTimerAlertModal() {
         </View>
       )}
 
-      {playItCold.firing && playItCold.piece && (
+      {playItCold.firing && playItCold.passage && (
         <View style={styles.coldFullscreen}>
-          {playItCold.piece.source_uri && (
+          {playItCold.passage.source_uri && (
             <Image
-              source={{ uri: playItCold.piece.source_uri }}
+              source={{ uri: playItCold.passage.source_uri }}
               style={StyleSheet.absoluteFill}
               contentFit="contain"
             />
           )}
           <View style={styles.coldBannerTop} pointerEvents="none">
             <ThemedText style={styles.coldBannerTitle}>
-              Play it cold — {playItCold.piece.title}
+              Play it cold — {playItCold.passage.title}
             </ThemedText>
             <ThemedText style={styles.coldBannerBody}>
               Stop what you&apos;re doing. Play this once, on stage. No restarts.

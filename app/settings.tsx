@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 
-import { PiecePickerModal } from '@/components/PiecePickerModal';
+import { PassagePickerModal } from '@/components/PassagePickerModal';
 import {
   useMicrobreakTimer,
   useMoveOnTimer,
@@ -25,7 +25,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { listPieces, type Piece } from '@/lib/db/repos/pieces';
+import { listPassages, type Passage } from '@/lib/db/repos/passages';
 
 const STRATEGY_LABELS: Record<StrategyKey, string> = {
   tempo_ladder: 'Tempo Ladder',
@@ -105,17 +105,17 @@ export default function SettingsScreen() {
   const playItCold = usePlayItColdTimer();
 
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [pieces, setPieces] = useState<Piece[]>([]);
+  const [passages, setPassages] = useState<Passage[]>([]);
 
   useEffect(() => {
     (async () => {
-      setPieces(await listPieces());
+      setPassages(await listPassages());
     })();
   }, []);
 
-  const selectedPiece = useMemo(
-    () => pieces.find((p) => p.id === playItCold.config.pieceId) ?? null,
-    [pieces, playItCold.config.pieceId],
+  const selectedPassage = useMemo(
+    () => passages.find((p) => p.id === playItCold.config.pieceId) ?? null,
+    [passages, playItCold.config.pieceId],
   );
 
   return (
@@ -143,7 +143,7 @@ export default function SettingsScreen() {
         </View>
         <ThemedText style={styles.sectionHint}>
           These tint the strategy pills in the practice log and the buttons on
-          each piece page.
+          each passage page.
         </ThemedText>
 
         {STRATEGY_ORDER.map((key) => (
@@ -188,7 +188,7 @@ export default function SettingsScreen() {
         </View>
         <ThemedText style={styles.sectionHint}>
           Three focus tools. Toggle them on or off from the ⏱🧠❄️ pill at the
-          top of any piece screen; configure them here.
+          top of any passage screen; configure them here.
         </ThemedText>
 
         {/* Move On */}
@@ -306,7 +306,7 @@ export default function SettingsScreen() {
               <ThemedText
                 style={[styles.pickBtnText, { color: C.text }]}
                 numberOfLines={1}>
-                {selectedPiece ? selectedPiece.title : 'Pick a passage…'}
+                {selectedPassage ? selectedPassage.title : 'Pick a passage…'}
               </ThemedText>
             </Pressable>
           </View>
@@ -314,7 +314,7 @@ export default function SettingsScreen() {
 
       </ScrollView>
 
-      <PiecePickerModal
+      <PassagePickerModal
         visible={pickerOpen}
         selectedId={playItCold.config.pieceId}
         onClose={() => setPickerOpen(false)}

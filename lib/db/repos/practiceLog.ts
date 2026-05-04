@@ -39,7 +39,7 @@ export async function logPractice(
   return (inserted as { id: number }).id;
 }
 
-export async function getPracticeLogForPiece(
+export async function getPracticeLogForPassage(
   piece_id: string,
 ): Promise<PracticeLogEntry[]> {
   // PostgREST cannot infer the practice_log → exercises FK in this Supabase

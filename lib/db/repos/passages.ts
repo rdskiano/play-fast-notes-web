@@ -1,10 +1,11 @@
+// SQL table name remains "pieces" — see ROADMAP Phase 0 (TS rename only).
 import { supabase } from '@/lib/supabase/client';
 
 export type SourceKind = 'pdf' | 'image';
 
 export type Marker = { index: number; x: number; y: number };
 
-export type Piece = {
+export type Passage = {
   id: string;
   title: string;
   composer: string | null;
@@ -35,7 +36,7 @@ export function parseMarkers(units_json: string | null): Marker[] {
   }
 }
 
-export type NewPiece = {
+export type NewPassage = {
   id: string;
   title: string;
   composer?: string | null;
@@ -45,7 +46,7 @@ export type NewPiece = {
   folder_id?: string | null;
 };
 
-export async function insertPiece(p: NewPiece): Promise<Piece> {
+export async function insertPassage(p: NewPassage): Promise<Passage> {
   const now = Date.now();
   const row = {
     id: p.id,
@@ -67,7 +68,7 @@ export async function insertPiece(p: NewPiece): Promise<Piece> {
   };
 }
 
-export async function listPieces(): Promise<Piece[]> {
+export async function listPassages(): Promise<Passage[]> {
   const { data, error } = await supabase
     .from('pieces')
     .select('*')
@@ -75,10 +76,10 @@ export async function listPieces(): Promise<Piece[]> {
     .order('sort_order', { ascending: true })
     .order('title', { ascending: true });
   if (error) throw error;
-  return (data ?? []) as Piece[];
+  return (data ?? []) as Passage[];
 }
 
-export async function listPiecesInFolder(folder_id: string | null): Promise<Piece[]> {
+export async function listPassagesInFolder(folder_id: string | null): Promise<Passage[]> {
   let query = supabase
     .from('pieces')
     .select('*')
@@ -88,15 +89,15 @@ export async function listPiecesInFolder(folder_id: string | null): Promise<Piec
   query = folder_id === null ? query.is('folder_id', null) : query.eq('folder_id', folder_id);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as Piece[];
+  return (data ?? []) as Passage[];
 }
 
-export async function updatePieceSortOrder(id: string, sortOrder: number): Promise<void> {
+export async function updatePassageSortOrder(id: string, sortOrder: number): Promise<void> {
   const { error } = await supabase.from('pieces').update({ sort_order: sortOrder }).eq('id', id);
   if (error) throw error;
 }
 
-export async function renamePiece(id: string, title: string): Promise<void> {
+export async function renamePassage(id: string, title: string): Promise<void> {
   const { error } = await supabase
     .from('pieces')
     .update({ title, updated_at: Date.now() })
@@ -104,7 +105,7 @@ export async function renamePiece(id: string, title: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function movePiece(id: string, folder_id: string | null): Promise<void> {
+export async function movePassage(id: string, folder_id: string | null): Promise<void> {
   const { error } = await supabase
     .from('pieces')
     .update({ folder_id, updated_at: Date.now() })
@@ -112,7 +113,7 @@ export async function movePiece(id: string, folder_id: string | null): Promise<v
   if (error) throw error;
 }
 
-export async function getPiece(id: string): Promise<Piece | null> {
+export async function getPassage(id: string): Promise<Passage | null> {
   const { data, error } = await supabase
     .from('pieces')
     .select('*')
@@ -120,10 +121,10 @@ export async function getPiece(id: string): Promise<Piece | null> {
     .is('deleted_at', null)
     .maybeSingle();
   if (error) throw error;
-  return (data as Piece | null) ?? null;
+  return (data as Passage | null) ?? null;
 }
 
-export async function updatePieceUnits(id: string, markers: Marker[]): Promise<void> {
+export async function updatePassageUnits(id: string, markers: Marker[]): Promise<void> {
   const { error } = await supabase
     .from('pieces')
     .update({ units_json: JSON.stringify(markers), updated_at: Date.now() })
@@ -131,7 +132,7 @@ export async function updatePieceUnits(id: string, markers: Marker[]): Promise<v
   if (error) throw error;
 }
 
-export async function updatePieceAssets(
+export async function updatePassageAssets(
   id: string,
   source_uri: string,
   thumbnail_uri: string,
@@ -143,7 +144,7 @@ export async function updatePieceAssets(
   if (error) throw error;
 }
 
-export async function softDeletePiece(id: string): Promise<void> {
+export async function softDeletePassage(id: string): Promise<void> {
   const now = Date.now();
   const { error } = await supabase
     .from('pieces')

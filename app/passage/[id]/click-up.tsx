@@ -41,20 +41,20 @@ export default function ClickUpScreen() {
   const session = useClickUpSession(id);
 
   useEffect(() => {
-    if (session.piece?.source_uri) {
+    if (session.passage?.source_uri) {
       RNImage.getSize(
-        session.piece.source_uri,
+        session.passage.source_uri,
         (w, h) => {
           if (h > 0) setImageAspect(w / h);
         },
         () => setImageAspect(1.4),
       );
     }
-  }, [session.piece?.source_uri]);
+  }, [session.passage?.source_uri]);
 
   const {
     phase,
-    piece,
+    passage,
     markers,
     storedConfig,
     currentIndex,
@@ -82,7 +82,7 @@ export default function ClickUpScreen() {
 
   // ── MARKING ────────────────────────────────────────────────────────────
   if (phase === 'marking') {
-    if (!piece) return <ThemedView style={{ flex: 1 }} />;
+    if (!passage) return <ThemedView style={{ flex: 1 }} />;
     const canContinue = markers.length >= MIN_MARKERS;
     return (
       <ThemedView style={{ flex: 1 }}>
@@ -186,7 +186,7 @@ export default function ClickUpScreen() {
               overflow: 'hidden',
             }}>
             <ScoreWithMarkers
-              uri={piece.source_uri}
+              uri={passage.source_uri}
               markers={markers}
               mode="place"
               onTap={placeMarker}
@@ -244,7 +244,7 @@ export default function ClickUpScreen() {
   }
 
   // ── PLAYING ────────────────────────────────────────────────────────────
-  if (!storedConfig || !piece) return <ThemedView style={{ flex: 1 }} />;
+  if (!storedConfig || !passage) return <ThemedView style={{ flex: 1 }} />;
   const step = storedConfig.steps[currentIndex];
   const activePair = step ? activePairMarkers(step.activeUnits) : null;
   const activeMarkers =
@@ -290,7 +290,7 @@ export default function ClickUpScreen() {
       </ThemedText>
 
       <ScoreWithMarkers
-        uri={piece.source_uri}
+        uri={passage.source_uri}
         markers={activeMarkers}
         mode="play"
         activePair={activePair}
@@ -315,7 +315,7 @@ export default function ClickUpScreen() {
             ? `Completed all ${storedConfig.steps.length} steps!`
             : 'How did that go?'
         }
-        subtitle={piece?.title ?? 'Interleaved Click-Up'}
+        subtitle={passage?.title ?? 'Interleaved Click-Up'}
         submitLabel="Save & finish"
         cancelLabel="Skip"
         onSubmit={({ mood, note }) => {

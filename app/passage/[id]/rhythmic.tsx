@@ -16,7 +16,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getPiece, type Piece } from '@/lib/db/repos/pieces';
+import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import { useMetronome } from '@/lib/audio/useMetronome';
@@ -60,7 +60,7 @@ export default function RhythmicScreen() {
   const [phase, setPhase] = useState<'config' | 'playing'>(
     initialGrouping ? 'playing' : 'config',
   );
-  const [piece, setPiece] = useState<Piece | null>(null);
+  const [passage, setPassage] = useState<Passage | null>(null);
   const [grouping, setGrouping] = useState<Grouping | null>(initialGrouping);
   const [patterns, setPatterns] = useState<RhythmPattern[]>(
     initialGrouping ? patternsByGrouping(initialGrouping) : [],
@@ -74,8 +74,8 @@ export default function RhythmicScreen() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    getPiece(id).then((p) => {
-      if (!cancelled) setPiece(p);
+    getPassage(id).then((p) => {
+      if (!cancelled) setPassage(p);
     });
     return () => {
       cancelled = true;
@@ -160,7 +160,7 @@ export default function RhythmicScreen() {
     );
   }
 
-  if (!piece) return <ThemedView style={{ flex: 1 }} />;
+  if (!passage) return <ThemedView style={{ flex: 1 }} />;
 
   const counts = groupingCounts();
 
@@ -200,7 +200,7 @@ export default function RhythmicScreen() {
         </ThemedText>
       )}
 
-      <ScoreWithMarkers uri={piece.source_uri} markers={[]} mode="play" activePair={null} />
+      <ScoreWithMarkers uri={passage.source_uri} markers={[]} mode="play" activePair={null} />
 
       {phase === 'config' && (
         <View style={styles.overlay} pointerEvents="box-none">
@@ -261,7 +261,7 @@ export default function RhythmicScreen() {
         visible={notePromptVisible}
         emoji="🎉"
         title="Rhythmic Variation — session complete"
-        subtitle={piece?.title ?? undefined}
+        subtitle={passage?.title ?? undefined}
         submitLabel="Save & finish"
         cancelLabel="Skip"
         onSubmit={({ mood, note }) => finishLog(mood, note)}
