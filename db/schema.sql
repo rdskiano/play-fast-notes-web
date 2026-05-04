@@ -144,3 +144,32 @@ create table if not exists subscriptions (
 alter table subscriptions enable row level security;
 create policy subscriptions_owner_select on subscriptions
   for select using (auth.uid() = user_id);
+
+-- documents (Phase 1 of the documents+passages plan — a parent of passages
+-- when a passage is marked inside a multi-page PDF or image set)
+create table if not exists documents (
+  id text primary key,
+  user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  title text not null,
+  composer text,
+  source_kind text not null check (source_kind in ('pdf', 'images')),
+  original_uri text,
+  page_count integer not null,
+  pages_json text not null,
+  folder_id text references folders(id),
+  sort_order integer not null default 0,
+  created_at bigint not null,
+  updated_at bigint not null,
+  deleted_at bigint
+);
+create index if not exists idx_documents_folder on documents(folder_id);
+alter table documents enable row level security;
+create policy documents_owner_all on documents
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- additive columns on pieces — null = standalone passage (the existing flow,
+-- unchanged); non-null document_id = passage marked inside a document.
+-- regions_json holds [{page, x, y, w, h}, ...] in source-page pixel space.
+alter table pieces add column if not exists document_id text references documents(id);
+alter table pieces add column if not exists regions_json text;
+create index if not exists idx_pieces_document on pieces(document_id);
