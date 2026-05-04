@@ -65,6 +65,18 @@ using (bucket_id = 'pieces' and auth.uid()::text = (storage.foldername(name))[1]
 
 The `upsert: true` flag in `lib/supabase/storage.ts` requires the update policy in addition to insert. The path scheme is `<user_id>/<piece_id>.<ext>`, so the foldername check pins each user to their own subfolder.
 
+## Vocabulary: "passage" in TS, "pieces" in SQL
+
+In Phase 0 (2026-05-03) the user-facing term and TS symbols were renamed `piece` → `passage` to match how musicians and teachers actually talk ("piece" = the whole work; "passage" = a section you drill). The **SQL table name stays `pieces`** because every FK column (`practice_log.piece_id`, `exercises.piece_id`, `strategy_last_used.piece_id`) and the Supabase storage bucket reference it; renaming the table would have been a multi-PR migration and was deferred.
+
+Concretely:
+- TS types: `Passage`, `NewPassage`. Functions: `getPassage`, `listPassages`, `insertPassage`, etc.
+- SQL queries: `supabase.from('pieces')`, `select('piece_id, ...')` — these still say `pieces` / `piece_id`.
+- File: `lib/db/repos/passages.ts` (header comment documents the SQL identity gap).
+- Routes: `/passage/[id]/...`. Storage paths: `<userId>/<pieceId>.<ext>` — unchanged.
+
+When you write a new repo function, name it on the TS side using `Passage` and only fall back to `piece` inside SQL strings. Don't try to "fix" any remaining `piece_id` reference inside `.from('pieces')` queries — those are SQL identifiers, not TS symbols.
+
 ## Persistence layer
 
 Repos in `lib/db/repos/*.ts` mirror the function signatures of `../learn-fast-notes/lib/db/repos/*.ts`. They're the seam where SQLite (iPad) becomes Supabase (web). Keep signatures aligned with iPad — when iPad evolves, the web repos should evolve in lockstep.

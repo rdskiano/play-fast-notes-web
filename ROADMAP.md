@@ -1,6 +1,6 @@
 # Play Fast Notes — Web Roadmap
 
-_Last updated: 2026-05-03_
+_Last updated: 2026-05-03 (evening)_
 
 Granular roadmap for the web companion. Sibling to the iPad app at
 `../learn-fast-notes/`. Product direction, vocabulary, and design principles
@@ -123,9 +123,17 @@ auth, practice log, and (later) subscription state.
     only — when time hits 0:00 the bar turns red but no auto-advance.
 - **Vercel deploy + `playfastnotes.com`**: live, auto-deploys on push to
   `master`. **`vercel.json` SPA rewrite** added 2026-05-03 so deep links and
-  reloads on `/library`, `/piece/[id]/...` etc. resolve to `index.html`
+  reloads on `/library`, `/passage/[id]/...` etc. resolve to `index.html`
   instead of 404 (Expo Web exports a single index.html and routes
   client-side).
+- **Phase 0 vocabulary rename** (2026-05-03 evening): `piece` → `passage`
+  across all UI copy, TS types, function names, file names, and route
+  paths on both iPad and web. SQL table stays `pieces`; FK columns stay
+  `piece_id`. See iPad ROADMAP for the cross-repo motivation; see this
+  repo's CLAUDE.md "Vocabulary" section for the TS/SQL split.
+- **Force-light color scheme**: web app no longer respects iPhone Safari's
+  dark-mode preference (the dark variant of the palette has not been
+  audited). `hooks/use-color-scheme.ts` always returns `'light'`.
 - **Folder Log** (`folder-log`) — per-folder practice log mirroring
   iPad's `folder-log.tsx`. Library's Practice Log button routes by context:
   inside a folder it pushes `/folder-log?folderId=...`, at root it pushes
