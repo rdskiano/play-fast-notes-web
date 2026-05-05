@@ -169,13 +169,79 @@ auth, practice log, and (later) subscription state.
   Per-table `.neq(col, '__never__')` wipe predicate so it works against
   every table regardless of which timestamp columns exist. Reach via
   direct URL only.
+- **Documents + passages — Phase 1 + 1.5** (2026-05-04 → 2026-05-05):
+  Full PDF-import-and-mark workflow shipped on web. Highlights:
+  - **Edge Functions** `pdf-render-page` and `pdf-doc-init` (Deno + WASM)
+    using `@hyzyla/pdfium` + `@jsquash/jpeg`. One page per invocation
+    (CPU budget) with parallel client fan-out. Auth fix:
+    `supabase.auth.getUser(token)` not `getUser()` — the Edge runtime
+    does not auto-resolve the session from the header.
+  - **Schema**: `documents` table with RLS, additive `pieces.document_id`
+    + `pieces.regions_json`, additive `documents.sections_json`.
+  - **Upload flow** (`/document-upload`): native `<label htmlFor>` for
+    file picker (more reliable than JS `.click()`), progress UI with
+    phase + page counts, then `lib/pdf/upload.ts` orchestrates upload →
+    init → fan-out renders → insertDocument.
+  - **Library cards**: documents are first-class peers with folders and
+    passages (`DocumentCard` with thumbnail anchored to top of page 1
+    via `contentPosition="top"`). Document-derived passages hidden from
+    top-level library (filter `pieces.document_id IS NULL`).
+  - **Document viewer** (`/document/[id]`): horizontal pagingEnabled
+    ScrollView, **two-page spread in landscape** (auto-derived from
+    `useWindowDimensions`, override toggle for users who want single
+    in landscape). Marking via drag-rectangle (`PassageRectDrawer`),
+    multi-page passages stitched via `stitchVertically`, resize with
+    8-handle drag (`PassageRectResizer`), select via tap → `ActionSheet`
+    with Practice / Rename / Resize / Delete.
+  - **Sections / Movements**: tap-to-mark via `SectionMarkerCapturer`
+    captures `(page, start_y)` so a movement starting mid-page is
+    recorded that way. Naming uses native `window.prompt` — RN-Web
+    Modal+TextInput hopped the keyboard and shifted the underlying
+    ScrollView, native dialogs don't. Sections list / nav / rename /
+    delete via `SectionsModal`. Current section name renders under the
+    document title.
+  - **Practice log document-aware**: library + folder log entries for
+    document-derived passages render as "Mahler 9 · IV. Adagio · bars
+    281-291", standalone passages unchanged.
+  - **iPad Safari quirks** (workarounds documented in code comments):
+    - `dimensionsBaselineRef` freezes the dimensions used to derive
+      viewMode during any save flow — keyboard-induced viewport resize
+      otherwise flips single → spread, and the orientation effect maps
+      back to the wrong page on dismiss.
+    - `onScroll` wired with throttle so `currentIndex` tracks the
+      actual visible screen reliably (iPad Safari + macOS Chrome
+      both fire `onMomentumScrollEnd` inconsistently).
+    - `suppressScrollEndRef` window through the entire passage-save
+      chain (prompt → post-save sheet + 1s tail) so trailing keyboard
+      dismiss scroll events cannot drift `currentIndex`.
+    - `scrollEnabled=false` during draw mode again, since the previous
+      page-1 reset symptom turned out to be the viewMode flip and is
+      now fixed by the dimension freeze.
 
 ### 🚧 Next up (in priority order)
 
-1. **Library polish v2**: edit mode (rename, move, delete, reorder), folder
+1. **Library log document grouping**: in the by-folder view, sub-group
+   document-derived passages under their document title (so users see
+   `Folder → Mahler 9 → IV. Adagio → bars 281-291` rather than a flat
+   list inside the folder). Aligns "by folder" with "by full part" so
+   they read as the same idea applied to different containers.
+2. **Library polish v2**: edit mode (rename, move, delete, reorder), folder
    creation, move-to picker. Up/down arrows first; defer drag-and-drop.
-2. **Self-Led strategies index** (Phase 2 of iPad roadmap).
-3. **Search across pieces and exercises**.
+3. **Self-Led strategies index** (Phase 2 of iPad roadmap).
+4. **Search across pieces and exercises**.
+
+### ⏳ Deferred document/section UX (revisit when convenient)
+
+- **Inline rename for sections**: native `window.prompt` works but is
+  Safari-styled. A custom non-Modal in-page input would feel more
+  cohesive — but the Modal+TextInput route triggers iPad Safari's
+  underlying-ScrollView shift. Worth revisiting if window.prompt
+  starts being suppressed in future Safari versions.
+- **iPad parity for documents**: orchestrator + repos already in repo;
+  needs `expo-document-picker` (new native module) and a fresh
+  `playbuild` to install. Not started.
+- **Persistent boxes-on/off and view-mode override per document**:
+  currently in-memory only.
 
 ### ⏳ Polish for shipped screens
 
