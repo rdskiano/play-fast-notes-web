@@ -9,6 +9,9 @@ export type ActionSheetItem = {
   label: string;
   destructive?: boolean;
   disabled?: boolean;
+  // When true, the item renders as a filled tint-colored CTA so it reads as
+  // the obvious / default choice (e.g. "Practice this passage").
+  primary?: boolean;
   onPress: () => void;
 };
 
@@ -47,31 +50,48 @@ export function ActionSheet({
               {title}
             </ThemedText>
           )}
-          {items.map((it, i) => (
-            <Pressable
-              key={`${i}:${it.label}`}
-              disabled={it.disabled}
-              onPress={() => {
-                it.onPress();
-              }}
-              style={({ pressed }) => [
-                styles.item,
-                {
-                  borderTopColor: C.icon + '22',
-                  borderTopWidth: i === 0 && !title ? 0 : StyleSheet.hairlineWidth,
-                  backgroundColor: pressed ? C.icon + '11' : 'transparent',
-                  opacity: it.disabled ? 0.35 : 1,
-                },
-              ]}>
-              <ThemedText
-                style={[
-                  styles.itemText,
-                  it.destructive ? { color: '#c0392b' } : { color: C.text },
+          {items.map((it, i) => {
+            if (it.primary) {
+              return (
+                <Pressable
+                  key={`${i}:${it.label}`}
+                  disabled={it.disabled}
+                  onPress={() => it.onPress()}
+                  style={({ pressed }) => [
+                    styles.primaryItem,
+                    {
+                      backgroundColor: pressed ? C.tint + 'cc' : C.tint,
+                      opacity: it.disabled ? 0.35 : 1,
+                    },
+                  ]}>
+                  <ThemedText style={styles.primaryItemText}>{it.label}</ThemedText>
+                </Pressable>
+              );
+            }
+            return (
+              <Pressable
+                key={`${i}:${it.label}`}
+                disabled={it.disabled}
+                onPress={() => it.onPress()}
+                style={({ pressed }) => [
+                  styles.item,
+                  {
+                    borderTopColor: C.icon + '22',
+                    borderTopWidth: i === 0 && !title ? 0 : StyleSheet.hairlineWidth,
+                    backgroundColor: pressed ? C.icon + '11' : 'transparent',
+                    opacity: it.disabled ? 0.35 : 1,
+                  },
                 ]}>
-                {it.label}
-              </ThemedText>
-            </Pressable>
-          ))}
+                <ThemedText
+                  style={[
+                    styles.itemText,
+                    it.destructive ? { color: '#c0392b' } : { color: C.text },
+                  ]}>
+                  {it.label}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
           <Pressable
             onPress={onCancel}
             style={({ pressed }) => [
@@ -123,6 +143,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   itemText: { fontSize: 16, fontWeight: Type.weight.semibold },
+  primaryItem: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  primaryItemText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: Type.weight.heavy,
+    letterSpacing: 0.3,
+  },
   cancel: {
     paddingHorizontal: Spacing.md,
     paddingVertical: 14,

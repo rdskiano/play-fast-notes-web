@@ -421,7 +421,8 @@ export default function DocumentScreen() {
   function buildSelectedActions(passage: Passage): ActionSheetItem[] {
     return [
       {
-        label: 'Practice this',
+        label: 'Practice this passage',
+        primary: true,
         onPress: () => {
           setSelectedPassageId(null);
           router.push(`/passage/${passage.id}` as never);
