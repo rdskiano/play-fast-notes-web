@@ -90,6 +90,21 @@ export default function SelfLedRecordingScreen() {
       setError('Recording is only available on web for now.');
       return;
     }
+    // navigator.mediaDevices is only exposed in secure contexts — HTTPS or
+    // localhost. If you reach the dev server from another device on the LAN
+    // (e.g. iPad Safari at http://192.168.x.x:8081), the API is undefined.
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setError(
+        'Microphone access is blocked in this context. Use the dev server from localhost (http://localhost:8081) on the same Mac, or open the deployed site at https://playfastnotes.com.',
+      );
+      return;
+    }
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      setError(
+        'This page is not a secure context. Microphone access requires HTTPS or localhost.',
+      );
+      return;
+    }
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
       setPreviewUrl(null);
