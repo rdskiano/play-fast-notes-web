@@ -243,7 +243,11 @@ export default function DocumentScreen() {
 
   function goTo(index: number) {
     if (index < 0 || index >= screenCount) return;
-    scrollRef.current?.scrollTo({ x: width * index, animated: true });
+    // During draw mode the ScrollView has scrollEnabled=false (overflow: hidden
+    // on RN-Web) — Safari can refuse smooth-scroll on a hidden-overflow element
+    // and the page just jitters in place. Use instant scroll in that case.
+    const animated = mode !== 'draw';
+    scrollRef.current?.scrollTo({ x: width * index, animated });
     setCurrentIndex(index);
   }
 
@@ -614,6 +618,17 @@ export default function DocumentScreen() {
           drafts,
           currentIndex,
           pageCount: pages.length,
+          // In spread view, the page after the most-recently-drawn one is
+          // often already visible on the current screen — "Add next page →"
+          // would be a no-op. Tell the renderer so it can swap the hint and
+          // hide the button.
+          nextPageVisibleOnScreen: (() => {
+            if (drafts.size === 0) return false;
+            const maxDrawn = Math.max(...Array.from(drafts.keys()));
+            const nextPage = maxDrawn + 1;
+            if (nextPage > pages.length) return false;
+            return screenForPage(nextPage) === currentIndex;
+          })(),
           savingDraft,
           onCancelDraw: cancelDraw,
           onAddNextPage: addNextPageToDraft,
@@ -866,6 +881,7 @@ function renderSubRow(args: {
   drafts: Map<number, unknown>;
   currentIndex: number;
   pageCount: number;
+  nextPageVisibleOnScreen: boolean;
   savingDraft: boolean;
   onCancelDraw: () => void;
   onAddNextPage: () => void;
@@ -879,8 +895,8 @@ function renderSubRow(args: {
   const {
     mode,
     drafts,
-    currentIndex,
     pageCount,
+    nextPageVisibleOnScreen,
     savingDraft,
     onCancelDraw,
     onAddNextPage,
@@ -900,16 +916,22 @@ function renderSubRow(args: {
     const drawnPages = Array.from(drafts.keys()).sort((a, b) => a - b);
     const maxDrawn = drawnPages.length > 0 ? drawnPages[drawnPages.length - 1] : 0;
     const canAddNextPage = hasAnyDraft && maxDrawn < pageCount;
-    const hint = hasAnyDraft
-      ? `Drawn on p. ${drawnPages.join(', ')}`
-      : 'Drag a box on a page';
+    // In spread view, the next page is often already on screen. Don't show
+    // "Add next page →" then (it would be a no-op); instead, prompt the user
+    // to drag directly on the visible page.
+    const showAddNextPageButton = canAddNextPage && !nextPageVisibleOnScreen;
+    const hint = !hasAnyDraft
+      ? 'Drag a box on a page'
+      : canAddNextPage && nextPageVisibleOnScreen
+        ? `Drawn on p. ${drawnPages.join(', ')} — drag p. ${maxDrawn + 1} too if needed`
+        : `Drawn on p. ${drawnPages.join(', ')}`;
     return (
       <View style={styles.subRow}>
         <Button label="Cancel" variant="ghost" size="sm" onPress={onCancelDraw} />
         <View style={{ flex: 1, paddingHorizontal: Spacing.sm }}>
           <Button label={hint} variant="ghost" size="sm" onPress={() => undefined} disabled />
         </View>
-        {canAddNextPage && (
+        {showAddNextPageButton && (
           <Button label="Add next page →" variant="outline" size="sm" onPress={onAddNextPage} />
         )}
         <Button
