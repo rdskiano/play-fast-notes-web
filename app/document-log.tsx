@@ -257,22 +257,36 @@ export default function DocumentLogScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {days.map((day) => (
-            <View key={day.dateLabel}>
-              <ThemedText style={styles.dateHeader}>{day.dateLabel}</ThemedText>
-              {day.sectionGroups.map((sg, si) => (
-                <View key={si} style={styles.sectionGroup}>
-                  {sg.sectionName && (
-                    <ThemedText
-                      style={[styles.sectionName, { color: C.text }]}
-                      numberOfLines={1}>
-                      {sg.sectionName}
-                    </ThemedText>
-                  )}
-                  <View style={styles.passageGrid}>
-                    {sg.passages.map(renderPassage)}
+            <View
+              key={day.dateLabel}
+              style={[
+                styles.dayBlock,
+                { borderColor: C.icon + '55', backgroundColor: C.icon + '08' },
+              ]}>
+              <View style={[styles.dayHeaderBar, { backgroundColor: C.tint }]}>
+                <ThemedText style={styles.dayHeaderText}>{day.dateLabel}</ThemedText>
+              </View>
+              <View style={styles.dayBody}>
+                {day.sectionGroups.map((sg, si) => (
+                  <View key={si} style={styles.sectionGroup}>
+                    {sg.sectionName && (
+                      <View style={styles.sectionLabelRow}>
+                        <View
+                          style={[styles.sectionBar, { backgroundColor: C.tint }]}
+                        />
+                        <ThemedText
+                          style={[styles.sectionName, { color: C.text }]}
+                          numberOfLines={1}>
+                          {sg.sectionName}
+                        </ThemedText>
+                      </View>
+                    )}
+                    <View style={styles.passageGrid}>
+                      {sg.passages.map(renderPassage)}
+                    </View>
                   </View>
-                </View>
-              ))}
+                ))}
+              </View>
             </View>
           ))}
         </ScrollView>
@@ -296,28 +310,49 @@ export default function DocumentLogScreen() {
 
 const styles = StyleSheet.create({
   topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
-  content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'] },
+  content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'], gap: 18 },
   empty: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: Spacing['2xl'],
   },
-  dateHeader: {
+  dayBlock: {
+    borderWidth: Borders.thin,
+    borderRadius: Radii.xl,
+    overflow: 'hidden',
+  },
+  dayHeaderBar: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  dayHeaderText: {
+    color: '#fff',
+    fontSize: 15,
     fontWeight: Type.weight.heavy,
-    fontSize: Type.size.lg,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
+    letterSpacing: 0.3,
+  },
+  dayBody: {
+    padding: Spacing.md,
+    gap: Spacing.md,
   },
   sectionGroup: {
-    gap: Spacing.xs,
-    marginBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  sectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  sectionBar: {
+    width: Spacing.xs,
+    height: 18,
+    borderRadius: 2,
   },
   sectionName: {
-    fontSize: Type.size.sm,
-    fontWeight: Type.weight.bold,
-    letterSpacing: 0.5,
-    marginLeft: Spacing.xs,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    flex: 1,
   },
   passageGrid: {
     flexDirection: 'row',
