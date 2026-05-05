@@ -8,6 +8,7 @@ import { Button } from '@/components/Button';
 import type { Grouping } from '@/lib/strategies/rhythmPatterns';
 
 import { PracticeTimersPill } from '@/components/GlobalTimerTray';
+import { SelfLedSheet } from '@/components/SelfLedSheet';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -53,6 +54,7 @@ export default function PassageDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [rhythmicSheetOpen, setRhythmicSheetOpen] = useState(false);
   const [rhythmicStep, setRhythmicStep] = useState<'mode' | 'grouping'>('mode');
+  const [selfLedOpen, setSelfLedOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -157,10 +159,10 @@ export default function PassageDetailScreen() {
         <View style={styles.pillRow}>
           {STRATEGIES.map(renderPill)}
           <Pressable
-            onPress={() => router.push(`/passage/${passage.id}/chunking`)}
+            onPress={() => setSelfLedOpen(true)}
             style={[styles.outlinePill, { borderColor: C.tint }]}>
             <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
-              Chunking
+              Self-Led ▾
             </ThemedText>
           </Pressable>
           <View style={{ flex: 1 }} />
@@ -293,6 +295,20 @@ export default function PassageDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      <SelfLedSheet
+        visible={selfLedOpen}
+        onCancel={() => setSelfLedOpen(false)}
+        onPick={(key) => {
+          setSelfLedOpen(false);
+          if (!passage) return;
+          if (key === 'recording') {
+            router.push(`/passage/${passage.id}/self-led/recording` as never);
+          } else {
+            router.push(`/passage/${passage.id}/self-led/${key}` as never);
+          }
+        }}
+      />
     </ThemedView>
   );
 }

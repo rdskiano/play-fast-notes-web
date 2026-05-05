@@ -24,6 +24,11 @@ const STRATEGY_LABELS: Record<string, string> = {
   rhythmic: 'RV',
   interleaved: 'Serial',
   chunking: 'Chunking',
+  add_a_note: 'Add a Note',
+  pitch: 'Pitch',
+  phrasing: 'Phrasing',
+  recording: 'Recording',
+  freeform: 'Freeform',
 };
 
 function formatDate(ts: number): string {
