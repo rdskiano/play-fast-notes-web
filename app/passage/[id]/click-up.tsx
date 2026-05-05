@@ -179,11 +179,14 @@ export default function ClickUpScreen() {
             Tap just above the music to mark the beginning of each unit. You need at
             least {MIN_MARKERS} marks. Tap an existing mark to remove it.
           </ThemedText>
+          {/* No overflow:hidden here — a tightly-cropped passage with a marker
+              near the top edge would otherwise clip the marker. Play-mode
+              triangles don't have a clipping wrapper, so we drop it here too
+              to keep the two phases visually consistent. */}
           <View
             style={{
               height: imageAspect ? (winWidth - 32) / imageAspect : 500,
               borderRadius: 8,
-              overflow: 'hidden',
             }}>
             <ScoreWithMarkers
               uri={passage.source_uri}
