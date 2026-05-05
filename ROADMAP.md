@@ -227,12 +227,28 @@ auth, practice log, and (later) subscription state.
   unchanged. Aligns "by folder" with "by full part" so they read as
   the same idea applied to different containers.
 
+- **Self-Led practice — Phase 2** (2026-05-05): broader umbrella replacing
+  the standalone Chunking pill. One **Self-Led ▾** outline pill on the
+  passage screen opens a bottom sheet with six strategies, each with an
+  expandable info chevron showing long description + steps:
+  - Chunking, Add a Note, Pitch / Intonation, Phrasing, Freeform → all
+    route to a generic session screen (passage image + DONE + mood/note).
+  - Recording → dedicated route with `MediaRecorder` state machine
+    (`idle → recording → recorded → saving`); blob uploads to a new
+    `recordings` Supabase Storage bucket; `data_json` carries
+    `recording_uri`, `recording_id`, `duration_seconds`.
+  - Practice log views (library-log, folder-log, document-log, passage
+    history) extended with the new STRATEGY_LABELS, recording duration
+    in `formatDetail`, and an inline `<audio controls>` player below the
+    pill when an entry has a `recording_uri`.
+  - One-time Supabase setup: new `recordings` bucket + RLS policies (see
+    `CLAUDE.md`).
+
 ### 🚧 Next up (in priority order)
 
 1. **Library polish v2**: edit mode (rename, move, delete, reorder), folder
    creation, move-to picker. Up/down arrows first; defer drag-and-drop.
-2. **Self-Led strategies index** (Phase 2 of iPad roadmap).
-3. **Search across pieces and exercises**.
+2. **Search across pieces and exercises**.
 
 ### ⏳ Deferred document/section UX (revisit when convenient)
 
@@ -285,12 +301,12 @@ The iPad roadmap names this entire effort "Phase 4 — Web version migration."
 Within Phase 4 there are sub-phases:
 
 - **Phase 4.1** (port design tokens) — ✅ done.
-- **Phase 4.2** (rebuild web UI to match) — feature-complete for all
+- **Phase 4.2** (rebuild web UI to match; **Self-Led / Phase 2 also shipped here on 2026-05-05**) — feature-complete for all
   practice flows. Single-piece (Tempo Ladder, Click-Up, Rhythmic Variation
   patterns-only path, Rhythmic Variation Exercise Builder all 4 slices,
   Chunking, Practice History) and multi-piece (Serial Practice in both
   Consistency and Timer modes). Remaining: folder-log, library polish v2,
-  Self-Led strategies index, search.
+  search.
 - **Phase 4.3** (shared backend) — partially done. Auth + per-user data
   isolation work; cross-surface sync deferred.
 - **Phase 4.4** (Stripe subscriptions) — not started. Schema slot exists.

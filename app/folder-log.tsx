@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
+import { RecordingPlayer } from '@/components/RecordingPlayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
@@ -74,10 +75,25 @@ function formatDetail(entry: PracticeLogWithTitle): string | null {
       if (data.completed) parts.push('✓');
       return parts.length > 0 ? parts.join(' ') : null;
     }
+    if (entry.strategy === 'recording' && typeof data.duration_seconds === 'number') {
+      const m = Math.floor(data.duration_seconds / 60);
+      const s = Math.floor(data.duration_seconds % 60);
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
   } catch {
     // ignore
   }
   return null;
+}
+
+function recordingUri(entry: PracticeLogWithTitle): string | null {
+  if (!entry.data_json) return null;
+  try {
+    const data = JSON.parse(entry.data_json);
+    return typeof data.recording_uri === 'string' ? data.recording_uri : null;
+  } catch {
+    return null;
+  }
 }
 
 function dateKey(ts: number): string {
@@ -289,6 +305,11 @@ export default function FolderLogScreen() {
                     );
                   })}
                 </View>
+                {pg.entries.map((e) => {
+                  const uri = recordingUri(e);
+                  if (!uri) return null;
+                  return <RecordingPlayer key={`rec-${e.id}`} uri={uri} />;
+                })}
               </View>
             );
 

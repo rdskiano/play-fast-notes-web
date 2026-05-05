@@ -65,6 +65,35 @@ using (bucket_id = 'pieces' and auth.uid()::text = (storage.foldername(name))[1]
 
 The `upsert: true` flag in `lib/supabase/storage.ts` requires the update policy in addition to insert. The path scheme is `<user_id>/<piece_id>.<ext>`, so the foldername check pins each user to their own subfolder.
 
+### Recordings bucket (Self-Led Recording strategy)
+
+Self-Led `recording` entries store an audio clip in a separate `recordings` bucket. Same one-time setup pattern as `pieces`:
+
+1. Dashboard → Storage → "New bucket". Name it exactly `recordings` (lowercase). Leave "Public bucket" OFF — the SQL below grants public read so an inline `<audio>` tag can stream without juggling auth headers.
+2. Dashboard → SQL Editor → paste and run:
+
+```sql
+drop policy if exists "recordings_public_read" on storage.objects;
+create policy "recordings_public_read"
+on storage.objects for select to public
+using (bucket_id = 'recordings');
+
+drop policy if exists "recordings_owner_insert" on storage.objects;
+create policy "recordings_owner_insert"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'recordings'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+drop policy if exists "recordings_owner_delete" on storage.objects;
+create policy "recordings_owner_delete"
+on storage.objects for delete to authenticated
+using (bucket_id = 'recordings' and auth.uid()::text = (storage.foldername(name))[1]);
+```
+
+Symptom of missing setup: clicking "Save & log" on the Recording screen fails with `new row violates row-level security policy`. Path scheme is `<user_id>/<recording_id>.webm`. `lib/supabase/recordings.ts` uses `upsert: false` (one recording per log entry; no overwrite path), so the update policy from the pieces bucket isn't needed here.
+
 ## Vocabulary: "passage" in TS, "pieces" in SQL
 
 In Phase 0 (2026-05-03) the user-facing term and TS symbols were renamed `piece` → `passage` to match how musicians and teachers actually talk ("piece" = the whole work; "passage" = a section you drill). The **SQL table name stays `pieces`** because every FK column (`practice_log.piece_id`, `exercises.piece_id`, `strategy_last_used.piece_id`) and the Supabase storage bucket reference it; renaming the table would have been a multi-PR migration and was deferred.
