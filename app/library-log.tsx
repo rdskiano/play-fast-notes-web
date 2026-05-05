@@ -102,6 +102,18 @@ type PassageGroup = {
   entries: LibraryPracticeLogEntry[];
 };
 
+// Builds the display label for a practice-log row. Standalone passages show
+// just their title; document-derived passages prepend the document title and
+// section name (when known): "Mahler 9 - IV. Adagio - bars 281-291".
+function passageLabel(e: LibraryPracticeLogEntry): string {
+  const title = e.piece_title || 'Untitled';
+  const parts: string[] = [];
+  if (e.document_title) parts.push(e.document_title);
+  if (e.section_name) parts.push(e.section_name);
+  parts.push(title);
+  return parts.join(' · ');
+}
+
 type DayFolderGroup = {
   folderId: string | null;
   folderName: string;
@@ -216,7 +228,7 @@ export default function LibraryLogScreen() {
       const folder = day.folderMap.get(fKey)!;
       if (!folder.passageMap.has(e.piece_id)) {
         folder.passageMap.set(e.piece_id, {
-          passageTitle: e.piece_title || 'Untitled',
+          passageTitle: passageLabel(e),
           folderName: e.folder_name,
           entries: [],
         });
@@ -282,7 +294,7 @@ export default function LibraryLogScreen() {
         const day = dayMap.get(dk)!;
         if (!day.passageMap.has(e.piece_id)) {
           day.passageMap.set(e.piece_id, {
-            passageTitle: e.piece_title || 'Untitled',
+            passageTitle: passageLabel(e),
             folderName: e.folder_name,
             entries: [],
           });

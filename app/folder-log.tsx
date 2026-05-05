@@ -85,6 +85,17 @@ type PassageGroup = {
   entries: PracticeLogWithTitle[];
 };
 
+// Display label: "Mahler 9 · IV. Adagio · bars 281-291" for document-derived
+// passages, just the passage title for standalone ones.
+function passageLabel(e: PracticeLogWithTitle): string {
+  const title = e.piece_title || 'Untitled';
+  const parts: string[] = [];
+  if (e.document_title) parts.push(e.document_title);
+  if (e.section_name) parts.push(e.section_name);
+  parts.push(title);
+  return parts.join(' · ');
+}
+
 type DayGroup = {
   dateLabel: string;
   passages: PassageGroup[];
@@ -124,7 +135,7 @@ export default function FolderLogScreen() {
       const pk = e.piece_id;
       if (!day.passageMap.has(pk)) {
         day.passageMap.set(pk, {
-          passageTitle: e.piece_title || 'Untitled',
+          passageTitle: passageLabel(e),
           entries: [],
         });
       }

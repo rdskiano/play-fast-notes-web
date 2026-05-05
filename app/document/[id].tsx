@@ -31,6 +31,8 @@ import { PassageRectDrawer } from '@/components/PassageRectDrawer';
 import { PassageRectResizer } from '@/components/PassageRectResizer';
 import { PostSaveSheet } from '@/components/PostSaveSheet';
 import { PromptModal } from '@/components/PromptModal';
+import { SectionMarkerCapturer } from '@/components/SectionMarkerCapturer';
+import { SectionsModal } from '@/components/SectionsModal';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -38,8 +40,12 @@ import { Spacing, Type } from '@/constants/tokens';
 import {
   getDocument,
   parsePages,
+  parseSections,
+  sectionForPage,
+  updateDocumentSections,
   type DocumentPage,
   type DocumentRow,
+  type DocumentSection,
 } from '@/lib/db/repos/documents';
 import {
   insertPassage,
@@ -59,11 +65,12 @@ function newPassageId(): string {
 }
 
 type Mode = 'idle' | 'draw' | 'resize';
+type ViewMode = 'single' | 'spread';
 
 export default function DocumentScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
 
   const [doc, setDoc] = useState<DocumentRow | null | undefined>(undefined);
   const [pages, setPages] = useState<DocumentPage[]>([]);
@@ -71,6 +78,17 @@ export default function DocumentScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [boxesOn, setBoxesOn] = useState(true);
   const [mode, setMode] = useState<Mode>('idle');
+
+  // View mode is derived from orientation: landscape = spread, portrait = single.
+  // The user can override (e.g. force single in landscape for tall staves).
+  // Dimensions used to derive viewMode are FROZEN during any save flow —
+  // iPad Safari's on-screen keyboard shrinks the viewport when a TextInput
+  // focuses; without this freeze, width:height flips, viewMode auto-swaps
+  // single → spread, and when the keyboard dismisses the user lands on the
+  // wrong page. The freeze is set up below the state declarations so it can
+  // observe all save-flow flags.
+  const [viewModeOverride, setViewModeOverride] = useState<ViewMode | null>(null);
+  const dimensionsBaselineRef = useRef({ w: width, h: height });
   const [selectedPassageId, setSelectedPassageId] = useState<string | null>(null);
   const [renamePromptFor, setRenamePromptFor] = useState<Passage | null>(null);
   const [deleteConfirmFor, setDeleteConfirmFor] = useState<Passage | null>(null);
@@ -91,6 +109,32 @@ export default function DocumentScreen() {
   const [resizingPassage, setResizingPassage] = useState<Passage | null>(null);
   const [resizeRegions, setResizeRegions] = useState<PassageRegion[]>([]);
   const [savingResize, setSavingResize] = useState(false);
+
+  const [sectionsModalOpen, setSectionsModalOpen] = useState(false);
+  const [markingSection, setMarkingSection] = useState(false);
+
+  // Save-flow flag — freezes the dimensions used by viewMode derivation so
+  // the iPad on-screen keyboard's viewport resize can't trigger a spurious
+  // single→spread flip while the user is mid-save.
+  const isSaveActive =
+    mode === 'draw' ||
+    namePromptOpen ||
+    postSaveTitle !== null ||
+    markingSection ||
+    sectionsModalOpen;
+  useEffect(() => {
+    if (!isSaveActive) {
+      dimensionsBaselineRef.current = { w: width, h: height };
+    }
+  }, [width, height, isSaveActive]);
+  const effectiveDims = isSaveActive ? dimensionsBaselineRef.current : { w: width, h: height };
+  const isLandscape = effectiveDims.w > effectiveDims.h;
+  const autoViewMode: ViewMode = isLandscape ? 'spread' : 'single';
+  const viewMode: ViewMode = viewModeOverride ?? autoViewMode;
+  function toggleViewMode() {
+    const nextMode: ViewMode = viewMode === 'spread' ? 'single' : 'spread';
+    setViewModeOverride(nextMode === autoViewMode ? null : nextMode);
+  }
 
   const scrollRef = useRef<ScrollView | null>(null);
 
@@ -122,17 +166,113 @@ export default function DocumentScreen() {
     ? passages.find((p) => p.id === selectedPassageId) ?? null
     : null;
 
+  const sections = doc ? parseSections(doc.sections_json) : [];
+  // 1-indexed page on the LEFT of the current screen — used both for the
+  // "Start section on p. X" affordance and for resolving the current section.
+  const currentVisiblePage = currentIndex * (viewMode === 'spread' ? 2 : 1) + 1;
+  const currentSection = sectionForPage(sections, currentVisiblePage);
+
+  async function onSectionsChange(next: DocumentSection[]) {
+    if (!doc) return;
+    const sortedNext = [...next].sort((a, b) =>
+      a.start_page === b.start_page ? a.start_y - b.start_y : a.start_page - b.start_page,
+    );
+    try {
+      await updateDocumentSections(doc.id, sortedNext);
+      // Update local state directly instead of re-fetching the whole document.
+      // refresh() rebuilt the pages array (new reference) which caused the
+      // ScrollView to re-render its children and snap scroll back to page 0.
+      setDoc({ ...doc, sections_json: JSON.stringify(sortedNext) });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[document] update sections failed', err);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(`Could not save section: ${msg}`);
+      }
+    }
+  }
+
+  function startSectionMark() {
+    setSelectedPassageId(null);
+    setMarkingSection(true);
+  }
+
+  function cancelSectionMark() {
+    setMarkingSection(false);
+  }
+
+  async function onCaptureSection(page: number, y: number) {
+    // Use the browser-native window.prompt() — no React Modal in the way, so
+    // there's no Modal mount/unmount triggering layout reflow on the
+    // underlying ScrollView. iPad Safari's native dialog (when not blocked)
+    // is rendered by the browser chrome, not React.
+    const defaultName = `Section ${sections.length + 1}`;
+    let name: string | null = defaultName;
+    if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
+      // Empty default — let the user type fresh; we fall back to "Section N"
+      // only if they leave it blank.
+      name = window.prompt('Name this section');
+    }
+    if (name === null) {
+      // User canceled.
+      setMarkingSection(false);
+      return;
+    }
+    const finalName = name.trim() || defaultName;
+    const next: DocumentSection[] = [
+      ...sections.filter((s) => !(s.start_page === page && s.start_y === y)),
+      { name: finalName, start_page: page, start_y: y },
+    ];
+    setMarkingSection(false);
+    await onSectionsChange(next);
+  }
+
+  // Screen = one paging unit in the ScrollView. In single mode, screen N
+  // shows page N+1. In spread mode, screen N shows pages 2N+1 and 2N+2.
+  const pagesPerScreen = viewMode === 'spread' ? 2 : 1;
+  const screenCount = Math.max(1, Math.ceil(pages.length / pagesPerScreen));
+
+  function pagesForScreen(screenIdx: number): DocumentPage[] {
+    const startPage = screenIdx * pagesPerScreen + 1;
+    return pages.filter((p) => p.index >= startPage && p.index < startPage + pagesPerScreen);
+  }
+
+  function screenForPage(pageIndex1Based: number): number {
+    return Math.floor((pageIndex1Based - 1) / pagesPerScreen);
+  }
+
   function goTo(index: number) {
-    if (index < 0 || index >= pages.length) return;
+    if (index < 0 || index >= screenCount) return;
     scrollRef.current?.scrollTo({ x: width * index, animated: true });
     setCurrentIndex(index);
   }
 
-  // Keyboard arrows (no-op while drawing/resizing — that mode owns the gestures).
+
+  // When orientation changes (viewMode flips), keep the same page in view
+  // by converting the current screen index into the new mode's coordinates.
+  const prevViewModeRef = useRef<ViewMode>(viewMode);
+  useEffect(() => {
+    const prev = prevViewModeRef.current;
+    if (prev === viewMode) return;
+    prevViewModeRef.current = viewMode;
+    const oldPagesPerScreen = prev === 'spread' ? 2 : 1;
+    const newPagesPerScreen = viewMode === 'spread' ? 2 : 1;
+    const firstVisiblePage = currentIndex * oldPagesPerScreen + 1;
+    const nextScreen = Math.floor((firstVisiblePage - 1) / newPagesPerScreen);
+    // Defer the scroll until React has laid out the new ScrollView geometry.
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ x: width * nextScreen, animated: false });
+      setCurrentIndex(nextScreen);
+    }, 0);
+  }, [viewMode, currentIndex, width]);
+
+  // Keyboard arrows. Disabled during draw/resize because those modes own the
+  // pointer; section-mark allows nav so the user can swipe-or-arrow to the
+  // right page before tapping.
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     function onKey(e: KeyboardEvent) {
-      if (mode !== 'idle') return;
+      if (mode === 'draw' || mode === 'resize') return;
       if (e.key === 'ArrowRight') goTo(currentIndex + 1);
       else if (e.key === 'ArrowLeft') goTo(currentIndex - 1);
     }
@@ -141,7 +281,38 @@ export default function DocumentScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, pages.length, width, mode]);
 
+  // Set during save flows — onScroll events fired by iPad Safari's
+  // keyboard dismiss / layout-shift bookkeeping shouldn't override the
+  // user's actual current screen.
+  const suppressScrollEndRef = useRef(false);
+
+  // Keep onScroll suppressed throughout passage-save (name prompt open OR
+  // post-save sheet up), with a 1s tail after the sheet closes to absorb
+  // trailing scroll events from iPad Safari's keyboard dismiss animation.
+  useEffect(() => {
+    if (namePromptOpen || postSaveTitle) {
+      suppressScrollEndRef.current = true;
+    } else {
+      const t = setTimeout(() => {
+        suppressScrollEndRef.current = false;
+      }, 1000);
+      return () => clearTimeout(t);
+    }
+  }, [namePromptOpen, postSaveTitle]);
+
   function onScrollEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (suppressScrollEndRef.current) return;
+    const x = e.nativeEvent.contentOffset.x;
+    const idx = Math.round(x / Math.max(width, 1));
+    if (idx !== currentIndex) setCurrentIndex(idx);
+  }
+
+  // Some browsers / RN-Web combos fire onScroll continuously but not
+  // onMomentumScrollEnd reliably (especially on macOS trackpad and iPad
+  // Safari with paging-enabled ScrollViews). Track scroll position on
+  // every scroll event so currentIndex always reflects what's visible.
+  function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (suppressScrollEndRef.current) return;
     const x = e.nativeEvent.contentOffset.x;
     const idx = Math.round(x / Math.max(width, 1));
     if (idx !== currentIndex) setCurrentIndex(idx);
@@ -151,11 +322,13 @@ export default function DocumentScreen() {
     setBoxesOn(true);
     setSelectedPassageId(null);
     setDrafts(new Map());
+    setMarkingSection(false);
     setMode('draw');
   }
 
   function cancelDraw() {
     setDrafts(new Map());
+    setMarkingSection(false);
     setMode('idle');
     pendingFirstDrawnPageRef.current = null;
   }
@@ -175,11 +348,15 @@ export default function DocumentScreen() {
     });
   }
 
-  // Step 6 hook — multi-page draw.
+  // Multi-page draw — advance to the next page after the highest one already
+  // drafted, navigating to its screen if needed.
   function addNextPageToDraft() {
-    const next = currentIndex + 1;
-    if (next >= pages.length) return;
-    goTo(next);
+    if (drafts.size === 0) return;
+    const maxDrawn = Math.max(...Array.from(drafts.keys()));
+    const nextPage = maxDrawn + 1;
+    if (nextPage > pages.length) return;
+    const targetScreen = screenForPage(nextPage);
+    if (targetScreen !== currentIndex) goTo(targetScreen);
   }
 
   async function onSaveDraftClick() {
@@ -379,20 +556,61 @@ export default function DocumentScreen() {
             {doc.composer ? (
               <ThemedText style={styles.subtitle}>{doc.composer}</ThemedText>
             ) : null}
+            {currentSection ? (
+              <Pressable
+                onLongPress={() => setSectionsModalOpen(true)}
+                delayLongPress={400}
+                accessibilityLabel="Manage sections (long-press)">
+                <ThemedText style={styles.sectionLabel}>{currentSection.name}</ThemedText>
+              </Pressable>
+            ) : null}
           </View>
         }
         right={
-          pages.length > 0 ? (
+          mode === 'idle' && pages.length > 0 ? (
+            <View style={styles.headerRight}>
+              {isLandscape && (
+                <Button
+                  label={viewMode === 'spread' ? 'Single page view' : 'Spread view'}
+                  variant="outline"
+                  size="sm"
+                  onPress={toggleViewMode}
+                />
+              )}
+              <Button
+                label={boxesOn ? 'Boxes shown' : 'Boxes hidden'}
+                variant="outline"
+                size="sm"
+                onPress={() => setBoxesOn(!boxesOn)}
+              />
+              <Button
+                label={
+                  sections.length === 0
+                    ? 'Sections / Movements'
+                    : `Sections (${sections.length})`
+                }
+                variant="outline"
+                size="sm"
+                onPress={() => setSectionsModalOpen(true)}
+              />
+              <Button
+                label="+ Mark passage"
+                variant="primary"
+                size="sm"
+                onPress={startDraw}
+              />
+              <ThemedText style={styles.counter}>
+                {pageCounterLabel(currentIndex, pages.length, viewMode)}
+              </ThemedText>
+            </View>
+          ) : pages.length > 0 ? (
             <ThemedText style={styles.counter}>
-              {currentIndex + 1} / {pages.length}
+              {pageCounterLabel(currentIndex, pages.length, viewMode)}
             </ThemedText>
           ) : null
         }
         sub={renderSubRow({
           mode,
-          boxesOn,
-          setBoxesOn,
-          startDraw,
           drafts,
           currentIndex,
           pageCount: pages.length,
@@ -421,63 +639,105 @@ export default function DocumentScreen() {
               // Resize mode keeps swipes enabled so the user can move between
               // pages of a multi-page passage; the handles capture pointer
               // events on touchstart, so handle drags don't trigger paging.
-              scrollEnabled={mode !== 'draw'}
+              // Lock during draw mode so the ScrollView's horizontal swipe
+              // recognizer doesn't intercept the user's second/third drag
+              // as a page swipe. Also lock through the passage-save chain
+              // (prompt → post-save sheet) so iPad Safari's keyboard
+              // dismiss doesn't shift the ScrollView during transitions.
+              // The page-1 reset bug we hit earlier was actually a viewMode
+              // flip from the keyboard's viewport resize — fixed separately
+              // via the dimensionsBaselineRef freeze above.
+              scrollEnabled={
+                mode !== 'draw' &&
+                !markingSection &&
+                !sectionsModalOpen &&
+                !renamePromptFor &&
+                !namePromptOpen &&
+                !postSaveTitle
+              }
               showsHorizontalScrollIndicator={false}
+              onScroll={onScroll}
+              scrollEventThrottle={32}
               onMomentumScrollEnd={onScrollEnd}
               onScrollEndDrag={onScrollEnd}>
-              {pages.map((p) => {
-                const drawerActive = mode === 'draw' && p.index === currentIndex + 1;
+              {Array.from({ length: screenCount }).map((_, screenIdx) => {
+                const screenPages = pagesForScreen(screenIdx);
+                const slotW = viewMode === 'spread' ? width / 2 : width;
                 return (
-                  <View key={p.index} style={[styles.pageSlot, { width }]}>
-                    <Image
-                      source={{ uri: p.image_uri }}
-                      style={styles.pageImage}
-                      contentFit="contain"
-                    />
-                    <PageBoxOverlay
-                      passages={
-                        mode === 'resize' && resizingPassage
-                          ? // Hide the passage being resized; the resizer renders it.
-                            passages.filter((pp) => pp.id !== resizingPassage.id)
-                          : passages
-                      }
-                      pageIndex={p.index}
-                      sourceWidth={p.w}
-                      sourceHeight={p.h}
-                      slotWidth={width}
-                      slotHeight={pagerSize.height}
-                      visible={boxesOn && mode !== 'draw'}
-                      selectedId={selectedPassageId}
-                      onSelect={setSelectedPassageId}
-                      onDeselect={() => setSelectedPassageId(null)}
-                    />
-                    {mode === 'draw' && (
-                      <PassageRectDrawer
-                        pageIndex={p.index}
-                        sourceWidth={p.w}
-                        sourceHeight={p.h}
-                        slotWidth={width}
-                        slotHeight={pagerSize.height}
-                        draftRegion={drafts.get(p.index) ?? null}
-                        active={drawerActive}
-                        onDraftChange={(r) => setDraftForPage(p.index, r)}
-                      />
-                    )}
-                    {mode === 'resize' && resizingPassage && (() => {
-                      const r = resizeRegions.find((rr) => rr.page === p.index);
-                      if (!r) return null;
+                  <View
+                    key={screenIdx}
+                    style={[styles.pageSlot, { width, flexDirection: 'row' }]}>
+                    {screenPages.map((p) => {
+                      // In draw + resize modes, every page on the visible
+                      // screen is interactive — user can drag in either half
+                      // of a spread.
+                      const drawerActive =
+                        mode === 'draw' && screenForPage(p.index) === currentIndex;
                       return (
-                        <PassageRectResizer
-                          pageIndex={p.index}
-                          sourceWidth={p.w}
-                          sourceHeight={p.h}
-                          slotWidth={width}
-                          slotHeight={pagerSize.height}
-                          region={{ x: r.x, y: r.y, w: r.w, h: r.h }}
-                          onRegionChange={(next) => setRegionForPage(p.index, next)}
-                        />
+                        <View
+                          key={p.index}
+                          style={[styles.pageHalf, { width: slotW }]}>
+                          <Image
+                            source={{ uri: p.image_uri }}
+                            style={styles.pageImage}
+                            contentFit="contain"
+                          />
+                          <PageBoxOverlay
+                            passages={
+                              mode === 'resize' && resizingPassage
+                                ? passages.filter((pp) => pp.id !== resizingPassage.id)
+                                : passages
+                            }
+                            pageIndex={p.index}
+                            sourceWidth={p.w}
+                            sourceHeight={p.h}
+                            slotWidth={slotW}
+                            slotHeight={pagerSize.height}
+                            visible={boxesOn && mode !== 'draw'}
+                            selectedId={selectedPassageId}
+                            onSelect={setSelectedPassageId}
+                            onDeselect={() => setSelectedPassageId(null)}
+                          />
+                          {mode === 'draw' && (
+                            <PassageRectDrawer
+                              pageIndex={p.index}
+                              sourceWidth={p.w}
+                              sourceHeight={p.h}
+                              slotWidth={slotW}
+                              slotHeight={pagerSize.height}
+                              draftRegion={drafts.get(p.index) ?? null}
+                              active={drawerActive}
+                              onDraftChange={(r) => setDraftForPage(p.index, r)}
+                            />
+                          )}
+                          {mode === 'resize' && resizingPassage && (() => {
+                            const r = resizeRegions.find((rr) => rr.page === p.index);
+                            if (!r) return null;
+                            return (
+                              <PassageRectResizer
+                                pageIndex={p.index}
+                                sourceWidth={p.w}
+                                sourceHeight={p.h}
+                                slotWidth={slotW}
+                                slotHeight={pagerSize.height}
+                                region={{ x: r.x, y: r.y, w: r.w, h: r.h }}
+                                onRegionChange={(next) => setRegionForPage(p.index, next)}
+                              />
+                            );
+                          })()}
+                          {markingSection && (
+                            <SectionMarkerCapturer
+                              pageIndex={p.index}
+                              sourceWidth={p.w}
+                              sourceHeight={p.h}
+                              slotWidth={slotW}
+                              slotHeight={pagerSize.height}
+                              onCapture={onCaptureSection}
+                            />
+                          )}
+                        </View>
                       );
-                    })()}
+                    })}
                   </View>
                 );
               })}
@@ -503,6 +763,17 @@ export default function DocumentScreen() {
           </>
         )}
       </View>
+
+      {markingSection && (
+        <View pointerEvents="box-none" style={styles.markBanner}>
+          <View style={styles.markBannerInner}>
+            <ThemedText style={styles.markBannerText}>
+              Tap a page where the section starts
+            </ThemedText>
+            <Button label="Cancel" variant="ghost" size="sm" onPress={cancelSectionMark} />
+          </View>
+        </View>
+      )}
 
       <ActionSheet
         visible={selectedPassage !== null}
@@ -531,6 +802,8 @@ export default function DocumentScreen() {
         onCancel={() => setNamePromptOpen(false)}
       />
 
+
+
       <PostSaveSheet
         visible={postSaveTitle !== null}
         passageTitle={postSaveTitle ?? ''}
@@ -557,15 +830,39 @@ export default function DocumentScreen() {
         onConfirm={onConfirmDelete}
         onCancel={() => setDeleteConfirmFor(null)}
       />
+
+      <SectionsModal
+        visible={sectionsModalOpen}
+        documentTitle={doc?.title ?? ''}
+        sections={sections}
+        onSectionsChange={onSectionsChange}
+        onJumpToSection={(s) => {
+          setSectionsModalOpen(false);
+          const target = screenForPage(s.start_page);
+          goTo(target);
+        }}
+        onAddSection={() => {
+          setSectionsModalOpen(false);
+          startSectionMark();
+        }}
+        onClose={() => setSectionsModalOpen(false)}
+      />
     </ThemedView>
   );
 }
 
+function pageCounterLabel(currentIndex: number, pageCount: number, viewMode: ViewMode): string {
+  if (viewMode === 'spread') {
+    const left = currentIndex * 2 + 1;
+    const right = left + 1;
+    if (right > pageCount) return `${left} / ${pageCount}`;
+    return `${left}-${right} / ${pageCount}`;
+  }
+  return `${currentIndex + 1} / ${pageCount}`;
+}
+
 function renderSubRow(args: {
   mode: Mode;
-  boxesOn: boolean;
-  setBoxesOn: (v: boolean) => void;
-  startDraw: () => void;
   drafts: Map<number, unknown>;
   currentIndex: number;
   pageCount: number;
@@ -581,9 +878,6 @@ function renderSubRow(args: {
 }) {
   const {
     mode,
-    boxesOn,
-    setBoxesOn,
-    startDraw,
     drafts,
     currentIndex,
     pageCount,
@@ -598,36 +892,22 @@ function renderSubRow(args: {
     onCommitResize,
   } = args;
   if (mode === 'idle') {
-    return (
-      <View style={styles.subRow}>
-        <Button
-          label={boxesOn ? 'Boxes shown' : 'Boxes hidden'}
-          variant={boxesOn ? 'outline' : 'ghost'}
-          size="sm"
-          onPress={() => setBoxesOn(!boxesOn)}
-        />
-        <View style={{ flex: 1 }} />
-        <Button label="+ Mark passage" variant="primary" size="sm" onPress={startDraw} />
-      </View>
-    );
+    // All idle controls live in the top-row right slot now — no sub row.
+    return null;
   }
   if (mode === 'draw') {
-    const hasDraftOnCurrent = drafts.has(currentIndex + 1);
     const hasAnyDraft = drafts.size > 0;
-    const canAddNextPage = hasDraftOnCurrent && currentIndex + 1 < pageCount;
+    const drawnPages = Array.from(drafts.keys()).sort((a, b) => a - b);
+    const maxDrawn = drawnPages.length > 0 ? drawnPages[drawnPages.length - 1] : 0;
+    const canAddNextPage = hasAnyDraft && maxDrawn < pageCount;
+    const hint = hasAnyDraft
+      ? `Drawn on p. ${drawnPages.join(', ')}`
+      : 'Drag a box on a page';
     return (
       <View style={styles.subRow}>
         <Button label="Cancel" variant="ghost" size="sm" onPress={onCancelDraw} />
         <View style={{ flex: 1, paddingHorizontal: Spacing.sm }}>
-          <Button
-            label={hasDraftOnCurrent ? `Drawn on p. ${currentIndex + 1}` : 'Drag a box on this page'}
-            variant="ghost"
-            size="sm"
-            onPress={() => {
-              /* hint, no action */
-            }}
-            disabled
-          />
+          <Button label={hint} variant="ghost" size="sm" onPress={() => undefined} disabled />
         </View>
         {canAddNextPage && (
           <Button label="Add next page →" variant="outline" size="sm" onPress={onAddNextPage} />
@@ -672,6 +952,12 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: Type.size.md, fontWeight: Type.weight.bold },
   subtitle: { fontSize: Type.size.sm, opacity: 0.6 },
+  sectionLabel: {
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.semibold,
+    opacity: 0.85,
+    marginTop: 2,
+  },
   counter: { fontSize: Type.size.sm, opacity: 0.7, paddingRight: 6 },
   subRow: {
     flexDirection: 'row',
@@ -680,11 +966,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingTop: Spacing.xs,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   pagerWrap: { flex: 1 },
   pageSlot: {
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pageHalf: {
+    height: '100%',
+    position: 'relative',
   },
   pageImage: {
     width: '100%',
@@ -697,4 +992,25 @@ const styles = StyleSheet.create({
   },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: { opacity: 0.6 },
+  markBanner: {
+    position: 'absolute',
+    bottom: Spacing.lg,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  markBannerInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 999,
+    backgroundColor: '#000c',
+  },
+  markBannerText: {
+    color: '#fff',
+    fontWeight: Type.weight.semibold,
+  },
 });

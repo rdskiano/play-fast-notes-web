@@ -74,7 +74,7 @@ export function PassageRectDrawer({
             cursor: 'crosshair',
             touchAction: 'none',
             userSelect: 'none',
-            zIndex: 10,
+            zIndex: 9999,
           }}
         />
       </View>
@@ -161,7 +161,16 @@ export function PassageRectDrawer({
   return (
     <View
       pointerEvents={active ? 'auto' : 'box-none'}
-      style={[styles.layer, { left: imageRect.x, top: imageRect.y, width: imageRect.w, height: imageRect.h }]}>
+      style={[
+        styles.layer,
+        {
+          left: imageRect.x,
+          top: imageRect.y,
+          width: imageRect.w,
+          height: imageRect.h,
+          zIndex: 9999,
+        },
+      ]}>
       {/* Pointer-capture surface: only mounts when active so inactive pages
           don't intercept page-swipe gestures from a parent. */}
       {active && (
@@ -177,7 +186,7 @@ export function PassageRectDrawer({
             cursor: 'crosshair',
             touchAction: 'none',
             userSelect: 'none',
-            zIndex: 10,
+            zIndex: 9999,
           }}
         />
       )}
