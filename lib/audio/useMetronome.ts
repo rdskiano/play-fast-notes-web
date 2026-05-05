@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
+import {
+  useMicrobreakTimer,
+  usePlayItColdTimer,
+} from '@/components/PracticeTimersContext';
 import { TOKEN_QUARTER_FRACTIONS, type RhythmToken } from '@/lib/strategies/rhythmPatterns';
 
 /**
@@ -114,6 +118,39 @@ export function useMetronome(initialBpm = 60) {
       }
     };
   }, [running]);
+
+  // Auto-pause during interruptions (microbreak / Play It Cold). If the
+  // metronome or rhythm loop was running when the interruption started,
+  // resume after it ends. Mirrors the iPad pattern in lib/metronome.
+  const microbreak = useMicrobreakTimer();
+  const playItCold = usePlayItColdTimer();
+  const interrupted = Boolean(microbreak.firing || playItCold.firing);
+  const resumeStateRef = useRef<{
+    metronome: boolean;
+    rhythm: { tokens: RhythmToken[]; beatDenominator: number } | null;
+  } | null>(null);
+  useEffect(() => {
+    if (interrupted) {
+      if (resumeStateRef.current) return; // already snapshotted
+      const wasRunning = running;
+      const wasRhythm = rhythmTokensRef.current;
+      const beatDenom = rhythmBeatDenomRef.current;
+      if (!wasRunning && !wasRhythm) return; // nothing to silence
+      resumeStateRef.current = {
+        metronome: wasRunning,
+        rhythm: wasRhythm ? { tokens: wasRhythm.slice(), beatDenominator: beatDenom } : null,
+      };
+      if (wasRunning) setRunning(false);
+      if (wasRhythm) stopRhythmLoop();
+    } else {
+      const snap = resumeStateRef.current;
+      if (!snap) return;
+      resumeStateRef.current = null;
+      if (snap.metronome) setRunning(true);
+      if (snap.rhythm) startRhythmLoop(snap.rhythm.tokens, snap.rhythm.beatDenominator);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interrupted]);
 
   function setBpm(v: number) {
     setBpmState(Math.max(20, Math.min(300, Math.round(v))));
