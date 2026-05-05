@@ -89,6 +89,17 @@ export function useMetronome(initialBpm = 60) {
     function scheduler() {
       const c = ctxRef.current;
       if (!c) return;
+      // Browser may suspend the AudioContext when the laptop sleeps or the
+      // tab stays hidden too long — resume on the way back.
+      if (c.state === 'suspended') {
+        c.resume().catch(() => undefined);
+      }
+      // If we fell way behind (sleep / freeze), resync to "now" instead of
+      // trying to fire every missed beat at once.
+      if (nextNoteTimeRef.current < c.currentTime - 0.5) {
+        nextNoteTimeRef.current = c.currentTime + 0.05;
+        subStepRef.current = 0;
+      }
       while (nextNoteTimeRef.current < c.currentTime + 0.1) {
         const t = nextNoteTimeRef.current;
         const sub = subRef.current;
@@ -111,10 +122,32 @@ export function useMetronome(initialBpm = 60) {
 
     scheduler();
 
+    // Resync as soon as the tab regains focus so the user does not have to
+    // wait for the next throttled setTimeout to fire after waking.
+    function onVisibility() {
+      if (typeof document === 'undefined') return;
+      if (document.visibilityState !== 'visible') return;
+      const c = ctxRef.current;
+      if (!c) return;
+      if (c.state === 'suspended') c.resume().catch(() => undefined);
+      nextNoteTimeRef.current = c.currentTime + 0.05;
+      subStepRef.current = 0;
+      if (rhythmTokensRef.current) {
+        rhythmNextStartRef.current = c.currentTime + 0.08;
+        rhythmTokenIdxRef.current = 0;
+      }
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+
     return () => {
       if (timerRef.current !== null) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
+      }
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibility);
       }
     };
   }, [running]);
@@ -182,6 +215,15 @@ export function useMetronome(initialBpm = 60) {
     const tokens = rhythmTokensRef.current;
     const gate = rhythmGateRef.current;
     if (!ctx || !tokens || tokens.length === 0 || !gate) return;
+    // Same suspended/resync handling as the metronome scheduler — laptop
+    // sleep can suspend the AudioContext and starve the lookahead.
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => undefined);
+    }
+    if (rhythmNextStartRef.current < ctx.currentTime - 0.5) {
+      rhythmNextStartRef.current = ctx.currentTime + 0.08;
+      rhythmTokenIdxRef.current = 0;
+    }
     const beatDenom = rhythmBeatDenomRef.current;
     const secondsPerQuarter = (4 / beatDenom) * (60 / bpmRef.current);
     // Schedule notes whose start time is within the next ~250 ms.
