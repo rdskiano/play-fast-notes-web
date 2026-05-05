@@ -173,3 +173,8 @@ create policy documents_owner_all on documents
 alter table pieces add column if not exists document_id text references documents(id);
 alter table pieces add column if not exists regions_json text;
 create index if not exists idx_pieces_document on pieces(document_id);
+
+-- documents.sections_json: optional per-document list of named page-range
+-- sections, e.g. movements of a symphony part. Drives the practice log
+-- grouping ("Mahler 9 - IV. Adagio - bars 281-291") and section-jump nav.
+alter table documents add column if not exists sections_json text;

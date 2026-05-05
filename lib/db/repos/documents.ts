@@ -13,6 +13,16 @@ export type DocumentSourceKind = 'pdf' | 'images';
 // image for source_kind='images'). w/h are the rendered pixel dimensions.
 export type DocumentPage = { index: number; image_uri: string; w: number; h: number };
 
+// One per named section (e.g. "II. Trio", "IV. Adagio"). start_page is
+// 1-indexed; start_y is in source pixels on that page (0 = top of page).
+// The section runs until the next section's marker or end of document.
+// Persisted in documents.sections_json. Unset = no sections.
+export type DocumentSection = {
+  name: string;
+  start_page: number;
+  start_y: number;
+};
+
 export type DocumentRow = {
   id: string;
   title: string;
@@ -21,6 +31,7 @@ export type DocumentRow = {
   original_uri: string | null;
   page_count: number;
   pages_json: string;
+  sections_json: string | null;
   folder_id: string | null;
   sort_order: number;
   created_at: number;
@@ -56,6 +67,61 @@ export function parsePages(pages_json: string): DocumentPage[] {
   }
 }
 
+export function parseSections(sections_json: string | null): DocumentSection[] {
+  if (!sections_json) return [];
+  try {
+    const parsed = JSON.parse(sections_json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (s) =>
+          typeof s === 'object' &&
+          s !== null &&
+          typeof s.name === 'string' &&
+          typeof s.start_page === 'number',
+      )
+      .map((s): DocumentSection => ({
+        name: s.name,
+        start_page: s.start_page,
+        // Tolerate sections written before start_y existed — top of page = 0.
+        start_y: typeof s.start_y === 'number' ? s.start_y : 0,
+      }))
+      .sort((a, b) =>
+        a.start_page === b.start_page
+          ? a.start_y - b.start_y
+          : a.start_page - b.start_page,
+      );
+  } catch {
+    return [];
+  }
+}
+
+// Returns the section that contains a given (page, y) position, or null if
+// no section starts at or before this position. Sections are ordered by
+// (page, y) so we can scan linearly.
+export function sectionForPosition(
+  sections: DocumentSection[],
+  page: number,
+  y: number,
+): DocumentSection | null {
+  let current: DocumentSection | null = null;
+  for (const s of sections) {
+    if (s.start_page < page) current = s;
+    else if (s.start_page === page && s.start_y <= y) current = s;
+    else break;
+  }
+  return current;
+}
+
+// Convenience for cases where only the page is known (e.g. the top of a
+// freshly-opened spread). Equivalent to sectionForPosition with y = +Infinity.
+export function sectionForPage(
+  sections: DocumentSection[],
+  page: number,
+): DocumentSection | null {
+  return sectionForPosition(sections, page, Number.MAX_SAFE_INTEGER);
+}
+
 export async function insertDocument(d: NewDocument): Promise<DocumentRow> {
   const now = Date.now();
   const pages_json = JSON.stringify(d.pages);
@@ -75,9 +141,26 @@ export async function insertDocument(d: NewDocument): Promise<DocumentRow> {
   if (error) throw error;
   return {
     ...row,
+    sections_json: null,
     sort_order: 0,
     deleted_at: null,
   };
+}
+
+export async function updateDocumentSections(
+  id: string,
+  sections: DocumentSection[],
+): Promise<void> {
+  const sorted = [...sections].sort((a, b) =>
+    a.start_page === b.start_page
+      ? a.start_y - b.start_y
+      : a.start_page - b.start_page,
+  );
+  const { error } = await supabase
+    .from('documents')
+    .update({ sections_json: JSON.stringify(sorted), updated_at: Date.now() })
+    .eq('id', id);
+  if (error) throw error;
 }
 
 export async function getDocument(id: string): Promise<DocumentRow | null> {
