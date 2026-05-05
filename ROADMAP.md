@@ -218,17 +218,21 @@ auth, practice log, and (later) subscription state.
       page-1 reset symptom turned out to be the viewMode flip and is
       now fixed by the dimension freeze.
 
+- **Library log document grouping** (2026-05-05): in `library-log.tsx`
+  by-folder view and `folder-log.tsx`, document-derived passages now
+  sub-group under document title → section name, so users see
+  `Folder → Mahler 9 → III → 12-2` instead of a flat list of
+  `Mahler 9 · III · 12-2` labels. Standalone (non-document) passages
+  still render flat under the day. By-date view in library-log is
+  unchanged. Aligns "by folder" with "by full part" so they read as
+  the same idea applied to different containers.
+
 ### 🚧 Next up (in priority order)
 
-1. **Library log document grouping**: in the by-folder view, sub-group
-   document-derived passages under their document title (so users see
-   `Folder → Mahler 9 → IV. Adagio → bars 281-291` rather than a flat
-   list inside the folder). Aligns "by folder" with "by full part" so
-   they read as the same idea applied to different containers.
-2. **Library polish v2**: edit mode (rename, move, delete, reorder), folder
+1. **Library polish v2**: edit mode (rename, move, delete, reorder), folder
    creation, move-to picker. Up/down arrows first; defer drag-and-drop.
-3. **Self-Led strategies index** (Phase 2 of iPad roadmap).
-4. **Search across pieces and exercises**.
+2. **Self-Led strategies index** (Phase 2 of iPad roadmap).
+3. **Search across pieces and exercises**.
 
 ### ⏳ Deferred document/section UX (revisit when convenient)
 

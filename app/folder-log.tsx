@@ -85,20 +85,21 @@ type PassageGroup = {
   entries: PracticeLogWithTitle[];
 };
 
-// Display label: "Mahler 9 · IV. Adagio · bars 281-291" for document-derived
-// passages, just the passage title for standalone ones.
-function passageLabel(e: PracticeLogWithTitle): string {
-  const title = e.piece_title || 'Untitled';
-  const parts: string[] = [];
-  if (e.document_title) parts.push(e.document_title);
-  if (e.section_name) parts.push(e.section_name);
-  parts.push(title);
-  return parts.join(' · ');
-}
+type SectionSubGroup = {
+  sectionName: string | null;
+  passages: PassageGroup[];
+};
+
+type DocumentSubGroup = {
+  documentId: string;
+  documentTitle: string;
+  sectionGroups: SectionSubGroup[];
+};
 
 type DayGroup = {
   dateLabel: string;
-  passages: PassageGroup[];
+  documentGroups: DocumentSubGroup[];
+  standalonePassages: PassageGroup[];
 };
 
 export default function FolderLogScreen() {
@@ -119,33 +120,71 @@ export default function FolderLogScreen() {
 
   const refresh = useCallback(async () => {
     const entries = await getPracticeLogForFolder(resolvedFolderId);
-    const dayMap = new Map<
-      string,
-      { dateLabel: string; passageMap: Map<string, PassageGroup> }
-    >();
+
+    type DayBuilder = {
+      dateLabel: string;
+      docMap: Map<
+        string,
+        { documentTitle: string; sectionMap: Map<string, SectionSubGroup> }
+      >;
+      standaloneMap: Map<string, PassageGroup>;
+    };
+    const dayMap = new Map<string, DayBuilder>();
+
     for (const e of entries) {
       const dk = dateKey(e.practiced_at);
       if (!dayMap.has(dk)) {
         dayMap.set(dk, {
           dateLabel: formatDate(e.practiced_at),
-          passageMap: new Map(),
+          docMap: new Map(),
+          standaloneMap: new Map(),
         });
       }
       const day = dayMap.get(dk)!;
-      const pk = e.piece_id;
-      if (!day.passageMap.has(pk)) {
-        day.passageMap.set(pk, {
-          passageTitle: passageLabel(e),
-          entries: [],
-        });
+
+      if (e.document_id && e.document_title) {
+        if (!day.docMap.has(e.document_id)) {
+          day.docMap.set(e.document_id, {
+            documentTitle: e.document_title,
+            sectionMap: new Map(),
+          });
+        }
+        const doc = day.docMap.get(e.document_id)!;
+        const sectionKey = e.section_name ?? '__nosection__';
+        if (!doc.sectionMap.has(sectionKey)) {
+          doc.sectionMap.set(sectionKey, {
+            sectionName: e.section_name,
+            passages: [],
+          });
+        }
+        const section = doc.sectionMap.get(sectionKey)!;
+        let pg = section.passages.find((p) => p.entries[0]?.piece_id === e.piece_id);
+        if (!pg) {
+          pg = { passageTitle: e.piece_title || 'Untitled', entries: [] };
+          section.passages.push(pg);
+        }
+        pg.entries.push(e);
+      } else {
+        if (!day.standaloneMap.has(e.piece_id)) {
+          day.standaloneMap.set(e.piece_id, {
+            passageTitle: e.piece_title || 'Untitled',
+            entries: [],
+          });
+        }
+        day.standaloneMap.get(e.piece_id)!.entries.push(e);
       }
-      day.passageMap.get(pk)!.entries.push(e);
     }
+
     const result: DayGroup[] = [];
     for (const day of dayMap.values()) {
       result.push({
         dateLabel: day.dateLabel,
-        passages: Array.from(day.passageMap.values()),
+        documentGroups: Array.from(day.docMap.entries()).map(([docId, doc]) => ({
+          documentId: docId,
+          documentTitle: doc.documentTitle,
+          sectionGroups: Array.from(doc.sectionMap.values()),
+        })),
+        standalonePassages: Array.from(day.standaloneMap.values()),
       });
     }
     setDays(result);
@@ -205,54 +244,85 @@ export default function FolderLogScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
-          {days.map((day) => (
-            <View key={day.dateLabel}>
-              <ThemedText style={styles.dateHeader}>{day.dateLabel}</ThemedText>
-              <View style={styles.passageGrid}>
-                {day.passages.map((pg, pi) => (
-                  <View
-                    key={pi}
-                    style={[styles.passageCard, { borderColor: C.icon + '33' }]}>
-                    <ThemedText style={styles.passageName} numberOfLines={1}>
-                      {pg.passageTitle}
+          {days.map((day) => {
+            const renderPassage = (pg: PassageGroup, pi: number) => (
+              <View
+                key={pi}
+                style={[styles.passageCard, { borderColor: C.icon + '33' }]}>
+                <ThemedText style={styles.passageName} numberOfLines={1}>
+                  {pg.passageTitle}
+                </ThemedText>
+                <View style={styles.pillRow}>
+                  {pg.entries.map((e) => {
+                    const label = STRATEGY_LABELS[e.strategy] ?? e.strategy;
+                    const color = STRATEGY_COLORS[e.strategy] ?? C.icon;
+                    const detail = formatDetail(e);
+                    const exerciseName =
+                      e.exercise_name && e.exercise_name.trim().length > 0
+                        ? e.exercise_name
+                        : null;
+                    const { mood, note } = parseMoodNote(e);
+                    return (
+                      <Pressable
+                        key={e.id}
+                        onPress={() => setEditing(e)}
+                        style={styles.entry}>
+                        <View style={[styles.pill, { backgroundColor: color }]}>
+                          <ThemedText style={styles.pillText} numberOfLines={1}>
+                            {label}
+                            {exerciseName ? ` · ${exerciseName}` : ''}
+                            {detail ? ` ${detail}` : ''}
+                            {mood ? ` ${mood}` : ''}
+                          </ThemedText>
+                        </View>
+                        {note && (
+                          <ThemedText style={styles.noteText} numberOfLines={2}>
+                            {note}
+                          </ThemedText>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+
+            return (
+              <View key={day.dateLabel}>
+                <ThemedText style={styles.dateHeader}>{day.dateLabel}</ThemedText>
+
+                {day.documentGroups.map((doc) => (
+                  <View key={doc.documentId} style={styles.documentGroup}>
+                    <ThemedText
+                      style={[styles.documentTitle, { color: C.text }]}
+                      numberOfLines={1}>
+                      {doc.documentTitle}
                     </ThemedText>
-                    <View style={styles.pillRow}>
-                      {pg.entries.map((e) => {
-                        const label = STRATEGY_LABELS[e.strategy] ?? e.strategy;
-                        const color = STRATEGY_COLORS[e.strategy] ?? C.icon;
-                        const detail = formatDetail(e);
-                        const exerciseName =
-                          e.exercise_name && e.exercise_name.trim().length > 0
-                            ? e.exercise_name
-                            : null;
-                        const { mood, note } = parseMoodNote(e);
-                        return (
-                          <Pressable
-                            key={e.id}
-                            onPress={() => setEditing(e)}
-                            style={styles.entry}>
-                            <View style={[styles.pill, { backgroundColor: color }]}>
-                              <ThemedText style={styles.pillText} numberOfLines={1}>
-                                {label}
-                                {exerciseName ? ` · ${exerciseName}` : ''}
-                                {detail ? ` ${detail}` : ''}
-                                {mood ? ` ${mood}` : ''}
-                              </ThemedText>
-                            </View>
-                            {note && (
-                              <ThemedText style={styles.noteText} numberOfLines={2}>
-                                {note}
-                              </ThemedText>
-                            )}
-                          </Pressable>
-                        );
-                      })}
-                    </View>
+                    {doc.sectionGroups.map((sg, si) => (
+                      <View key={si} style={styles.sectionGroup}>
+                        {sg.sectionName && (
+                          <ThemedText
+                            style={[styles.sectionName, { color: C.icon }]}
+                            numberOfLines={1}>
+                            {sg.sectionName}
+                          </ThemedText>
+                        )}
+                        <View style={styles.passageGrid}>
+                          {sg.passages.map(renderPassage)}
+                        </View>
+                      </View>
+                    ))}
                   </View>
                 ))}
+
+                {day.standalonePassages.length > 0 && (
+                  <View style={styles.passageGrid}>
+                    {day.standalonePassages.map(renderPassage)}
+                  </View>
+                )}
               </View>
-            </View>
-          ))}
+            );
+          })}
         </ScrollView>
       )}
 
@@ -325,5 +395,23 @@ const styles = StyleSheet.create({
     opacity: Opacity.subtle,
     marginLeft: Spacing.xs,
     fontStyle: 'italic',
+  },
+  documentGroup: {
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  documentTitle: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    marginTop: Spacing.xs,
+  },
+  sectionGroup: {
+    gap: Spacing.xs,
+    marginLeft: Spacing.md,
+  },
+  sectionName: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.bold,
+    letterSpacing: 0.5,
   },
 });

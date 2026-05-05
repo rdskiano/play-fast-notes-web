@@ -105,6 +105,7 @@ type PassageGroup = {
 // Builds the display label for a practice-log row. Standalone passages show
 // just their title; document-derived passages prepend the document title and
 // section name (when known): "Mahler 9 - IV. Adagio - bars 281-291".
+// Used in by-date view (where document/section are not used as headers).
 function passageLabel(e: LibraryPracticeLogEntry): string {
   const title = e.piece_title || 'Untitled';
   const parts: string[] = [];
@@ -122,9 +123,24 @@ type DayFolderGroup = {
 
 type DayGroup = { dateLabel: string; folders: DayFolderGroup[] };
 
+// In by-folder view, passages within a day are split into documents (each
+// holding its own section sub-groups) and standalone passages, so users see
+// "Folder → Mahler 9 → IV. Adagio → bars 281-291" instead of a flat list.
+type SectionSubGroup = {
+  sectionName: string | null;
+  passages: PassageGroup[];
+};
+
+type DocumentSubGroup = {
+  documentId: string;
+  documentTitle: string;
+  sectionGroups: SectionSubGroup[];
+};
+
 type FolderDayGroup = {
   dateLabel: string;
-  passages: PassageGroup[];
+  documentGroups: DocumentSubGroup[];
+  standalonePassages: PassageGroup[];
 };
 
 type FolderGroup = {
@@ -132,6 +148,55 @@ type FolderGroup = {
   folderName: string;
   dayGroups: FolderDayGroup[];
 };
+
+function renderPassageRow(
+  pg: PassageGroup,
+  key: number,
+  C: typeof Colors.light,
+  STRATEGY_COLORS: Record<string, string>,
+  setEditing: (e: LibraryPracticeLogEntry) => void,
+) {
+  return (
+    <View
+      key={key}
+      style={[styles.passageRow, { borderColor: C.tint + '88' }]}>
+      <ThemedText style={styles.passageName} numberOfLines={1}>
+        {pg.passageTitle}
+      </ThemedText>
+      <View style={styles.pillRow}>
+        {pg.entries.map((e) => (
+          <Pressable
+            key={e.id}
+            onPress={() => setEditing(e)}
+            style={[
+              styles.pill,
+              { backgroundColor: STRATEGY_COLORS[e.strategy] ?? C.icon },
+            ]}>
+            <ThemedText style={styles.pillText} numberOfLines={1}>
+              {entryLabel(e)}
+            </ThemedText>
+          </Pressable>
+        ))}
+      </View>
+      {pg.entries.some((e) => parseMoodNote(e).note) && (
+        <View style={styles.notesList}>
+          {pg.entries.map((e) => {
+            const { note } = parseMoodNote(e);
+            if (!note) return null;
+            return (
+              <ThemedText
+                key={e.id}
+                style={[styles.noteText, { color: C.icon }]}
+                numberOfLines={2}>
+                {note}
+              </ThemedText>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
 
 export default function LibraryLogScreen() {
   const router = useRouter();
@@ -255,7 +320,9 @@ export default function LibraryLogScreen() {
     }
   }
 
-  // ── By-folder grouping: folder → day → pills ───────────────────────────
+  // ── By-folder grouping: folder → day → (documents → sections) + standalone ─
+  // Within a day, document-derived passages cluster under their document title
+  // and section name; standalone passages list after, just by passage title.
   const folderGroups: FolderGroup[] = [];
   {
     const folderOrder = new Map<string | null, number>();
@@ -279,34 +346,83 @@ export default function LibraryLogScreen() {
         key === null
           ? 'Unfiled'
           : list[0].folder_name || folders.find((f) => f.id === key)?.name || 'Folder';
-      const dayMap = new Map<
-        string,
-        { dateLabel: string; passageMap: Map<string, PassageGroup> }
-      >();
+
+      // day → ( documents (insertion-ordered) → sections (insertion-ordered) → passages,
+      //         standalone passages (insertion-ordered) )
+      type DayBuilder = {
+        dateLabel: string;
+        docMap: Map<
+          string,
+          {
+            documentTitle: string;
+            sectionMap: Map<string, SectionSubGroup>;
+          }
+        >;
+        standaloneMap: Map<string, PassageGroup>;
+      };
+      const dayMap = new Map<string, DayBuilder>();
+
       for (const e of list) {
         const dk = dateKey(e.practiced_at);
         if (!dayMap.has(dk)) {
           dayMap.set(dk, {
             dateLabel: formatDate(e.practiced_at),
-            passageMap: new Map(),
+            docMap: new Map(),
+            standaloneMap: new Map(),
           });
         }
         const day = dayMap.get(dk)!;
-        if (!day.passageMap.has(e.piece_id)) {
-          day.passageMap.set(e.piece_id, {
-            passageTitle: passageLabel(e),
-            folderName: e.folder_name,
-            entries: [],
-          });
+
+        if (e.document_id && e.document_title) {
+          if (!day.docMap.has(e.document_id)) {
+            day.docMap.set(e.document_id, {
+              documentTitle: e.document_title,
+              sectionMap: new Map(),
+            });
+          }
+          const doc = day.docMap.get(e.document_id)!;
+          // Use a string key so passages with no section land in one bucket.
+          const sectionKey = e.section_name ?? '__nosection__';
+          if (!doc.sectionMap.has(sectionKey)) {
+            doc.sectionMap.set(sectionKey, {
+              sectionName: e.section_name,
+              passages: [],
+            });
+          }
+          const section = doc.sectionMap.get(sectionKey)!;
+          let pg = section.passages.find((p) => p.entries[0]?.piece_id === e.piece_id);
+          if (!pg) {
+            pg = {
+              passageTitle: e.piece_title || 'Untitled',
+              folderName: e.folder_name,
+              entries: [],
+            };
+            section.passages.push(pg);
+          }
+          pg.entries.push(e);
+        } else {
+          if (!day.standaloneMap.has(e.piece_id)) {
+            day.standaloneMap.set(e.piece_id, {
+              passageTitle: e.piece_title || 'Untitled',
+              folderName: e.folder_name,
+              entries: [],
+            });
+          }
+          day.standaloneMap.get(e.piece_id)!.entries.push(e);
         }
-        day.passageMap.get(e.piece_id)!.entries.push(e);
       }
+
       folderGroups.push({
         folderId: key,
         folderName,
         dayGroups: Array.from(dayMap.values()).map((d) => ({
           dateLabel: d.dateLabel,
-          passages: Array.from(d.passageMap.values()),
+          documentGroups: Array.from(d.docMap.entries()).map(([docId, doc]) => ({
+            documentId: docId,
+            documentTitle: doc.documentTitle,
+            sectionGroups: Array.from(doc.sectionMap.values()),
+          })),
+          standalonePassages: Array.from(d.standaloneMap.values()),
         })),
       });
     }
@@ -470,53 +586,40 @@ export default function LibraryLogScreen() {
                           {dg.dateLabel}
                         </ThemedText>
                       </View>
-                      <View style={styles.passageStack}>
-                        {dg.passages.map((pg, k) => (
-                          <View
-                            key={k}
-                            style={[styles.passageRow, { borderColor: C.tint + '88' }]}>
-                            <ThemedText style={styles.passageName} numberOfLines={1}>
-                              {pg.passageTitle}
-                            </ThemedText>
-                            <View style={styles.pillRow}>
-                              {pg.entries.map((e) => (
-                                <Pressable
-                                  key={e.id}
-                                  onPress={() => setEditing(e)}
-                                  style={[
-                                    styles.pill,
-                                    {
-                                      backgroundColor:
-                                        STRATEGY_COLORS[e.strategy] ?? C.icon,
-                                    },
-                                  ]}>
-                                  <ThemedText
-                                    style={styles.pillText}
-                                    numberOfLines={1}>
-                                    {entryLabel(e)}
-                                  </ThemedText>
-                                </Pressable>
-                              ))}
-                            </View>
-                            {pg.entries.some((e) => parseMoodNote(e).note) && (
-                              <View style={styles.notesList}>
-                                {pg.entries.map((e) => {
-                                  const { note } = parseMoodNote(e);
-                                  if (!note) return null;
-                                  return (
-                                    <ThemedText
-                                      key={e.id}
-                                      style={[styles.noteText, { color: C.icon }]}
-                                      numberOfLines={2}>
-                                      {note}
-                                    </ThemedText>
-                                  );
-                                })}
+
+                      {dg.documentGroups.map((doc) => (
+                        <View key={doc.documentId} style={styles.documentGroup}>
+                          <ThemedText
+                            style={[styles.documentTitle, { color: C.text }]}
+                            numberOfLines={1}>
+                            {doc.documentTitle}
+                          </ThemedText>
+                          {doc.sectionGroups.map((sg, si) => (
+                            <View key={si} style={styles.sectionGroup}>
+                              {sg.sectionName && (
+                                <ThemedText
+                                  style={[styles.sectionName, { color: C.icon }]}
+                                  numberOfLines={1}>
+                                  {sg.sectionName}
+                                </ThemedText>
+                              )}
+                              <View style={styles.passageStack}>
+                                {sg.passages.map((pg, k) =>
+                                  renderPassageRow(pg, k, C, STRATEGY_COLORS, setEditing),
+                                )}
                               </View>
-                            )}
-                          </View>
-                        ))}
-                      </View>
+                            </View>
+                          ))}
+                        </View>
+                      ))}
+
+                      {dg.standalonePassages.length > 0 && (
+                        <View style={styles.passageStack}>
+                          {dg.standalonePassages.map((pg, k) =>
+                            renderPassageRow(pg, k, C, STRATEGY_COLORS, setEditing),
+                          )}
+                        </View>
+                      )}
                     </View>
                   ))}
                 </View>
@@ -633,5 +736,24 @@ const styles = StyleSheet.create({
     borderLeftWidth: Borders.thick,
     paddingLeft: 10,
     paddingVertical: Spacing.xs,
+  },
+  documentGroup: {
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  documentTitle: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    marginLeft: Spacing.xs,
+  },
+  sectionGroup: {
+    gap: Spacing.xs,
+    marginLeft: Spacing.md,
+  },
+  sectionName: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.bold,
+    marginLeft: Spacing.xs,
+    letterSpacing: 0.5,
   },
 });
