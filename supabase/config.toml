@@ -1,4 +1,10 @@
 project_id = "uugodzwxuxgfwujnwpuq"
 
+# Both functions self-validate auth: storage mode requires a real user JWT
+# and is checked manually; body mode (de-risk/testing) is intentionally open
+# so any anon-key caller can render a PDF they hold.
 [functions.pdf-render-page]
+verify_jwt = false
+
+[functions.pdf-doc-init]
 verify_jwt = false

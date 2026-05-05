@@ -16,43 +16,15 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { insertPassage, renamePassage, updatePassageAssets } from '@/lib/db/repos/passages';
+import { stitchVertically } from '@/lib/image/canvasCrop';
 import { uploadPassageImage } from '@/lib/supabase/storage';
 
 type Step = 'pick_1' | 'crop_1' | 'pick_2' | 'crop_2' | 'preview';
 type PageNum = 1 | 2;
 type CroppedPage = { url: string; w: number; h: number; blob: Blob };
 
-const COMPOSITE_WIDTH = 1600;
-
 function newPassageId(): string {
   return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-async function loadImageBitmap(blob: Blob): Promise<ImageBitmap> {
-  return createImageBitmap(blob);
-}
-
-async function buildComposite(p1: CroppedPage, p2: CroppedPage): Promise<Blob> {
-  const [bm1, bm2] = await Promise.all([loadImageBitmap(p1.blob), loadImageBitmap(p2.blob)]);
-  const w = COMPOSITE_WIDTH;
-  const h1 = Math.round((w * bm1.height) / bm1.width);
-  const h2 = Math.round((w * bm2.height) / bm2.width);
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h1 + h2;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D context not available');
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, w, h1 + h2);
-  ctx.drawImage(bm1, 0, 0, w, h1);
-  ctx.drawImage(bm2, 0, h1, w, h2);
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error('Composite toBlob returned null'))),
-      'image/jpeg',
-      0.9,
-    );
-  });
 }
 
 export default function MultiPageScreen() {
@@ -163,7 +135,7 @@ export default function MultiPageScreen() {
     setError(null);
     const id = newPassageId();
     try {
-      const compositeBlob = await buildComposite(cropped1, cropped2);
+      const compositeBlob = await stitchVertically([cropped1.blob, cropped2.blob]);
       await insertPassage({
         id,
         title: 'Untitled',

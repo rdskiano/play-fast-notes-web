@@ -6,8 +6,8 @@ import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { cropToBlob, type Rect } from '@/lib/image/canvasCrop';
 
-type Rect = { x: number; y: number; w: number; h: number };
 type Handle = 'move' | 'tl' | 'tr' | 'bl' | 'br';
 
 const HANDLE_SIZE = 24;
@@ -15,33 +15,6 @@ const MIN_CROP = 40;
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
-}
-
-async function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new window.Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Could not load image for cropping'));
-    img.src = url;
-  });
-}
-
-async function getCroppedBlob(imageUrl: string, area: Rect): Promise<Blob> {
-  const img = await loadImage(imageUrl);
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(area.w);
-  canvas.height = Math.round(area.h);
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D context not available');
-  ctx.drawImage(img, area.x, area.y, area.w, area.h, 0, 0, area.w, area.h);
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error('Canvas toBlob returned null'))),
-      'image/jpeg',
-      0.9,
-    );
-  });
 }
 
 type Props = {
@@ -187,7 +160,7 @@ export function InlineCropper({
         w: crop.w * ratio,
         h: crop.h * ratio,
       };
-      const blob = await getCroppedBlob(imageUrl, area);
+      const blob = await cropToBlob(imageUrl, area);
       onCrop(blob, { w: Math.round(area.w), h: Math.round(area.h) });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

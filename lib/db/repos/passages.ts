@@ -191,6 +191,34 @@ export async function updatePassageAssets(
   if (error) throw error;
 }
 
+export async function updatePassageRegions(id: string, regions: PassageRegion[]): Promise<void> {
+  const { error } = await supabase
+    .from('pieces')
+    .update({ regions_json: JSON.stringify(regions), updated_at: Date.now() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// Combined update for the resize-on-Done flow: writes new regions AND the
+// re-cropped/re-stitched image at the same source_uri. One round-trip.
+export async function updatePassageRegionsAndAssets(
+  id: string,
+  regions: PassageRegion[],
+  source_uri: string,
+  thumbnail_uri: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('pieces')
+    .update({
+      regions_json: JSON.stringify(regions),
+      source_uri,
+      thumbnail_uri,
+      updated_at: Date.now(),
+    })
+    .eq('id', id);
+  if (error) throw error;
+}
+
 export async function softDeletePassage(id: string): Promise<void> {
   const now = Date.now();
   const { error } = await supabase
