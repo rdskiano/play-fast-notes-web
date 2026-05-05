@@ -228,6 +228,70 @@ export async function deletePracticeLog(id: number): Promise<void> {
   if (error) throw error;
 }
 
+export async function getPracticeLogForDocument(
+  document_id: string,
+): Promise<PracticeLogWithTitle[]> {
+  // Same join-in-JS pattern as the folder/library variants.
+  const [piecesRes, logsRes, exercisesRes, documentsRes] = await Promise.all([
+    supabase
+      .from('pieces')
+      .select('id, title, folder_id, document_id, regions_json')
+      .eq('document_id', document_id)
+      .is('deleted_at', null),
+    supabase
+      .from('practice_log')
+      .select('id, piece_id, strategy, practiced_at, data_json, exercise_id')
+      .order('practiced_at', { ascending: false }),
+    supabase.from('exercises').select('id, name'),
+    supabase.from('documents').select('id, title, sections_json').eq('id', document_id),
+  ]);
+  if (piecesRes.error) throw piecesRes.error;
+  if (logsRes.error) throw logsRes.error;
+  if (exercisesRes.error) throw exercisesRes.error;
+  if (documentsRes.error) throw documentsRes.error;
+
+  const pieceById = new Map<string, PieceWithDoc>();
+  for (const p of (piecesRes.data ?? []) as PieceWithDoc[]) {
+    pieceById.set(p.id, p);
+  }
+  const exerciseNames = new Map<string, string>();
+  for (const e of (exercisesRes.data ?? []) as Array<{ id: string; name: string | null }>) {
+    if (e.name) exerciseNames.set(e.id, e.name);
+  }
+  const documents = new Map<string, DocLite>();
+  for (const d of (documentsRes.data ?? []) as DocLite[]) {
+    documents.set(d.id, d);
+  }
+
+  return ((logsRes.data ?? []) as unknown as Array<{
+    id: number;
+    piece_id: string;
+    strategy: string;
+    practiced_at: number;
+    data_json: string | null;
+    exercise_id: string | null;
+  }>)
+    .map((r) => {
+      const piece = pieceById.get(r.piece_id);
+      if (!piece) return null;
+      const { document_title, section_name } = resolveSection(piece, documents);
+      return {
+        id: r.id,
+        piece_id: r.piece_id,
+        strategy: r.strategy,
+        practiced_at: r.practiced_at,
+        data_json: r.data_json,
+        exercise_id: r.exercise_id,
+        exercise_name: r.exercise_id ? exerciseNames.get(r.exercise_id) ?? null : null,
+        piece_title: piece.title,
+        document_id: piece.document_id,
+        document_title,
+        section_name,
+      };
+    })
+    .filter((r): r is PracticeLogWithTitle => r !== null);
+}
+
 export async function getPracticeLogForFolder(
   folder_id: string | null,
 ): Promise<PracticeLogWithTitle[]> {

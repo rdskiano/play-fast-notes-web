@@ -598,6 +598,18 @@ export default function DocumentScreen() {
                 onPress={() => setSectionsModalOpen(true)}
               />
               <Button
+                label="Practice Log"
+                variant="outline"
+                size="sm"
+                onPress={() => {
+                  if (!doc) return;
+                  router.push({
+                    pathname: '/document-log',
+                    params: { documentId: doc.id, documentTitle: doc.title },
+                  } as never);
+                }}
+              />
+              <Button
                 label="+ Mark passage"
                 variant="primary"
                 size="sm"
