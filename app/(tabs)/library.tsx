@@ -44,30 +44,44 @@ import {
   updatePassageSortOrder,
   type Passage,
 } from '@/lib/db/repos/passages';
+import {
+  getDocument,
+  listDocumentsInFolder,
+  moveDocument,
+  parsePages,
+  renameDocument,
+  softDeleteDocument,
+  updateDocumentSortOrder,
+  type DocumentRow,
+} from '@/lib/db/repos/documents';
 import { getTempoLadderProgressForPassages } from '@/lib/db/repos/tempoLadder';
 
 type ListRow =
   | { kind: 'folder'; folder: Folder }
-  | { kind: 'passage'; passage: Passage };
+  | { kind: 'passage'; passage: Passage }
+  | { kind: 'document'; document: DocumentRow };
 
 type Prompt =
   | { kind: 'new_folder' }
   | { kind: 'rename_folder'; id: string; initial: string }
   | { kind: 'rename_passage'; id: string; initial: string }
+  | { kind: 'rename_document'; id: string; initial: string }
   | null;
 
 type MoveTarget =
   | { kind: 'folder'; id: string }
   | { kind: 'passage'; id: string }
+  | { kind: 'document'; id: string }
   | null;
 
 type ActionTarget =
   | { kind: 'folder'; folder: Folder }
   | { kind: 'passage'; passage: Passage }
+  | { kind: 'document'; document: DocumentRow }
   | null;
 
 type UndoMove = {
-  kind: 'folder' | 'passage';
+  kind: 'folder' | 'passage' | 'document';
   id: string;
   fromParent: string | null;
   label: string;
@@ -261,6 +275,106 @@ function PassageCard({
   );
 }
 
+type DocumentCardProps = {
+  document: DocumentRow;
+  borderColor: string;
+  tintColor: string;
+  moreColor: string;
+  editMode: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onOpen: () => void;
+  onLongPress: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onRename: () => void;
+  onMove: () => void;
+  onDelete: () => void;
+};
+
+function DocumentCard({
+  document,
+  borderColor,
+  tintColor,
+  moreColor,
+  editMode,
+  canMoveUp,
+  canMoveDown,
+  onOpen,
+  onLongPress,
+  onMoveUp,
+  onMoveDown,
+  onRename,
+  onMove,
+  onDelete,
+}: DocumentCardProps) {
+  // Thumbnail = page 1 of the rendered pages_json. Fall back to a tinted block
+  // until the first render lands.
+  const pages = parsePages(document.pages_json);
+  const thumbUri = pages.length > 0 ? pages[0].image_uri : null;
+  return (
+    <Pressable
+      onPress={editMode ? undefined : onOpen}
+      onLongPress={editMode ? undefined : onLongPress}
+      delayLongPress={400}
+      style={[styles.card, { borderColor }]}>
+      {thumbUri ? (
+        // Anchor the crop to the top so the title block + tempo / key markings
+        // stay visible. The middle of an orchestral part is mostly notation
+        // and looks like every other middle.
+        <Image
+          source={{ uri: thumbUri }}
+          style={styles.thumb}
+          contentFit="cover"
+          contentPosition="top"
+        />
+      ) : (
+        <View style={[styles.thumb, { backgroundColor: tintColor + '11' }]} />
+      )}
+      <ThemedView style={styles.cardText}>
+        <ThemedText type="defaultSemiBold">{document.title}</ThemedText>
+        {document.composer && (
+          <ThemedText style={{ opacity: Opacity.muted }}>{document.composer}</ThemedText>
+        )}
+        <ThemedText style={{ opacity: Opacity.muted, fontSize: 12 }}>
+          Full part · {document.page_count} page{document.page_count === 1 ? '' : 's'}
+        </ThemedText>
+      </ThemedView>
+      {editMode && (
+        <View style={styles.editActions}>
+          <View style={styles.reorderColumn}>
+            <Pressable
+              hitSlop={6}
+              onPress={canMoveUp ? onMoveUp : undefined}
+              disabled={!canMoveUp}
+              style={[styles.reorderBtn, { opacity: canMoveUp ? 1 : 0.25 }]}>
+              <ThemedText style={[styles.reorderArrow, { color: moreColor }]}>↑</ThemedText>
+            </Pressable>
+            <Pressable
+              hitSlop={6}
+              onPress={canMoveDown ? onMoveDown : undefined}
+              disabled={!canMoveDown}
+              style={[styles.reorderBtn, { opacity: canMoveDown ? 1 : 0.25 }]}>
+              <ThemedText style={[styles.reorderArrow, { color: moreColor }]}>↓</ThemedText>
+            </Pressable>
+          </View>
+          <View style={styles.editActionsColumn}>
+            <Pressable hitSlop={6} onPress={onRename} style={styles.editActionBtn}>
+              <ThemedText style={[styles.editActionText, { color: tintColor }]}>Rename</ThemedText>
+            </Pressable>
+            <Pressable hitSlop={6} onPress={onMove} style={styles.editActionBtn}>
+              <ThemedText style={[styles.editActionText, { color: tintColor }]}>Move</ThemedText>
+            </Pressable>
+            <Pressable hitSlop={6} onPress={onDelete} style={styles.editActionBtn}>
+              <ThemedText style={[styles.editActionText, { color: '#c0392b' }]}>Delete</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
 export default function LibraryScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
@@ -271,6 +385,7 @@ export default function LibraryScreen() {
   const [path, setPath] = useState<Folder[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [passages, setPassages] = useState<Passage[]>([]);
+  const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [allFolders, setAllFolders] = useState<Folder[]>([]);
   const [scuProgress, setScuProgress] = useState<Record<string, number>>({});
   const [searchQuery, setSearchQuery] = useState('');
@@ -287,14 +402,16 @@ export default function LibraryScreen() {
   const refresh = useCallback(async () => {
     try {
       await rehomeOrphans();
-      const [f, p, all, pathF] = await Promise.all([
+      const [f, p, d, all, pathF] = await Promise.all([
         listFoldersInParent(currentFolderId),
         listPassagesInFolder(currentFolderId),
+        listDocumentsInFolder(currentFolderId),
         listAllFolders(),
         getFolderPath(currentFolderId),
       ]);
       setFolders(f);
       setPassages(p);
+      setDocuments(d);
       setAllFolders(all);
       setPath(pathF);
       if (p.length > 0) {
@@ -341,8 +458,16 @@ export default function LibraryScreen() {
           (p.composer ?? '').toLowerCase().includes(q),
       )
     : passages;
+  const filteredDocuments = q
+    ? documents.filter(
+        (d) =>
+          d.title.toLowerCase().includes(q) ||
+          (d.composer ?? '').toLowerCase().includes(q),
+      )
+    : documents;
   const rows: ListRow[] = [
     ...filteredFolders.map((folder) => ({ kind: 'folder' as const, folder })),
+    ...filteredDocuments.map((document) => ({ kind: 'document' as const, document })),
     ...filteredPassages.map((passage) => ({ kind: 'passage' as const, passage })),
   ];
 
@@ -358,24 +483,29 @@ export default function LibraryScreen() {
   }
 
   async function moveItem(
-    kind: 'folder' | 'passage',
+    kind: 'folder' | 'passage' | 'document',
     id: string,
     direction: -1 | 1,
   ) {
-    const list = kind === 'folder' ? folders.map((f) => f.id) : passages.map((p) => p.id);
+    const list =
+      kind === 'folder'
+        ? folders.map((f) => f.id)
+        : kind === 'passage'
+          ? passages.map((p) => p.id)
+          : documents.map((d) => d.id);
     const idx = list.indexOf(id);
     const target = idx + direction;
     if (idx < 0 || target < 0 || target >= list.length) return;
     const reordered = [...list];
     [reordered[idx], reordered[target]] = [reordered[target], reordered[idx]];
     try {
-      await Promise.all(
-        reordered.map((rid, i) =>
-          kind === 'folder'
-            ? updateFolderSortOrder(rid, i)
-            : updatePassageSortOrder(rid, i),
-        ),
-      );
+      const updateFn =
+        kind === 'folder'
+          ? updateFolderSortOrder
+          : kind === 'passage'
+            ? updatePassageSortOrder
+            : updateDocumentSortOrder;
+      await Promise.all(reordered.map((rid, i) => updateFn(rid, i)));
     } catch (e) {
       console.warn('[library] reorder failed', e);
     }
@@ -395,6 +525,8 @@ export default function LibraryScreen() {
       await renameFolder(prompt.id, trimmed);
     } else if (prompt.kind === 'rename_passage') {
       await renamePassage(prompt.id, trimmed);
+    } else if (prompt.kind === 'rename_document') {
+      await renameDocument(prompt.id, trimmed);
     }
     setPrompt(null);
     refresh();
@@ -416,6 +548,17 @@ export default function LibraryScreen() {
     softDeletePassage(p.id).then(refresh).catch(() => undefined);
   }
 
+  function onDeleteDocument(d: DocumentRow) {
+    if (
+      !confirmDelete(
+        d.title,
+        'This removes the full part and any passages you marked inside it. Practice history under those passages stays in your log.',
+      )
+    )
+      return;
+    softDeleteDocument(d.id).then(refresh).catch(() => undefined);
+  }
+
   function destinationLabel(targetFolderId: string | null): string {
     if (targetFolderId === null) return 'Library root';
     const f = allFolders.find((x) => x.id === targetFolderId);
@@ -428,7 +571,7 @@ export default function LibraryScreen() {
   }
 
   async function performMoveWithUndo(
-    dragged: { kind: 'folder' | 'passage'; id: string },
+    dragged: { kind: 'folder' | 'passage' | 'document'; id: string },
     targetFolderId: string | null,
   ) {
     let fromParent: string | null = null;
@@ -439,12 +582,18 @@ export default function LibraryScreen() {
       fromParent = f.parent_folder_id;
       if (fromParent === targetFolderId) return;
       await moveFolder(dragged.id, targetFolderId);
-    } else {
+    } else if (dragged.kind === 'passage') {
       const p = await getPassage(dragged.id);
       if (!p) return;
       fromParent = p.folder_id;
       if (fromParent === targetFolderId) return;
       await movePassage(dragged.id, targetFolderId);
+    } else {
+      const d = await getDocument(dragged.id);
+      if (!d) return;
+      fromParent = d.folder_id;
+      if (fromParent === targetFolderId) return;
+      await moveDocument(dragged.id, targetFolderId);
     }
     setUndoMove({
       kind: dragged.kind,
@@ -463,8 +612,10 @@ export default function LibraryScreen() {
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
     if (m.kind === 'folder') {
       await moveFolder(m.id, m.fromParent);
-    } else {
+    } else if (m.kind === 'passage') {
       await movePassage(m.id, m.fromParent);
+    } else {
+      await moveDocument(m.id, m.fromParent);
     }
     refresh();
   }
@@ -531,28 +682,77 @@ export default function LibraryScreen() {
       return items;
     }
 
-    const p = actionTarget.passage;
-    const idx = passages.findIndex((x) => x.id === p.id);
+    if (actionTarget.kind === 'passage') {
+      const p = actionTarget.passage;
+      const idx = passages.findIndex((x) => x.id === p.id);
+      const items: ActionSheetItem[] = [
+        {
+          label: 'Rename',
+          onPress: () => {
+            close();
+            setPrompt({ kind: 'rename_passage', id: p.id, initial: p.title });
+          },
+        },
+        {
+          label: 'Move to…',
+          onPress: () => {
+            close();
+            setMoveTarget({ kind: 'passage', id: p.id });
+          },
+        },
+        {
+          label: 'Edit / Crop',
+          onPress: () => {
+            close();
+            router.push(`/passage/${p.id}/crop`);
+          },
+        },
+      ];
+      if (idx > 0) {
+        items.push({
+          label: '↑ Move up',
+          onPress: () => {
+            close();
+            moveItem('passage', p.id, -1);
+          },
+        });
+      }
+      if (idx >= 0 && idx < passages.length - 1) {
+        items.push({
+          label: '↓ Move down',
+          onPress: () => {
+            close();
+            moveItem('passage', p.id, 1);
+          },
+        });
+      }
+      items.push({
+        label: 'Delete',
+        destructive: true,
+        onPress: () => {
+          close();
+          onDeletePassage(p);
+        },
+      });
+      return items;
+    }
+
+    // document
+    const d = actionTarget.document;
+    const idx = documents.findIndex((x) => x.id === d.id);
     const items: ActionSheetItem[] = [
       {
         label: 'Rename',
         onPress: () => {
           close();
-          setPrompt({ kind: 'rename_passage', id: p.id, initial: p.title });
+          setPrompt({ kind: 'rename_document', id: d.id, initial: d.title });
         },
       },
       {
         label: 'Move to…',
         onPress: () => {
           close();
-          setMoveTarget({ kind: 'passage', id: p.id });
-        },
-      },
-      {
-        label: 'Edit / Crop',
-        onPress: () => {
-          close();
-          router.push(`/passage/${p.id}/crop`);
+          setMoveTarget({ kind: 'document', id: d.id });
         },
       },
     ];
@@ -561,16 +761,16 @@ export default function LibraryScreen() {
         label: '↑ Move up',
         onPress: () => {
           close();
-          moveItem('passage', p.id, -1);
+          moveItem('document', d.id, -1);
         },
       });
     }
-    if (idx >= 0 && idx < passages.length - 1) {
+    if (idx >= 0 && idx < documents.length - 1) {
       items.push({
         label: '↓ Move down',
         onPress: () => {
           close();
-          moveItem('passage', p.id, 1);
+          moveItem('document', d.id, 1);
         },
       });
     }
@@ -579,7 +779,7 @@ export default function LibraryScreen() {
       destructive: true,
       onPress: () => {
         close();
-        onDeletePassage(p);
+        onDeleteDocument(d);
       },
     });
     return items;
@@ -741,7 +941,11 @@ export default function LibraryScreen() {
           data={rows}
           extraData={editMode}
           keyExtractor={(row) =>
-            row.kind === 'folder' ? `f:${row.folder.id}` : `p:${row.passage.id}`
+            row.kind === 'folder'
+              ? `f:${row.folder.id}`
+              : row.kind === 'document'
+                ? `d:${row.document.id}`
+                : `p:${row.passage.id}`
           }
           contentContainerStyle={{ gap: Spacing.md, paddingBottom: Spacing.xl }}
           renderItem={({ item }) => {
@@ -765,6 +969,35 @@ export default function LibraryScreen() {
                   }
                   onMove={() => setMoveTarget({ kind: 'folder', id: item.folder.id })}
                   onDelete={() => onDeleteFolder(item.folder)}
+                />
+              );
+            }
+            if (item.kind === 'document') {
+              const documentIdx = filteredDocuments.findIndex((d) => d.id === item.document.id);
+              return (
+                <DocumentCard
+                  document={item.document}
+                  borderColor={C.icon}
+                  tintColor={C.tint}
+                  moreColor={C.icon}
+                  editMode={editMode}
+                  canMoveUp={documentIdx > 0}
+                  canMoveDown={documentIdx >= 0 && documentIdx < filteredDocuments.length - 1}
+                  onOpen={() => router.push(`/document/${item.document.id}` as never)}
+                  onLongPress={() =>
+                    setActionTarget({ kind: 'document', document: item.document })
+                  }
+                  onMoveUp={() => moveItem('document', item.document.id, -1)}
+                  onMoveDown={() => moveItem('document', item.document.id, 1)}
+                  onRename={() =>
+                    setPrompt({
+                      kind: 'rename_document',
+                      id: item.document.id,
+                      initial: item.document.title,
+                    })
+                  }
+                  onMove={() => setMoveTarget({ kind: 'document', id: item.document.id })}
+                  onDelete={() => onDeleteDocument(item.document)}
                 />
               );
             }
@@ -802,7 +1035,9 @@ export default function LibraryScreen() {
             ? 'New folder'
             : prompt?.kind === 'rename_folder'
               ? 'Rename folder'
-              : 'Rename passage'
+              : prompt?.kind === 'rename_document'
+                ? 'Rename full part'
+                : 'Rename passage'
         }
         initialValue={prompt && 'initial' in prompt ? prompt.initial : ''}
         placeholder={prompt?.kind === 'new_folder' ? 'Folder name' : 'New name'}
@@ -821,6 +1056,15 @@ export default function LibraryScreen() {
             params: { folder: currentFolderId ?? '' },
           });
         }}
+        onPickDocument={() => {
+          setAddOpen(false);
+          // Cast: expo-router typed routes are regenerated by the dev server;
+          // until the next `playweb` start, /document-upload is not in the union.
+          router.push({
+            pathname: '/document-upload' as never,
+            params: { folder: currentFolderId ?? '' },
+          });
+        }}
         onPickFolder={() => {
           setAddOpen(false);
           setPrompt({ kind: 'new_folder' });
@@ -834,7 +1078,13 @@ export default function LibraryScreen() {
 
       <MoveToPicker
         visible={moveTarget !== null}
-        title={moveTarget?.kind === 'folder' ? 'Move folder to…' : 'Move passage to…'}
+        title={
+          moveTarget?.kind === 'folder'
+            ? 'Move folder to…'
+            : moveTarget?.kind === 'document'
+              ? 'Move full part to…'
+              : 'Move passage to…'
+        }
         folders={allFolders}
         disabledIds={disabledIdsForMove}
         onPick={onPickMove}
@@ -848,7 +1098,9 @@ export default function LibraryScreen() {
             ? actionTarget.folder.name
             : actionTarget?.kind === 'passage'
               ? actionTarget.passage.title
-              : undefined
+              : actionTarget?.kind === 'document'
+                ? actionTarget.document.title
+                : undefined
         }
         items={buildActionItems()}
         onCancel={() => setActionTarget(null)}
@@ -879,11 +1131,13 @@ function AddChooserModal({
   visible,
   onClose,
   onPickPassage,
+  onPickDocument,
   onPickFolder,
 }: {
   visible: boolean;
   onClose: () => void;
   onPickPassage: () => void;
+  onPickDocument: () => void;
   onPickFolder: () => void;
 }) {
   const scheme = useColorScheme() ?? 'light';
@@ -896,6 +1150,7 @@ function AddChooserModal({
             Add
           </ThemedText>
           <Button label="+ New passage" onPress={onPickPassage} fullWidth />
+          <Button label="+ New full part" variant="outline" onPress={onPickDocument} fullWidth />
           <Button label="+ New folder" variant="outline" onPress={onPickFolder} fullWidth />
           <Button label="Cancel" variant="ghost" onPress={onClose} fullWidth />
         </View>

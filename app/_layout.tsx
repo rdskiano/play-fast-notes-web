@@ -48,6 +48,11 @@ export default function RootLayout() {
             name="multi-page"
             options={{ presentation: 'modal', title: 'Two-page passage' }}
           />
+          <Stack.Screen
+            name="document-upload"
+            options={{ presentation: 'modal', title: 'Add a full part' }}
+          />
+          <Stack.Screen name="document/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="passage/[id]/index" options={{ headerShown: false }} />
           <Stack.Screen
             name="passage/[id]/tempo-ladder"
