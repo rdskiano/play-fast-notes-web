@@ -26,6 +26,7 @@ import {
 import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { PageBoxOverlay } from '@/components/PageBoxOverlay';
 import { PassageRectDrawer } from '@/components/PassageRectDrawer';
 import { PassageRectResizer } from '@/components/PassageRectResizer';
@@ -626,32 +627,44 @@ export default function DocumentScreen() {
             </ThemedText>
           ) : null
         }
-        sub={renderSubRow({
-          mode,
-          drafts,
-          currentIndex,
-          pageCount: pages.length,
-          // In spread view, the page after the most-recently-drawn one is
-          // often already visible on the current screen — "Add next page →"
-          // would be a no-op. Tell the renderer so it can swap the hint and
-          // hide the button.
-          nextPageVisibleOnScreen: (() => {
-            if (drafts.size === 0) return false;
-            const maxDrawn = Math.max(...Array.from(drafts.keys()));
-            const nextPage = maxDrawn + 1;
-            if (nextPage > pages.length) return false;
-            return screenForPage(nextPage) === currentIndex;
-          })(),
-          savingDraft,
-          onCancelDraw: cancelDraw,
-          onAddNextPage: addNextPageToDraft,
-          onSaveDraft: onSaveDraftClick,
-          resizeRegionCount: resizeRegions.length,
-          resizingTitle: resizingPassage?.title ?? null,
-          savingResize,
-          onCancelResize: cancelResize,
-          onCommitResize: commitResize,
-        })}
+        sub={
+          mode === 'idle' ? (
+            // Surface practice timers (Move / Break / Cold + the Serial
+            // Practice countdown chip when active) while the user is just
+            // reading the PDF. Marking + resize modes have their own action
+            // toolbar via renderSubRow.
+            <View style={styles.subTimerRow}>
+              <PracticeTimersPill />
+            </View>
+          ) : (
+            renderSubRow({
+              mode,
+              drafts,
+              currentIndex,
+              pageCount: pages.length,
+              // In spread view, the page after the most-recently-drawn one is
+              // often already visible on the current screen — "Add next page →"
+              // would be a no-op. Tell the renderer so it can swap the hint and
+              // hide the button.
+              nextPageVisibleOnScreen: (() => {
+                if (drafts.size === 0) return false;
+                const maxDrawn = Math.max(...Array.from(drafts.keys()));
+                const nextPage = maxDrawn + 1;
+                if (nextPage > pages.length) return false;
+                return screenForPage(nextPage) === currentIndex;
+              })(),
+              savingDraft,
+              onCancelDraw: cancelDraw,
+              onAddNextPage: addNextPageToDraft,
+              onSaveDraft: onSaveDraftClick,
+              resizeRegionCount: resizeRegions.length,
+              resizingTitle: resizingPassage?.title ?? null,
+              savingResize,
+              onCancelResize: cancelResize,
+              onCommitResize: commitResize,
+            })
+          )
+        }
       />
       <View style={styles.pagerWrap} onLayout={onPagerLayout}>
         {pages.length === 0 ? (
@@ -998,6 +1011,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.xs,
+  },
+  subTimerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
     paddingHorizontal: Spacing.sm,
     paddingTop: Spacing.xs,
   },
