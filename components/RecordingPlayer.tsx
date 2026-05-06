@@ -16,6 +16,13 @@ type Props = {
   maxWidth?: number;
 };
 
+// Stops every relevant pointer / touch / click event from bubbling up to
+// the surrounding Pressable, which would otherwise open the entry's edit
+// modal whenever the user just wanted to scrub or play the audio.
+function stopAll(e: { stopPropagation: () => void }) {
+  e.stopPropagation();
+}
+
 export function RecordingPlayer({ uri, maxWidth }: Props) {
   const [errored, setErrored] = useState(false);
   const [errorCode, setErrorCode] = useState<number | null>(null);
@@ -38,7 +45,12 @@ export function RecordingPlayer({ uri, maxWidth }: Props) {
     );
   }
   return (
-    <View style={{ paddingTop: Spacing.xs, maxWidth }}>
+    <div
+      onPointerDown={stopAll}
+      onMouseDown={stopAll}
+      onTouchStart={stopAll}
+      onClick={stopAll}
+      style={{ paddingTop: Spacing.xs, maxWidth, width: '100%' }}>
       {/* eslint-disable-next-line react-native/no-raw-text */}
       <audio
         src={uri}
@@ -54,6 +66,6 @@ export function RecordingPlayer({ uri, maxWidth }: Props) {
         }}
         style={{ width: '100%', height: 30 }}
       />
-    </View>
+    </div>
   );
 }

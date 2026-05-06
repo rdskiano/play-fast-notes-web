@@ -2,6 +2,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, SectionList, StyleSheet, View } from 'react-native';
 
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { RecordingPlayer } from '@/components/RecordingPlayer';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
@@ -136,6 +137,7 @@ export default function HistoryScreen() {
   const [passage, setPassage] = useState<Passage | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [editing, setEditing] = useState<PracticeLogEntry | null>(null);
+  const [deleteConfirmFor, setDeleteConfirmFor] = useState<PracticeLogEntry | null>(null);
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -168,23 +170,15 @@ export default function HistoryScreen() {
 
   function onEditDelete() {
     if (!editing) return;
-    const target = editing;
-    const performDelete = async () => {
-      await deletePracticeLog(target.id);
-      setEditing(null);
-      refresh();
-    };
-    if (Platform.OS === 'web') {
-      const ok =
-        typeof window !== 'undefined' &&
-        window.confirm('Delete this log entry? This cannot be undone.');
-      if (ok) performDelete();
-      return;
-    }
-    Alert.alert('Delete this log entry?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: performDelete },
-    ]);
+    setDeleteConfirmFor(editing);
+    setEditing(null);
+  }
+
+  async function performDelete() {
+    if (!deleteConfirmFor) return;
+    await deletePracticeLog(deleteConfirmFor.id);
+    setDeleteConfirmFor(null);
+    refresh();
   }
 
   if (!passage) return <ThemedView style={{ flex: 1 }} />;
@@ -277,6 +271,17 @@ export default function HistoryScreen() {
         onSubmit={onEditSubmit}
         onSkip={() => setEditing(null)}
         onDelete={onEditDelete}
+      />
+
+      <ConfirmModal
+        visible={deleteConfirmFor !== null}
+        title="Delete this log entry?"
+        message="This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={performDelete}
+        onCancel={() => setDeleteConfirmFor(null)}
       />
     </ThemedView>
   );

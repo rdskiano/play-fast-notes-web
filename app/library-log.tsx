@@ -2,6 +2,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { RecordingPlayer } from '@/components/RecordingPlayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
@@ -234,6 +235,7 @@ export default function LibraryLogScreen() {
   const [entries, setEntries] = useState<LibraryPracticeLogEntry[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [editing, setEditing] = useState<LibraryPracticeLogEntry | null>(null);
+  const [deleteConfirmFor, setDeleteConfirmFor] = useState<LibraryPracticeLogEntry | null>(null);
 
   const refresh = useCallback(async () => {
     const [ents, flds] = await Promise.all([
@@ -259,23 +261,18 @@ export default function LibraryLogScreen() {
 
   function onEditDelete() {
     if (!editing) return;
-    const target = editing;
-    const performDelete = async () => {
-      await deletePracticeLog(target.id);
-      setEditing(null);
-      refresh();
-    };
-    if (Platform.OS === 'web') {
-      const ok =
-        typeof window !== 'undefined' &&
-        window.confirm('Delete this log entry? This cannot be undone.');
-      if (ok) performDelete();
-      return;
-    }
-    Alert.alert('Delete this log entry?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: performDelete },
-    ]);
+    // Stage the target and let ConfirmModal take it from here. iPad Safari
+    // suppresses window.confirm in modal contexts, so the in-app modal is
+    // the only reliable confirmation surface.
+    setDeleteConfirmFor(editing);
+    setEditing(null);
+  }
+
+  async function performDelete() {
+    if (!deleteConfirmFor) return;
+    await deletePracticeLog(deleteConfirmFor.id);
+    setDeleteConfirmFor(null);
+    refresh();
   }
 
   // ── By-date grouping: day → folder → passage → pills ─────────────────────
@@ -669,6 +666,17 @@ export default function LibraryLogScreen() {
         onSubmit={onEditSubmit}
         onSkip={() => setEditing(null)}
         onDelete={onEditDelete}
+      />
+
+      <ConfirmModal
+        visible={deleteConfirmFor !== null}
+        title="Delete this log entry?"
+        message="This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={performDelete}
+        onCancel={() => setDeleteConfirmFor(null)}
       />
     </ThemedView>
   );
