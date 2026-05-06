@@ -73,12 +73,21 @@ export function getSnapshot(): SessionState | null {
   return _state;
 }
 
-// True when a Serial Practice Timer-mode session is currently running. Used
-// by PracticeTimersContext to suppress the global Move On alert — the
-// per-passage countdown bar at the bottom of the screen is doing the same
-// job during this mode, so a duplicate "Time to move on" overlay would be
-// redundant and confusing.
-export function isTimerSessionActive(): boolean {
+// Consistency-mode session state lives in the screen component, not in the
+// singleton, so we expose a tiny setter the component can flip on mount.
+let _consistencyActive = false;
+export function setConsistencyActive(active: boolean) {
+  _consistencyActive = active;
+}
+
+// True when any Serial Practice session — Timer or Consistency mode — is
+// running. Used by PracticeTimersContext to suppress the global Move On
+// alert. Timer mode has its own per-passage countdown that already plays
+// the rotation role; Consistency mode is purely about hitting a target
+// rep count, where a "rotate now" alert would compete with the user's
+// real goal.
+export function isSerialPracticeActive(): boolean {
+  if (_consistencyActive) return true;
   return (
     _state !== null &&
     _state.mode === 'timer' &&

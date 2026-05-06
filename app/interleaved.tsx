@@ -31,6 +31,7 @@ import {
   dismissCelebration as dismissTimerCelebration,
   getSnapshot as getTimerSnapshot,
   nextPassage as advanceTimerPassage,
+  setConsistencyActive,
   setEngagedTempo as setTimerEngagedTempo,
   startTimerSession,
   subscribe as subscribeTimerSession,
@@ -195,6 +196,16 @@ export default function InterleavedScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timerSession?.mode]);
+
+  // While Consistency mode is in its playing phase, register with the
+  // serialPractice singleton so PracticeTimersContext suppresses Move On
+  // alerts (rep-counting practice has its own end condition; a "rotate
+  // now" overlay would compete with that goal).
+  useEffect(() => {
+    if (phase !== 'playing' || mode !== 'consistency') return;
+    setConsistencyActive(true);
+    return () => setConsistencyActive(false);
+  }, [phase, mode]);
 
   useEffect(() => {
     if (phase !== 'playing') return;
@@ -653,7 +664,7 @@ export default function InterleavedScreen() {
         }
         right={
           <View style={styles.topRightRow}>
-            <PracticeTimersPill />
+            <PracticeTimersPill hideMoveOn />
             <Button
               label="END"
               variant="danger"

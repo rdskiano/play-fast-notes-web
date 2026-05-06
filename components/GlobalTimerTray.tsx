@@ -143,7 +143,11 @@ export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillPro
         </Pressable>
       </View>
 
-      <TimerInfoModal visible={infoOpen} onClose={() => setInfoOpen(false)} />
+      <TimerInfoModal
+        visible={infoOpen}
+        hideMoveOn={hideMoveOn}
+        onClose={() => setInfoOpen(false)}
+      />
 
       <PassagePickerModal
         visible={pickerOpen}
@@ -161,13 +165,21 @@ export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillPro
 
 function TimerInfoModal({
   visible,
+  hideMoveOn = false,
   onClose,
 }: {
   visible: boolean;
+  hideMoveOn?: boolean;
   onClose: () => void;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  // When the parent screen suppresses Move On (Serial Practice modes), do
+  // not advertise it in the help modal — it would confuse the user about
+  // why the dot is missing.
+  const entries = hideMoveOn
+    ? TIMER_INFO.filter((t) => t.title !== 'Move On Timer')
+    : TIMER_INFO;
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.infoBackdrop}>
@@ -176,7 +188,7 @@ function TimerInfoModal({
             Practice timers
           </ThemedText>
           <ScrollView contentContainerStyle={{ gap: 14 }}>
-            {TIMER_INFO.map((t) => (
+            {entries.map((t) => (
               <View key={t.title} style={styles.infoRow}>
                 <ThemedText style={styles.infoIcon}>{t.icon}</ThemedText>
                 <View style={{ flex: 1, gap: 4 }}>
