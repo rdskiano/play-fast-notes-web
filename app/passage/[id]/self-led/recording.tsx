@@ -47,6 +47,10 @@ export default function SelfLedRecordingScreen() {
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedDuration, setRecordedDuration] = useState<number>(0);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
+  // What the user picked at the recorded-state branch:
+  //   'log_only' = log the session (duration + mood/note), discard the audio.
+  //   'save_audio' = also upload the clip to storage; entry carries recording_uri.
+  const [saveMode, setSaveMode] = useState<'log_only' | 'save_audio'>('log_only');
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -164,33 +168,41 @@ export default function SelfLedRecordingScreen() {
     setPhase('idle');
   }
 
-  function onSaveClick() {
+  function onLogOnlyClick() {
+    setSaveMode('log_only');
+    setNotePromptVisible(true);
+  }
+
+  function onSaveWithAudioClick() {
+    setSaveMode('save_audio');
     setNotePromptVisible(true);
   }
 
   async function finishLog(mood: string | null, note: string | null) {
     setNotePromptVisible(false);
-    if (!id || !recordedBlob) {
+    if (!id) {
       router.back();
       return;
     }
     setPhase('saving');
     try {
-      const recordingId = newRecordingId();
-      const uri = await uploadRecording(recordingId, recordedBlob);
       await stampLastUsed(id, 'recording');
       const data: Record<string, unknown> = {
-        recording_uri: uri,
-        recording_id: recordingId,
         duration_seconds: Math.round(recordedDuration * 10) / 10,
       };
+      if (saveMode === 'save_audio' && recordedBlob) {
+        const recordingId = newRecordingId();
+        const uri = await uploadRecording(recordingId, recordedBlob);
+        data.recording_uri = uri;
+        data.recording_id = recordingId;
+      }
       if (mood) data.mood = mood;
       if (note) data.note = note;
       await logPractice(id, 'recording', data);
       router.back();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(`Could not save recording: ${msg}`);
+      setError(`Could not save: ${msg}`);
       setPhase('recorded');
     }
   }
@@ -270,11 +282,24 @@ export default function SelfLedRecordingScreen() {
                 onPress={reRecord}
               />
               <View style={{ flex: 1 }} />
+            </View>
+            <View style={styles.saveCol}>
               <Button
-                label="Save & log"
+                label="Log session only"
                 variant="primary"
-                onPress={onSaveClick}
+                onPress={onLogOnlyClick}
+                fullWidth
               />
+              <Button
+                label="Log + keep recording"
+                variant="outline"
+                onPress={onSaveWithAudioClick}
+                fullWidth
+              />
+              <ThemedText style={[styles.saveHelp, { color: C.icon }]}>
+                Log only writes the duration to your practice log. Keep
+                recording also uploads the audio so you can play it back later.
+              </ThemedText>
             </View>
           </View>
         )}
@@ -319,6 +344,13 @@ const styles = StyleSheet.create({
   },
   recordedCol: {
     gap: Spacing.md,
+  },
+  saveCol: {
+    gap: Spacing.sm,
+  },
+  saveHelp: {
+    fontSize: Type.size.xs,
+    lineHeight: 16,
   },
   timer: {
     fontSize: Type.size.xl,
