@@ -67,9 +67,9 @@ The `upsert: true` flag in `lib/supabase/storage.ts` requires the update policy 
 
 ### Recordings bucket (Self-Led Recording strategy)
 
-Self-Led `recording` entries store an audio clip in a separate `recordings` bucket. Same one-time setup pattern as `pieces`:
+Self-Led `recording` entries store an audio clip in a separate `recordings` bucket. One-time setup:
 
-1. Dashboard → Storage → "New bucket". Name it exactly `recordings` (lowercase). Leave "Public bucket" OFF — the SQL below grants public read so an inline `<audio>` tag can stream without juggling auth headers.
+1. Dashboard → Storage → "New bucket". Name it exactly `recordings` (lowercase). **Toggle Public bucket ON.** The `<audio>` element in the practice log uses `getPublicUrl()` which only works against buckets flagged public; with the toggle off, every URL returns `{"error":"Object not found"}` even when the SQL policies exist (HTMLMediaError code 4). The owner-write SQL below still constrains who can upload / delete.
 2. Dashboard → SQL Editor → paste and run:
 
 ```sql
