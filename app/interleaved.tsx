@@ -194,17 +194,6 @@ export default function InterleavedScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timerSession?.mode]);
 
-  // When the playing phase opens, auto-start the metronome so the user can
-  // begin drilling without an extra tap. User feedback was that the timer
-  // (i.e. the metronome ticks) should start right away. They can still tap
-  // the metronome card to mute mid-session.
-  useEffect(() => {
-    if (phase !== 'playing') return;
-    if (metronome.running) return;
-    metronome.start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
-
   useEffect(() => {
     if (phase !== 'playing') return;
     if (!metronome.running) return;
