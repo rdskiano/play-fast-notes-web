@@ -13,6 +13,7 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { FloatingMetronome } from '@/components/FloatingMetronome';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
+import { SelfLedSheet } from '@/components/SelfLedSheet';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -738,6 +739,7 @@ function TimerActive({
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const [notePromptVisible, setNotePromptVisible] = useState(false);
+  const [selfLedOpen, setSelfLedOpen] = useState(false);
 
   if (!timerSession) {
     // Edge case: state was cleared. Drop the user back to select.
@@ -848,6 +850,13 @@ function TimerActive({
           style={[styles.strategyBtn, { backgroundColor: '#4a235a' }]}>
           <ThemedText style={styles.strategyText}>Rhythmic Variation</ThemedText>
         </Pressable>
+        <Pressable
+          onPress={() => setSelfLedOpen(true)}
+          style={[styles.selfLedStratBtn, { borderColor: C.tint }]}>
+          <ThemedText style={[styles.selfLedStratText, { color: C.tint }]}>
+            Self-Led ▾
+          </ThemedText>
+        </Pressable>
       </View>
 
       {cur?.passage.source_uri && (
@@ -857,6 +866,26 @@ function TimerActive({
           contentFit="contain"
         />
       )}
+
+      <SelfLedSheet
+        visible={selfLedOpen}
+        onCancel={() => setSelfLedOpen(false)}
+        onPick={(key) => {
+          setSelfLedOpen(false);
+          if (!cur) return;
+          if (key === 'recording') {
+            router.push({
+              pathname: '/passage/[id]/self-led/recording',
+              params: { id: cur.passage.id },
+            });
+          } else {
+            router.push({
+              pathname: '/passage/[id]/self-led/[key]',
+              params: { id: cur.passage.id, key },
+            });
+          }
+        }}
+      />
 
       <FloatingMetronome
         bpm={metronome.bpm}
@@ -975,6 +1004,18 @@ const styles = StyleSheet.create({
   },
   strategyText: {
     color: '#fff',
+    fontWeight: Type.weight.heavy,
+    fontSize: Type.size.sm,
+  },
+  selfLedStratBtn: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+    borderWidth: Borders.thick,
+    backgroundColor: 'transparent',
+  },
+  selfLedStratText: {
     fontWeight: Type.weight.heavy,
     fontSize: Type.size.sm,
   },
