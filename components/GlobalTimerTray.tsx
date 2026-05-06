@@ -1,3 +1,4 @@
+import { usePathname, useRouter } from 'expo-router';
 import { useState, useSyncExternalStore } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -15,6 +16,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   getSnapshot as getSerialSnapshot,
   isSerialPracticeActive,
+  nextPassage as advanceSerialPassage,
   subscribe as subscribeSerial,
 } from '@/lib/sessions/serialPractice';
 
@@ -81,6 +83,8 @@ type PracticeTimersPillProps = {
 export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillProps = {}) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const router = useRouter();
+  const pathname = usePathname();
   const [infoOpen, setInfoOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -91,8 +95,32 @@ export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillPro
   // Subscribe to the Serial Practice singleton so the pill auto-hides the
   // Move On dot while a session is active — including on the strategy
   // screens (Tempo Ladder, Click-Up, etc.) the user navigates to mid-session.
-  useSyncExternalStore(subscribeSerial, getSerialSnapshot, () => null);
+  const serialSession = useSyncExternalStore(
+    subscribeSerial,
+    getSerialSnapshot,
+    () => null,
+  );
   const moveOnHidden = hideMoveOn || isSerialPracticeActive();
+
+  // Show a compact countdown chip inside the pill whenever a Serial Practice
+  // Timer-mode session is running and we are NOT already on /interleaved
+  // (which has its own inline bar at the bottom). Tap the chip to advance
+  // and hop back to the Serial Practice screen.
+  const showSerialChip =
+    serialSession !== null &&
+    serialSession.mode === 'timer' &&
+    pathname !== '/interleaved';
+  const chipExpired = serialSession?.timerExpired ?? false;
+  const chipLabel = (() => {
+    if (!serialSession) return '';
+    const m = Math.floor(serialSession.secondsLeft / 60);
+    const s = serialSession.secondsLeft % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  })();
+  function onSerialChipPress() {
+    advanceSerialPassage();
+    router.replace('/interleaved' as never);
+  }
 
   function toggleCold() {
     if (playItCold.config.enabled) {
@@ -116,6 +144,19 @@ export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillPro
             borderColor: C.icon + '55',
           },
         ]}>
+        {showSerialChip && (
+          <Pressable
+            onPress={onSerialChipPress}
+            hitSlop={6}
+            style={[
+              styles.serialChip,
+              { backgroundColor: chipExpired ? '#c0392b' : C.tint },
+            ]}>
+            <ThemedText style={styles.serialChipText}>
+              {chipExpired ? "Time's up · Next →" : `${chipLabel} · Next →`}
+            </ThemedText>
+          </Pressable>
+        )}
         {!moveOnHidden && (
           <TimerDot
             icon="⏱"
@@ -253,6 +294,19 @@ const styles = StyleSheet.create({
   },
   dotLabel: { fontSize: Type.size.xs, fontWeight: Type.weight.bold },
   helpBtn: { paddingHorizontal: Spacing.xs, paddingVertical: 2 },
+  serialChip: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: Radii.md,
+    marginRight: Spacing.xs,
+  },
+  serialChipText: {
+    color: '#fff',
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.heavy,
+    letterSpacing: 0.3,
+    fontVariant: ['tabular-nums'],
+  },
   helpCircle: {
     width: 22,
     height: 22,

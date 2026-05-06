@@ -5,7 +5,6 @@ import { StatusBar } from 'expo-status-bar';
 import { FeedbackButton } from '@/components/FeedbackButton';
 import { PracticeTimerAlertModal } from '@/components/PracticeTimerAlertModal';
 import { PracticeTimersProvider } from '@/components/PracticeTimersContext';
-import { SerialPracticeTimerOverlay } from '@/components/SerialPracticeTimerOverlay';
 import { StrategyColorsProvider } from '@/components/StrategyColorsContext';
 import { useSession } from '@/lib/supabase/auth';
 
@@ -91,7 +90,6 @@ export default function RootLayout() {
           <Stack.Screen name="interleaved" options={{ headerShown: false }} />
         </Stack>
         <PracticeTimerAlertModal />
-        <SerialPracticeTimerOverlay />
         <FeedbackButton />
         </PracticeTimersProvider>
       </StrategyColorsProvider>
