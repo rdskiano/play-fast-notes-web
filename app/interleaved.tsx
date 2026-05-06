@@ -194,6 +194,17 @@ export default function InterleavedScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timerSession?.mode]);
 
+  // When the playing phase opens, auto-start the metronome so the user can
+  // begin drilling without an extra tap. User feedback was that the timer
+  // (i.e. the metronome ticks) should start right away. They can still tap
+  // the metronome card to mute mid-session.
+  useEffect(() => {
+    if (phase !== 'playing') return;
+    if (metronome.running) return;
+    metronome.start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   useEffect(() => {
     if (phase !== 'playing') return;
     if (!metronome.running) return;
@@ -938,7 +949,10 @@ const styles = StyleSheet.create({
   repBar: {
     flexDirection: 'row',
     gap: Spacing.md,
-    paddingHorizontal: Spacing.lg,
+    paddingLeft: Spacing.lg,
+    // Extra right clearance so the Miss button is not partially under the
+    // floating Feedback bubble.
+    paddingRight: 160,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
     borderTopWidth: Borders.thin,
@@ -980,7 +994,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
+    paddingLeft: Spacing.lg,
+    // Extra right padding so the Next button clears the floating Feedback
+    // bubble (position absolute, bottom 20, right 20, ~140px wide).
+    paddingRight: 160,
     paddingVertical: Spacing.md,
     gap: Spacing.md,
   },
