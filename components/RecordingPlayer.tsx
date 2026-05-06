@@ -5,7 +5,7 @@
 // the iPad in a future playbuild.
 
 import { useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, Type } from '@/constants/tokens';
@@ -18,13 +18,22 @@ type Props = {
 
 export function RecordingPlayer({ uri, maxWidth }: Props) {
   const [errored, setErrored] = useState(false);
+  const [errorCode, setErrorCode] = useState<number | null>(null);
   if (Platform.OS !== 'web') return null;
   if (errored) {
     return (
-      <View style={{ paddingTop: Spacing.xs, maxWidth }}>
+      <View style={{ paddingTop: Spacing.xs, maxWidth, gap: 2 }}>
         <ThemedText style={{ fontSize: Type.size.xs, fontStyle: 'italic', opacity: 0.6 }}>
-          Recording unavailable.
+          Recording unavailable{errorCode != null ? ` (code ${errorCode})` : ''}.
         </ThemedText>
+        <Pressable
+          onPress={() => {
+            if (typeof window !== 'undefined') window.open(uri, '_blank');
+          }}>
+          <ThemedText style={{ fontSize: Type.size.xs, color: '#1976d2', textDecorationLine: 'underline' }}>
+            Open audio URL in new tab
+          </ThemedText>
+        </Pressable>
       </View>
     );
   }
@@ -35,7 +44,14 @@ export function RecordingPlayer({ uri, maxWidth }: Props) {
         src={uri}
         controls
         preload="metadata"
-        onError={() => setErrored(true)}
+        onError={(e) => {
+          const target = e.currentTarget as HTMLAudioElement;
+          const code = target?.error?.code ?? null;
+          // eslint-disable-next-line no-console
+          console.warn('[RecordingPlayer] audio error', { uri, code, error: target?.error });
+          setErrorCode(code);
+          setErrored(true);
+        }}
         style={{ width: '100%', height: 30 }}
       />
     </View>

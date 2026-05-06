@@ -26,6 +26,15 @@ export async function uploadRecording(
 
   const ext = extOverride ?? inferExtFromMime(file.type);
   const path = `${userId}/${recordingId}.${ext}`;
+  // Diagnostic: surface the mime + size + final extension so a user reporting
+  // playback issues can paste console output.
+  // eslint-disable-next-line no-console
+  console.log('[recordings] upload', {
+    blobType: file.type,
+    blobSize: file.size,
+    inferredExt: ext,
+    path,
+  });
 
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
     upsert: false,
@@ -34,6 +43,8 @@ export async function uploadRecording(
   if (error) throw error;
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  // eslint-disable-next-line no-console
+  console.log('[recordings] uploaded ok', { publicUrl: data.publicUrl });
   return data.publicUrl;
 }
 
