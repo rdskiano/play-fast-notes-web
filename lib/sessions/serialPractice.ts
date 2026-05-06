@@ -22,6 +22,13 @@ export type SessionState = {
   order: Order;
   targetReps: RepTarget;
   timerMinutes: TimerMinutes;
+  // The countdown is driven by wall-clock math, not by counting setInterval
+  // fires. `targetSeconds` is the duration of the current passage's slot
+  // and `startedAtMs` is the wall time when that slot began. `secondsLeft`
+  // is recomputed from those two on every tick so a throttled or paused
+  // setInterval cannot make the display drift behind real time.
+  targetSeconds: number;
+  startedAtMs: number;
   secondsLeft: number;
   timerExpired: boolean;
   celebrating: boolean;
@@ -69,18 +76,29 @@ function stopTicker() {
   }
 }
 
+function recomputeSecondsLeft() {
+  if (!_state || _state.mode !== 'timer') return;
+  const elapsed = Math.max(0, Math.floor((Date.now() - _state.startedAtMs) / 1000));
+  const next = Math.max(0, _state.targetSeconds - elapsed);
+  if (next !== _state.secondsLeft) {
+    _state.secondsLeft = next;
+    if (next === 0 && !_state.timerExpired) _state.timerExpired = true;
+    emit();
+  }
+}
+
 function startTicker() {
   stopTicker();
+  // 250ms keeps the display feeling smooth without burning CPU. The actual
+  // value is computed from wall-clock math, so even if the interval is
+  // throttled (background tab, busy main thread) the displayed time still
+  // reflects real elapsed seconds when the next tick lands.
   _intervalId = setInterval(() => {
     if (!_state || _state.mode !== 'timer') return;
     if (_state.celebrating) return;
     if (_state.timerExpired) return;
-    if (_state.secondsLeft > 0) {
-      _state.secondsLeft -= 1;
-      if (_state.secondsLeft === 0) _state.timerExpired = true;
-      emit();
-    }
-  }, 1000);
+    recomputeSecondsLeft();
+  }, 250);
 }
 
 export function startTimerSession(params: {
@@ -98,6 +116,7 @@ export function startTimerSession(params: {
   const first =
     params.order === 'serial' ? 0 : Math.floor(Math.random() * params.passages.length);
   spots[first].visited = true;
+  const targetSeconds = params.timerMinutes * 60;
   _state = {
     spots,
     currentIndex: first,
@@ -105,7 +124,9 @@ export function startTimerSession(params: {
     order: params.order,
     targetReps: 3,
     timerMinutes: params.timerMinutes,
-    secondsLeft: params.timerMinutes * 60,
+    targetSeconds,
+    startedAtMs: Date.now(),
+    secondsLeft: targetSeconds,
     timerExpired: false,
     celebrating: false,
     visitedCount: 1,
@@ -161,7 +182,9 @@ export function nextPassage() {
   _state.spots[next].visited = true;
   _state.visitedCount += 1;
   _state.currentIndex = next;
-  _state.secondsLeft = _state.timerMinutes * 60;
+  _state.targetSeconds = _state.timerMinutes * 60;
+  _state.startedAtMs = Date.now();
+  _state.secondsLeft = _state.targetSeconds;
   _state.timerExpired = false;
   startTicker();
   emit();
