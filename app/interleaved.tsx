@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { FloatingMetronome } from '@/components/FloatingMetronome';
+import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { SelfLedSheet } from '@/components/SelfLedSheet';
 import { SessionTopBar } from '@/components/SessionTopBar';
@@ -651,12 +652,15 @@ export default function InterleavedScreen() {
           </View>
         }
         right={
-          <Button
-            label="END"
-            variant="danger"
-            size="sm"
-            onPress={endSession}
-          />
+          <View style={styles.topRightRow}>
+            <PracticeTimersPill />
+            <Button
+              label="END"
+              variant="danger"
+              size="sm"
+              onPress={endSession}
+            />
+          </View>
         }
       />
 
@@ -830,7 +834,10 @@ function TimerActive({
           </View>
         }
         right={
-          <Button label="END" variant="danger" size="sm" onPress={endSession} />
+          <View style={styles.topRightRow}>
+            <PracticeTimersPill hideMoveOn />
+            <Button label="END" variant="danger" size="sm" onPress={endSession} />
+          </View>
         }
       />
 
@@ -1018,6 +1025,11 @@ const styles = StyleSheet.create({
   selfLedStratText: {
     fontWeight: Type.weight.heavy,
     fontSize: Type.size.sm,
+  },
+  topRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
 
   timerBar: {

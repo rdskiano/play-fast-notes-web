@@ -73,6 +73,20 @@ export function getSnapshot(): SessionState | null {
   return _state;
 }
 
+// True when a Serial Practice Timer-mode session is currently running. Used
+// by PracticeTimersContext to suppress the global Move On alert — the
+// per-passage countdown bar at the bottom of the screen is doing the same
+// job during this mode, so a duplicate "Time to move on" overlay would be
+// redundant and confusing.
+export function isTimerSessionActive(): boolean {
+  return (
+    _state !== null &&
+    _state.mode === 'timer' &&
+    !_state.celebrating &&
+    !_state.timerExpired
+  );
+}
+
 export function subscribe(cb: () => void): () => void {
   _listeners.add(cb);
   return () => {

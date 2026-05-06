@@ -11,6 +11,7 @@ import {
 
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
+import { isTimerSessionActive } from '@/lib/sessions/serialPractice';
 
 // ── Config types ────────────────────────────────────────────────────────────
 
@@ -192,6 +193,10 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
     if (!hydrated || !moveOnCfg.enabled) return;
     const ms = Math.max(30_000, moveOnCfg.intervalMin * 60_000);
     moveOnIntervalRef.current = setInterval(() => {
+      // Suppress while a Serial Practice Timer-mode session is running —
+      // the per-passage countdown bar already covers "rotate now", so a
+      // duplicate Move-On alert overlay would be confusing.
+      if (isTimerSessionActive()) return;
       enqueueFire('moveOn');
     }, ms);
     return () => {

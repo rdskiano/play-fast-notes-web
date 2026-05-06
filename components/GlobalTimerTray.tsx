@@ -66,7 +66,14 @@ function TimerDot({ icon, label, enabled, color, onPress }: DotProps) {
   );
 }
 
-export function PracticeTimersPill() {
+type PracticeTimersPillProps = {
+  // When the parent screen has its own rotation timer (Serial Practice
+  // Timer mode), we hide the Move On dot so the user is not faced with
+  // two parallel "rotate" timers.
+  hideMoveOn?: boolean;
+};
+
+export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillProps = {}) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const [infoOpen, setInfoOpen] = useState(false);
@@ -98,13 +105,17 @@ export function PracticeTimersPill() {
             borderColor: C.icon + '55',
           },
         ]}>
-        <TimerDot
-          icon="⏱"
-          label="Move"
-          enabled={moveOn.config.enabled}
-          color={C.tint}
-          onPress={() => moveOn.setConfig({ enabled: !moveOn.config.enabled })}
-        />
+        {!hideMoveOn && (
+          <TimerDot
+            icon="⏱"
+            label="Move"
+            enabled={moveOn.config.enabled}
+            color={C.tint}
+            onPress={() =>
+              moveOn.setConfig({ enabled: !moveOn.config.enabled })
+            }
+          />
+        )}
         <TimerDot
           icon="🧠"
           label="Break"
