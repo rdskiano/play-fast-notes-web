@@ -306,6 +306,9 @@ const styles = StyleSheet.create({
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   controls: {
     padding: Spacing.lg,
+    // Extra right padding so the Save / Re-record buttons clear the floating
+    // Feedback bubble (position: absolute, bottom: 20, right: 20, ~140px wide).
+    paddingRight: 160,
     gap: Spacing.md,
     borderTopWidth: Borders.thin,
   },
