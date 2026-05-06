@@ -58,6 +58,17 @@ function emit() {
   });
 }
 
+// useSyncExternalStore compares snapshots by reference (Object.is). After
+// mutating any field on _state, call bumpVersion() so getSnapshot returns
+// a new object and React actually re-renders. Without this, in-place
+// mutation looks like a no-op to React and the display only updates when
+// some other state change forces a re-render — which is what made the
+// Serial Practice countdown appear to only move when the metronome did.
+function bumpVersion() {
+  if (_state) _state = { ..._state };
+  emit();
+}
+
 export function getSnapshot(): SessionState | null {
   return _state;
 }
@@ -83,7 +94,7 @@ function recomputeSecondsLeft() {
   if (next !== _state.secondsLeft) {
     _state.secondsLeft = next;
     if (next === 0 && !_state.timerExpired) _state.timerExpired = true;
-    emit();
+    bumpVersion();
   }
 }
 
@@ -148,7 +159,7 @@ export function setEngagedTempo(passageId: string, bpm: number) {
     ..._state.engagedTempoByPassage,
     [passageId]: bpm,
   };
-  emit();
+  bumpVersion();
 }
 
 // Pick the next unvisited passage. Returns -1 if every passage has been
@@ -176,7 +187,7 @@ export function nextPassage() {
   if (next === -1) {
     _state.celebrating = true;
     stopTicker();
-    emit();
+    bumpVersion();
     return;
   }
   _state.spots[next].visited = true;
@@ -187,11 +198,11 @@ export function nextPassage() {
   _state.secondsLeft = _state.targetSeconds;
   _state.timerExpired = false;
   startTicker();
-  emit();
+  bumpVersion();
 }
 
 export function dismissCelebration() {
   if (!_state) return;
   _state.celebrating = false;
-  emit();
+  bumpVersion();
 }
