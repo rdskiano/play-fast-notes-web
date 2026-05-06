@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
@@ -12,6 +12,11 @@ import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  getSnapshot as getSerialSnapshot,
+  isSerialPracticeActive,
+  subscribe as subscribeSerial,
+} from '@/lib/sessions/serialPractice';
 
 const TIMER_INFO: { icon: string; title: string; body: string }[] = [
   {
@@ -83,6 +88,12 @@ export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillPro
   const microbreak = useMicrobreakTimer();
   const playItCold = usePlayItColdTimer();
 
+  // Subscribe to the Serial Practice singleton so the pill auto-hides the
+  // Move On dot while a session is active — including on the strategy
+  // screens (Tempo Ladder, Click-Up, etc.) the user navigates to mid-session.
+  useSyncExternalStore(subscribeSerial, getSerialSnapshot, () => null);
+  const moveOnHidden = hideMoveOn || isSerialPracticeActive();
+
   function toggleCold() {
     if (playItCold.config.enabled) {
       playItCold.setConfig({ enabled: false });
@@ -105,7 +116,7 @@ export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillPro
             borderColor: C.icon + '55',
           },
         ]}>
-        {!hideMoveOn && (
+        {!moveOnHidden && (
           <TimerDot
             icon="⏱"
             label="Move"
@@ -145,7 +156,7 @@ export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillPro
 
       <TimerInfoModal
         visible={infoOpen}
-        hideMoveOn={hideMoveOn}
+        hideMoveOn={moveOnHidden}
         onClose={() => setInfoOpen(false)}
       />
 

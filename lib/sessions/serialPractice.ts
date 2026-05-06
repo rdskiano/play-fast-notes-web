@@ -75,9 +75,13 @@ export function getSnapshot(): SessionState | null {
 
 // Consistency-mode session state lives in the screen component, not in the
 // singleton, so we expose a tiny setter the component can flip on mount.
+// Emit on change so subscribers (PracticeTimersPill, overlay, etc.) re-render
+// and pick up the new isSerialPracticeActive() value.
 let _consistencyActive = false;
 export function setConsistencyActive(active: boolean) {
+  if (_consistencyActive === active) return;
   _consistencyActive = active;
+  emit();
 }
 
 // True when any Serial Practice session — Timer or Consistency mode — is

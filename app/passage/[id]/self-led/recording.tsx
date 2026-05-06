@@ -20,6 +20,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSerialPracticeBottomInset } from '@/hooks/useSerialPracticeBottomInset';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
@@ -51,6 +52,11 @@ export default function SelfLedRecordingScreen() {
   //   'log_only' = log the session (duration + mood/note), discard the audio.
   //   'save_audio' = also upload the clip to storage; entry carries recording_uri.
   const [saveMode, setSaveMode] = useState<'log_only' | 'save_audio'>('log_only');
+
+  // When a Serial Practice session is running, the global
+  // SerialPracticeTimerOverlay floats a countdown bar at the bottom of every
+  // screen. Without padding, it covers our Save / Re-record buttons.
+  const overlayHeight = useSerialPracticeBottomInset();
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -238,7 +244,11 @@ export default function SelfLedRecordingScreen() {
       <View
         style={[
           styles.controls,
-          { backgroundColor: C.background, borderTopColor: C.icon + '33' },
+          {
+            backgroundColor: C.background,
+            borderTopColor: C.icon + '33',
+            paddingBottom: Spacing.lg + overlayHeight,
+          },
         ]}>
         {error && (
           <ThemedText style={styles.errorText}>{error}</ThemedText>
