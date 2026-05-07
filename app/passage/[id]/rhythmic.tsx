@@ -67,6 +67,9 @@ export default function RhythmicScreen() {
   );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
+  // When true, re-show the grouping picker overlay so the user can switch
+  // groupings mid-session without leaving the screen.
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const metronome = useMetronome(80);
   const microbreak = useMicrobreakTimer();
@@ -94,10 +97,14 @@ export default function RhythmicScreen() {
   function startWithGrouping(g: Grouping) {
     const list = patternsByGrouping(g);
     if (list.length === 0) return;
+    // Stop any in-flight rhythm loop — the pattern being looped is about
+    // to disappear from the visible card.
+    metronome.stopRhythmLoop();
     setGrouping(g);
     setPatterns(list);
     setCurrentIndex(0);
     setPhase('playing');
+    setPickerOpen(false);
   }
 
   function doneSession() {
@@ -171,9 +178,16 @@ export default function RhythmicScreen() {
         onExit={phase === 'playing' ? exitSession : () => router.back()}
         center={
           phase === 'playing' && grouping ? (
-            <ThemedText style={styles.topCenter} numberOfLines={1}>
-              {grouping}-note · Pattern {currentIndex + 1}/{patterns.length}
-            </ThemedText>
+            <Pressable
+              onPress={() => setPickerOpen(true)}
+              hitSlop={6}
+              accessibilityLabel="Change note grouping">
+              <ThemedText
+                style={[styles.topCenter, { color: C.tint }]}
+                numberOfLines={1}>
+                {grouping}-note ▾ · Pattern {currentIndex + 1}/{patterns.length}
+              </ThemedText>
+            </Pressable>
           ) : (
             <ThemedText style={styles.topCenter} numberOfLines={1}>
               Rhythmic Variation
@@ -202,11 +216,20 @@ export default function RhythmicScreen() {
 
       <ScoreWithMarkers uri={passage.source_uri} markers={[]} mode="play" activePair={null} />
 
-      {phase === 'config' && (
-        <View style={styles.overlay} pointerEvents="box-none">
-          <View style={[styles.pickerCard, { backgroundColor: C.background, borderColor: C.icon }]}>
+      {(phase === 'config' || pickerOpen) && (
+        <Pressable
+          style={styles.overlay}
+          onPress={() => {
+            // Tapping the dim backdrop closes a re-opened picker. Don't
+            // dismiss when the user is in the initial config phase — they
+            // need to pick before they can practice.
+            if (phase === 'playing') setPickerOpen(false);
+          }}>
+          <Pressable
+            style={[styles.pickerCard, { backgroundColor: C.background, borderColor: C.icon }]}
+            onPress={(e) => e.stopPropagation()}>
             <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
-              Choose a note grouping
+              {pickerOpen && phase === 'playing' ? 'Change note grouping' : 'Choose a note grouping'}
             </ThemedText>
             <ThemedText style={styles.pickerHelp}>
               Each grouping shows rhythms of that note count from the pattern library.
@@ -216,7 +239,13 @@ export default function RhythmicScreen() {
                 <Pressable
                   key={n}
                   onPress={() => startWithGrouping(n)}
-                  style={[styles.groupingChip, { borderColor: C.icon }]}>
+                  style={[
+                    styles.groupingChip,
+                    {
+                      borderColor: grouping === n ? C.tint : C.icon,
+                      borderWidth: grouping === n ? 2 : 1,
+                    },
+                  ]}>
                   <AbcStaffView abc={abc} width={w} height={60} hideStaffLines centered />
                   <ThemedText style={styles.groupingNum}>{n}</ThemedText>
                   <ThemedText style={[styles.groupingCount, { color: C.icon }]}>
@@ -225,8 +254,17 @@ export default function RhythmicScreen() {
                 </Pressable>
               ))}
             </View>
-          </View>
-        </View>
+            {pickerOpen && phase === 'playing' && (
+              <Pressable
+                onPress={() => setPickerOpen(false)}
+                style={styles.cancelChange}>
+                <ThemedText style={[styles.cancelChangeText, { color: C.tint }]}>
+                  Cancel
+                </ThemedText>
+              </Pressable>
+            )}
+          </Pressable>
+        </Pressable>
       )}
 
       {phase === 'playing' && grouping && patterns.length > 0 && (
@@ -312,4 +350,13 @@ const styles = StyleSheet.create({
   },
   groupingNum: { fontSize: Type.size.xl, fontWeight: Type.weight.heavy, marginTop: -4 },
   groupingCount: { fontSize: 10, marginTop: 2 },
+  cancelChange: {
+    alignSelf: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+  },
+  cancelChangeText: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.bold,
+  },
 });
