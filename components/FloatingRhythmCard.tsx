@@ -153,6 +153,10 @@ export function FloatingRhythmCard({
         transform: `scale(${scale})`,
         transformOrigin: 'top left',
         touchAction: 'none',
+        // Stay above other floating overlays (FloatingMetronome at zIndex
+        // default, FeedbackButton, etc.) — the rhythm card is the primary
+        // focus during Rhythmic Variation.
+        zIndex: 200,
       }}>
       <View
         style={[
