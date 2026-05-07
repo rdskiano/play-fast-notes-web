@@ -180,6 +180,7 @@ export function FloatingSlowClickUpControls({
         transform: `scale(${scale})`,
         transformOrigin: 'top left',
         touchAction: 'none',
+        zIndex: 150,
       }}>
       <View
         style={[

@@ -156,6 +156,10 @@ export function FloatingMetronome({
         transform: `scale(${scale})`,
         transformOrigin: 'top left',
         touchAction: 'none',
+        // Stay above inline page content (e.g. Exercise Builder generated
+        // rhythm cards). FloatingRhythmCard sits even higher so it lands
+        // on top of this when both are mounted.
+        zIndex: 150,
       }}>
       <View
         style={[
