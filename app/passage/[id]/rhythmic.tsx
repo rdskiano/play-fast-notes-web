@@ -332,6 +332,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#00000066',
     padding: 20,
+    // Sit above FloatingRhythmCard (zIndex 200) and FloatingMetronome
+    // (zIndex 150) so the picker modal cleanly covers them.
+    zIndex: 500,
   },
   pickerCard: {
     width: '100%',
