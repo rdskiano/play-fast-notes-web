@@ -178,16 +178,23 @@ export default function RhythmicScreen() {
         onExit={phase === 'playing' ? exitSession : () => router.back()}
         center={
           phase === 'playing' && grouping ? (
-            <Pressable
-              onPress={() => setPickerOpen(true)}
-              hitSlop={6}
-              accessibilityLabel="Change note grouping">
-              <ThemedText
-                style={[styles.topCenter, { color: C.tint }]}
-                numberOfLines={1}>
-                {grouping}-note ▾ · Pattern {currentIndex + 1}/{patterns.length}
+            <View style={styles.titleRow}>
+              <ThemedText style={styles.topCenter} numberOfLines={1}>
+                Pattern {currentIndex + 1}/{patterns.length}
               </ThemedText>
-            </Pressable>
+              <Pressable
+                onPress={() => setPickerOpen(true)}
+                hitSlop={6}
+                accessibilityLabel="Change note grouping"
+                style={[styles.changeChip, { borderColor: C.tint, backgroundColor: C.tint + '15' }]}>
+                <ThemedText style={[styles.changeChipText, { color: C.tint }]}>
+                  {grouping}-note ▾
+                </ThemedText>
+                <ThemedText style={[styles.changeHint, { color: C.tint }]}>
+                  change
+                </ThemedText>
+              </Pressable>
+            </View>
           ) : (
             <ThemedText style={styles.topCenter} numberOfLines={1}>
               Rhythmic Variation
@@ -358,5 +365,30 @@ const styles = StyleSheet.create({
   cancelChangeText: {
     fontSize: Type.size.md,
     fontWeight: Type.weight.bold,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  changeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: Radii.md,
+    borderWidth: Borders.thin,
+  },
+  changeChipText: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.heavy,
+  },
+  changeHint: {
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    opacity: 0.8,
   },
 });
