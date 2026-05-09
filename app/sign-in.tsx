@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
@@ -8,7 +8,10 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { continueWithPassword } from '@/lib/supabase/auth';
+import {
+  continueWithPassword,
+  requestPasswordReset,
+} from '@/lib/supabase/auth';
 
 const MIN_PASSWORD = 6;
 
@@ -24,6 +27,13 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  const [resetState, setResetState] = useState<
+    | { kind: 'hidden' }
+    | { kind: 'idle' }
+    | { kind: 'sending' }
+    | { kind: 'sent' }
+    | { kind: 'error'; message: string }
+  >({ kind: 'hidden' });
 
   const emailOk = email.trim().length > 0 && email.includes('@');
   const passwordOk = password.length >= MIN_PASSWORD;
@@ -40,6 +50,23 @@ export default function SignInScreen() {
       router.replace('/library');
     } catch (e) {
       setStatus({ kind: 'error', message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function onSendReset() {
+    if (!emailOk) {
+      setResetState({ kind: 'error', message: 'Enter your email above first.' });
+      return;
+    }
+    setResetState({ kind: 'sending' });
+    try {
+      await requestPasswordReset(email);
+      setResetState({ kind: 'sent' });
+    } catch (e) {
+      setResetState({
+        kind: 'error',
+        message: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 
@@ -95,6 +122,53 @@ export default function SignInScreen() {
         {status.kind === 'error' && (
           <ThemedText style={[styles.error, { color: '#c0392b' }]}>{status.message}</ThemedText>
         )}
+
+        {resetState.kind === 'hidden' ? (
+          <Pressable
+            onPress={() => setResetState({ kind: 'idle' })}
+            hitSlop={6}
+            style={styles.forgotBtn}>
+            <ThemedText style={[styles.forgotText, { color: C.tint }]}>
+              Forgot password?
+            </ThemedText>
+          </Pressable>
+        ) : (
+          <View style={styles.resetCard}>
+            {resetState.kind === 'sent' ? (
+              <ThemedText style={[styles.resetMessage, { color: C.text }]}>
+                Check your email for a reset link. You can close this tab.
+              </ThemedText>
+            ) : (
+              <>
+                <ThemedText style={[styles.resetMessage, { color: C.text }]}>
+                  We will send a reset link to the email above. Make sure it is
+                  the address you signed up with.
+                </ThemedText>
+                <Button
+                  label={
+                    resetState.kind === 'sending' ? 'Sending…' : 'Send reset link'
+                  }
+                  onPress={onSendReset}
+                  disabled={resetState.kind === 'sending'}
+                  variant="outline"
+                  fullWidth
+                />
+                {resetState.kind === 'error' && (
+                  <ThemedText style={[styles.error, { color: '#c0392b' }]}>
+                    {resetState.message}
+                  </ThemedText>
+                )}
+                <Pressable
+                  onPress={() => setResetState({ kind: 'hidden' })}
+                  hitSlop={6}>
+                  <ThemedText style={[styles.forgotText, { color: C.icon }]}>
+                    Cancel
+                  </ThemedText>
+                </Pressable>
+              </>
+            )}
+          </View>
+        )}
       </View>
     </ThemedView>
   );
@@ -129,5 +203,23 @@ const styles = StyleSheet.create({
   error: {
     textAlign: 'center',
     fontSize: Type.size.sm,
+  },
+  forgotBtn: {
+    alignSelf: 'center',
+    paddingVertical: Spacing.sm,
+  },
+  forgotText: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+  },
+  resetCard: {
+    gap: Spacing.sm,
+    alignItems: 'center',
+  },
+  resetMessage: {
+    textAlign: 'center',
+    fontSize: Type.size.sm,
+    lineHeight: 18,
+    opacity: 0.85,
   },
 });

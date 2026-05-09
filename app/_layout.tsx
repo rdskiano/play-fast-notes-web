@@ -1,5 +1,5 @@
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Redirect, Stack } from 'expo-router';
+import { Redirect, Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { FeedbackButton } from '@/components/FeedbackButton';
@@ -14,19 +14,24 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const session = useSession();
+  const pathname = usePathname();
 
   // Loading session — render nothing to avoid auth-gate flicker.
   if (session === undefined) return null;
 
   // Signed out — redirect to sign-in. Stack still mounts so the redirect
-  // target (sign-in.tsx) renders.
+  // target (sign-in.tsx) renders. /reset-password is allowed to render
+  // signed-out: the recovery email link lands here without an existing
+  // session and the screen consumes the URL hash to start one.
   if (session === null) {
+    const isPublic = pathname === '/sign-in' || pathname === '/reset-password';
     return (
       <ThemeProvider value={DefaultTheme}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="sign-in" />
+          <Stack.Screen name="reset-password" />
         </Stack>
-        <Redirect href="/sign-in" />
+        {!isPublic && <Redirect href="/sign-in" />}
         <StatusBar style="dark" />
       </ThemeProvider>
     );
@@ -40,6 +45,7 @@ export default function RootLayout() {
           <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+          <Stack.Screen name="reset-password" options={{ headerShown: false }} />
           <Stack.Screen
             name="upload"
             options={{ presentation: 'modal', title: 'Add a passage' }}

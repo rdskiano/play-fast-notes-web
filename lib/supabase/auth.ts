@@ -52,6 +52,38 @@ export async function signOut(): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Send a password-reset email. Supabase generates a one-time recovery link
+ * that lands the user back on /reset-password with a recovery token in the
+ * URL hash. The reset-password screen consumes that hash automatically and
+ * lets the user set a new password.
+ *
+ * The redirectTo URL must be on the Supabase project's allow list:
+ * Dashboard -> Authentication -> URL Configuration -> Redirect URLs.
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
+  const trimmedEmail = email.trim();
+  const redirectTo =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/reset-password`
+      : undefined;
+  const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+    redirectTo,
+  });
+  if (error) throw error;
+}
+
+/**
+ * Apply a new password during a recovery session. The Supabase client picks
+ * up the recovery token from the URL hash on /reset-password and creates a
+ * temporary session; this call swaps in the new password and finalises the
+ * sign-in.
+ */
+export async function setNewPassword(password: string): Promise<void> {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
+}
+
 export type SessionState = Session | null | undefined;
 
 /**

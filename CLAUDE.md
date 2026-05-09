@@ -191,7 +191,7 @@ Mirror of iPad's `_activeSession` module-level pattern from `learn-fast-notes/ho
 - Public domain: `playfastnotes.com`.
 - Build command: `npx expo export -p web` → output dir: `dist`.
 - Env vars in Vercel project settings: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`. `EXPO_PUBLIC_FORMSPREE_URL` is optional (a working endpoint is hard-coded as fallback in `FeedbackButton.tsx`).
-- Auth redirect URLs configured in Supabase Auth → URL Configuration. For local dev: add `http://localhost:8081/**` to the **Redirect URLs** allowlist (the wildcard pattern). Site URL should be the bare domain (`http://localhost:8081` for local, `https://playfastnotes.com` for production).
+- Auth redirect URLs configured in Supabase Auth → URL Configuration. For local dev: add `http://localhost:8081/**` to the **Redirect URLs** allowlist (the wildcard pattern). For production add `https://playfastnotes.com/**` (or at least `https://playfastnotes.com/reset-password` so the password-reset flow can land back on the site). Site URL should be the bare domain (`http://localhost:8081` for local, `https://playfastnotes.com` for production).
 - **`vercel.json` SPA rewrite** routes any path that is not a real static file (`_expo/*`, `assets/*`, `favicon.ico`, anything with a dot) to `/`, so deep links and reloads on `/library`, `/piece/[id]/...` etc. resolve to `index.html` instead of 404. Without this rule Vercel returns 404 for any URL that isn't a file on disk — Expo Web exports a single `index.html` and routes client-side.
 
 ## iOS Add-to-Home-Screen icon
