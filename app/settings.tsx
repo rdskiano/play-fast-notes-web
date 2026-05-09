@@ -8,6 +8,8 @@ import {
   View,
 } from 'react-native';
 
+import { Button } from '@/components/Button';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { PassagePickerModal } from '@/components/PassagePickerModal';
 import {
   useMicrobreakTimer,
@@ -26,6 +28,8 @@ import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { listPassages, type Passage } from '@/lib/db/repos/passages';
+import { wipeUserData } from '@/lib/supabase/account';
+import { signOut, useSession } from '@/lib/supabase/auth';
 
 const STRATEGY_LABELS: Record<StrategyKey, string> = {
   tempo_ladder: 'Tempo Ladder',
@@ -104,8 +108,34 @@ export default function SettingsScreen() {
   const microbreak = useMicrobreakTimer();
   const playItCold = usePlayItColdTimer();
 
+  const session = useSession();
+  const userEmail = session?.user.email ?? null;
+
   const [pickerOpen, setPickerOpen] = useState(false);
   const [passages, setPassages] = useState<Passage[]>([]);
+  const [wipeConfirmOpen, setWipeConfirmOpen] = useState(false);
+  const [wiping, setWiping] = useState(false);
+
+  async function onSignOut() {
+    try {
+      await signOut();
+    } catch (e) {
+      console.warn('[settings] sign-out failed', e);
+    }
+    router.replace('/sign-in');
+  }
+
+  async function onConfirmWipe() {
+    setWipeConfirmOpen(false);
+    setWiping(true);
+    try {
+      await wipeUserData();
+    } catch (e) {
+      console.warn('[settings] wipe failed', e);
+    }
+    setWiping(false);
+    router.replace('/sign-in');
+  }
 
   useEffect(() => {
     (async () => {
@@ -312,6 +342,39 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* ── Account ─────────────────────────────────────────────────── */}
+        <View style={styles.sectionHeader}>
+          <ThemedText style={styles.sectionTitle}>Account</ThemedText>
+        </View>
+        {userEmail && (
+          <ThemedText style={styles.sectionHint}>
+            Signed in as {userEmail}.
+          </ThemedText>
+        )}
+        <View style={styles.accountRow}>
+          <Button
+            label="Sign out"
+            variant="outline"
+            onPress={onSignOut}
+            fullWidth
+          />
+        </View>
+        <View style={styles.accountRow}>
+          <Button
+            label={wiping ? 'Resetting…' : 'Reset all my data'}
+            variant="danger"
+            onPress={() => setWipeConfirmOpen(true)}
+            disabled={wiping}
+            fullWidth
+          />
+          <ThemedText style={[styles.sectionHint, { marginTop: Spacing.xs }]}>
+            Deletes every passage, exercise, log entry, recording, and
+            folder you own. Sign-in stays so you can start fresh. To fully
+            delete your account (including your email), email
+            rdskiano@gmail.com.
+          </ThemedText>
+        </View>
+
       </ScrollView>
 
       <PassagePickerModal
@@ -324,6 +387,17 @@ export default function SettingsScreen() {
         }}
         title="Pick a Play-It-Cold passage"
       />
+
+      <ConfirmModal
+        visible={wipeConfirmOpen}
+        title="Reset all your data?"
+        message="Every passage, exercise, log entry, recording, and folder you own will be deleted. Your account email stays — you will land on the sign-in screen. This cannot be undone."
+        confirmLabel="Yes, wipe everything"
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={onConfirmWipe}
+        onCancel={() => setWipeConfirmOpen(false)}
+      />
     </ThemedView>
   );
 }
@@ -331,6 +405,7 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
   content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'], gap: Spacing.lg },
+  accountRow: { gap: Spacing.xs },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
