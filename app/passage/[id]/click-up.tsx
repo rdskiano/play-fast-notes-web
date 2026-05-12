@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 
 import { Button } from '@/components/Button';
+import { CollapsibleHelp } from '@/components/CollapsibleHelp';
 import { FloatingClickUpControls } from '@/components/FloatingClickUpControls';
 import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
@@ -139,39 +140,40 @@ export default function ClickUpScreen() {
           }
         />
         <ScrollView contentContainerStyle={styles.markingContent}>
-          <ThemedText type="subtitle">How it works</ThemedText>
-          <ThemedText style={styles.blurbText}>
-            Interleaved Click-Up is a structured practice strategy developed by{' '}
-            <ThemedText
-              style={styles.blurbBold}
-              onPress={() => Linking.openURL('https://www.mollygebrian.com')}>
-              Molly Gebrian
+          <CollapsibleHelp title="How it works">
+            <ThemedText style={styles.blurbText}>
+              Interleaved Click-Up is a structured practice strategy developed by{' '}
+              <ThemedText
+                style={styles.blurbBold}
+                onPress={() => Linking.openURL('https://www.mollygebrian.com')}>
+                Molly Gebrian
+              </ThemedText>
+              , a viola professor and expert in the science of practice. The strategy is
+              detailed in her book{' '}
+              <ThemedText style={styles.blurbItalic}>
+                Learn Faster, Perform Better — A Musician&apos;s Guide to the Neuroscience
+                of Practicing
+              </ThemedText>
+              .
             </ThemedText>
-            , a viola professor and expert in the science of practice. The strategy is
-            detailed in her book{' '}
-            <ThemedText style={styles.blurbItalic}>
-              Learn Faster, Perform Better — A Musician&apos;s Guide to the Neuroscience
-              of Practicing
+            <ThemedText style={styles.blurbText}>
+              Break the passage into small units (like beats or measures) by tapping the
+              score to mark the beginning of each unit. Tap just above the music so the
+              notes are still visible. The app then walks you through a carefully ordered
+              sequence that interleaves individual units with progressively larger
+              combinations — and at each stage the tempo climbs from your start BPM to
+              your goal. This forces your brain to constantly retrieve and reconnect
+              sections, producing deeper learning and more reliable performances under
+              pressure.
             </ThemedText>
-            .
-          </ThemedText>
-          <ThemedText style={styles.blurbText}>
-            Break the passage into small units (like beats or measures) by tapping the
-            score to mark the beginning of each unit. Tap just above the music so the
-            notes are still visible. The app then walks you through a carefully ordered
-            sequence that interleaves individual units with progressively larger
-            combinations — and at each stage the tempo climbs from your start BPM to
-            your goal. This forces your brain to constantly retrieve and reconnect
-            sections, producing deeper learning and more reliable performances under
-            pressure.
-          </ThemedText>
-          <Pressable
-            onPress={() => Linking.openURL('https://www.mollygebrian.com')}
-            style={[styles.linkBtn, { borderColor: C.tint }]}>
-            <ThemedText style={[styles.linkText, { color: C.tint }]}>
-              Visit mollygebrian.com
-            </ThemedText>
-          </Pressable>
+            <Pressable
+              onPress={() => Linking.openURL('https://www.mollygebrian.com')}
+              style={[styles.linkBtn, { borderColor: C.tint }]}>
+              <ThemedText style={[styles.linkText, { color: C.tint }]}>
+                Visit mollygebrian.com
+              </ThemedText>
+            </Pressable>
+          </CollapsibleHelp>
 
           <View style={[styles.divider, { backgroundColor: C.icon + '33' }]} />
 
