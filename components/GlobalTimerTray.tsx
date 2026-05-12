@@ -127,11 +127,10 @@ export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillPro
       playItCold.setConfig({ enabled: false });
       return;
     }
-    if (!playItCold.config.pieceId) {
-      setPickerOpen(true);
-      return;
-    }
-    playItCold.setConfig({ enabled: true });
+    // Always ask which passage on each toggle-on — the previously chosen
+    // pieceId is intentionally not reused, since the user may want to drop
+    // in a different surprise passage each session.
+    setPickerOpen(true);
   }
 
   return (

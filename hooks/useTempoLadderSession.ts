@@ -242,7 +242,11 @@ export function useTempoLadderSession(id: string | undefined) {
     setCelebrating(null);
   }
 
-  async function endSession(annotation?: { mood: string | null; note: string | null }) {
+  async function endSession(annotation?: {
+    mood: string | null;
+    note: string | null;
+    remindNext?: boolean;
+  }) {
     if (!exerciseId || !id) {
       router.back();
       return;
@@ -259,6 +263,7 @@ export function useTempoLadderSession(id: string | undefined) {
       };
       if (annotation?.mood) data.mood = annotation.mood;
       if (annotation?.note) data.note = annotation.note;
+      if (annotation?.remindNext) data.remindNext = true;
       await logPractice(id, 'tempo_ladder', data, exerciseId);
     }
 

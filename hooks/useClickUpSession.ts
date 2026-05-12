@@ -177,7 +177,11 @@ export function useClickUpSession(id: string | undefined) {
     setCelebrating(false);
   }
 
-  async function doneSession(annotation?: { mood: string | null; note: string | null }) {
+  async function doneSession(annotation?: {
+    mood: string | null;
+    note: string | null;
+    remindNext?: boolean;
+  }) {
     if (!id || !exerciseId) {
       router.back();
       return;
@@ -191,6 +195,7 @@ export function useClickUpSession(id: string | undefined) {
     };
     if (annotation?.mood) data.mood = annotation.mood;
     if (annotation?.note) data.note = annotation.note;
+    if (annotation?.remindNext) data.remindNext = true;
     await logPractice(id, 'click_up', data, exerciseId);
     metronome.stop();
     setCelebrating(false);

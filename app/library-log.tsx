@@ -21,9 +21,9 @@ import {
 } from '@/lib/db/repos/practiceLog';
 
 const STRATEGY_LABELS: Record<string, string> = {
-  tempo_ladder: 'TL',
-  click_up: 'ICU',
-  rhythmic: 'RV',
+  tempo_ladder: 'Tempo Ladder',
+  click_up: 'Interleaved Click-Up',
+  rhythmic: 'Rhythmic Variation',
   interleaved: 'Serial',
   chunking: 'Chunking',
   add_a_note: 'Add a Note',
@@ -87,8 +87,23 @@ function recordingUri(entry: LibraryPracticeLogEntry): string | null {
   }
 }
 
+function strategyLabel(e: LibraryPracticeLogEntry): string {
+  if (e.strategy === 'interleaved') {
+    try {
+      if (e.data_json) {
+        const data = JSON.parse(e.data_json);
+        if (data?.order === 'random') return 'Interleaved';
+      }
+    } catch {
+      // ignore — fall through to default
+    }
+    return 'Serial';
+  }
+  return STRATEGY_LABELS[e.strategy] ?? e.strategy;
+}
+
 function entryLabel(e: LibraryPracticeLogEntry): string {
-  const label = STRATEGY_LABELS[e.strategy] ?? e.strategy;
+  const label = strategyLabel(e);
   const exercise =
     e.exercise_name && e.exercise_name.trim().length > 0 ? e.exercise_name : null;
   const detail = formatDetail(e);
@@ -113,6 +128,16 @@ function parseMoodNote(entry: LibraryPracticeLogEntry): {
     };
   } catch {
     return { mood: null, note: null };
+  }
+}
+
+function parseRemindNext(entry: LibraryPracticeLogEntry): boolean {
+  if (!entry.data_json) return false;
+  try {
+    const data = JSON.parse(entry.data_json);
+    return data?.remindNext === true;
+  } catch {
+    return false;
   }
 }
 
@@ -251,8 +276,13 @@ export default function LibraryLogScreen() {
   }, [refresh]);
 
   const editingParsed = editing ? parseMoodNote(editing) : null;
+  const editingRemindNext = editing ? parseRemindNext(editing) : false;
 
-  async function onEditSubmit(payload: { mood: string | null; note: string | null }) {
+  async function onEditSubmit(payload: {
+    mood: string | null;
+    note: string | null;
+    remindNext: boolean;
+  }) {
     if (!editing) return;
     await updatePracticeLogMoodNote(editing.id, payload);
     setEditing(null);
@@ -661,6 +691,7 @@ export default function LibraryLogScreen() {
         subtitle={editing?.piece_title ?? undefined}
         initialMood={editingParsed?.mood ?? null}
         initialNote={editingParsed?.note ?? null}
+        initialRemindNext={editingRemindNext}
         submitLabel="Save"
         cancelLabel="Cancel"
         onSubmit={onEditSubmit}

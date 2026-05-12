@@ -338,7 +338,11 @@ export default function InterleavedScreen() {
     setNotePromptVisible(true);
   }
 
-  async function finishLog(mood: string | null, note: string | null) {
+  async function finishLog(
+    mood: string | null,
+    note: string | null,
+    remindNext: boolean = false,
+  ) {
     setNotePromptVisible(false);
     setCelebrating(false);
     for (const spot of spots) {
@@ -355,6 +359,7 @@ export default function InterleavedScreen() {
         if (tempo != null) data.tempo = tempo;
         if (mood) data.mood = mood;
         if (note) data.note = note;
+        if (remindNext) data.remindNext = true;
         await logPractice(spot.passage.id, 'interleaved', data);
       } catch {
         // ignore — keep navigation flowing
@@ -780,7 +785,7 @@ export default function InterleavedScreen() {
         }
         submitLabel="Save & finish"
         cancelLabel="Skip"
-        onSubmit={({ mood, note }) => finishLog(mood, note)}
+        onSubmit={({ mood, note, remindNext }) => finishLog(mood, note, remindNext)}
         onSkip={() => finishLog(null, null)}
       />
     </ThemedView>
@@ -829,7 +834,11 @@ function TimerActive({
     setNotePromptVisible(true);
   }
 
-  async function finishLog(mood: string | null, note: string | null) {
+  async function finishLog(
+    mood: string | null,
+    note: string | null,
+    remindNext: boolean = false,
+  ) {
     setNotePromptVisible(false);
     dismissTimerCelebration();
     const snap = getTimerSnapshot();
@@ -847,6 +856,7 @@ function TimerActive({
           if (tempo != null) data.tempo = tempo;
           if (mood) data.mood = mood;
           if (note) data.note = note;
+          if (remindNext) data.remindNext = true;
           await logPractice(spot.passage.id, 'interleaved', data);
         } catch {
           // ignore — keep navigation flowing
@@ -1005,7 +1015,7 @@ function TimerActive({
         subtitle={`Serial Practice · timer · ${order === 'serial' ? 'serial' : 'interleaved'} · ${timerMinutes} min`}
         submitLabel="Save & finish"
         cancelLabel="Skip"
-        onSubmit={({ mood, note }) => finishLog(mood, note)}
+        onSubmit={({ mood, note, remindNext }) => finishLog(mood, note, remindNext)}
         onSkip={() => finishLog(null, null)}
       />
     </ThemedView>

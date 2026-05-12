@@ -189,7 +189,7 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
 
 export async function updatePracticeLogMoodNote(
   id: number,
-  patch: { mood: string | null; note: string | null },
+  patch: { mood: string | null; note: string | null; remindNext?: boolean },
 ): Promise<void> {
   const { data: row, error: selErr } = await supabase
     .from('practice_log')
@@ -214,6 +214,10 @@ export async function updatePracticeLogMoodNote(
   else data.mood = patch.mood;
   if (patch.note === null) delete data.note;
   else data.note = patch.note;
+  if (patch.remindNext !== undefined) {
+    if (patch.remindNext) data.remindNext = true;
+    else delete data.remindNext;
+  }
   const nextJson = Object.keys(data).length > 0 ? JSON.stringify(data) : null;
 
   const { error } = await supabase
@@ -221,6 +225,100 @@ export async function updatePracticeLogMoodNote(
     .update({ data_json: nextJson })
     .eq('id', id);
   if (error) throw error;
+}
+
+// A flagged practice-log note that should appear on the passage screen until
+// the user dismisses it.
+export type PassageReminder = {
+  id: number;
+  strategy: string;
+  note: string;
+  practiced_at: number;
+  exercise_name: string | null;
+};
+
+export async function listPassageReminders(
+  piece_id: string,
+): Promise<PassageReminder[]> {
+  const { data, error } = await supabase
+    .from('practice_log')
+    .select('id, strategy, practiced_at, data_json, exercise_id')
+    .eq('piece_id', piece_id)
+    .order('practiced_at', { ascending: false })
+    .limit(40);
+  if (error) throw error;
+  const rows = (data ?? []) as Array<{
+    id: number;
+    strategy: string;
+    practiced_at: number;
+    data_json: string | null;
+    exercise_id: string | null;
+  }>;
+
+  const reminders: PassageReminder[] = [];
+  const exerciseIds = new Set<string>();
+  for (const r of rows) {
+    if (!r.data_json) continue;
+    try {
+      const d = JSON.parse(r.data_json);
+      if (d?.remindNext !== true) continue;
+      const note = typeof d?.note === 'string' ? d.note.trim() : '';
+      if (note.length === 0) continue;
+      reminders.push({
+        id: r.id,
+        strategy: r.strategy,
+        note,
+        practiced_at: r.practiced_at,
+        exercise_name: null,
+      });
+      if (r.exercise_id) exerciseIds.add(r.exercise_id);
+    } catch {
+      // skip corrupt rows
+    }
+  }
+
+  if (exerciseIds.size > 0) {
+    const { data: exs } = await supabase
+      .from('exercises')
+      .select('id, name')
+      .in('id', Array.from(exerciseIds));
+    const nameById = new Map<string, string>();
+    for (const e of (exs ?? []) as Array<{ id: string; name: string | null }>) {
+      if (e.name) nameById.set(e.id, e.name);
+    }
+    for (const r of reminders) {
+      // Re-attach exercise name from the source row.
+      const src = rows.find((x) => x.id === r.id);
+      if (src?.exercise_id) r.exercise_name = nameById.get(src.exercise_id) ?? null;
+    }
+  }
+
+  return reminders;
+}
+
+export async function clearReminder(id: number): Promise<void> {
+  const { data: row, error: selErr } = await supabase
+    .from('practice_log')
+    .select('data_json')
+    .eq('id', id)
+    .maybeSingle();
+  if (selErr) throw selErr;
+  if (!row || !row.data_json) return;
+  try {
+    const parsed = JSON.parse(row.data_json);
+    if (parsed && typeof parsed === 'object') {
+      delete (parsed as Record<string, unknown>).remindNext;
+      const nextJson =
+        Object.keys(parsed).length > 0 ? JSON.stringify(parsed) : null;
+      const { error } = await supabase
+        .from('practice_log')
+        .update({ data_json: nextJson })
+        .eq('id', id);
+      if (error) throw error;
+    }
+  } catch {
+    // skip corrupt rows
+  }
 }
 
 export async function deletePracticeLog(id: number): Promise<void> {

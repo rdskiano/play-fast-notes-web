@@ -24,9 +24,14 @@ type Props = {
   subtitle?: string;
   initialMood?: string | null;
   initialNote?: string | null;
+  initialRemindNext?: boolean;
   submitLabel?: string;
   cancelLabel?: string;
-  onSubmit: (payload: { mood: string | null; note: string | null }) => void;
+  onSubmit: (payload: {
+    mood: string | null;
+    note: string | null;
+    remindNext: boolean;
+  }) => void;
   onSkip: () => void;
   onDelete?: () => void;
 };
@@ -41,6 +46,7 @@ export function PracticeLogNotePrompt({
   visible,
   initialMood = null,
   initialNote = null,
+  initialRemindNext = false,
   submitLabel = 'Save',
   cancelLabel = 'Skip',
   onSubmit,
@@ -53,17 +59,19 @@ export function PracticeLogNotePrompt({
   // lets you set one — protects existing log rows that already carry a mood.
   const [mood, setMood] = useState<string | null>(null);
   const [note, setNote] = useState('');
+  const [remindNext, setRemindNext] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setMood(initialMood ?? null);
       setNote(initialNote ?? '');
+      setRemindNext(initialRemindNext ?? false);
     }
-  }, [visible, initialMood, initialNote]);
+  }, [visible, initialMood, initialNote, initialRemindNext]);
 
   function submit() {
     const trimmed = note.trim();
-    onSubmit({ mood, note: trimmed.length > 0 ? trimmed : null });
+    onSubmit({ mood, note: trimmed.length > 0 ? trimmed : null, remindNext });
   }
 
   return (
@@ -85,6 +93,26 @@ export function PracticeLogNotePrompt({
             autoFocus
             style={[styles.input, { color: C.text, borderColor: C.icon }]}
           />
+
+          <Pressable
+            onPress={() => setRemindNext((v) => !v)}
+            style={styles.remindRow}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: remindNext }}>
+            <View
+              style={[
+                styles.checkbox,
+                {
+                  borderColor: remindNext ? C.tint : C.icon,
+                  backgroundColor: remindNext ? C.tint : 'transparent',
+                },
+              ]}>
+              {remindNext && <ThemedText style={styles.checkmark}>✓</ThemedText>}
+            </View>
+            <ThemedText style={[styles.remindLabel, { color: C.text }]}>
+              Remind me of this next time
+            </ThemedText>
+          </Pressable>
 
           <View style={styles.row}>
             {onDelete && (
@@ -158,6 +186,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlignVertical: 'top',
   },
+  remindRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: Borders.medium,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkmark: { color: '#fff', fontSize: 14, fontWeight: Type.weight.heavy, lineHeight: 16 },
+  remindLabel: { fontSize: Type.size.md, fontWeight: Type.weight.semibold },
   row: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   skip: { paddingHorizontal: 14, paddingVertical: 10 },
   skipText: { fontWeight: Type.weight.bold, fontSize: Type.size.md },

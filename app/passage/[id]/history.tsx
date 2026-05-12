@@ -77,6 +77,16 @@ function parseMoodNote(entry: PracticeLogEntry): {
   }
 }
 
+function parseRemindNext(entry: PracticeLogEntry): boolean {
+  if (!entry.data_json) return false;
+  try {
+    const data = JSON.parse(entry.data_json);
+    return data?.remindNext === true;
+  } catch {
+    return false;
+  }
+}
+
 function formatDetail(entry: PracticeLogEntry): string | null {
   if (!entry.data_json) return null;
   try {
@@ -125,6 +135,21 @@ function recordingUri(entry: PracticeLogEntry): string | null {
   }
 }
 
+function strategyLabel(e: PracticeLogEntry): string {
+  if (e.strategy === 'interleaved') {
+    try {
+      if (e.data_json) {
+        const data = JSON.parse(e.data_json);
+        if (data?.order === 'random') return 'Interleaved';
+      }
+    } catch {
+      // ignore — fall through to default
+    }
+    return 'Serial';
+  }
+  return STRATEGY_LABELS[e.strategy] ?? e.strategy;
+}
+
 type Section = { title: string; data: PracticeLogEntry[] };
 
 export default function HistoryScreen() {
@@ -160,8 +185,13 @@ export default function HistoryScreen() {
   }, [id, refresh]);
 
   const editingParsed = editing ? parseMoodNote(editing) : null;
+  const editingRemindNext = editing ? parseRemindNext(editing) : false;
 
-  async function onEditSubmit(payload: { mood: string | null; note: string | null }) {
+  async function onEditSubmit(payload: {
+    mood: string | null;
+    note: string | null;
+    remindNext: boolean;
+  }) {
     if (!editing) return;
     await updatePracticeLogMoodNote(editing.id, payload);
     setEditing(null);
@@ -224,7 +254,7 @@ export default function HistoryScreen() {
             <ThemedText style={styles.dateHeader}>{section.title}</ThemedText>
           )}
           renderItem={({ item }) => {
-            const label = STRATEGY_LABELS[item.strategy] ?? item.strategy;
+            const label = strategyLabel(item);
             const color = STRATEGY_COLORS[item.strategy] ?? C.icon;
             const detail = formatDetail(item);
             const exerciseName =
@@ -266,6 +296,7 @@ export default function HistoryScreen() {
         title="Edit log entry"
         initialMood={editingParsed?.mood ?? null}
         initialNote={editingParsed?.note ?? null}
+        initialRemindNext={editingRemindNext}
         submitLabel="Save"
         cancelLabel="Cancel"
         onSubmit={onEditSubmit}

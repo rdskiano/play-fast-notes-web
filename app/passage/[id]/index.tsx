@@ -7,6 +7,7 @@ import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
 import type { Grouping } from '@/lib/strategies/rhythmPatterns';
 
+import { PassageReminders } from '@/components/PassageReminders';
 import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { SelfLedSheet } from '@/components/SelfLedSheet';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
@@ -277,6 +278,7 @@ export default function PassageDetailScreen() {
             </ThemedText>
           </Pressable>
         </View>
+        <PassageReminders passageId={passage.id} />
       </View>
 
       <div

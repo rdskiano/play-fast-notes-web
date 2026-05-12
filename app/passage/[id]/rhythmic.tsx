@@ -111,13 +111,18 @@ export default function RhythmicScreen() {
     setNotePromptVisible(true);
   }
 
-  async function finishLog(mood: string | null, note: string | null) {
+  async function finishLog(
+    mood: string | null,
+    note: string | null,
+    remindNext: boolean = false,
+  ) {
     setNotePromptVisible(false);
     if (id) {
       await stampLastUsed(id, 'rhythmic');
       const data: Record<string, unknown> = {};
       if (mood) data.mood = mood;
       if (note) data.note = note;
+      if (remindNext) data.remindNext = true;
       await logPractice(
         id,
         'rhythmic',
@@ -309,7 +314,7 @@ export default function RhythmicScreen() {
         subtitle={passage?.title ?? undefined}
         submitLabel="Save & finish"
         cancelLabel="Skip"
-        onSubmit={({ mood, note }) => finishLog(mood, note)}
+        onSubmit={({ mood, note, remindNext }) => finishLog(mood, note, remindNext)}
         onSkip={() => finishLog(null, null)}
       />
     </ThemedView>

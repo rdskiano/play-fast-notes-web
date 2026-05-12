@@ -307,10 +307,10 @@ export default function TempoLadderScreen() {
         subtitle={passage?.title ?? 'Tempo Ladder'}
         submitLabel="Save & finish"
         cancelLabel="Skip"
-        onSubmit={({ mood, note }) => {
+        onSubmit={({ mood, note, remindNext }) => {
           setNotePromptVisible(false);
           dismissCelebration();
-          endSession({ mood, note });
+          endSession({ mood, note, remindNext });
         }}
         onSkip={() => {
           setNotePromptVisible(false);

@@ -26,9 +26,9 @@ import {
 } from '@/lib/db/repos/practiceLog';
 
 const STRATEGY_LABELS: Record<string, string> = {
-  tempo_ladder: 'TL',
-  click_up: 'ICU',
-  rhythmic: 'RV',
+  tempo_ladder: 'Tempo Ladder',
+  click_up: 'Interleaved Click-Up',
+  rhythmic: 'Rhythmic Variation',
   interleaved: 'Serial',
   chunking: 'Chunking',
   add_a_note: 'Add a Note',
@@ -68,6 +68,16 @@ function parseMoodNote(entry: PracticeLogWithTitle): DetailExtras {
   }
 }
 
+function parseRemindNext(entry: PracticeLogWithTitle): boolean {
+  if (!entry.data_json) return false;
+  try {
+    const data = JSON.parse(entry.data_json);
+    return data?.remindNext === true;
+  } catch {
+    return false;
+  }
+}
+
 function formatDetail(entry: PracticeLogWithTitle): string | null {
   if (!entry.data_json) return null;
   try {
@@ -100,6 +110,21 @@ function recordingUri(entry: PracticeLogWithTitle): string | null {
   } catch {
     return null;
   }
+}
+
+function strategyLabel(e: PracticeLogWithTitle): string {
+  if (e.strategy === 'interleaved') {
+    try {
+      if (e.data_json) {
+        const data = JSON.parse(e.data_json);
+        if (data?.order === 'random') return 'Interleaved';
+      }
+    } catch {
+      // ignore — fall through to default
+    }
+    return 'Serial';
+  }
+  return STRATEGY_LABELS[e.strategy] ?? e.strategy;
 }
 
 function dateKey(ts: number): string {
@@ -188,8 +213,13 @@ export default function DocumentLogScreen() {
   }, [refresh]);
 
   const editingParsed = editing ? parseMoodNote(editing) : null;
+  const editingRemindNext = editing ? parseRemindNext(editing) : false;
 
-  async function onEditSubmit(payload: { mood: string | null; note: string | null }) {
+  async function onEditSubmit(payload: {
+    mood: string | null;
+    note: string | null;
+    remindNext: boolean;
+  }) {
     if (!editing) return;
     await updatePracticeLogMoodNote(editing.id, payload);
     setEditing(null);
@@ -218,7 +248,7 @@ export default function DocumentLogScreen() {
       </ThemedText>
       <View style={styles.pillRow}>
         {pg.entries.map((e) => {
-          const label = STRATEGY_LABELS[e.strategy] ?? e.strategy;
+          const label = strategyLabel(e);
           const color = STRATEGY_COLORS[e.strategy] ?? C.icon;
           const detail = formatDetail(e);
           const exerciseName =
@@ -318,6 +348,7 @@ export default function DocumentLogScreen() {
         subtitle={editing?.piece_title ?? undefined}
         initialMood={editingParsed?.mood ?? null}
         initialNote={editingParsed?.note ?? null}
+        initialRemindNext={editingRemindNext}
         submitLabel="Save"
         cancelLabel="Cancel"
         onSubmit={onEditSubmit}

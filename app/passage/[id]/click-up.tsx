@@ -323,10 +323,10 @@ export default function ClickUpScreen() {
         subtitle={passage?.title ?? 'Interleaved Click-Up'}
         submitLabel="Save & finish"
         cancelLabel="Skip"
-        onSubmit={({ mood, note }) => {
+        onSubmit={({ mood, note, remindNext }) => {
           setNotePromptVisible(false);
           dismissCelebration();
-          doneSession({ mood, note });
+          doneSession({ mood, note, remindNext });
         }}
         onSkip={() => {
           setNotePromptVisible(false);
