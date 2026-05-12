@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, Opacity, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useMetronome } from '@/lib/audio/useMetronome';
 
@@ -98,9 +98,14 @@ export function BpmStepper({
       {metronome && (
         <Pressable
           onPress={toggle}
+          hitSlop={8}
           style={[styles.playBtn, { backgroundColor: running ? '#c0392b' : '#e67e22' }]}>
-          <ThemedText style={styles.playBtnText}>
-            {running ? '■ Stop' : '▶ Start'}
+          <ThemedText
+            style={[
+              styles.playBtnText,
+              !running && styles.playBtnTextTriangle,
+            ]}>
+            {running ? '■' : '▶'}
           </ThemedText>
         </Pressable>
       )}
@@ -140,14 +145,20 @@ const styles = StyleSheet.create({
   },
   sliderLabelText: { fontSize: 10, opacity: Opacity.muted },
   playBtn: {
-    borderRadius: Radii.lg,
-    paddingVertical: 14,
+    alignSelf: 'center',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   playBtnText: {
     color: '#fff',
     fontWeight: Type.weight.black,
-    fontSize: 17,
-    letterSpacing: 0.3,
+    fontSize: 22,
+    lineHeight: 22,
+  },
+  playBtnTextTriangle: {
+    marginLeft: 3,
   },
 });

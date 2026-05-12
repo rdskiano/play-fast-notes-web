@@ -276,15 +276,13 @@ export default function SelfLedRecordingScreen() {
                 style={{ width: '100%' }}
               />
             )}
-            <View style={styles.row}>
-              <Button
-                label="↻ Re-record"
-                variant="ghost"
-                onPress={reRecord}
-              />
-              <View style={{ flex: 1 }} />
-            </View>
             <View style={styles.saveCol}>
+              <Button
+                label="↻ Record again"
+                variant="outline"
+                onPress={reRecord}
+                fullWidth
+              />
               <Button
                 label="Log session only"
                 variant="primary"
@@ -298,8 +296,9 @@ export default function SelfLedRecordingScreen() {
                 fullWidth
               />
               <ThemedText style={[styles.saveHelp, { color: C.icon }]}>
-                Log only writes the duration to your practice log. Keep
-                recording also uploads the audio so you can play it back later.
+                Record again to re-take. Log only writes the duration to your
+                practice log. Keep recording also uploads the audio so you can
+                play it back later.
               </ThemedText>
             </View>
           </View>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { SubdivisionGlyph } from '@/components/SubdivisionGlyph';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
@@ -21,7 +22,6 @@ type Props = {
 };
 
 const SUBS: Subdivision[] = [1, 2, 3];
-const SUB_LABEL: Record<Subdivision, string> = { 1: '♩', 2: '♫', 3: '3' };
 
 const CARD_W = 300;
 const BPM_MIN = 30;
@@ -269,9 +269,7 @@ export function FloatingSlowClickUpControls({
                       backgroundColor: subdivision === s ? C.tint : 'transparent',
                     },
                   ]}>
-                  <ThemedText style={{ color: subdivision === s ? '#fff' : C.text }}>
-                    {SUB_LABEL[s]}
-                  </ThemedText>
+                  <SubdivisionGlyph subdivision={s} />
                 </Pressable>
               ))}
             </View>
@@ -371,10 +369,11 @@ const styles = StyleSheet.create({
   subChip: {
     borderWidth: Borders.thin,
     borderRadius: Radii['2xl'],
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    minWidth: 54,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 66,
     alignItems: 'center',
+    justifyContent: 'center',
   },
 
   volRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },

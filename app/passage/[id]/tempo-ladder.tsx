@@ -78,6 +78,31 @@ export default function TempoLadderScreen() {
             Slow-practice with graduated tempos. Set your goal and target reps.
           </ThemedText>
 
+          <ThemedText type="subtitle">How it works</ThemedText>
+          <ThemedText style={styles.blurbText}>
+            Tempo Ladder builds tempo control through disciplined repetition. Start well
+            below your target tempo and play the passage with the metronome. After each
+            rep, tap <ThemedText style={styles.blurbBold}>Clean ✓</ThemedText> if it was
+            accurate or <ThemedText style={styles.blurbBold}>Miss ✗</ThemedText> if it was
+            not. A <ThemedText style={styles.blurbBold}>Miss ✗</ThemedText> resets your
+            streak to zero.
+          </ThemedText>
+          <ThemedText style={styles.blurbText}>
+            Once you hit your target number of consecutive{' '}
+            <ThemedText style={styles.blurbBold}>Clean ✓</ThemedText> reps, the metronome
+            automatically advances by your chosen increment. The goal is to climb from
+            your starting tempo all the way to your target without rushing — building
+            real muscle memory at every speed along the way.
+          </ThemedText>
+          <ThemedText style={styles.blurbText}>
+            In <ThemedText style={styles.blurbBold}>Step click-up</ThemedText> the tempo
+            increases in fixed jumps. In{' '}
+            <ThemedText style={styles.blurbBold}>Randomized cluster</ThemedText> each rep
+            picks a random tempo from a window that slides upward as you succeed,
+            training flexibility within a range.
+          </ThemedText>
+          <View style={[styles.divider, { backgroundColor: C.icon + '33' }]} />
+
           <View style={styles.row}>
             <View style={styles.field}>
               <ThemedText style={styles.label}>
@@ -183,30 +208,6 @@ export default function TempoLadderScreen() {
             ))}
           </View>
 
-          <View style={[styles.divider, { backgroundColor: C.icon + '33' }]} />
-          <ThemedText type="subtitle">How it works</ThemedText>
-          <ThemedText style={styles.blurbText}>
-            Tempo Ladder builds tempo control through disciplined repetition. Start well
-            below your target tempo and play the passage with the metronome. After each
-            rep, tap <ThemedText style={styles.blurbBold}>Clean ✓</ThemedText> if it was
-            accurate or <ThemedText style={styles.blurbBold}>Miss ✗</ThemedText> if it was
-            not. A <ThemedText style={styles.blurbBold}>Miss ✗</ThemedText> resets your
-            streak to zero.
-          </ThemedText>
-          <ThemedText style={styles.blurbText}>
-            Once you hit your target number of consecutive{' '}
-            <ThemedText style={styles.blurbBold}>Clean ✓</ThemedText> reps, the metronome
-            automatically advances by your chosen increment. The goal is to climb from
-            your starting tempo all the way to your target without rushing — building
-            real muscle memory at every speed along the way.
-          </ThemedText>
-          <ThemedText style={styles.blurbText}>
-            In <ThemedText style={styles.blurbBold}>Step click-up</ThemedText> the tempo
-            increases in fixed jumps. In{' '}
-            <ThemedText style={styles.blurbBold}>Randomized cluster</ThemedText> each rep
-            picks a random tempo from a window that slides upward as you succeed,
-            training flexibility within a range.
-          </ThemedText>
         </ScrollView>
 
         <View style={{ margin: 20 }}>

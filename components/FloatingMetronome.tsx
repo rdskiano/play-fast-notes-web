@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { SubdivisionGlyph } from '@/components/SubdivisionGlyph';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
@@ -18,10 +19,11 @@ type Props = {
   onToggle: () => void;
   initialX?: number;
   initialY?: number;
+  defaultCollapsed?: boolean;
+  anchor?: 'left' | 'right';
 };
 
 const SUBS: Subdivision[] = [1, 2, 3];
-const SUB_LABEL: Record<Subdivision, string> = { 1: '♩', 2: '♫', 3: '3' };
 
 const CARD_W = 220;
 const BPM_MIN = 30;
@@ -38,14 +40,21 @@ export function FloatingMetronome({
   onSubdivision,
   onVolume,
   onToggle,
-  initialX = 16,
+  initialX,
   initialY = 100,
+  defaultCollapsed = false,
+  anchor = 'left',
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
 
-  const [collapsed, setCollapsed] = useState(false);
-  const [pos, setPos] = useState({ x: initialX, y: initialY });
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [pos, setPos] = useState(() => {
+    if (initialX !== undefined) return { x: initialX, y: initialY };
+    const w = typeof window !== 'undefined' ? window.innerWidth : 0;
+    const x = anchor === 'right' ? Math.max(16, w - CARD_W - 16) : 16;
+    return { x, y: initialY };
+  });
   const [scale, setScale] = useState(0.85);
 
   const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
@@ -255,9 +264,7 @@ export function FloatingMetronome({
                       backgroundColor: subdivision === s ? C.tint : 'transparent',
                     },
                   ]}>
-                  <ThemedText style={{ color: subdivision === s ? '#fff' : C.text }}>
-                    {SUB_LABEL[s]}
-                  </ThemedText>
+                  <SubdivisionGlyph subdivision={s} />
                 </Pressable>
               ))}
             </View>
@@ -344,10 +351,11 @@ const styles = StyleSheet.create({
   subChip: {
     borderWidth: Borders.thin,
     borderRadius: Radii['2xl'],
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-    minWidth: 44,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 66,
     alignItems: 'center',
+    justifyContent: 'center',
   },
 
   volRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },

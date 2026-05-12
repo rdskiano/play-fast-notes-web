@@ -33,6 +33,7 @@ import {
 } from '@/lib/db/repos/exercises';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
+import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import {
   CLEFS,
@@ -56,6 +57,8 @@ import {
 } from '@/lib/strategies/rhythmPatterns';
 
 type Phase = 'setup' | 'entry' | 'generate';
+
+const LAST_INSTRUMENT_KEY = 'rhythm.lastInstrumentId';
 
 type StoredConfig = {
   instrumentId?: string;
@@ -115,15 +118,24 @@ export default function RhythmBuilderScreen() {
     getPassage(id).then((p) => {
       if (!cancelled) setPassage(p);
     });
+    async function applyLastInstrumentFallback() {
+      const lastId = await getSetting(LAST_INSTRUMENT_KEY).catch(() => null);
+      if (cancelled || !lastId) return;
+      const next = INSTRUMENTS.find((i) => i.id === lastId);
+      if (next) setInstrument(next);
+    }
     if (exerciseIdParam) {
-      getExerciseById(exerciseIdParam).then((ex) => {
+      getExerciseById(exerciseIdParam).then(async (ex) => {
         if (cancelled) return;
         setExercise(ex);
         const cfg = parseConfig(ex?.config_json);
         if (cfg.instrumentId) {
           const next = INSTRUMENTS.find((i) => i.id === cfg.instrumentId);
           if (next) setInstrument(next);
+        } else {
+          await applyLastInstrumentFallback();
         }
+        if (cancelled) return;
         if (cfg.keyId) {
           const next = KEY_SIGNATURES.find((k) => k.id === cfg.keyId);
           if (next) {
@@ -147,7 +159,9 @@ export default function RhythmBuilderScreen() {
         setHydrated(true);
       });
     } else {
-      setHydrated(true);
+      applyLastInstrumentFallback().finally(() => {
+        if (!cancelled) setHydrated(true);
+      });
     }
     return () => {
       cancelled = true;
@@ -156,6 +170,14 @@ export default function RhythmBuilderScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, exerciseIdParam]);
+
+  // Remember the most recently chosen instrument across rhythm exercises so
+  // a fresh exercise starts on the user's last instrument instead of the
+  // alphabetical default.
+  useEffect(() => {
+    if (!hydrated) return;
+    setSetting(LAST_INSTRUMENT_KEY, instrument.id).catch(() => undefined);
+  }, [hydrated, instrument]);
 
   // Debounced save of all entry-phase state into exercises.config_json.
   useEffect(() => {
@@ -623,8 +645,9 @@ export default function RhythmBuilderScreen() {
             onSubdivision={metronome.setSubdivision}
             onVolume={metronome.setVolume}
             onToggle={metronome.toggle}
-            initialX={16}
+            anchor="right"
             initialY={160}
+            defaultCollapsed
           />
         </>
       )}

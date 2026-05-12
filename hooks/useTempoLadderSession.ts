@@ -5,7 +5,7 @@ import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import { getOrCreateExercise } from '@/lib/db/repos/exercises';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
-import { logPractice, updatePracticeLogMoodNote } from '@/lib/db/repos/practiceLog';
+import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import {
   advanceClusterWindow,
@@ -39,7 +39,7 @@ export function useTempoLadderSession(id: string | undefined) {
   const [phase, setPhase] = useState<'config' | 'playing'>('config');
   const [celebrating, setCelebrating] = useState<Celebration>(null);
   const [completedSets, setCompletedSets] = useState(0);
-  const lastHitLogIdRef = useRef<number | null>(null);
+  const lastHitTempoRef = useRef<number | null>(null);
 
   const [mode, setMode] = useState<Mode>('step');
   const [startTempo, setStartTempo] = useState('60');
@@ -98,7 +98,7 @@ export function useTempoLadderSession(id: string | undefined) {
 
   async function startSession() {
     if (!exerciseId || !id) return;
-    lastHitLogIdRef.current = null;
+    lastHitTempoRef.current = null;
     setCompletedSets(0);
 
     if (mode === 'step') {
@@ -160,24 +160,13 @@ export function useTempoLadderSession(id: string | undefined) {
 
     if (hitTarget) {
       setCompletedSets((n) => n + 1);
+      lastHitTempoRef.current = progress.current_tempo;
       const reached =
         progress.mode === 'cluster'
           ? (progress.cluster_high ?? progress.goal_tempo) >= progress.goal_tempo
           : progress.current_tempo >= progress.goal_tempo;
       setProgress({ ...progress, current_streak: nextStreak });
       await updateTempoLadderState(exerciseId, progress.current_tempo, nextStreak);
-      await stampLastUsed(id, 'tempo_ladder');
-      const hitLogId = await logPractice(
-        id,
-        'tempo_ladder',
-        {
-          tempo: progress.current_tempo,
-          goalTempo: progress.goal_tempo,
-          mode: progress.mode,
-        },
-        exerciseId,
-      );
-      lastHitLogIdRef.current = hitLogId;
       metronome.stop();
       setCelebrating({ reached });
       return;
@@ -253,25 +242,15 @@ export function useTempoLadderSession(id: string | undefined) {
     await updateTempoLadderState(exerciseId, bpm, progress?.current_streak ?? 0);
     if (completedSets > 0) {
       await stampLastUsed(id, 'tempo_ladder');
-      const hitLogId = lastHitLogIdRef.current;
-      if (hitLogId !== null) {
-        if (annotation && (annotation.mood || annotation.note)) {
-          await updatePracticeLogMoodNote(hitLogId, {
-            mood: annotation.mood ?? null,
-            note: annotation.note ?? null,
-          });
-        }
-      } else {
-        const data: Record<string, unknown> = {
-          tempo: bpm,
-          goalTempo: progress?.goal_tempo,
-          mode: progress?.mode,
-          completedSets,
-        };
-        if (annotation?.mood) data.mood = annotation.mood;
-        if (annotation?.note) data.note = annotation.note;
-        await logPractice(id, 'tempo_ladder', data, exerciseId);
-      }
+      const data: Record<string, unknown> = {
+        tempo: lastHitTempoRef.current ?? bpm,
+        goalTempo: progress?.goal_tempo,
+        mode: progress?.mode,
+        completedSets,
+      };
+      if (annotation?.mood) data.mood = annotation.mood;
+      if (annotation?.note) data.note = annotation.note;
+      await logPractice(id, 'tempo_ladder', data, exerciseId);
     }
     metronome.stop();
     router.back();
