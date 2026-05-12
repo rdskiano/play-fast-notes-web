@@ -45,6 +45,11 @@ export type TimerMinutes = 3 | 5 | 10 | 15;
 const REP_TARGETS: RepTarget[] = [3, 5, 10];
 const TIMER_OPTIONS: TimerMinutes[] = [3, 5, 10, 15];
 
+// Timer mode is disabled in the Serial Practice config UI to avoid overlap
+// with the global Move-On timer. Code paths remain so it can be flipped back
+// on once the UX distinction is resolved.
+const TIMER_MODE_ENABLED = false;
+
 type Phase = 'config' | 'select' | 'playing';
 
 type Section = {
@@ -395,21 +400,25 @@ export default function InterleavedScreen() {
             Configure your session
           </ThemedText>
 
-          <ThemedText style={styles.sectionLabel}>Practice mode</ThemedText>
-          <View style={styles.row}>
-            <Chip
-              label="Consistency"
-              subtitle="Number of correct reps in a row"
-              selected={mode === 'consistency'}
-              onPress={() => setMode('consistency')}
-            />
-            <Chip
-              label="Timer"
-              subtitle="Move on after x minutes"
-              selected={mode === 'timer'}
-              onPress={() => setMode('timer')}
-            />
-          </View>
+          {TIMER_MODE_ENABLED && (
+            <>
+              <ThemedText style={styles.sectionLabel}>Practice mode</ThemedText>
+              <View style={styles.row}>
+                <Chip
+                  label="Consistency"
+                  subtitle="Number of correct reps in a row"
+                  selected={mode === 'consistency'}
+                  onPress={() => setMode('consistency')}
+                />
+                <Chip
+                  label="Timer"
+                  subtitle="Move on after x minutes"
+                  selected={mode === 'timer'}
+                  onPress={() => setMode('timer')}
+                />
+              </View>
+            </>
+          )}
 
           <ThemedText style={styles.sectionLabel}>Order</ThemedText>
           <View style={styles.row}>

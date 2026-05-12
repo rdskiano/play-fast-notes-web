@@ -878,12 +878,16 @@ export default function LibraryScreen() {
             disabled
             style={[styles.modeSeg, styles.modeSegActive, { backgroundColor: C.tint }]}>
             <ThemedText style={styles.modeSegActiveText}>Blocked</ThemedText>
+            <ThemedText style={styles.modeSegActiveSub}>one at a time</ThemedText>
           </Pressable>
           <Pressable
             onPress={() => router.push('/interleaved')}
             style={[styles.modeSeg, { borderColor: C.tint }]}>
             <ThemedText style={[styles.modeSegText, { color: C.tint }]}>
-              Serial Practice
+              Serial
+            </ThemedText>
+            <ThemedText style={[styles.modeSegSub, { color: C.tint }]}>
+              several in a cycle
             </ThemedText>
           </Pressable>
         </View>
@@ -1265,7 +1269,9 @@ const styles = StyleSheet.create({
   },
   modeSegActive: { borderWidth: 0 },
   modeSegActiveText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
+  modeSegActiveSub: { color: '#fff', opacity: 0.85, fontSize: 11, marginTop: 1 },
   modeSegText: { fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
+  modeSegSub: { fontSize: 11, marginTop: 1, opacity: 0.8 },
   modeHelpBtn: {
     width: 36,
     height: 36,
