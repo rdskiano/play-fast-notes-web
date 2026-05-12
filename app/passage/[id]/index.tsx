@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
@@ -16,7 +16,12 @@ import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getOrCreateExercise } from '@/lib/db/repos/exercises';
-import { getPassage, type Passage } from '@/lib/db/repos/passages';
+import {
+  getPassage,
+  listPassagesInDocument,
+  parseRegions,
+  type Passage,
+} from '@/lib/db/repos/passages';
 import { getTempoLadder, type TempoLadderProgress } from '@/lib/db/repos/tempoLadder';
 
 type StrategyKey = 'tempo_ladder' | 'click_up' | 'rhythmic';
@@ -32,6 +37,22 @@ const STRATEGIES: StrategyDef[] = [
   { key: 'click_up', label: 'Interleaved Click-Up', enabled: true },
   { key: 'rhythmic', label: 'Rhythmic Variation', enabled: true },
 ];
+
+// Reading order across a document: page first, then top-to-bottom, then
+// left-to-right. The 30px y-tolerance treats two boxes on the same staff line
+// as horizontally ordered rather than top/bottom.
+function sortByReadingOrder(passages: Passage[]): Passage[] {
+  return [...passages].sort((a, b) => {
+    const ra = parseRegions(a.regions_json)[0];
+    const rb = parseRegions(b.regions_json)[0];
+    if (!ra && !rb) return a.title.localeCompare(b.title);
+    if (!ra) return 1;
+    if (!rb) return -1;
+    if (ra.page !== rb.page) return ra.page - rb.page;
+    if (Math.abs(ra.y - rb.y) > 30) return ra.y - rb.y;
+    return ra.x - rb.x;
+  });
+}
 
 const GROUPING_CHOICES: { n: Grouping; abc: string; w: number }[] = [
   { n: 3, abc: 'X:1\nM:none\nL:1/8\nK:none clef=none stafflines=0\nBBB', w: 70 },
@@ -55,6 +76,7 @@ export default function PassageDetailScreen() {
   const [rhythmicSheetOpen, setRhythmicSheetOpen] = useState(false);
   const [rhythmicStep, setRhythmicStep] = useState<'mode' | 'grouping'>('mode');
   const [selfLedOpen, setSelfLedOpen] = useState(false);
+  const [siblings, setSiblings] = useState<Passage[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -65,6 +87,16 @@ export default function PassageDetailScreen() {
           const p = await getPassage(id);
           if (cancelled) return;
           setPassage(p);
+          if (p?.document_id) {
+            try {
+              const sibs = await listPassagesInDocument(p.document_id);
+              if (!cancelled) setSiblings(sortByReadingOrder(sibs));
+            } catch {
+              // ignore — siblings are an enhancement, not required
+            }
+          } else {
+            setSiblings([]);
+          }
           try {
             const ex = await getOrCreateExercise(id, 'tempo_ladder');
             const tl = await getTempoLadder(ex.id);
@@ -80,6 +112,64 @@ export default function PassageDetailScreen() {
         cancelled = true;
       };
     }, [id]),
+  );
+
+  const { prev, next } = useMemo(() => {
+    if (!passage || siblings.length === 0) return { prev: null, next: null };
+    const idx = siblings.findIndex((s) => s.id === passage.id);
+    if (idx < 0) return { prev: null, next: null };
+    return {
+      prev: idx > 0 ? siblings[idx - 1] : null,
+      next: idx < siblings.length - 1 ? siblings[idx + 1] : null,
+    };
+  }, [siblings, passage]);
+
+  const goPrev = useCallback(() => {
+    if (prev) router.replace(`/passage/${prev.id}`);
+  }, [prev, router]);
+  const goNext = useCallback(() => {
+    if (next) router.replace(`/passage/${next.id}`);
+  }, [next, router]);
+
+  // Keyboard arrows on desktop. Skip while a sheet is open or focus is in
+  // an input — otherwise we steal text-cursor movement.
+  useEffect(() => {
+    if (rhythmicSheetOpen || selfLedOpen) return;
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goPrev();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goNext();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [goPrev, goNext, rhythmicSheetOpen, selfLedOpen]);
+
+  // Horizontal swipe over the score area. Threshold 60px, horizontal-dominant,
+  // and time-bounded so a slow drag does not count.
+  const swipeStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const onSwipeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    swipeStartRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+  }, []);
+  const onSwipeEnd = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const start = swipeStartRef.current;
+      swipeStartRef.current = null;
+      if (!start) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      const dt = Date.now() - start.t;
+      if (dt > 600) return;
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+      if (dx < 0) goNext();
+      else goPrev();
+    },
+    [goPrev, goNext],
   );
 
   if (loading) {
@@ -174,7 +264,13 @@ export default function PassageDetailScreen() {
             </ThemedText>
           </Pressable>
           <Pressable
-            onPress={() => router.push(`/passage/${passage.id}/crop`)}
+            onPress={() =>
+              passage.document_id
+                ? router.push(
+                    `/document/${passage.document_id}?resize=${passage.id}`,
+                  )
+                : router.push(`/passage/${passage.id}/crop`)
+            }
             style={[styles.outlinePill, { borderColor: C.icon }]}>
             <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
               Crop
@@ -183,21 +279,59 @@ export default function PassageDetailScreen() {
         </View>
       </View>
 
-      <View style={styles.body}>
-        {passage.source_uri ? (
-          <Image
-            source={{ uri: passage.source_uri }}
-            style={styles.scoreFill}
-            contentFit="contain"
-          />
-        ) : (
-          <View style={styles.noScore}>
-            <ThemedText style={{ color: C.icon, textAlign: 'center' }}>
-              No sheet music image yet.
+      <div
+        onPointerDown={onSwipeStart}
+        onPointerUp={onSwipeEnd}
+        onPointerCancel={() => {
+          swipeStartRef.current = null;
+        }}
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          position: 'relative',
+          touchAction: 'pan-y',
+        }}>
+        <View style={styles.body}>
+          {passage.source_uri ? (
+            <Image
+              source={{ uri: passage.source_uri }}
+              style={styles.scoreFill}
+              contentFit="contain"
+            />
+          ) : (
+            <View style={styles.noScore}>
+              <ThemedText style={{ color: C.icon, textAlign: 'center' }}>
+                No sheet music image yet.
+              </ThemedText>
+            </View>
+          )}
+        </View>
+        {prev && (
+          <Pressable
+            onPress={goPrev}
+            hitSlop={10}
+            style={[styles.spotNavBtn, styles.spotNavLeft, { borderColor: C.icon }]}>
+            <ThemedText style={[styles.spotNavGlyph, { color: C.tint }]}>‹</ThemedText>
+          </Pressable>
+        )}
+        {next && (
+          <Pressable
+            onPress={goNext}
+            hitSlop={10}
+            style={[styles.spotNavBtn, styles.spotNavRight, { borderColor: C.icon }]}>
+            <ThemedText style={[styles.spotNavGlyph, { color: C.tint }]}>›</ThemedText>
+          </Pressable>
+        )}
+        {siblings.length > 1 && (
+          <View style={styles.spotCounter} pointerEvents="none">
+            <ThemedText style={[styles.spotCounterText, { color: C.icon }]}>
+              {siblings.findIndex((s) => s.id === passage.id) + 1} / {siblings.length}
             </ThemedText>
           </View>
         )}
-      </View>
+      </div>
 
       <Modal
         visible={rhythmicSheetOpen}
@@ -417,4 +551,28 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     padding: Spacing.lg,
   },
+  spotNavBtn: {
+    position: 'absolute',
+    top: '50%',
+    width: 40,
+    height: 40,
+    marginTop: -20,
+    borderRadius: 20,
+    borderWidth: Borders.thin,
+    backgroundColor: '#ffffffcc',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spotNavLeft: { left: 8 },
+  spotNavRight: { right: 8 },
+  spotNavGlyph: { fontSize: 28, lineHeight: 30, fontWeight: Type.weight.heavy },
+  spotCounter: {
+    position: 'absolute',
+    bottom: 8,
+    alignSelf: 'center',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  spotCounterText: { fontSize: 11, fontWeight: Type.weight.semibold },
 });

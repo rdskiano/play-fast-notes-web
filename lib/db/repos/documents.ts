@@ -187,6 +187,17 @@ export async function listDocumentsInFolder(folder_id: string | null): Promise<D
   return (data ?? []) as DocumentRow[];
 }
 
+export async function listAllDocuments(): Promise<DocumentRow[]> {
+  const { data, error } = await supabase
+    .from('documents')
+    .select('*')
+    .is('deleted_at', null)
+    .order('sort_order', { ascending: true })
+    .order('title', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as DocumentRow[];
+}
+
 // Replace pages_json wholesale. Pattern: the client orchestrates the parallel
 // pdf-render-page fan-out, collects all results, then writes once. Avoids the
 // read-modify-write race a per-page update path would introduce.

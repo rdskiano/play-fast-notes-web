@@ -21,6 +21,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { listAllDocuments, type DocumentRow } from '@/lib/db/repos/documents';
 import { listAllFolders, type Folder } from '@/lib/db/repos/folders';
 import { listPassages, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
@@ -52,9 +53,14 @@ const TIMER_MODE_ENABLED = false;
 
 type Phase = 'config' | 'select' | 'playing';
 
+// Sections are flat: each PDF document and each folder-with-loose-passages
+// gets its own section. Passages in a document group under the document;
+// passages outside any document fall back to their folder.
+type SectionKind = 'document' | 'folder' | 'unfiled';
 type Section = {
+  key: string;
+  kind: SectionKind;
   title: string;
-  folderId: string | null;
   data: Passage[];
 };
 
@@ -157,6 +163,7 @@ export default function InterleavedScreen() {
   const [timerMinutes, setTimerMinutes] = useState<TimerMinutes>(5);
 
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [passages, setPassages] = useState<Passage[]>([]);
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -175,11 +182,14 @@ export default function InterleavedScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([listAllFolders(), listPassages()]).then(([flds, pcs]) => {
-      if (cancelled) return;
-      setFolders(flds);
-      setPassages(pcs);
-    });
+    Promise.all([listAllFolders(), listPassages(), listAllDocuments()]).then(
+      ([flds, pcs, docs]) => {
+        if (cancelled) return;
+        setFolders(flds);
+        setPassages(pcs);
+        setDocuments(docs);
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -354,32 +364,60 @@ export default function InterleavedScreen() {
     router.back();
   }
 
-  // Build sections grouped by folder, filtered by search.
+  // Build flat sections: PDF documents and folders (for loose passages)
+  // appear at the same visual level. Passages belonging to a document are
+  // grouped under the document title; passages without a document fall back
+  // to their folder.
   const sections: Section[] = (() => {
     const q = search.trim().toLowerCase();
     const visible = q
       ? passages.filter((p) => (p.title ?? '').toLowerCase().includes(q))
       : passages;
-    const byFolder = new Map<string | null, Passage[]>();
+
+    type GroupKey =
+      | { kind: 'document'; id: string }
+      | { kind: 'folder'; id: string }
+      | { kind: 'unfiled' };
+    const groupKey = (p: Passage): GroupKey =>
+      p.document_id
+        ? { kind: 'document', id: p.document_id }
+        : p.folder_id
+          ? { kind: 'folder', id: p.folder_id }
+          : { kind: 'unfiled' };
+    const keyString = (k: GroupKey) =>
+      k.kind === 'unfiled' ? 'unfiled' : `${k.kind}:${k.id}`;
+
+    const byKey = new Map<string, { key: GroupKey; data: Passage[] }>();
     for (const p of visible) {
-      const key = p.folder_id ?? null;
-      if (!byFolder.has(key)) byFolder.set(key, []);
-      byFolder.get(key)!.push(p);
+      const k = groupKey(p);
+      const ks = keyString(k);
+      const entry = byKey.get(ks);
+      if (entry) entry.data.push(p);
+      else byKey.set(ks, { key: k, data: [p] });
     }
-    const folderOrder = new Map<string | null, number>();
-    folders.forEach((f, idx) => folderOrder.set(f.id, idx));
-    folderOrder.set(null, folders.length);
-    const keys = Array.from(byFolder.keys()).sort(
-      (a, b) => (folderOrder.get(a) ?? 9999) - (folderOrder.get(b) ?? 9999),
-    );
-    return keys.map((k) => ({
-      folderId: k,
-      title:
-        k === null
-          ? 'Unfiled'
-          : folders.find((f) => f.id === k)?.name ?? 'Folder',
-      data: byFolder.get(k) ?? [],
+
+    const titleFor = (k: GroupKey): string => {
+      if (k.kind === 'unfiled') return 'Unfiled';
+      if (k.kind === 'document')
+        return documents.find((d) => d.id === k.id)?.title ?? 'Document';
+      return folders.find((f) => f.id === k.id)?.name ?? 'Folder';
+    };
+
+    const result: Section[] = Array.from(byKey.values()).map(({ key, data }) => ({
+      key: keyString(key),
+      kind: key.kind,
+      title: titleFor(key),
+      data,
     }));
+
+    // Documents + folders sort alphabetically by title; Unfiled lands last.
+    result.sort((a, b) => {
+      if (a.kind === 'unfiled') return 1;
+      if (b.kind === 'unfiled') return -1;
+      return a.title.localeCompare(b.title);
+    });
+
+    return result;
   })();
 
   // ── Config phase ─────────────────────────────────────────────────────────
@@ -547,10 +585,15 @@ export default function InterleavedScreen() {
 
         <ScrollView contentContainerStyle={styles.selectList}>
           {sections.map((section) => (
-            <View key={section.folderId ?? 'unfiled'} style={{ marginBottom: 8 }}>
+            <View key={section.key} style={{ marginBottom: 8 }}>
               <View style={styles.folderHeader}>
                 <ThemedText style={styles.folderHeaderText}>
-                  📁 {section.title}
+                  {section.kind === 'document'
+                    ? '📄 '
+                    : section.kind === 'folder'
+                      ? '📁 '
+                      : ''}
+                  {section.title}
                 </ThemedText>
               </View>
               {section.data.map((passage) => {

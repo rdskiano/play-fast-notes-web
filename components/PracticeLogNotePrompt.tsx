@@ -31,11 +31,14 @@ type Props = {
   onDelete?: () => void;
 };
 
+// Single hard-coded prompt. Title / emoji / subtitle props are retained on
+// the type for backward compat with call sites but intentionally not
+// rendered — the prompt now asks one question and only one question.
+const PROMPT_TITLE =
+  'What do you think is most important to do on this next time?';
+
 export function PracticeLogNotePrompt({
   visible,
-  emoji,
-  title = 'How did that go?',
-  subtitle,
   initialMood = null,
   initialNote = null,
   submitLabel = 'Save',
@@ -46,6 +49,8 @@ export function PracticeLogNotePrompt({
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  // Preserve any prior mood through edit flows even though the UI no longer
+  // lets you set one — protects existing log rows that already carry a mood.
   const [mood, setMood] = useState<string | null>(null);
   const [note, setNote] = useState('');
 
@@ -67,42 +72,17 @@ export function PracticeLogNotePrompt({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.backdrop}>
         <View style={[styles.card, { backgroundColor: C.background }]}>
-          {emoji && <ThemedText style={styles.emoji}>{emoji}</ThemedText>}
           <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
-            {title}
+            {PROMPT_TITLE}
           </ThemedText>
-          {subtitle && (
-            <ThemedText style={[styles.subtitle, { color: C.icon }]}>
-              {subtitle}
-            </ThemedText>
-          )}
-
-          <View style={styles.moodRow}>
-            {PRACTICE_MOODS.map((m) => {
-              const selected = mood === m;
-              return (
-                <Pressable
-                  key={m}
-                  onPress={() => setMood(selected ? null : m)}
-                  style={[
-                    styles.moodBtn,
-                    {
-                      borderColor: selected ? C.tint : 'transparent',
-                      backgroundColor: selected ? C.tint + '22' : C.icon + '15',
-                    },
-                  ]}>
-                  <ThemedText style={styles.moodText}>{m}</ThemedText>
-                </Pressable>
-              );
-            })}
-          </View>
 
           <TextInput
             value={note}
             onChangeText={setNote}
-            placeholder="Note (optional)"
+            placeholder=""
             placeholderTextColor={C.icon}
             multiline
+            autoFocus
             style={[styles.input, { color: C.text, borderColor: C.icon }]}
           />
 

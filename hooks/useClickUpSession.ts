@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import type { Increment } from '@/components/TempoConfigFields';
@@ -37,7 +37,6 @@ export function useClickUpSession(id: string | undefined) {
   const router = useRouter();
   const metronome = useMetronome(60);
   const microbreak = useMicrobreakTimer();
-  const repCounterRef = useRef(0);
 
   const [phase, setPhase] = useState<ClickUpPhase>('marking');
   const [passage, setPassage] = useState<Passage | null>(null);
@@ -140,18 +139,19 @@ export function useClickUpSession(id: string | undefined) {
   async function onNext() {
     if (!storedConfig || !exerciseId) return;
     const nextIdx = currentIndex + 1;
-    repCounterRef.current += 1;
-    if (
-      microbreak.config.enabled &&
-      repCounterRef.current > 0 &&
-      repCounterRef.current % 10 === 0
-    ) {
-      microbreak.trigger();
-    }
     if (nextIdx >= storedConfig.steps.length) {
       metronome.stop();
       setCelebrating(true);
       return;
+    }
+    // Phase boundary = the next step belongs to a different phase than the
+    // current one. Use that as the microbreak cue — gives a real rest right
+    // before the tempo resets and the active-units parameters change.
+    const crossingPhase =
+      storedConfig.steps[currentIndex].phase !== storedConfig.steps[nextIdx].phase;
+    if (crossingPhase && microbreak.config.enabled) {
+      metronome.stop();
+      microbreak.trigger();
     }
     setCurrentIndex(nextIdx);
     metronome.setBpm(storedConfig.steps[nextIdx].tempo);

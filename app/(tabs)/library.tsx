@@ -1153,9 +1153,9 @@ function AddChooserModal({
           <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
             Add
           </ThemedText>
-          <Button label="+ New passage" onPress={onPickPassage} fullWidth />
-          <Button label="+ New full part" variant="outline" onPress={onPickDocument} fullWidth />
-          <Button label="+ New folder" variant="outline" onPress={onPickFolder} fullWidth />
+          <Button label="Add image of passage" onPress={onPickPassage} fullWidth />
+          <Button label="Add PDF" variant="outline" onPress={onPickDocument} fullWidth />
+          <Button label="Add folder" variant="outline" onPress={onPickFolder} fullWidth />
           <Button label="Cancel" variant="ghost" onPress={onClose} fullWidth />
         </View>
       </View>

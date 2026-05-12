@@ -70,7 +70,10 @@ type ViewMode = 'single' | 'spread';
 
 export default function DocumentScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, resize: resizeParam } = useLocalSearchParams<{
+    id: string;
+    resize?: string;
+  }>();
   const { width, height } = useWindowDimensions();
 
   const [doc, setDoc] = useState<DocumentRow | null | undefined>(undefined);
@@ -157,6 +160,20 @@ export default function DocumentScreen() {
       cancelled = true;
     };
   }, [refresh]);
+
+  // If the caller navigated here with ?resize=<passageId> (the Crop button on
+  // the passage screen for document-backed passages), jump straight into
+  // resize mode for that passage once the passage list has loaded.
+  const autoResizeFiredRef = useRef(false);
+  useEffect(() => {
+    if (autoResizeFiredRef.current) return;
+    if (!resizeParam || passages.length === 0) return;
+    const target = passages.find((p) => p.id === resizeParam);
+    if (!target) return;
+    autoResizeFiredRef.current = true;
+    startResize(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resizeParam, passages]);
 
   const onPagerLayout = useCallback((e: LayoutChangeEvent) => {
     const { width: w, height: h } = e.nativeEvent.layout;
@@ -584,7 +601,7 @@ export default function DocumentScreen() {
                 />
               )}
               <Button
-                label={boxesOn ? 'Boxes shown' : 'Boxes hidden'}
+                label={boxesOn ? 'Hide boxes' : 'Show boxes'}
                 variant="outline"
                 size="sm"
                 onPress={() => setBoxesOn(!boxesOn)}
@@ -735,18 +752,43 @@ export default function DocumentScreen() {
                             onSelect={setSelectedPassageId}
                             onDeselect={() => setSelectedPassageId(null)}
                           />
-                          {mode === 'draw' && (
-                            <PassageRectDrawer
-                              pageIndex={p.index}
-                              sourceWidth={p.w}
-                              sourceHeight={p.h}
-                              slotWidth={slotW}
-                              slotHeight={pagerSize.height}
-                              draftRegion={drafts.get(p.index) ?? null}
-                              active={drawerActive}
-                              onDraftChange={(r) => setDraftForPage(p.index, r)}
-                            />
-                          )}
+                          {mode === 'draw' && (() => {
+                            // Once a draft exists for this page, swap the
+                            // drag-to-draw surface for resize handles so the
+                            // user can fine-tune the box they just drew.
+                            // Empty pages keep the drawer so the initial
+                            // drag still works.
+                            const draft = drafts.get(p.index);
+                            if (draft) {
+                              return (
+                                <PassageRectResizer
+                                  pageIndex={p.index}
+                                  sourceWidth={p.w}
+                                  sourceHeight={p.h}
+                                  slotWidth={slotW}
+                                  slotHeight={pagerSize.height}
+                                  region={draft}
+                                  onRegionChange={(next) =>
+                                    setDraftForPage(p.index, next)
+                                  }
+                                />
+                              );
+                            }
+                            return (
+                              <PassageRectDrawer
+                                pageIndex={p.index}
+                                sourceWidth={p.w}
+                                sourceHeight={p.h}
+                                slotWidth={slotW}
+                                slotHeight={pagerSize.height}
+                                draftRegion={null}
+                                active={drawerActive}
+                                onDraftChange={(r) =>
+                                  setDraftForPage(p.index, r)
+                                }
+                              />
+                            );
+                          })()}
                           {mode === 'resize' && resizingPassage && (() => {
                             const r = resizeRegions.find((rr) => rr.page === p.index);
                             if (!r) return null;
@@ -945,8 +987,8 @@ function renderSubRow(args: {
     const hint = !hasAnyDraft
       ? 'Drag a box on a page'
       : canAddNextPage && nextPageVisibleOnScreen
-        ? `Drawn on p. ${drawnPages.join(', ')} — drag p. ${maxDrawn + 1} too if needed`
-        : `Drawn on p. ${drawnPages.join(', ')}`;
+        ? `p. ${drawnPages.join(', ')} — drag handles, or drag a box on p. ${maxDrawn + 1}`
+        : `p. ${drawnPages.join(', ')} — drag the corners or edges to adjust`;
     return (
       <View style={styles.subRow}>
         <Button label="Cancel" variant="ghost" size="sm" onPress={onCancelDraw} />

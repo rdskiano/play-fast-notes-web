@@ -79,6 +79,21 @@ export async function updateTempoLadderState(
   if (error) throw error;
 }
 
+// Used after a successful session (goal reached) to raise the floor of the
+// ladder so the next session starts a notch higher.
+export async function updateTempoLadderConfigBounds(
+  exerciseId: string,
+  fields: { start_tempo?: number; cluster_low?: number },
+): Promise<void> {
+  if (fields.start_tempo === undefined && fields.cluster_low === undefined) return;
+  const update: Record<string, unknown> = { ...fields, updated_at: Date.now() };
+  const { error } = await supabase
+    .from('tempo_ladder_progress')
+    .update(update)
+    .eq('exercise_id', exerciseId);
+  if (error) throw error;
+}
+
 export type PassageTempoLadderProgress = {
   piece_id: string;
   current_tempo: number;

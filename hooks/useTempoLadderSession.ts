@@ -10,10 +10,14 @@ import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import {
   advanceClusterWindow,
   getTempoLadder,
+  updateTempoLadderConfigBounds,
   updateTempoLadderState,
   upsertTempoLadder,
   type TempoLadderProgress,
 } from '@/lib/db/repos/tempoLadder';
+
+// Bump the ladder floor by this many BPM after a session that reached goal.
+const SUCCESS_BUMP_BPM = 5;
 
 export type Mode = 'step' | 'cluster';
 export type Increment = 2 | 5 | 10;
@@ -40,6 +44,9 @@ export function useTempoLadderSession(id: string | undefined) {
   const [celebrating, setCelebrating] = useState<Celebration>(null);
   const [completedSets, setCompletedSets] = useState(0);
   const lastHitTempoRef = useRef<number | null>(null);
+  // True once the user has reached goal at any point this session. Drives
+  // the start-tempo bump on endSession.
+  const reachedGoalRef = useRef(false);
 
   const [mode, setMode] = useState<Mode>('step');
   const [startTempo, setStartTempo] = useState('60');
@@ -99,6 +106,7 @@ export function useTempoLadderSession(id: string | undefined) {
   async function startSession() {
     if (!exerciseId || !id) return;
     lastHitTempoRef.current = null;
+    reachedGoalRef.current = false;
     setCompletedSets(0);
 
     if (mode === 'step') {
@@ -165,6 +173,7 @@ export function useTempoLadderSession(id: string | undefined) {
         progress.mode === 'cluster'
           ? (progress.cluster_high ?? progress.goal_tempo) >= progress.goal_tempo
           : progress.current_tempo >= progress.goal_tempo;
+      if (reached) reachedGoalRef.current = true;
       setProgress({ ...progress, current_streak: nextStreak });
       await updateTempoLadderState(exerciseId, progress.current_tempo, nextStreak);
       metronome.stop();
@@ -251,6 +260,26 @@ export function useTempoLadderSession(id: string | undefined) {
       if (annotation?.mood) data.mood = annotation.mood;
       if (annotation?.note) data.note = annotation.note;
       await logPractice(id, 'tempo_ladder', data, exerciseId);
+    }
+
+    // If the user reached the goal this session, raise the ladder floor so
+    // the next session loads pre-set 5 BPM higher. Clamp so there is always
+    // room between start and goal.
+    if (reachedGoalRef.current && progress) {
+      const maxStart = progress.goal_tempo - SUCCESS_BUMP_BPM;
+      const newStart = Math.min(progress.start_tempo + SUCCESS_BUMP_BPM, maxStart);
+      const fields: { start_tempo?: number; cluster_low?: number } = {};
+      if (newStart > progress.start_tempo) fields.start_tempo = newStart;
+      if (progress.mode === 'cluster') {
+        const oldLow = progress.cluster_low ?? progress.start_tempo;
+        const maxLow =
+          (progress.cluster_high ?? progress.goal_tempo) - SUCCESS_BUMP_BPM;
+        const newLow = Math.min(oldLow + SUCCESS_BUMP_BPM, maxLow);
+        if (newLow > oldLow) fields.cluster_low = newLow;
+      }
+      if (fields.start_tempo !== undefined || fields.cluster_low !== undefined) {
+        await updateTempoLadderConfigBounds(exerciseId, fields);
+      }
     }
     metronome.stop();
     router.back();
