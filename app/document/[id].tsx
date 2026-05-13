@@ -8,7 +8,7 @@
 // Sub-toolbar holds the passage-marking controls (idle / draw / resize states).
 
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -59,6 +59,7 @@ import {
   type PassageRegion,
 } from '@/lib/db/repos/passages';
 import { cropToBlob, stitchVertically, type Rect } from '@/lib/image/canvasCrop';
+import { consumeLastPassageInDoc } from '@/lib/sessions/lastPassageInDoc';
 import { uploadPassageImage } from '@/lib/supabase/storage';
 
 function newPassageId(): string {
@@ -269,6 +270,25 @@ export default function DocumentScreen() {
     setCurrentIndex(index);
   }
 
+  // When returning from a passage, jump to that passage's first page. Effect
+  // fires on every focus AND whenever passages / pages populate, so the
+  // first-load race (focus before data arrives) self-resolves once data is in.
+  // consumeLastPassageInDoc clears the hint after use so it does not fire
+  // again on a later innocuous focus event.
+  useFocusEffect(
+    useCallback(() => {
+      if (!id || passages.length === 0 || pages.length === 0) return;
+      const lastId = consumeLastPassageInDoc(id);
+      if (!lastId) return;
+      const target = passages.find((p) => p.id === lastId);
+      if (!target) return;
+      const regions = parseRegions(target.regions_json);
+      if (regions.length === 0) return;
+      const targetPage = Math.min(...regions.map((r) => r.page));
+      goTo(screenForPage(targetPage));
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id, passages, pages]),
+  );
 
   // When orientation changes (viewMode flips), keep the same page in view
   // by converting the current screen index into the new mode's coordinates.

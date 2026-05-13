@@ -24,6 +24,7 @@ import {
   type Passage,
 } from '@/lib/db/repos/passages';
 import { getTempoLadder, type TempoLadderProgress } from '@/lib/db/repos/tempoLadder';
+import { rememberPassageInDoc } from '@/lib/sessions/lastPassageInDoc';
 
 type StrategyKey = 'tempo_ladder' | 'click_up' | 'rhythmic';
 
@@ -89,6 +90,7 @@ export default function PassageDetailScreen() {
           if (cancelled) return;
           setPassage(p);
           if (p?.document_id) {
+            rememberPassageInDoc(p.document_id, p.id);
             try {
               const sibs = await listPassagesInDocument(p.document_id);
               if (!cancelled) setSiblings(sortByReadingOrder(sibs));
