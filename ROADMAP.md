@@ -244,6 +244,94 @@ auth, practice log, and (later) subscription state.
   - One-time Supabase setup: new `recordings` bucket + RLS policies (see
     `CLAUDE.md`).
 
+- **Practice-feedback polish batch** (2026-05-11 → 2026-05-12): batch of
+  changes driven by the user actually practicing on the app and surfacing
+  rough edges. Shipped across commits 2f2417a (also iPad-local) through
+  5258cf5. Highlights:
+  - **Reminders** (`components/PassageReminders.tsx`): new "Remind me of
+    this next time" checkbox on the note prompt persists `data.remindNext`
+    on the practice_log row. A collapsible "📌 Notes for next time (N)"
+    banner on the passage screen lists every flagged note (any strategy,
+    not just Guided). Each entry has a Dismiss button that clears the
+    flag. The banner gates by mount-time `practiced_at` so a note flagged
+    at end-of-session does not pop up when the user lands back on the
+    passage — it surfaces only on the next re-open. New repo helpers
+    `listPassageReminders` + `clearReminder` in `lib/db/repos/practiceLog.ts`.
+  - **Note prompt redesign**: `PracticeLogNotePrompt` stripped to a single
+    open question ("What do you think is most important to do on this
+    next time?"), no emoji row, no subtitle. `title` / `emoji` /
+    `subtitle` props stay as no-ops so call sites keep compiling.
+  - **Tempo Ladder**: defer the practice_log write to end-of-session
+    (one session = one row, gated on `completedSets > 0`). Move "How it
+    works" to the top of the config and wrap it in a new
+    `components/CollapsibleHelp.tsx` (collapsed by default). On a
+    session that reaches goal, raise `start_tempo` by 5 BPM (and
+    `cluster_low` for cluster mode), clamped so there is always room
+    between start and goal. New repo helper `updateTempoLadderConfigBounds`.
+  - **ICU (Interleaved Click-Up)**: microbreak now fires at phase
+    boundaries (the step before the tempo resets and the active-units
+    window changes), not every 10 reps. "How it works" also collapsible.
+  - **Metronome chips** (`components/SubdivisionGlyph.tsx`): the three
+    subdivision chips render actual notation (quarter / paired eighths /
+    triplet) via `AbcStaffView`, matching the grouping-3 symbol in
+    `GroupingPicker`. Tiny phone-header chips keep the unicode fallback
+    since `AbcStaffView` has a 40px minimum.
+  - **BpmStepper preview**: compact circular play / stop button (no
+    "Start" label) so it does not collide visually with the practice
+    Start button below.
+  - **Rhythm exercise generate**: `FloatingMetronome` takes a new
+    `anchor` prop (left or right) and reads `window.innerWidth` in a
+    lazy `useState` initializer to dodge the `useWindowDimensions`
+    race that was pinning the metronome to the left edge.
+  - **Self-Led recording**: stack the Record-again button alongside
+    the Log buttons (full-width outline) so people see it before
+    logging.
+  - **PDF re-crop**: the Crop button on a PDF-backed passage routes
+    back to `/document/<docId>?resize=<passageId>` so the user can
+    re-crop from the original page rather than the already-cropped
+    passage image. In document draw mode, drawing a box switches to
+    resize handles (corners + edges + drag-to-move) so the user can
+    fine-tune without redrawing.
+  - **Serial Practice select**: sections are now flat — every PDF
+    document and every folder-with-loose-passages is its own
+    peer-level section, sorted alphabetically. Unfiled lands at the
+    bottom. New `listAllDocuments` in the documents repo.
+  - **Strategy log labels**: spell out `Tempo Ladder` / `Interleaved
+    Click-Up` / `Rhythmic Variation` instead of `TL` / `ICU` / `RV`.
+    `interleaved` strategy now shows "Serial" or "Interleaved" based
+    on the saved `data.order`.
+  - **Library mode labels**: "Practice one passage" / "Practice a
+    group of passages" as the main button label, with `Blocked` /
+    `Serial` demoted to a small subtitle. Practice-mode chips
+    (Consistency / Timer) on the Serial Practice config are hidden
+    behind a `TIMER_MODE_ENABLED = false` flag — code paths intact.
+  - **Add menu labels**: "Add image of passage", "Add PDF", "Add
+    folder" instead of "+ New passage" / "+ New full part".
+  - **Play It Cold**: always re-opens the passage picker on
+    toggle-on, even if a piece was previously chosen.
+
+- **Phase 4.4.1 — tip jar + comp scaffolding** (2026-05-12): first
+  foothold in the monetization slot.
+  - `lib/links.ts` + `lib/supabase/subscription.ts`: `bmacUrl()`
+    helper and `useSubscription()` hook reading the (still empty)
+    `subscriptions` table. Returns `{ tier, status, expiresAt,
+    isActive }`. `isActive` only true for tier `comp` / `pro` with
+    `status='active'` and a future `current_period_end` — expired
+    rows fall back to free at read time, no cleanup needed.
+  - Settings → new "Support" section above Account with a "☕ Buy me
+    a coffee" button (`buymeacoffee.com/playfastnotes`). When the
+    hook reports `isActive`, a tinted "Thanks — your free access is
+    active through {date}" line renders above it.
+  - Library top bar → small ☕ outline button to the left of
+    Practice Log. Most users will never land on Settings, so the
+    library is the path-of-use surface.
+  - `db/schema.sql`: replaced the placeholder comment above
+    `subscriptions` with a paste-able SQL snippet for granting one
+    year of comp access via Supabase Studio.
+  - Storage caps, Stripe checkout, Pro tier, and trial-period
+    decisions are intentionally out of scope for this step — they
+    revisit in Phase 4.4.2 once there is signal from real users.
+
 ### 🚧 Next up (in priority order)
 
 1. **Library polish v2**: edit mode (rename, move, delete, reorder), folder
