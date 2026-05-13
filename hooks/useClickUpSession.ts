@@ -147,10 +147,12 @@ export function useClickUpSession(id: string | undefined) {
     // Phase boundary = the next step belongs to a different phase than the
     // current one. Use that as the microbreak cue — gives a real rest right
     // before the tempo resets and the active-units parameters change.
+    // useMetronome's auto-pause snapshots the running state when the break
+    // fires and resumes after; an explicit stop() here would shadow that
+    // snapshot to false and the click would never come back.
     const crossingPhase =
       storedConfig.steps[currentIndex].phase !== storedConfig.steps[nextIdx].phase;
     if (crossingPhase && microbreak.config.enabled) {
-      metronome.stop();
       microbreak.trigger();
     }
     setCurrentIndex(nextIdx);
