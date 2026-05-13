@@ -885,17 +885,19 @@ export default function LibraryScreen() {
           <Pressable
             disabled
             style={[styles.modeSeg, styles.modeSegActive, { backgroundColor: C.tint }]}>
-            <ThemedText style={styles.modeSegActiveText}>Blocked</ThemedText>
-            <ThemedText style={styles.modeSegActiveSub}>one at a time</ThemedText>
+            <ThemedText style={styles.modeSegActiveText}>
+              Practice one passage
+            </ThemedText>
+            <ThemedText style={styles.modeSegActiveSub}>Blocked</ThemedText>
           </Pressable>
           <Pressable
             onPress={() => router.push('/interleaved')}
             style={[styles.modeSeg, { borderColor: C.tint }]}>
             <ThemedText style={[styles.modeSegText, { color: C.tint }]}>
-              Serial
+              Practice a group of passages
             </ThemedText>
             <ThemedText style={[styles.modeSegSub, { color: C.tint }]}>
-              several in a cycle
+              Serial
             </ThemedText>
           </Pressable>
         </View>
