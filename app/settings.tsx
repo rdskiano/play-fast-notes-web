@@ -1,6 +1,7 @@
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,6 +18,8 @@ import {
   usePlayItColdTimer,
 } from '@/components/PracticeTimersContext';
 import { SessionTopBar } from '@/components/SessionTopBar';
+import { bmacUrl } from '@/lib/links';
+import { useSubscription } from '@/lib/supabase/subscription';
 import {
   DEFAULT_STRATEGY_COLORS,
   useStrategyColors,
@@ -51,6 +54,15 @@ const COLOR_PALETTE = [
   '#f39c12', '#e67e22', '#d35400', '#7b2d00',
   '#e74c3c', '#c0392b', '#2c3e50', '#7f8c8d',
 ];
+
+function formatExpiry(unixMs: number): string {
+  const d = new Date(unixMs);
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
 
 function Stepper({
   value,
@@ -110,6 +122,7 @@ export default function SettingsScreen() {
 
   const session = useSession();
   const userEmail = session?.user.email ?? null;
+  const subscription = useSubscription();
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [passages, setPassages] = useState<Passage[]>([]);
@@ -340,6 +353,29 @@ export default function SettingsScreen() {
               </ThemedText>
             </Pressable>
           </View>
+        </View>
+
+        {/* ── Support ─────────────────────────────────────────────────── */}
+        <View style={styles.sectionHeader}>
+          <ThemedText style={styles.sectionTitle}>Support</ThemedText>
+        </View>
+        <ThemedText style={styles.sectionHint}>
+          Play Fast Notes is in active development. If it is helping your
+          practice, a tip keeps the work going.
+        </ThemedText>
+        {subscription.isActive && subscription.expiresAt && (
+          <ThemedText style={[styles.sectionHint, { color: C.tint }]}>
+            Thanks — your free access is active through{' '}
+            {formatExpiry(subscription.expiresAt)}.
+          </ThemedText>
+        )}
+        <View style={styles.accountRow}>
+          <Button
+            label="☕ Buy me a coffee"
+            variant="outline"
+            onPress={() => Linking.openURL(bmacUrl())}
+            fullWidth
+          />
         </View>
 
         {/* ── Account ─────────────────────────────────────────────────── */}

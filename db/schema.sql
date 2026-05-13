@@ -131,8 +131,32 @@ alter table settings enable row level security;
 create policy settings_owner_all on settings
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
--- subscriptions (future-proofing for Phase 4.4 of the roadmap;
--- empty until Stripe integration ships)
+-- subscriptions: source of truth for paid + comp access tier.
+--
+-- Schema is intentionally minimal until Stripe ships. Until then, the
+-- only thing the client (useSubscription) cares about is whether the
+-- user has an active non-free tier. Granting comp access is a manual
+-- admin operation in Supabase Studio:
+--
+--   To grant one year of free access to a friend, paste this in SQL
+--   editor (replace <friend-user-uuid> with the row from auth.users):
+--
+--     insert into subscriptions (user_id, tier, status, current_period_end)
+--     values (
+--       '<friend-user-uuid>',
+--       'comp',
+--       'active',
+--       (extract(epoch from now() + interval '1 year') * 1000)::bigint
+--     )
+--     on conflict (user_id) do update
+--       set tier = excluded.tier,
+--           status = excluded.status,
+--           current_period_end = excluded.current_period_end,
+--           updated_at = (extract(epoch from now()) * 1000)::bigint;
+--
+-- The client treats tier=comp/pro + status=active + expiry-in-future as
+-- "active free access". Expired rows fall back to free with no cleanup
+-- needed — the row stays, the client just stops counting it.
 create table if not exists subscriptions (
   user_id uuid primary key references auth.users(id) on delete cascade,
   tier text,

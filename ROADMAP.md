@@ -309,7 +309,19 @@ Within Phase 4 there are sub-phases:
   search.
 - **Phase 4.3** (shared backend) — partially done. Auth + per-user data
   isolation work; cross-surface sync deferred.
-- **Phase 4.4** (Stripe subscriptions) — not started. Schema slot exists.
+- **Phase 4.4** (Stripe subscriptions) — not started in earnest; the
+  schema slot exists and the first sub-step has shipped:
+  - **Phase 4.4.1** (tip jar + comp scaffolding) — shipped. Settings
+    has a "Support" section with a Buy Me a Coffee link.
+    `useSubscription()` reads the `subscriptions` table and gates a
+    "Thanks — your free access is active through {date}" line for
+    users on a comp (or future paid) tier. Comp is granted manually
+    via Supabase Studio per the workflow comment above the
+    `subscriptions` table in `db/schema.sql`.
+  - **Phase 4.4.2** (Stripe checkout + Pro tier + storage caps) — not
+    started. Decisions still open: free-tier boundary (storage cap vs.
+    feature gate), whether to ship a universal free-trial period, and
+    web-vs-iPad payment surfaces.
 
 ---
 
