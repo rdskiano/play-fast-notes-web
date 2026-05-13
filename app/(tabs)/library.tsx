@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -55,6 +56,7 @@ import {
   type DocumentRow,
 } from '@/lib/db/repos/documents';
 import { getTempoLadderProgressForPassages } from '@/lib/db/repos/tempoLadder';
+import { bmacUrl } from '@/lib/links';
 
 type ListRow =
   | { kind: 'folder'; folder: Folder }
@@ -808,6 +810,12 @@ export default function LibraryScreen() {
             <Button label="Done" size="sm" onPress={() => setEditMode(false)} />
           ) : (
             <>
+              <Button
+                label="☕"
+                variant="outline"
+                size="sm"
+                onPress={() => Linking.openURL(bmacUrl())}
+              />
               <Button
                 label="Practice Log"
                 variant="outline"
