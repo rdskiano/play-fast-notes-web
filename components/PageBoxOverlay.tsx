@@ -17,10 +17,14 @@ import { Colors } from '@/constants/theme';
 import { Radii, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { parseRegions, type Passage, type PassageRegion } from '@/lib/db/repos/passages';
+import type { PassageStatus } from '@/lib/db/repos/passageStatus';
 
 type Props = {
   // Passages whose regions_json may contain entries for this page.
   passages: Passage[];
+  // Per-passage practice status (last date + Tempo Ladder %). Missing entries
+  // render no badge — same as a passage with no history.
+  statusByPassage?: Map<string, PassageStatus>;
   // 1-indexed page number this overlay covers (matches DocumentPage.index and PassageRegion.page).
   pageIndex: number;
   // Source-pixel dimensions of the rendered page JPG (DocumentPage.w/h).
@@ -39,6 +43,7 @@ type Props = {
 
 export function PageBoxOverlay({
   passages,
+  statusByPassage,
   pageIndex,
   sourceWidth,
   sourceHeight,
@@ -95,6 +100,8 @@ export function PageBoxOverlay({
           const top = (region.y / sourceHeight) * imageRect.h;
           const width = (region.w / sourceWidth) * imageRect.w;
           const height = (region.h / sourceHeight) * imageRect.h;
+          const status = statusByPassage?.get(passage.id) ?? null;
+          const badge = formatStatusBadge(status);
           return (
             <Pressable
               key={`${passage.id}:${region.page}`}
@@ -118,11 +125,60 @@ export function PageBoxOverlay({
                   {passage.title}
                 </ThemedText>
               </View>
+              {badge && (
+                <View style={[styles.badge, { backgroundColor: '#ffffffd9' }]}>
+                  <ThemedText style={styles.badgeText} numberOfLines={1}>
+                    {badge}
+                  </ThemedText>
+                </View>
+              )}
             </Pressable>
           );
         })}
     </View>
   );
+}
+
+// Format the bottom-left status badge. Priority:
+//   practiced today  → "✓"  (or "✓ 65%" with Tempo Ladder)
+//   has TL %         → "65%" or "65% · 3d"
+//   else has date    → "3d"
+//   nothing          → null (no badge)
+function formatStatusBadge(status: PassageStatus | null): string | null {
+  if (!status) return null;
+  const { lastPracticedAt, tempoLadderPercent } = status;
+  const today = isToday(lastPracticedAt);
+  if (today) {
+    return tempoLadderPercent !== null ? `✓ ${tempoLadderPercent}%` : '✓';
+  }
+  const dateLabel = lastPracticedAt !== null ? relativeDays(lastPracticedAt) : null;
+  if (tempoLadderPercent !== null && dateLabel) {
+    return `${tempoLadderPercent}% · ${dateLabel}`;
+  }
+  if (tempoLadderPercent !== null) return `${tempoLadderPercent}%`;
+  if (dateLabel) return dateLabel;
+  return null;
+}
+
+function isToday(ts: number | null): boolean {
+  if (ts === null) return false;
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  return ts >= start.getTime();
+}
+
+// Compact relative-time label used by the box badge. Units stack: days → weeks
+// → months → years. Smallest unit that comes out >= 1 wins.
+function relativeDays(ts: number): string {
+  const days = Math.floor((Date.now() - ts) / 86_400_000);
+  if (days < 1) return '1d';
+  if (days < 14) return `${days}d`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 9) return `${weeks}w`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo`;
+  const years = Math.floor(days / 365);
+  return `${years}y`;
 }
 
 // Compute the rendered image rect inside a slot when using contentFit="contain".
@@ -159,5 +215,19 @@ const styles = StyleSheet.create({
   labelText: {
     fontSize: Type.size.xs,
     fontWeight: Type.weight.medium,
+  },
+  badge: {
+    position: 'absolute',
+    bottom: 2,
+    left: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radii.sm,
+    maxWidth: '90%',
+  },
+  badgeText: {
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.medium,
+    color: '#444',
   },
 });

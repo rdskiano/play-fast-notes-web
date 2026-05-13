@@ -58,6 +58,10 @@ import {
   type Passage,
   type PassageRegion,
 } from '@/lib/db/repos/passages';
+import {
+  getDocumentPassageStatus,
+  type PassageStatus,
+} from '@/lib/db/repos/passageStatus';
 import { cropToBlob, stitchVertically, type Rect } from '@/lib/image/canvasCrop';
 import { consumeLastPassageInDoc } from '@/lib/sessions/lastPassageInDoc';
 import { uploadPassageImage } from '@/lib/supabase/storage';
@@ -80,6 +84,9 @@ export default function DocumentScreen() {
   const [doc, setDoc] = useState<DocumentRow | null | undefined>(undefined);
   const [pages, setPages] = useState<DocumentPage[]>([]);
   const [passages, setPassages] = useState<Passage[]>([]);
+  const [statusByPassage, setStatusByPassage] = useState<Map<string, PassageStatus>>(
+    new Map(),
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [boxesOn, setBoxesOn] = useState(true);
   const [mode, setMode] = useState<Mode>('idle');
@@ -288,6 +295,26 @@ export default function DocumentScreen() {
       goTo(screenForPage(targetPage));
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, passages, pages]),
+  );
+
+  // Pull per-passage practice status (last date, Tempo Ladder %) on every
+  // focus so the box badges reflect what happened during the just-finished
+  // practice session.
+  useFocusEffect(
+    useCallback(() => {
+      if (passages.length === 0) return;
+      let cancelled = false;
+      getDocumentPassageStatus(passages.map((p) => p.id))
+        .then((s) => {
+          if (!cancelled) setStatusByPassage(s);
+        })
+        .catch(() => {
+          // Badges are an enhancement, not required.
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [passages]),
   );
 
   // When orientation changes (viewMode flips), keep the same page in view
@@ -762,6 +789,7 @@ export default function DocumentScreen() {
                                 ? passages.filter((pp) => pp.id !== resizingPassage.id)
                                 : passages
                             }
+                            statusByPassage={statusByPassage}
                             pageIndex={p.index}
                             sourceWidth={p.w}
                             sourceHeight={p.h}
