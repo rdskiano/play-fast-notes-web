@@ -149,23 +149,28 @@ type PassageGroup = {
   entries: LibraryPracticeLogEntry[];
 };
 
-// Builds the display label for a practice-log row. Standalone passages show
-// just their title; document-derived passages prepend the document title and
-// section name (when known): "Mahler 9 - IV. Adagio - bars 281-291".
-// Used in by-date view (where document/section are not used as headers).
-function passageLabel(e: LibraryPracticeLogEntry): string {
+// Card label inside by-date view. The PDF title is now a header above the
+// cards, so we omit document_title here to avoid the same name repeating on
+// every card. Section name (movement) stays inline: "IV. Adagio · bars 281-291".
+function dateCardLabel(e: LibraryPracticeLogEntry): string {
   const title = e.piece_title || 'Untitled';
   const parts: string[] = [];
-  if (e.document_title) parts.push(e.document_title);
   if (e.section_name) parts.push(e.section_name);
   parts.push(title);
   return parts.join(' · ');
 }
 
+type DateDocGroup = {
+  documentId: string;
+  documentTitle: string;
+  passages: PassageGroup[];
+};
+
 type DayFolderGroup = {
   folderId: string | null;
   folderName: string;
-  passages: PassageGroup[];
+  documentGroups: DateDocGroup[];
+  standalonePassages: PassageGroup[];
 };
 
 type DayGroup = { dateLabel: string; folders: DayFolderGroup[] };
@@ -195,6 +200,60 @@ type FolderGroup = {
   folderName: string;
   dayGroups: FolderDayGroup[];
 };
+
+function renderDateCard(
+  pg: PassageGroup,
+  key: number,
+  C: typeof Colors.light,
+  STRATEGY_COLORS: Record<string, string>,
+  setEditing: (e: LibraryPracticeLogEntry) => void,
+) {
+  return (
+    <View
+      key={key}
+      style={[styles.card, { borderColor: C.icon + '33' }]}>
+      <ThemedText style={styles.passageName} numberOfLines={1}>
+        {pg.passageTitle}
+      </ThemedText>
+      <View style={styles.pillRow}>
+        {pg.entries.map((e) => (
+          <Pressable
+            key={e.id}
+            onPress={() => setEditing(e)}
+            style={[
+              styles.pill,
+              { backgroundColor: STRATEGY_COLORS[e.strategy] ?? C.icon },
+            ]}>
+            <ThemedText style={styles.pillText} numberOfLines={1}>
+              {entryLabel(e)}
+            </ThemedText>
+          </Pressable>
+        ))}
+      </View>
+      {pg.entries.some((e) => parseMoodNote(e).note) && (
+        <View style={styles.notesList}>
+          {pg.entries.map((e) => {
+            const { note } = parseMoodNote(e);
+            if (!note) return null;
+            return (
+              <ThemedText
+                key={e.id}
+                style={[styles.noteText, { color: C.icon }]}
+                numberOfLines={2}>
+                {note}
+              </ThemedText>
+            );
+          })}
+        </View>
+      )}
+      {pg.entries.map((e) => {
+        const uri = recordingUri(e);
+        if (!uri) return null;
+        return <RecordingPlayer key={`rec-${e.id}`} uri={uri} />;
+      })}
+    </View>
+  );
+}
 
 function renderPassageRow(
   pg: PassageGroup,
@@ -305,23 +364,27 @@ export default function LibraryLogScreen() {
     refresh();
   }
 
-  // ── By-date grouping: day → folder → passage → pills ─────────────────────
+  // ── By-date grouping: day → folder → (document → passages) + standalones ──
   // Folder order within a day follows the Library's folder sort order;
-  // "Unfiled" (folder_id = null) comes last.
+  // "Unfiled" (folder_id = null) comes last. Within a folder, passages that
+  // came from a PDF cluster under their document title so the PDF name is
+  // shown once as a heading instead of repeated on every card.
   const folderOrderIndex = new Map<string | null, number>();
   folders.forEach((f, idx) => folderOrderIndex.set(f.id, idx));
   folderOrderIndex.set(null, folders.length);
 
   const dayGroups: DayGroup[] = [];
   {
+    type DateFolderBuilder = {
+      folderName: string;
+      docMap: Map<string, { documentTitle: string; passageMap: Map<string, PassageGroup> }>;
+      standaloneMap: Map<string, PassageGroup>;
+    };
     const dayMap = new Map<
       string,
       {
         dateLabel: string;
-        folderMap: Map<string | null, {
-          folderName: string;
-          passageMap: Map<string, PassageGroup>;
-        }>;
+        folderMap: Map<string | null, DateFolderBuilder>;
       }
     >();
     for (const e of entries) {
@@ -340,18 +403,37 @@ export default function LibraryLogScreen() {
             fKey === null
               ? 'Unfiled'
               : e.folder_name || folders.find((f) => f.id === fKey)?.name || 'Folder',
-          passageMap: new Map(),
+          docMap: new Map(),
+          standaloneMap: new Map(),
         });
       }
       const folder = day.folderMap.get(fKey)!;
-      if (!folder.passageMap.has(e.piece_id)) {
-        folder.passageMap.set(e.piece_id, {
-          passageTitle: passageLabel(e),
-          folderName: e.folder_name,
-          entries: [],
-        });
+      if (e.document_id && e.document_title) {
+        if (!folder.docMap.has(e.document_id)) {
+          folder.docMap.set(e.document_id, {
+            documentTitle: e.document_title,
+            passageMap: new Map(),
+          });
+        }
+        const doc = folder.docMap.get(e.document_id)!;
+        if (!doc.passageMap.has(e.piece_id)) {
+          doc.passageMap.set(e.piece_id, {
+            passageTitle: dateCardLabel(e),
+            folderName: e.folder_name,
+            entries: [],
+          });
+        }
+        doc.passageMap.get(e.piece_id)!.entries.push(e);
+      } else {
+        if (!folder.standaloneMap.has(e.piece_id)) {
+          folder.standaloneMap.set(e.piece_id, {
+            passageTitle: e.piece_title || 'Untitled',
+            folderName: e.folder_name,
+            entries: [],
+          });
+        }
+        folder.standaloneMap.get(e.piece_id)!.entries.push(e);
       }
-      folder.passageMap.get(e.piece_id)!.entries.push(e);
     }
     for (const day of dayMap.values()) {
       const folderKeys = Array.from(day.folderMap.keys()).sort(
@@ -363,7 +445,12 @@ export default function LibraryLogScreen() {
         return {
           folderId: fKey,
           folderName: f.folderName,
-          passages: Array.from(f.passageMap.values()),
+          documentGroups: Array.from(f.docMap.entries()).map(([docId, doc]) => ({
+            documentId: docId,
+            documentTitle: doc.documentTitle,
+            passages: Array.from(doc.passageMap.values()),
+          })),
+          standalonePassages: Array.from(f.standaloneMap.values()),
         };
       });
       dayGroups.push({
@@ -550,66 +637,42 @@ export default function LibraryLogScreen() {
                         styles.folderSection,
                         fi > 0 && { borderTopColor: C.icon + '33', borderTopWidth: 1 },
                       ]}>
-                      <View style={styles.folderLabelRow}>
-                        <View
-                          style={[styles.folderBar, { backgroundColor: C.tint }]}
-                        />
-                        <ThemedText
-                          style={[styles.folderLabel, { color: C.text }]}
-                          numberOfLines={1}>
-                          {folder.folderName}
-                        </ThemedText>
-                      </View>
-                      <View style={styles.grid}>
-                        {folder.passages.map((pg, j) => (
+                      {folder.folderName !== 'Unfiled' && (
+                        <View style={styles.folderLabelRow}>
                           <View
-                            key={j}
-                            style={[styles.card, { borderColor: C.icon + '33' }]}>
-                            <ThemedText style={styles.passageName} numberOfLines={1}>
-                              {pg.passageTitle}
-                            </ThemedText>
-                            <View style={styles.pillRow}>
-                              {pg.entries.map((e) => (
-                                <Pressable
-                                  key={e.id}
-                                  onPress={() => setEditing(e)}
-                                  style={[
-                                    styles.pill,
-                                    {
-                                      backgroundColor:
-                                        STRATEGY_COLORS[e.strategy] ?? C.icon,
-                                    },
-                                  ]}>
-                                  <ThemedText style={styles.pillText} numberOfLines={1}>
-                                    {entryLabel(e)}
-                                  </ThemedText>
-                                </Pressable>
-                              ))}
-                            </View>
-                            {pg.entries.some((e) => parseMoodNote(e).note) && (
-                              <View style={styles.notesList}>
-                                {pg.entries.map((e) => {
-                                  const { note } = parseMoodNote(e);
-                                  if (!note) return null;
-                                  return (
-                                    <ThemedText
-                                      key={e.id}
-                                      style={[styles.noteText, { color: C.icon }]}
-                                      numberOfLines={2}>
-                                      {note}
-                                    </ThemedText>
-                                  );
-                                })}
-                              </View>
+                            style={[styles.folderBar, { backgroundColor: C.tint }]}
+                          />
+                          <ThemedText
+                            style={[styles.folderLabel, { color: C.text }]}
+                            numberOfLines={1}>
+                            {folder.folderName}
+                          </ThemedText>
+                        </View>
+                      )}
+                      {folder.documentGroups.map((docGroup) => (
+                        <View key={docGroup.documentId} style={styles.documentGroup}>
+                          <ThemedText
+                            style={[
+                              styles.documentTitle,
+                              { color: C.text, borderBottomColor: C.tint + '55' },
+                            ]}
+                            numberOfLines={1}>
+                            {docGroup.documentTitle}
+                          </ThemedText>
+                          <View style={styles.grid}>
+                            {docGroup.passages.map((pg, j) =>
+                              renderDateCard(pg, j, C, STRATEGY_COLORS, setEditing),
                             )}
-                            {pg.entries.map((e) => {
-                              const uri = recordingUri(e);
-                              if (!uri) return null;
-                              return <RecordingPlayer key={`rec-${e.id}`} uri={uri} />;
-                            })}
                           </View>
-                        ))}
-                      </View>
+                        </View>
+                      ))}
+                      {folder.standalonePassages.length > 0 && (
+                        <View style={styles.grid}>
+                          {folder.standalonePassages.map((pg, j) =>
+                            renderDateCard(pg, j, C, STRATEGY_COLORS, setEditing),
+                          )}
+                        </View>
+                      )}
                     </View>
                   ))}
                 </View>
@@ -621,12 +684,14 @@ export default function LibraryLogScreen() {
                     styles.dayBlock,
                     { borderColor: C.icon + '55', backgroundColor: C.icon + '08' },
                   ]}>
-                  <View
-                    style={[styles.dayHeaderBar, { backgroundColor: C.tint }]}>
-                    <ThemedText style={styles.dayHeaderText}>
-                      {fg.folderName}
-                    </ThemedText>
-                  </View>
+                  {fg.folderName !== 'Unfiled' && (
+                    <View
+                      style={[styles.dayHeaderBar, { backgroundColor: C.tint }]}>
+                      <ThemedText style={styles.dayHeaderText}>
+                        {fg.folderName}
+                      </ThemedText>
+                    </View>
+                  )}
                   {fg.dayGroups.map((dg, j) => (
                     <View
                       key={j}
@@ -812,9 +877,11 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   documentTitle: {
-    fontSize: Type.size.md,
+    fontSize: Type.size.lg,
     fontWeight: Type.weight.heavy,
-    marginLeft: Spacing.xs,
+    paddingBottom: Spacing.xs,
+    borderBottomWidth: Borders.thin,
+    marginTop: Spacing.xs,
   },
   sectionGroup: {
     gap: Spacing.xs,
