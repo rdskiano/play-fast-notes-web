@@ -180,20 +180,42 @@ export default function RhythmBuilderScreen() {
   }, [hydrated, instrument]);
 
   // Debounced save of all entry-phase state into exercises.config_json.
+  //
+  // The pending payload is mirrored into a ref so the unmount-cleanup
+  // effect (below) can flush it even when the debounce timer hasn't fired
+  // yet. Without that flush, navigating away within 400 ms of the user's
+  // last edit silently drops the change.
+  const pendingSaveRef = useRef<{ exerciseId: string; json: string } | null>(
+    null,
+  );
   useEffect(() => {
     if (!exercise || !hydrated) return;
+    const merged: StoredConfig = {
+      instrumentId: instrument.id,
+      keyId: keySignature.id,
+      clefId: clef.id,
+      grouping,
+      pitches,
+      useSharps,
+    };
+    const json = JSON.stringify(merged);
+    pendingSaveRef.current = { exerciseId: exercise.id, json };
     const handle = setTimeout(() => {
-      const merged: StoredConfig = {
-        instrumentId: instrument.id,
-        keyId: keySignature.id,
-        clefId: clef.id,
-        grouping,
-        pitches,
-        useSharps,
-      };
-      const json = JSON.stringify(merged);
       setExercise((prev) => (prev ? { ...prev, config_json: json } : prev));
-      updateExerciseConfig(exercise.id, json).catch(() => undefined);
+      updateExerciseConfig(exercise.id, json)
+        .then(() => {
+          // Only clear the pending marker if this exact payload is still
+          // the latest — otherwise a newer edit is in flight and the
+          // unmount-flush effect should still pick it up.
+          if (pendingSaveRef.current?.json === json) {
+            pendingSaveRef.current = null;
+          }
+        })
+        .catch((err) => {
+          // Don't drop the pending marker on error; an unmount-flush retry
+          // is better than a silent loss.
+          console.warn('[rhythm-builder] config save failed', err);
+        });
     }, 400);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -206,6 +228,21 @@ export default function RhythmBuilderScreen() {
     pitches,
     useSharps,
   ]);
+
+  // Unmount: if a debounced save is still pending, fire it now so the
+  // user's last edits aren't lost when they navigate away quickly. The
+  // promise is intentionally not awaited — the component is gone, but
+  // the network request continues to completion in the background.
+  useEffect(() => {
+    return () => {
+      const pending = pendingSaveRef.current;
+      if (!pending) return;
+      pendingSaveRef.current = null;
+      updateExerciseConfig(pending.exerciseId, pending.json).catch((err) => {
+        console.warn('[rhythm-builder] unmount flush failed', err);
+      });
+    };
+  }, []);
 
   function exitSession() {
     metronome.stop();
