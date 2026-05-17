@@ -60,7 +60,17 @@ export async function deleteRecording(publicUrl: string): Promise<void> {
   // publicUrl format: <project>/storage/v1/object/public/recordings/<path>
   const marker = `/${BUCKET}/`;
   const idx = publicUrl.indexOf(marker);
-  if (idx < 0) return;
+  if (idx < 0) {
+    // Either a malformed URL or an old schema we no longer know how to
+    // address. Warn loudly — a silent return would orphan the file in
+    // storage forever with no diagnostic trail. Callers can still treat
+    // this as a soft failure (the practice_log row gets removed anyway).
+    console.warn(
+      '[recordings] deleteRecording: unrecognised URL, skipping storage remove',
+      publicUrl,
+    );
+    return;
+  }
   const path = publicUrl.slice(idx + marker.length).split('?')[0];
   const { error } = await supabase.storage.from(BUCKET).remove([path]);
   if (error) throw error;
