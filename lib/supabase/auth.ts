@@ -1,5 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import { resetForSignOut } from '@/lib/sessions/serialPractice';
 
 import { supabase } from './client';
 
@@ -94,14 +96,31 @@ export type SessionState = Session | null | undefined;
  */
 export function useSession(): SessionState {
   const [session, setSession] = useState<SessionState>(undefined);
+  // Track the previous session so we only fire the sign-out cleanup on a
+  // true transition (something → null), not on initial mount where session
+  // starts as undefined.
+  const prevUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
-      if (mounted) setSession(data.session);
+      if (mounted) {
+        prevUserIdRef.current = data.session?.user.id ?? null;
+        setSession(data.session);
+      }
     });
     const { data } = supabase.auth.onAuthStateChange((_event, s) => {
-      if (mounted) setSession(s);
+      if (!mounted) return;
+      const prev = prevUserIdRef.current;
+      const next = s?.user.id ?? null;
+      // Sign-out OR user switch: clear the Serial Practice singleton so
+      // the next session doesn't inherit timers, listeners, or state from
+      // the previous user. See resetForSignOut() docstring for details.
+      if (prev && prev !== next) {
+        resetForSignOut();
+      }
+      prevUserIdRef.current = next;
+      setSession(s);
     });
     return () => {
       mounted = false;

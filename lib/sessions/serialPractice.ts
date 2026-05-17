@@ -180,6 +180,21 @@ export function clearSession() {
   emit();
 }
 
+// Called from the auth state listener when the Supabase session goes to
+// null (sign-out, token expiry). Without this the timer-mode singleton,
+// the consistency-mode flag, and the listener set persist into the next
+// session on this browser — so a user who signs in after another user
+// signed out mid-Serial-Practice would inherit a running countdown and
+// somebody else's passages. The listener set is *not* cleared: those are
+// owned by mounted components (PracticeTimersPill, /interleaved, etc.)
+// which unmount on their own when the signed-in tree tears down.
+export function resetForSignOut() {
+  _state = null;
+  stopTicker();
+  _consistencyActive = false;
+  emit();
+}
+
 export function setEngagedTempo(passageId: string, bpm: number) {
   if (!_state) return;
   _state.engagedTempoByPassage = {
