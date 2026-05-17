@@ -1,11 +1,21 @@
 # Play Fast Notes — Web Roadmap
 
-_Last updated: 2026-05-03 (evening)_
+_Last updated: 2026-05-17_
 
 Granular roadmap for the web companion. Sibling to the iPad app at
 `../learn-fast-notes/`. Product direction, vocabulary, and design principles
 live in `../learn-fast-notes/ROADMAP.md` — this document only tracks
 implementation milestones for the web surface.
+
+> **🔄 2026-05-17 context shift.** The user got a new Mac that can run Xcode.
+> The old machine's "EAS-only" constraint — which had been pushing feature
+> work onto the web surface to avoid 15–30 min cloud builds per iteration —
+> is gone. The web app is no longer the only place fast iteration happens.
+> Items in this roadmap that read "iPad parity bundled with the next
+> playbuild" are now Workstream-A-blocked, not playbuild-blocked. See
+> `../learn-fast-notes/ROADMAP.md` under "Workstream A" for the iPad-side
+> plan, and `~/Desktop/Play Fast Notes — Reference/iPad Build Runbook.html`
+> for the step-by-step.
 
 ---
 
@@ -417,6 +427,9 @@ Within Phase 4 there are sub-phases:
 
 - Source-of-truth product docs: `../learn-fast-notes/ROADMAP.md`,
   `../learn-fast-notes/CLAUDE.md`.
+- Cross-cutting user-facing SOPs, runbooks, infographic, cheat sheet, and
+  audit reports — `~/Desktop/Play Fast Notes — Reference/`. Start with
+  `README — Start Here.md` in that folder.
 - Locked vocabulary (Tempo Ladder, Interleaved Click-Up, Rhythmic Variation,
   Chunking, Serial Practice) — see iPad ROADMAP § Vocabulary.
 - iPad screens to mirror — `../learn-fast-notes/app/`.

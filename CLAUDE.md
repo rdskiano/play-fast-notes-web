@@ -4,6 +4,8 @@ This is the **web** codebase. It's a separate repo from the iPad app (which live
 
 The user is **not a developer**. Always give them one-word terminal shortcuts (e.g. `playweb`), never long `cd ... && npx ...` lines that break on paste due to spaces in paths.
 
+> **📁 Reference folder.** Cross-cutting SOPs, runbooks, audit reports, and the visual project map live in `~/Desktop/Play Fast Notes — Reference/`. Start with `README — Start Here.md` in that folder. Current contents (2026-05-17): SOP (`.docx`), infographic (`.html`), printable cheat sheet (`.pdf`), 2026-05-17 codebase audit (`.md`), and the iPad Build Runbook (`.html`). These are the user-facing reference layer for the project — read them before answering broad "how does this work" questions instead of re-deriving from the code.
+
 ## Sibling layout
 
 ```
