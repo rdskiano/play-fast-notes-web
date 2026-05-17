@@ -74,7 +74,16 @@ export function useTempoLadderSession(id: string | undefined) {
         setClusterHigh(String(existing.cluster_high ?? existing.start_tempo + 12));
         setFinalTempo(String(existing.goal_tempo));
       } else {
-        setStartTempo(String(existing.start_tempo));
+        // Resume from the highest tempo the user climbed to last session.
+        // start_tempo only bumps when goal is reached (SUCCESS_BUMP_BPM); if
+        // they advanced mid-ladder and ended, current_tempo holds the real
+        // progress. Goal-reach case keeps the bumped start_tempo (current is
+        // already at goal so we'd lose climbing room).
+        const effectiveStart =
+          existing.current_tempo >= existing.goal_tempo
+            ? existing.start_tempo
+            : Math.max(existing.start_tempo, existing.current_tempo);
+        setStartTempo(String(effectiveStart));
         setGoalTempo(String(existing.goal_tempo));
       }
       setIncrement((existing.increment ?? 5) as Increment);
