@@ -9,7 +9,7 @@ The user is **not a developer**. Always give them one-word terminal shortcuts (e
 ## Sibling layout
 
 ```
-~/Desktop/APPS/iphone playfastnotes/
+~/Desktop/COWORK/PROJECTS/APPS/PlayFastNotes/
 ├── learn-fast-notes/        ← iPad app (DO NOT EDIT from this repo's tasks)
 └── play-fast-notes-web/     ← you are here
 ```
