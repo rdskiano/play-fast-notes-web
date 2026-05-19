@@ -1,21 +1,43 @@
-# Play Fast Notes — Web Roadmap
+# Play Fast Notes — Roadmap (unified)
 
-_Last updated: 2026-05-17_
+_Last updated: 2026-05-19_
 
-Granular roadmap for the web companion. Sibling to the iPad app at
-`../learn-fast-notes/`. Product direction, vocabulary, and design principles
-live in `../learn-fast-notes/ROADMAP.md` — this document only tracks
-implementation milestones for the web surface.
+This roadmap covers **both surfaces** (iOS/iPad + web) of the unified Play Fast Notes app, which lives in this directory (`play-fast-notes/`). The two older repos (`../learn-fast-notes/` for iPad and `../play-fast-notes-web/` for web) are read-only archives and their roadmaps are historical only.
 
-> **🔄 2026-05-17 context shift.** The user got a new Mac that can run Xcode.
-> The old machine's "EAS-only" constraint — which had been pushing feature
-> work onto the web surface to avoid 15–30 min cloud builds per iteration —
-> is gone. The web app is no longer the only place fast iteration happens.
-> Items in this roadmap that read "iPad parity bundled with the next
-> playbuild" are now Workstream-A-blocked, not playbuild-blocked. See
-> `../learn-fast-notes/ROADMAP.md` under "Workstream A" for the iPad-side
-> plan, and `~/Desktop/Play Fast Notes — Reference/iPad Build Runbook.html`
-> for the step-by-step.
+> **🔄 2026-05-19 — Unified-codebase migration is the active workstream.** The two-repo split (iPad in `learn-fast-notes/`, web in `play-fast-notes-web/`) was costing 2× implementation effort on every feature and producing constant drift. The merge into this single Expo project is partially complete: foundation works, data layer and document-marker components are split by platform, both targets compile and bundle. **Live deploys still come from the OLD repos until cutover.** See "Unified-codebase migration" section below for what's done and what's pending.
+
+The old web-only context note (2026-05-17 Mac upgrade) is now folded into history — the iPad still uses local Xcode builds, the web still deploys via Vercel. Both will eventually originate from this repo.
+
+## Unified-codebase migration (active 2026-05-19)
+
+**Why:** Web and iPad were duplicating effort. Every UI feature implemented twice in different paradigms (DOM events vs RN gestures, browser Canvas vs ImageManipulator, etc.). Drift was constant.
+
+**Approach:** Single Expo project. Web is the bundle target for `expo export -p web`; iOS/Android is the bundle target for native builds. Platform divergence handled via Metro's file-extension resolution: `.ts` = native default, `.web.ts` = web override. See CLAUDE.md "Platform-split file conventions" for the rules.
+
+**Done (2026-05-19):**
+- Merged repo created from web's codebase as the base.
+- `app.json` + `eas.json` + `package.json` merged (web target + iPad's native plugins + deps superset).
+- Both targets verified: web export passes (29 routes), iOS `xcodebuild` passes.
+- Data layer split — `lib/db/repos/*.ts` (SQLite) + `*.web.ts` (Supabase), plus `lib/db/client.ts` / `schema.ts` / `seed.ts` (native-only).
+- Unified `_layout.tsx` with `Platform.OS` gates (web auth, native SQLite migrations). `_layout.web.tsx` deleted — expo-router 6 doesn't honor platform suffixes for layouts.
+- `lib/startup/migrate.{ts,web.ts}` — native runs migrations + seed, web no-op.
+- Image lib unified: `cropImage(uri, rect)` + `stitchVerticallyUris(uris)` + `persistPassageImage(passageId, uri)` work on both surfaces (native uses ImageManipulator → local file; web uses Canvas → Supabase Storage).
+- Component splits for the document-marker UI: `PassageRectDrawer.{tsx,web.tsx}`, `PassageRectResizer.{tsx,web.tsx}`, `SectionMarkerCapturer.{tsx,web.tsx}`.
+- `app/document/[id].tsx` rewritten to use the unified image API — works identically on both targets.
+- Pure-RN components from web already on iPad: `ActionSheet`, `ConfirmModal`, `PostSaveSheet`, `SectionsModal`, `PageBoxOverlay` (all single `.tsx`, no platform split needed).
+- Native-only deps from iPad copied in: `InterleavedTimerContext.tsx`, `useInterleavedSession.ts`.
+- **Multi-page passage stitching on iOS** (2026-05-19): `react-native-view-shot` integration via a module-level `<StitchHost />` mounted in `_layout.tsx`. `stitchVerticallyUris(uris)` for N>1 now renders the source images stacked into a hidden off-screen `<View>`, waits for all `Image` children to fire `onLoadEnd`, then `captureRef` flattens to a JPEG. Call site `app/document/[id].tsx` unchanged — same `stitchVerticallyUris(uris) → Promise<string>` signature as the Canvas-based web implementation. Web shim renders nothing (`components/StitchHost.web.tsx`).
+
+**Pending:**
+- **Metronome engine cross-platform split** (newly identified 2026-05-19): merged `lib/audio/useMetronome.ts` is Web-Audio-only (uses `AudioContext`, `window`, `document`) — would crash on iOS at first use. Needs to become `.web.ts` with a native sibling ported from iPad's `lib/metronome/{engine,useMetronome}.ts` (which uses `react-native-audio-api`). Blocks every practice-flow iOS smoke test.
+- Bring in iPad-only components: `InlineMetronome` (used by iPad on interleaved/click-up/rhythmic), `CropView` (used by iPad on multi-page/crop), `RhythmNotation` (used by FloatingRhythmCard). The other three from the original list (`NoteCardStrip`, `PreviewPlayButton`, `SubdivisionControls`) are orphans in the iPad archive itself — zero importers — so they don't need porting. Blocked by metronome split.
+- Bring in `/import-supabase` route (originally iPad-only, used to pull Supabase → SQLite for testing). Requires splitting `lib/supabase/client.ts` (currently web-only) into `.web.ts` + native `.ts`.
+- Smoke-test full practice flows on iOS simulator: each of Tempo Ladder, Click-Up, Rhythmic, Self-Led from a document-backed passage. Blocked by metronome split.
+- Smoke-test web flows (via local `npm run web` from this dir, not the live site).
+- Cutover: create GitHub remote, push, point Vercel at new repo, archive old dirs, update aliases if needed.
+
+**Pre-existing TS errors that are NOT blockers** (carried in from web's codebase):
+- `app/passage/[id]/self-led/[key].tsx(78,31)` and `app/passage/[id]/self-led/recording.tsx(194,31)` — `SelfLedKey` vs `Strategy` mismatch. Doesn't break builds.
 
 ---
 

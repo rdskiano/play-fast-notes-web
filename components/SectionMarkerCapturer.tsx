@@ -1,8 +1,8 @@
-// Single-tap overlay used in section-mark mode. The user taps a page; the
-// component captures the y position in source-page pixels and reports it via
-// onCapture. No persistent visual; the marker itself is invisible.
+// Single-tap overlay used in section-mark mode. iPad port of the web
+// SectionMarkerCapturer. The user taps a page; we capture the y position
+// in source-page pixels and report via onCapture. No persistent visual.
 
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 type Props = {
   pageIndex: number;
@@ -22,19 +22,15 @@ export function SectionMarkerCapturer({
   onCapture,
 }: Props) {
   const imageRect = fitContain(slotWidth, slotHeight, sourceWidth, sourceHeight);
+  const useFallback = imageRect.w <= 0 || imageRect.h <= 0;
 
-  function onClick(e: React.MouseEvent<HTMLDivElement>) {
-    const target = e.currentTarget;
-    const rect = target.getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    const k = sourceHeight / Math.max(rect.height, 1);
-    const ySource = Math.max(0, Math.min(sourceHeight, Math.round(y * k)));
+  function handlePress(e: { nativeEvent: { locationY: number } }) {
+    const localY = e.nativeEvent.locationY;
+    const slotH = useFallback ? slotHeight : imageRect.h;
+    const k = sourceHeight / Math.max(slotH, 1);
+    const ySource = Math.max(0, Math.min(sourceHeight, Math.round(localY * k)));
     onCapture(pageIndex, ySource);
   }
-
-  // Fallback for layout race: if imageRect is zero-sized, still mount a
-  // tap-capture surface that fills the page slot.
-  const useFallback = imageRect.w <= 0 || imageRect.h <= 0;
 
   return (
     <View
@@ -45,22 +41,10 @@ export function SectionMarkerCapturer({
           ? { left: 0, top: 0, right: 0, bottom: 0 }
           : { left: imageRect.x, top: imageRect.y, width: imageRect.w, height: imageRect.h },
       ]}>
-      <div
-        onClick={onClick}
-        style={{
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          bottom: 0,
-          left: 0,
-          cursor: 'pointer',
-          touchAction: 'manipulation',
-          userSelect: 'none',
-          zIndex: 11,
-          // Subtle striped tint so the user knows the page is "armed" for marking.
-          background:
-            'repeating-linear-gradient(135deg, rgba(0,200,255,0.06) 0 12px, rgba(0,200,255,0.10) 12px 24px)',
-        }}
+      <Pressable
+        onPress={handlePress}
+        style={styles.surface}
+        accessibilityLabel={`Tap to mark section start on page ${pageIndex}`}
       />
     </View>
   );
@@ -81,4 +65,15 @@ function fitContain(slotW: number, slotH: number, sourceW: number, sourceH: numb
 
 const styles = StyleSheet.create({
   layer: { position: 'absolute' },
+  surface: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    // Subtle striped tint indicating the page is "armed" for marking.
+    // Web uses a CSS gradient; RN doesn't have gradients without a lib, so
+    // we use a near-transparent solid color tint as a fallback.
+    backgroundColor: 'rgba(0,200,255,0.08)',
+  },
 });

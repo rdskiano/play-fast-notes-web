@@ -1,90 +1,70 @@
-// Canvas-based image manipulation helpers (web-only — relies on the DOM
-// HTMLImageElement, HTMLCanvasElement, and createImageBitmap APIs).
+// Native (iOS/Android) image manipulation. Same export shape as canvasCrop.web.ts
+// so cross-platform code can import either via Metro's platform resolution.
 //
-// Used by:
-//   - components/InlineCropper.tsx — single-rectangle crop
-//   - app/multi-page.tsx — two-page passage composite
-//   - app/document/[id].tsx (planned) — passage marking + multi-page passage composite
+// Web-only Blob-based functions (loadImage, cropToBlob, cropImageToBlob, and the
+// Blob-based stitchVertically) exist as throw-stubs here so TypeScript imports
+// resolve. They're never reached at runtime because no iOS caller invokes them.
 //
-// All functions preserve aspect ratio precisely; output JPEGs are quality 0.9.
+// The CROSS-PLATFORM API is `cropImage(uri, rect) → uri` and
+// `stitchVerticallyUris(uris) → uri`. URIs are file:// on iOS, blob: on web.
+
+import * as ImageManipulator from 'expo-image-manipulator';
+
+import { stitchOnHost } from '@/components/StitchHost';
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
-const STITCH_DEFAULT_WIDTH = 1600;
-const JPEG_QUALITY = 0.9;
-
-export async function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new window.Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Could not load image'));
-    img.src = url;
-  });
+export async function loadImage(_url: string): Promise<HTMLImageElement> {
+  throw new Error('loadImage() is web-only. On iOS use cropImage(uri, rect).');
 }
 
-// Crop a region of a source image (by URL) to a JPEG blob. The rectangle's
-// coordinates are in the source image's natural pixel space.
-export async function cropToBlob(imageUrl: string, area: Rect): Promise<Blob> {
-  const img = await loadImage(imageUrl);
-  return cropImageToBlob(img, area);
+export async function cropToBlob(_imageUrl: string, _area: Rect): Promise<Blob> {
+  throw new Error('cropToBlob() is web-only. On iOS use cropImage(uri, rect).');
 }
 
-// Crop a region of an already-loaded image. Useful when the caller has cached
-// the image and is doing repeated crops (e.g. resize-mode commits).
-export async function cropImageToBlob(img: HTMLImageElement, area: Rect): Promise<Blob> {
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(area.w);
-  canvas.height = Math.round(area.h);
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D context not available');
-  ctx.drawImage(img, area.x, area.y, area.w, area.h, 0, 0, area.w, area.h);
-  return canvasToJpegBlob(canvas);
-}
-
-// Stitch N JPEG blobs vertically into one composite. Each input is scaled to
-// the same target width, preserving aspect; heights add up. Used to combine
-// multiple cropped page regions into a single passage image.
-export async function stitchVertically(
-  blobs: Blob[],
-  fixedWidth: number = STITCH_DEFAULT_WIDTH,
+export async function cropImageToBlob(
+  _img: HTMLImageElement,
+  _area: Rect,
 ): Promise<Blob> {
-  if (blobs.length === 0) throw new Error('stitchVertically: empty input');
-  if (blobs.length === 1) return blobs[0];
-
-  const bitmaps = await Promise.all(blobs.map((b) => createImageBitmap(b)));
-  const heights = bitmaps.map((bm) => Math.round((fixedWidth * bm.height) / bm.width));
-  const totalH = heights.reduce((a, b) => a + b, 0);
-
-  const canvas = document.createElement('canvas');
-  canvas.width = fixedWidth;
-  canvas.height = totalH;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D context not available');
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, fixedWidth, totalH);
-
-  let y = 0;
-  for (let i = 0; i < bitmaps.length; i++) {
-    ctx.drawImage(bitmaps[i], 0, y, fixedWidth, heights[i]);
-    y += heights[i];
-  }
-  return canvasToJpegBlob(canvas);
+  throw new Error('cropImageToBlob() is web-only. On iOS use cropImage(uri, rect).');
 }
 
-function canvasToJpegBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error('Canvas toBlob returned null'))),
-      'image/jpeg',
-      JPEG_QUALITY,
-    );
-  });
+export async function stitchVertically(_blobs: Blob[]): Promise<Blob> {
+  throw new Error(
+    'stitchVertically(blobs) is web-only. On iOS use stitchVerticallyUris(uris).',
+  );
 }
 
-// Convert a display-space rectangle (CSS pixels in the rendered viewport) to
-// source-space (the natural pixel coordinates of the underlying image, which
-// is what regions_json persists).
+// Crop a region of a source image (by file:// URI) to a new JPEG file. Coords
+// are in the source image's natural pixel space. Returns the URI of the
+// cropped JPEG (lives in expo's cache dir).
+export async function cropImage(uri: string, area: Rect): Promise<string> {
+  const result = await ImageManipulator.manipulateAsync(
+    uri,
+    [
+      {
+        crop: {
+          originX: Math.round(area.x),
+          originY: Math.round(area.y),
+          width: Math.round(area.w),
+          height: Math.round(area.h),
+        },
+      },
+    ],
+    { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG },
+  );
+  return result.uri;
+}
+
+// Multi-page stitching on iOS uses react-native-view-shot via the
+// <StitchHost /> rendered in app/_layout.tsx. N=1 short-circuits to
+// avoid the extra capture roundtrip. See components/StitchHost.tsx.
+export async function stitchVerticallyUris(uris: string[]): Promise<string> {
+  if (uris.length === 0) throw new Error('stitchVerticallyUris: empty input');
+  if (uris.length === 1) return uris[0];
+  return stitchOnHost(uris);
+}
+
 export function displayToSource(rect: Rect, displayW: number, sourceW: number): Rect {
   const k = sourceW / displayW;
   return {

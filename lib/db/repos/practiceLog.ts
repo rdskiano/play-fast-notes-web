@@ -1,6 +1,6 @@
-import { parseSections, sectionForPosition } from '@/lib/db/repos/documents';
-import { parseRegions } from '@/lib/db/repos/passages';
-import { supabase } from '@/lib/supabase/client';
+import { getDb } from '../client';
+import { parseSections, sectionForPosition } from './documents';
+import { parseRegions } from './passages';
 
 export type PracticeLogEntry = {
   id: number;
@@ -12,10 +12,48 @@ export type PracticeLogEntry = {
   exercise_name: string | null;
 };
 
+type PieceDocFields = {
+  document_id: string | null;
+  regions_json: string | null;
+  document_title: string | null;
+  document_sections_json: string | null;
+};
+
+export async function logPractice(
+  piece_id: string,
+  strategy: string,
+  data?: Record<string, unknown>,
+  exercise_id?: string | null,
+): Promise<number> {
+  const db = getDb();
+  const result = await db.runAsync(
+    'INSERT INTO practice_log (piece_id, strategy, practiced_at, data_json, exercise_id) VALUES (?, ?, ?, ?, ?);',
+    piece_id,
+    strategy,
+    Date.now(),
+    data ? JSON.stringify(data) : null,
+    exercise_id ?? null,
+  );
+  return result.lastInsertRowId;
+}
+
+export async function getPracticeLogForPassage(
+  piece_id: string,
+): Promise<PracticeLogEntry[]> {
+  const db = getDb();
+  return db.getAllAsync<PracticeLogEntry>(
+    `SELECT pl.id, pl.piece_id, pl.strategy, pl.practiced_at, pl.data_json,
+            pl.exercise_id, e.name AS exercise_name
+     FROM practice_log pl
+     LEFT JOIN exercises e ON e.id = pl.exercise_id
+     WHERE pl.piece_id = ?
+     ORDER BY pl.practiced_at DESC;`,
+    piece_id,
+  );
+}
+
 export type PracticeLogWithTitle = PracticeLogEntry & {
   piece_title: string;
-  // Set when the passage lives inside a document. Used to render entries as
-  // "Mahler 9 / IV. Adagio / bars 281-291" in the practice log.
   document_id: string | null;
   document_title: string | null;
   section_name: string | null;
@@ -26,179 +64,78 @@ export type LibraryPracticeLogEntry = PracticeLogWithTitle & {
   folder_name: string | null;
 };
 
-export async function logPractice(
-  piece_id: string,
-  strategy: string,
-  data?: Record<string, unknown>,
-  exercise_id?: string | null,
-): Promise<number> {
-  const row = {
-    piece_id,
-    strategy,
-    practiced_at: Date.now(),
-    data_json: data ? JSON.stringify(data) : null,
-    exercise_id: exercise_id ?? null,
-  };
-  const { data: inserted, error } = await supabase
-    .from('practice_log')
-    .insert(row)
-    .select('id')
-    .single();
-  if (error) throw error;
-  return (inserted as { id: number }).id;
+function resolveSectionName(piece: PieceDocFields): string | null {
+  if (!piece.document_id || !piece.document_sections_json) return null;
+  const regions = parseRegions(piece.regions_json);
+  const first = regions[0];
+  if (!first) return null;
+  const sections = parseSections(piece.document_sections_json);
+  return sectionForPosition(sections, first.page, first.y)?.name ?? null;
 }
 
-export async function getPracticeLogForPassage(
-  piece_id: string,
-): Promise<PracticeLogEntry[]> {
-  // PostgREST cannot infer the practice_log → exercises FK in this Supabase
-  // project, so embedded `exercises(name)` joins 400. Fetch the two tables
-  // separately and join in JS.
-  const [logsRes, exercisesRes] = await Promise.all([
-    supabase
-      .from('practice_log')
-      .select('id, piece_id, strategy, practiced_at, data_json, exercise_id')
-      .eq('piece_id', piece_id)
-      .order('practiced_at', { ascending: false }),
-    supabase.from('exercises').select('id, name').eq('piece_id', piece_id),
-  ]);
-  if (logsRes.error) throw logsRes.error;
-  if (exercisesRes.error) throw exercisesRes.error;
-
-  const exerciseNames = new Map<string, string>();
-  for (const e of (exercisesRes.data ?? []) as Array<{ id: string; name: string | null }>) {
-    if (e.name) exerciseNames.set(e.id, e.name);
-  }
-
-  return ((logsRes.data ?? []) as unknown as Array<{
+export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntry[]> {
+  const db = getDb();
+  type Row = {
     id: number;
     piece_id: string;
     strategy: string;
     practiced_at: number;
     data_json: string | null;
     exercise_id: string | null;
-  }>).map((r) => ({
+    exercise_name: string | null;
+    piece_title: string;
+    folder_id: string | null;
+    folder_name: string | null;
+    document_id: string | null;
+    regions_json: string | null;
+    document_title: string | null;
+    document_sections_json: string | null;
+  };
+  const rows = await db.getAllAsync<Row>(
+    `SELECT pl.id, pl.piece_id, pl.strategy, pl.practiced_at, pl.data_json,
+            pl.exercise_id, e.name AS exercise_name,
+            p.title AS piece_title,
+            p.folder_id AS folder_id,
+            f.name AS folder_name,
+            p.document_id AS document_id,
+            p.regions_json AS regions_json,
+            d.title AS document_title,
+            d.sections_json AS document_sections_json
+     FROM practice_log pl
+     JOIN pieces p ON pl.piece_id = p.id
+     LEFT JOIN exercises e ON e.id = pl.exercise_id
+     LEFT JOIN folders f ON f.id = p.folder_id
+     LEFT JOIN documents d ON d.id = p.document_id
+     WHERE p.deleted_at IS NULL
+     ORDER BY pl.practiced_at DESC;`,
+  );
+  return rows.map((r) => ({
     id: r.id,
     piece_id: r.piece_id,
     strategy: r.strategy,
     practiced_at: r.practiced_at,
     data_json: r.data_json,
     exercise_id: r.exercise_id,
-    exercise_name: r.exercise_id ? exerciseNames.get(r.exercise_id) ?? null : null,
+    exercise_name: r.exercise_name,
+    piece_title: r.piece_title,
+    folder_id: r.folder_id,
+    folder_name: r.folder_name,
+    document_id: r.document_id,
+    document_title: r.document_title,
+    section_name: resolveSectionName(r),
   }));
-}
-
-type PieceWithDoc = {
-  id: string;
-  title: string;
-  folder_id: string | null;
-  document_id: string | null;
-  regions_json: string | null;
-};
-
-type DocLite = {
-  id: string;
-  title: string;
-  sections_json: string | null;
-};
-
-function resolveSection(
-  piece: PieceWithDoc,
-  documents: Map<string, DocLite>,
-): { document_title: string | null; section_name: string | null } {
-  if (!piece.document_id) return { document_title: null, section_name: null };
-  const doc = documents.get(piece.document_id);
-  if (!doc) return { document_title: null, section_name: null };
-  const regions = parseRegions(piece.regions_json);
-  const first = regions[0];
-  const sections = parseSections(doc.sections_json);
-  const section = first ? sectionForPosition(sections, first.page, first.y) : null;
-  return { document_title: doc.title, section_name: section?.name ?? null };
-}
-
-export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntry[]> {
-  // PostgREST cannot infer FKs between practice_log/pieces/exercises/folders in
-  // this project's schema cache, so embedded joins (e.g. `pieces!inner(...)`) 400.
-  // Fetch each table separately and join in JS.
-  const [logsRes, piecesRes, exercisesRes, foldersRes, documentsRes] = await Promise.all([
-    supabase
-      .from('practice_log')
-      .select('id, piece_id, strategy, practiced_at, data_json, exercise_id')
-      .order('practiced_at', { ascending: false }),
-    supabase
-      .from('pieces')
-      .select('id, title, folder_id, document_id, regions_json, deleted_at')
-      .is('deleted_at', null),
-    supabase.from('exercises').select('id, name'),
-    supabase.from('folders').select('id, name').is('deleted_at', null),
-    supabase.from('documents').select('id, title, sections_json').is('deleted_at', null),
-  ]);
-  if (logsRes.error) throw logsRes.error;
-  if (piecesRes.error) throw piecesRes.error;
-  if (exercisesRes.error) throw exercisesRes.error;
-  if (foldersRes.error) throw foldersRes.error;
-  if (documentsRes.error) throw documentsRes.error;
-
-  const pieceById = new Map<string, PieceWithDoc>();
-  for (const p of (piecesRes.data ?? []) as PieceWithDoc[]) {
-    pieceById.set(p.id, p);
-  }
-  const exerciseNames = new Map<string, string>();
-  for (const e of (exercisesRes.data ?? []) as Array<{ id: string; name: string | null }>) {
-    if (e.name) exerciseNames.set(e.id, e.name);
-  }
-  const folderNames = new Map<string, string>();
-  for (const f of (foldersRes.data ?? []) as Array<{ id: string; name: string | null }>) {
-    if (f.name) folderNames.set(f.id, f.name);
-  }
-  const documents = new Map<string, DocLite>();
-  for (const d of (documentsRes.data ?? []) as DocLite[]) {
-    documents.set(d.id, d);
-  }
-
-  return ((logsRes.data ?? []) as unknown as Array<{
-    id: number;
-    piece_id: string;
-    strategy: string;
-    practiced_at: number;
-    data_json: string | null;
-    exercise_id: string | null;
-  }>)
-    .map((r) => {
-      const piece = pieceById.get(r.piece_id);
-      if (!piece) return null;
-      const { document_title, section_name } = resolveSection(piece, documents);
-      return {
-        id: r.id,
-        piece_id: r.piece_id,
-        strategy: r.strategy,
-        practiced_at: r.practiced_at,
-        data_json: r.data_json,
-        exercise_id: r.exercise_id,
-        exercise_name: r.exercise_id ? exerciseNames.get(r.exercise_id) ?? null : null,
-        piece_title: piece.title,
-        document_id: piece.document_id,
-        document_title,
-        section_name,
-        folder_id: piece.folder_id,
-        folder_name: piece.folder_id ? folderNames.get(piece.folder_id) ?? null : null,
-      };
-    })
-    .filter((r): r is LibraryPracticeLogEntry => r !== null);
 }
 
 export async function updatePracticeLogMoodNote(
   id: number,
   patch: { mood: string | null; note: string | null; remindNext?: boolean },
 ): Promise<void> {
-  const { data: row, error: selErr } = await supabase
-    .from('practice_log')
-    .select('data_json')
-    .eq('id', id)
-    .maybeSingle();
-  if (selErr) throw selErr;
+  const db = getDb();
+  const row = await db.getFirstAsync<{ data_json: string | null }>(
+    'SELECT data_json FROM practice_log WHERE id = ?;',
+    id,
+  );
   if (!row) return;
-
   let data: Record<string, unknown> = {};
   if (row.data_json) {
     try {
@@ -219,16 +156,15 @@ export async function updatePracticeLogMoodNote(
     else delete data.remindNext;
   }
   const nextJson = Object.keys(data).length > 0 ? JSON.stringify(data) : null;
-
-  const { error } = await supabase
-    .from('practice_log')
-    .update({ data_json: nextJson })
-    .eq('id', id);
-  if (error) throw error;
+  await db.runAsync(
+    'UPDATE practice_log SET data_json = ? WHERE id = ?;',
+    nextJson,
+    id,
+  );
 }
 
-// A flagged practice-log note that should appear on the passage screen until
-// the user dismisses it.
+// A flagged practice-log note that should appear on the passage screen
+// until the user dismisses it.
 export type PassageReminder = {
   id: number;
   strategy: string;
@@ -240,23 +176,23 @@ export type PassageReminder = {
 export async function listPassageReminders(
   piece_id: string,
 ): Promise<PassageReminder[]> {
-  const { data, error } = await supabase
-    .from('practice_log')
-    .select('id, strategy, practiced_at, data_json, exercise_id')
-    .eq('piece_id', piece_id)
-    .order('practiced_at', { ascending: false })
-    .limit(40);
-  if (error) throw error;
-  const rows = (data ?? []) as Array<{
+  const db = getDb();
+  const rows = await db.getAllAsync<{
     id: number;
     strategy: string;
     practiced_at: number;
     data_json: string | null;
     exercise_id: string | null;
-  }>;
+  }>(
+    `SELECT id, strategy, practiced_at, data_json, exercise_id
+     FROM practice_log
+     WHERE piece_id = ?
+     ORDER BY practiced_at DESC
+     LIMIT 40;`,
+    piece_id,
+  );
 
   const reminders: PassageReminder[] = [];
-  const exerciseIds = new Set<string>();
   for (const r of rows) {
     if (!r.data_json) continue;
     try {
@@ -271,23 +207,30 @@ export async function listPassageReminders(
         practiced_at: r.practiced_at,
         exercise_name: null,
       });
-      if (r.exercise_id) exerciseIds.add(r.exercise_id);
     } catch {
       // skip corrupt rows
     }
   }
 
-  if (exerciseIds.size > 0) {
-    const { data: exs } = await supabase
-      .from('exercises')
-      .select('id, name')
-      .in('id', Array.from(exerciseIds));
+  // Attach exercise names where we have them.
+  const ids = Array.from(
+    new Set(
+      rows
+        .filter((r) => reminders.some((rem) => rem.id === r.id) && r.exercise_id)
+        .map((r) => r.exercise_id as string),
+    ),
+  );
+  if (ids.length > 0) {
+    const placeholders = ids.map(() => '?').join(', ');
+    const exs = await db.getAllAsync<{ id: string; name: string | null }>(
+      `SELECT id, name FROM exercises WHERE id IN (${placeholders});`,
+      ...ids,
+    );
     const nameById = new Map<string, string>();
-    for (const e of (exs ?? []) as Array<{ id: string; name: string | null }>) {
+    for (const e of exs) {
       if (e.name) nameById.set(e.id, e.name);
     }
     for (const r of reminders) {
-      // Re-attach exercise name from the source row.
       const src = rows.find((x) => x.id === r.id);
       if (src?.exercise_id) r.exercise_name = nameById.get(src.exercise_id) ?? null;
     }
@@ -297,12 +240,11 @@ export async function listPassageReminders(
 }
 
 export async function clearReminder(id: number): Promise<void> {
-  const { data: row, error: selErr } = await supabase
-    .from('practice_log')
-    .select('data_json')
-    .eq('id', id)
-    .maybeSingle();
-  if (selErr) throw selErr;
+  const db = getDb();
+  const row = await db.getFirstAsync<{ data_json: string | null }>(
+    'SELECT data_json FROM practice_log WHERE id = ?;',
+    id,
+  );
   if (!row || !row.data_json) return;
   try {
     const parsed = JSON.parse(row.data_json);
@@ -310,11 +252,11 @@ export async function clearReminder(id: number): Promise<void> {
       delete (parsed as Record<string, unknown>).remindNext;
       const nextJson =
         Object.keys(parsed).length > 0 ? JSON.stringify(parsed) : null;
-      const { error } = await supabase
-        .from('practice_log')
-        .update({ data_json: nextJson })
-        .eq('id', id);
-      if (error) throw error;
+      await db.runAsync(
+        'UPDATE practice_log SET data_json = ? WHERE id = ?;',
+        nextJson,
+        id,
+      );
     }
   } catch {
     // skip corrupt rows
@@ -322,138 +264,109 @@ export async function clearReminder(id: number): Promise<void> {
 }
 
 export async function deletePracticeLog(id: number): Promise<void> {
-  const { error } = await supabase.from('practice_log').delete().eq('id', id);
-  if (error) throw error;
+  const db = getDb();
+  await db.runAsync('DELETE FROM practice_log WHERE id = ?;', id);
 }
 
 export async function getPracticeLogForDocument(
   document_id: string,
 ): Promise<PracticeLogWithTitle[]> {
-  // Same join-in-JS pattern as the folder/library variants.
-  const [piecesRes, logsRes, exercisesRes, documentsRes] = await Promise.all([
-    supabase
-      .from('pieces')
-      .select('id, title, folder_id, document_id, regions_json')
-      .eq('document_id', document_id)
-      .is('deleted_at', null),
-    supabase
-      .from('practice_log')
-      .select('id, piece_id, strategy, practiced_at, data_json, exercise_id')
-      .order('practiced_at', { ascending: false }),
-    supabase.from('exercises').select('id, name'),
-    supabase.from('documents').select('id, title, sections_json').eq('id', document_id),
-  ]);
-  if (piecesRes.error) throw piecesRes.error;
-  if (logsRes.error) throw logsRes.error;
-  if (exercisesRes.error) throw exercisesRes.error;
-  if (documentsRes.error) throw documentsRes.error;
-
-  const pieceById = new Map<string, PieceWithDoc>();
-  for (const p of (piecesRes.data ?? []) as PieceWithDoc[]) {
-    pieceById.set(p.id, p);
-  }
-  const exerciseNames = new Map<string, string>();
-  for (const e of (exercisesRes.data ?? []) as Array<{ id: string; name: string | null }>) {
-    if (e.name) exerciseNames.set(e.id, e.name);
-  }
-  const documents = new Map<string, DocLite>();
-  for (const d of (documentsRes.data ?? []) as DocLite[]) {
-    documents.set(d.id, d);
-  }
-
-  return ((logsRes.data ?? []) as unknown as Array<{
+  const db = getDb();
+  type Row = {
     id: number;
     piece_id: string;
     strategy: string;
     practiced_at: number;
     data_json: string | null;
     exercise_id: string | null;
-  }>)
-    .map((r) => {
-      const piece = pieceById.get(r.piece_id);
-      if (!piece) return null;
-      const { document_title, section_name } = resolveSection(piece, documents);
-      return {
-        id: r.id,
-        piece_id: r.piece_id,
-        strategy: r.strategy,
-        practiced_at: r.practiced_at,
-        data_json: r.data_json,
-        exercise_id: r.exercise_id,
-        exercise_name: r.exercise_id ? exerciseNames.get(r.exercise_id) ?? null : null,
-        piece_title: piece.title,
-        document_id: piece.document_id,
-        document_title,
-        section_name,
-      };
-    })
-    .filter((r): r is PracticeLogWithTitle => r !== null);
+    exercise_name: string | null;
+    piece_title: string;
+    document_id: string | null;
+    regions_json: string | null;
+    document_title: string | null;
+    document_sections_json: string | null;
+  };
+  const rows = await db.getAllAsync<Row>(
+    `SELECT pl.id, pl.piece_id, pl.strategy, pl.practiced_at, pl.data_json,
+            pl.exercise_id, e.name AS exercise_name,
+            p.title AS piece_title,
+            p.document_id AS document_id,
+            p.regions_json AS regions_json,
+            d.title AS document_title,
+            d.sections_json AS document_sections_json
+     FROM practice_log pl
+     JOIN pieces p ON pl.piece_id = p.id
+     LEFT JOIN exercises e ON e.id = pl.exercise_id
+     LEFT JOIN documents d ON d.id = p.document_id
+     WHERE p.document_id = ? AND p.deleted_at IS NULL
+     ORDER BY pl.practiced_at DESC;`,
+    document_id,
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    piece_id: r.piece_id,
+    strategy: r.strategy,
+    practiced_at: r.practiced_at,
+    data_json: r.data_json,
+    exercise_id: r.exercise_id,
+    exercise_name: r.exercise_name,
+    piece_title: r.piece_title,
+    document_id: r.document_id,
+    document_title: r.document_title,
+    section_name: resolveSectionName(r),
+  }));
 }
 
 export async function getPracticeLogForFolder(
   folder_id: string | null,
 ): Promise<PracticeLogWithTitle[]> {
-  const piecesQuery = supabase
-    .from('pieces')
-    .select('id, title, folder_id, document_id, regions_json')
-    .is('deleted_at', null);
-  const filteredPiecesQuery =
+  const db = getDb();
+  const where =
     folder_id === null
-      ? piecesQuery.is('folder_id', null)
-      : piecesQuery.eq('folder_id', folder_id);
-
-  const [piecesRes, logsRes, exercisesRes, documentsRes] = await Promise.all([
-    filteredPiecesQuery,
-    supabase
-      .from('practice_log')
-      .select('id, piece_id, strategy, practiced_at, data_json, exercise_id')
-      .order('practiced_at', { ascending: false }),
-    supabase.from('exercises').select('id, name'),
-    supabase.from('documents').select('id, title, sections_json').is('deleted_at', null),
-  ]);
-  if (piecesRes.error) throw piecesRes.error;
-  if (logsRes.error) throw logsRes.error;
-  if (exercisesRes.error) throw exercisesRes.error;
-  if (documentsRes.error) throw documentsRes.error;
-
-  const pieceById = new Map<string, PieceWithDoc>();
-  for (const p of (piecesRes.data ?? []) as PieceWithDoc[]) {
-    pieceById.set(p.id, p);
-  }
-  const exerciseNames = new Map<string, string>();
-  for (const e of (exercisesRes.data ?? []) as Array<{ id: string; name: string | null }>) {
-    if (e.name) exerciseNames.set(e.id, e.name);
-  }
-  const documents = new Map<string, DocLite>();
-  for (const d of (documentsRes.data ?? []) as DocLite[]) {
-    documents.set(d.id, d);
-  }
-
-  return ((logsRes.data ?? []) as unknown as Array<{
+      ? 'p.folder_id IS NULL'
+      : 'p.folder_id = ?';
+  const params = folder_id === null ? [] : [folder_id];
+  type Row = {
     id: number;
     piece_id: string;
     strategy: string;
     practiced_at: number;
     data_json: string | null;
     exercise_id: string | null;
-  }>)
-    .map((r) => {
-      const piece = pieceById.get(r.piece_id);
-      if (!piece) return null;
-      const { document_title, section_name } = resolveSection(piece, documents);
-      return {
-        id: r.id,
-        piece_id: r.piece_id,
-        strategy: r.strategy,
-        practiced_at: r.practiced_at,
-        data_json: r.data_json,
-        exercise_id: r.exercise_id,
-        exercise_name: r.exercise_id ? exerciseNames.get(r.exercise_id) ?? null : null,
-        piece_title: piece.title,
-        document_id: piece.document_id,
-        document_title,
-        section_name,
-      };
-    })
-    .filter((r): r is PracticeLogWithTitle => r !== null);
+    exercise_name: string | null;
+    piece_title: string;
+    document_id: string | null;
+    regions_json: string | null;
+    document_title: string | null;
+    document_sections_json: string | null;
+  };
+  const rows = await db.getAllAsync<Row>(
+    `SELECT pl.id, pl.piece_id, pl.strategy, pl.practiced_at, pl.data_json,
+            pl.exercise_id, e.name AS exercise_name,
+            p.title AS piece_title,
+            p.document_id AS document_id,
+            p.regions_json AS regions_json,
+            d.title AS document_title,
+            d.sections_json AS document_sections_json
+     FROM practice_log pl
+     JOIN pieces p ON pl.piece_id = p.id
+     LEFT JOIN exercises e ON e.id = pl.exercise_id
+     LEFT JOIN documents d ON d.id = p.document_id
+     WHERE ${where} AND p.deleted_at IS NULL
+     ORDER BY pl.practiced_at DESC;`,
+    ...params,
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    piece_id: r.piece_id,
+    strategy: r.strategy,
+    practiced_at: r.practiced_at,
+    data_json: r.data_json,
+    exercise_id: r.exercise_id,
+    exercise_name: r.exercise_name,
+    piece_title: r.piece_title,
+    document_id: r.document_id,
+    document_title: r.document_title,
+    section_name: resolveSectionName(r),
+  }));
 }

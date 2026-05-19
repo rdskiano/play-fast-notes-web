@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase/client';
+import { getDb } from '../client';
 
 export type ClickUpProgress = {
   exercise_id: string;
@@ -10,36 +10,39 @@ export async function upsertClickUpProgress(
   exercise_id: string,
   current_index: number,
 ): Promise<ClickUpProgress> {
+  const db = getDb();
   const now = Date.now();
-  const { error } = await supabase
-    .from('click_up_progress')
-    .upsert(
-      { exercise_id, current_index, updated_at: now },
-      { onConflict: 'exercise_id' },
-    );
-  if (error) throw error;
+  await db.runAsync(
+    `INSERT INTO click_up_progress (exercise_id, current_index, updated_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT(exercise_id) DO UPDATE SET current_index = excluded.current_index, updated_at = excluded.updated_at;`,
+    exercise_id,
+    current_index,
+    now,
+  );
   return { exercise_id, current_index, updated_at: now };
 }
 
 export async function getClickUpProgress(
   exercise_id: string,
 ): Promise<ClickUpProgress | null> {
-  const { data, error } = await supabase
-    .from('click_up_progress')
-    .select('exercise_id, current_index, updated_at')
-    .eq('exercise_id', exercise_id)
-    .maybeSingle();
-  if (error) throw error;
-  return (data as ClickUpProgress | null) ?? null;
+  const db = getDb();
+  const row = await db.getFirstAsync<ClickUpProgress>(
+    `SELECT * FROM click_up_progress WHERE exercise_id = ?;`,
+    exercise_id,
+  );
+  return row ?? null;
 }
 
 export async function setClickUpIndex(
   exercise_id: string,
   current_index: number,
 ): Promise<void> {
-  const { error } = await supabase
-    .from('click_up_progress')
-    .update({ current_index, updated_at: Date.now() })
-    .eq('exercise_id', exercise_id);
-  if (error) throw error;
+  const db = getDb();
+  await db.runAsync(
+    `UPDATE click_up_progress SET current_index = ?, updated_at = ? WHERE exercise_id = ?;`,
+    current_index,
+    Date.now(),
+    exercise_id,
+  );
 }

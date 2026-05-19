@@ -1,240 +1,143 @@
-# Play Fast Notes — web companion (working notes for Claude)
+# Play Fast Notes — unified app (working notes for Claude)
 
-This is the **web** codebase. It's a separate repo from the iPad app (which lives next door at `../learn-fast-notes/`). Both apps share a Supabase backend for auth + practice log + future subscriptions, but UI / build / deploy pipelines are independent.
+This is **the unified Play Fast Notes codebase** — one Expo project that targets both **iOS (iPad)** and **web** from a single source tree. It supersedes the old split between `learn-fast-notes/` (iPad-only) and `play-fast-notes-web/` (web-only). Those repos still sit next door at `../learn-fast-notes/` and `../play-fast-notes-web/` as **read-only archives** — reference them when porting historical decisions, never edit them.
 
-The user is **not a developer**. Always give them one-word terminal shortcuts (e.g. `playweb`), never long `cd ... && npx ...` lines that break on paste due to spaces in paths.
+The user is **not a developer**. Always give them one-word terminal shortcuts (e.g. `playfast`, `playweb`), never long `cd ... && npx ...` lines that break on paste due to spaces in paths.
 
-> **📁 Reference folder.** Cross-cutting SOPs, runbooks, audit reports, and the visual project map live in `~/Desktop/Play Fast Notes — Reference/`. Start with `README — Start Here.md` in that folder. Current contents (2026-05-17): SOP (`.docx`), infographic (`.html`), printable cheat sheet (`.pdf`), 2026-05-17 codebase audit (`.md`), and the iPad Build Runbook (`.html`). These are the user-facing reference layer for the project — read them before answering broad "how does this work" questions instead of re-deriving from the code.
+> **🔄 Status as of 2026-05-19.** The merge from the two-repo split into this unified codebase is **in progress**. Foundation works: both targets compile (`npx expo export -p web` and `xcodebuild` succeed), the data layer is split by platform, the document marker UI works on both. **Live deploys still come from the OLD repos** — `playfastnotes.com` from `play-fast-notes-web/`, the physical iPad from `learn-fast-notes/`. Until cutover, this merged repo is dev-only. See **Active migration status** below.
 
-## Sibling layout
+## Where this lives
+
+- Working directory: `~/Desktop/COWORK/PROJECTS/APPS/PlayFastNotes/play-fast-notes/`
+- Git: local-only for now. The web's GitHub remote was renamed `web-origin-archive` so accidental `git push origin` can't deploy to live. When ready to cut over, create a new GitHub repo named `play-fast-notes` (or rename the existing one) and point Vercel at it.
+- Sibling layout:
+  ```
+  ~/Desktop/COWORK/PROJECTS/APPS/PlayFastNotes/
+  ├── learn-fast-notes/        ← old iPad repo (read-only archive; physical iPad still runs this)
+  ├── play-fast-notes-web/     ← old web repo (read-only archive; playfastnotes.com still deploys from this)
+  ├── play-fast-notes/         ← unified — YOU ARE HERE
+  └── Play Fast Notes — Reference/  ← cross-cutting SOPs, runbooks
+  ```
+
+## Day-to-day commands
 
 ```
-~/Desktop/COWORK/PROJECTS/APPS/PlayFastNotes/
-├── learn-fast-notes/        ← iPad app (DO NOT EDIT from this repo's tasks)
-└── play-fast-notes-web/     ← you are here
+playweb     # npm run web → opens http://localhost:8081 in browser
+playfast    # npx expo start --dev-client → Metro for iOS simulator/device
+playbuild   # npx eas-cli build --profile development --platform ios
+playpreview # npx eas-cli build --profile preview --platform ios (standalone .ipa)
 ```
 
-The iPad repo is the design north star (per `../learn-fast-notes/ROADMAP.md` Phase 4). When porting screens, copy from the iPad repo and adapt — never modify the iPad repo to suit web needs.
+All four aliases live in `~/.zshrc` and point at this directory. Plus `LANG=en_US.UTF-8` / `LC_ALL=en_US.UTF-8` are exported — required for CocoaPods on macOS 26.
 
-## Running locally
-
-1. `playweb` (after the alias is added to `~/.bash_profile`) → starts `npm run web`.
-2. Browser opens at `http://localhost:8081`.
-
-If `playweb` doesn't exist yet, the user can run `npm run web` from this folder directly.
-
-## Supabase
-
-- The user has **multiple Supabase projects** in their account. The web app talks to the project whose ref appears in `.env.local` as `EXPO_PUBLIC_SUPABASE_URL`. Currently `uugodzwxuxgfwujnwpuq` (project name "play-fast-notes-web"). Always confirm the dashboard URL bar matches this ref before running SQL or making bucket changes — running setup against the wrong project looks identical and silently fails to apply.
-- Schema lives in `db/schema.sql` — the user pastes this into Supabase's SQL editor once, when setting up the project. Re-run is idempotent (`create table if not exists`).
-- Auth is **email + password**, configured in `lib/supabase/auth.ts`. The single `continueWithPassword(email, password)` helper tries `signInWithPassword`, falls through to `signUp` if no account exists, and surfaces a friendly error otherwise. **Email confirmation must be OFF** in Supabase (Auth → Providers → Email → "Confirm email" toggle), otherwise signup returns no session and the UI hangs. We chose password over magic link for testing-phase friction; magic link will likely come back at Phase 4.4 alongside Stripe.
-- Every table has Row Level Security with policy `auth.uid() = user_id`. Inserts auto-fill `user_id` via a column-level `default auth.uid()`, so repos don't need to set it manually.
-
-### Storage bucket setup (one-time, dashboard-only — not in `db/schema.sql`)
-
-`db/schema.sql` covers tables only. Storage bucket policies live on `storage.objects` and must be set up separately in the Supabase dashboard. Symptom of missing setup: image uploads fail with `new row violates row-level security policy` while title-only saves succeed.
-
-Setup steps (per project):
-
-1. Dashboard → Storage → "New bucket". Name it exactly `pieces` (lowercase). Leave "Public bucket" OFF — the SQL below grants public read.
-2. Dashboard → SQL Editor → paste and run:
-
-```sql
-drop policy if exists "pieces_public_read" on storage.objects;
-create policy "pieces_public_read"
-on storage.objects for select to public
-using (bucket_id = 'pieces');
-
-drop policy if exists "pieces_owner_insert" on storage.objects;
-create policy "pieces_owner_insert"
-on storage.objects for insert to authenticated
-with check (
-  bucket_id = 'pieces'
-  and auth.uid()::text = (storage.foldername(name))[1]
-);
-
-drop policy if exists "pieces_owner_update" on storage.objects;
-create policy "pieces_owner_update"
-on storage.objects for update to authenticated
-using (bucket_id = 'pieces' and auth.uid()::text = (storage.foldername(name))[1])
-with check (bucket_id = 'pieces' and auth.uid()::text = (storage.foldername(name))[1]);
-
-drop policy if exists "pieces_owner_delete" on storage.objects;
-create policy "pieces_owner_delete"
-on storage.objects for delete to authenticated
-using (bucket_id = 'pieces' and auth.uid()::text = (storage.foldername(name))[1]);
+For local iOS builds (the new-Mac workflow):
+```
+rm -rf ios
+npx expo prebuild --platform ios
+open ios/playfastnotes.xcworkspace
+# Xcode → pick iPad simulator → Play
 ```
 
-The `upsert: true` flag in `lib/supabase/storage.ts` requires the update policy in addition to insert. The path scheme is `<user_id>/<piece_id>.<ext>`, so the foldername check pins each user to their own subfolder.
+## Platform-split file conventions
 
-### Recordings bucket (Self-Led Recording strategy)
+This is the **critical** structural pattern. Read it before you create or rename files.
 
-Self-Led `recording` entries store an audio clip in a separate `recordings` bucket. One-time setup:
+**Default file gets `.ts` (or `.tsx`) — that's the NATIVE (iOS/Android) version.** Web override is `.web.ts` (or `.web.tsx`). Metro resolves the right one per platform at bundle time; TypeScript sees the `.ts` (native) version by default.
 
-1. Dashboard → Storage → "New bucket". Name it exactly `recordings` (lowercase). **Toggle Public bucket ON.** The `<audio>` element in the practice log uses `getPublicUrl()` which only works against buckets flagged public; with the toggle off, every URL returns `{"error":"Object not found"}` even when the SQL policies exist (HTMLMediaError code 4). The owner-write SQL below still constrains who can upload / delete.
-2. Dashboard → SQL Editor → paste and run:
+Examples in this repo:
+- `lib/db/repos/folders.ts` (SQLite) + `lib/db/repos/folders.web.ts` (Supabase)
+- `lib/db/client.ts` (SQLite client, iOS) — no `.web.ts` because nothing on web imports it
+- `lib/startup/migrate.ts` (runs SQLite migrations) + `lib/startup/migrate.web.ts` (no-op)
+- `lib/image/canvasCrop.ts` (ImageManipulator-based) + `.web.ts` (Canvas-based)
+- `lib/image/persistPassageImage.ts` (writes to documents/pieces/) + `.web.ts` (uploads to Supabase Storage)
+- `components/PassageRectDrawer.tsx` (gesture-handler) + `.web.tsx` (DOM pointer events)
+- `components/PassageRectResizer.tsx` (gesture-handler) + `.web.tsx` (DOM)
+- `components/SectionMarkerCapturer.tsx` (Pressable) + `.web.tsx` (`<div onClick>`)
 
-```sql
-drop policy if exists "recordings_public_read" on storage.objects;
-create policy "recordings_public_read"
-on storage.objects for select to public
-using (bucket_id = 'recordings');
+**Important exception — `_layout.tsx` does NOT support platform suffixes.** expo-router 6 picks up both `_layout.tsx` AND `_layout.web.tsx` for web bundling, which breaks if either has native-only imports. So we use a **single** `_layout.tsx` with `Platform.OS` checks for the parts that diverge (web's auth gate, native's SQLite migrations). Any native-only code that the layout needs is reached through a platform-resolved helper (e.g. `lib/startup/migrate`), keeping `expo-sqlite` out of the web bundle.
 
-drop policy if exists "recordings_owner_insert" on storage.objects;
-create policy "recordings_owner_insert"
-on storage.objects for insert to authenticated
-with check (
-  bucket_id = 'recordings'
-  and auth.uid()::text = (storage.foldername(name))[1]
-);
+**No moduleSuffixes in tsconfig.** I tried setting `moduleSuffixes: [".web", ".native", ".ios", ""]` early in the merge and it caused TS to pick up `.web.d.ts` files inside `node_modules/expo-file-system`, breaking type-checking of `expo-file-system`'s `File` class. Don't reintroduce it.
 
-drop policy if exists "recordings_owner_delete" on storage.objects;
-create policy "recordings_owner_delete"
-on storage.objects for delete to authenticated
-using (bucket_id = 'recordings' and auth.uid()::text = (storage.foldername(name))[1]);
-```
+## Data layer
 
-Symptom of missing setup: clicking "Save & log" on the Recording screen fails with `new row violates row-level security policy`. Path scheme is `<user_id>/<recording_id>.webm`. `lib/supabase/recordings.ts` uses `upsert: false` (one recording per log entry; no overwrite path), so the update policy from the pieces bucket isn't needed here.
+`lib/db/repos/*.ts` (native, SQLite) and `*.web.ts` (web, Supabase) have **identical exported function signatures and types**. When you add or modify a repo function, change both. The two implementations share nothing structurally — native uses `expo-sqlite`'s `db.runAsync`, web uses `supabase.from(...)`.
+
+Supporting files (native-only): `lib/db/client.ts` (SQLite open + migrations), `lib/db/schema.ts` (MIGRATIONS array), `lib/db/seed.ts` (bundled JSON loader on first launch).
+
+The Supabase client lives at `lib/supabase/client.ts` and is used by web's repo files. The merged iOS app does NOT use Supabase by default — it's only invoked by the optional `/import-supabase` dev route (one-shot pull from Supabase → SQLite).
+
+Schema details:
+- The SQL table is called `pieces` (Postgres on Supabase + SQLite on iOS). TypeScript symbols use `Passage` / `passages` (renamed in Phase 0 to match how musicians talk). `lib/db/repos/passages.ts` queries `FROM pieces` but exports `Passage` types. Don't rename the SQL identifiers.
+- The `documents` table is the parent of multi-page PDF-backed passages. A passage with `document_id` non-null has its layout described by `regions_json: [{page, x, y, w, h}, ...]` in source-page pixels.
+
+## Image cropping (cross-platform)
+
+Single unified API in `lib/image/canvasCrop.{ts,web.ts}`:
+- `cropImage(uri, rect): Promise<string>` — takes URI in, returns URI out (file:// on iOS, blob: on web)
+- `stitchVerticallyUris(uris): Promise<string>` — multi-page composite. iOS currently throws for N>1 (TODO: react-native-view-shot integration)
+- `displayToSource(...)`, `sourceToDisplay(...)` — pixel-space conversions
+
+Then `lib/image/persistPassageImage.{ts,web.ts}` finalizes by either saving the file (native) or uploading to Supabase Storage (web) and returns the URI to store in `pieces.source_uri`.
+
+The web file ALSO keeps the older Blob-based functions (`cropToBlob`, `cropImageToBlob`, `stitchVertically(blobs)`, `loadImage`) because `components/InlineCropper.tsx`, `app/multi-page.tsx`, and other web-only callers still use them directly. The native file stubs them with throws ("X is web-only; use cropImage on iOS").
+
+## Live deploys (still from the OLD repos as of 2026-05-19)
+
+- **playfastnotes.com** — Vercel auto-deploys on push to `master` of `rdskiano/play-fast-notes-web`. The merged repo's git remote was deliberately renamed `web-origin-archive` so it can't accidentally push there yet.
+- **Physical iPad** — runs the dev client built from `learn-fast-notes/` via local Xcode. The merged repo's iOS build only runs on the **simulator** so far.
+- **EAS** — registered under slug `learn-fast-notes` and project ID `c2ba6a6f-d40c-4e17-a930-4ab813b5c870`. The merged repo's `app.json` keeps this slug to preserve the EAS identity. When the merged repo eventually ships, EAS builds will use this same project.
+
+**Cutover plan** (not done yet — see ROADMAP):
+1. Create a new GitHub repo (or rename the existing `play-fast-notes-web` to `play-fast-notes`) and add it as the remote.
+2. Push the merged repo as `master`.
+3. Point Vercel at the new repo / new branch.
+4. Verify the web build passes from the new source.
+5. EAS automatically picks up the new repo because it's all `eas.json` + local source. Local builds in Xcode from the new dir work without coordination.
+6. Update the four aliases in `~/.zshrc` to point at the merged dir if not already.
+7. Archive the old repos (rename dirs to `learn-fast-notes-archive/` etc., or move outside the COWORK tree).
+
+## Active migration status
+
+✅ **Done in 2026-05-19 session:**
+- Merged repo created from web's codebase as the starting point.
+- App.json + EAS config + package.json combined (web's web target + iPad's native plugins, deps superset).
+- Both targets verified: web export and iOS xcodebuild both succeed.
+- Data layer split into `.ts` (SQLite) + `.web.ts` (Supabase) for all 10 repo files plus `client`, `schema`, `seed`.
+- `_layout.tsx` unified with platform-aware logic (web auth gate, native SQLite startup). `_layout.web.tsx` deleted (didn't work — expo-router bundles both).
+- Platform splits for: `PassageRectDrawer`, `PassageRectResizer`, `SectionMarkerCapturer`.
+- Image lib unified: `cropImage` / `stitchVerticallyUris` / `persistPassageImage` work on both platforms.
+- `app/document/[id].tsx` updated to use the unified API — works on both.
+- New helpers: `lib/startup/migrate.ts` (native) + `.web.ts` (no-op), `lib/sessions/lastPassageInDoc.ts`, `lib/image/persistPassageImage.{ts,web.ts}`.
+- Native-only components copied from iPad: `InterleavedTimerContext.tsx`, `useInterleavedSession.ts`.
+- All pure-RN components from web that were already used by iPad: `ActionSheet`, `ConfirmModal`, `PostSaveSheet`, `SectionsModal`, `PageBoxOverlay`.
+
+⏳ **Still pending:**
+- **Metronome engine cross-platform split** (uncovered 2026-05-19): `lib/audio/useMetronome.ts` is Web Audio API only — uses `AudioContext` / `window` / `document`. Would crash on iOS at first use. Needs to become `.web.ts` plus a native `.ts` ported from iPad's `lib/metronome/{engine,useMetronome}.ts`. The native engine uses `react-native-audio-api` — present in the merged package.json (the LogBox.ignoreLogs in _layout.tsx confirms it). **Blocks all iOS practice-flow smoke tests.**
+- Bring in iPad-only components: `InlineMetronome` (used by interleaved / click-up / rhythmic on iPad), `CropView` (used by multi-page / crop), `RhythmNotation` (used by FloatingRhythmCard). The other three from the original "metronome internals" list — `NoteCardStrip`, `PreviewPlayButton`, `SubdivisionControls` — are orphans in the iPad archive itself (zero importers anywhere). Skip them. Blocked by metronome split because InlineMetronome imports a `Subdivision` type from the metronome engine path.
+- Bring over the `/import-supabase` route from iPad. Depends on `lib/supabase/import.ts` plus a `lib/supabase/client.{ts,web.ts}` split — the current `lib/supabase/client.ts` is the web version (uses `localStorage`).
+- Smoke-test full practice flows on iOS simulator: open document → mark passage → start Tempo Ladder / Click-Up / Rhythmic / Self-Led → finish session → check practice log entry. Blocked by metronome split.
+- Smoke-test the same flows on web (via `playweb` from this dir, not the live site).
+- Cutover: GitHub remote, Vercel, archive old repos.
+
+✅ **Added 2026-05-19 (second session):**
+- **Multi-page passage stitching on iOS**: `react-native-view-shot` integration. New `components/StitchHost.tsx` exposes a hidden surface + `stitchOnHost(uris)` async function. Mounted once in `app/_layout.tsx` (native only). `lib/image/canvasCrop.ts` `stitchVerticallyUris` for N>1 delegates to `stitchOnHost`, preserving the same signature as web's Canvas-based stitcher so `app/document/[id].tsx` call sites are untouched. Web has a no-op `StitchHost.web.tsx`.
+
+⚠️ **Pre-existing TS errors that are NOT blockers:**
+- `app/passage/[id]/self-led/[key].tsx(78,31)` and `app/passage/[id]/self-led/recording.tsx(194,31)` — `SelfLedKey` vs `Strategy` mismatch. Pre-existing in web's codebase; doesn't affect builds. Will likely resolve when we touch the self-led routes properly.
 
 ## Vocabulary: "passage" in TS, "pieces" in SQL
 
-In Phase 0 (2026-05-03) the user-facing term and TS symbols were renamed `piece` → `passage` to match how musicians and teachers actually talk ("piece" = the whole work; "passage" = a section you drill). The **SQL table name stays `pieces`** because every FK column (`practice_log.piece_id`, `exercises.piece_id`, `strategy_last_used.piece_id`) and the Supabase storage bucket reference it; renaming the table would have been a multi-PR migration and was deferred.
-
-Concretely:
-- TS types: `Passage`, `NewPassage`. Functions: `getPassage`, `listPassages`, `insertPassage`, etc.
-- SQL queries: `supabase.from('pieces')`, `select('piece_id, ...')` — these still say `pieces` / `piece_id`.
-- File: `lib/db/repos/passages.ts` (header comment documents the SQL identity gap).
-- Routes: `/passage/[id]/...`. Storage paths: `<userId>/<pieceId>.<ext>` — unchanged.
-
-When you write a new repo function, name it on the TS side using `Passage` and only fall back to `piece` inside SQL strings. Don't try to "fix" any remaining `piece_id` reference inside `.from('pieces')` queries — those are SQL identifiers, not TS symbols.
-
-## Persistence layer
-
-Repos in `lib/db/repos/*.ts` mirror the function signatures of `../learn-fast-notes/lib/db/repos/*.ts`. They're the seam where SQLite (iPad) becomes Supabase (web). Keep signatures aligned with iPad — when iPad evolves, the web repos should evolve in lockstep.
-
-**Conventions worth knowing:**
-
-- **`source_uri = ''` for title-only pieces.** Image upload via Supabase Storage is a later phase. Until then, `upload.tsx` saves pieces with an empty `source_uri` and `null` thumbnail. Library and piece detail render gracefully without thumbnails. The Postgres `NOT NULL` constraint is satisfied by the empty string.
-- **Embedded foreign-key joins return arrays even for 1-to-1.** Supabase's TypeScript inference types `pieces.folders(...)` as an array. Cast through `as unknown as <ExpectedShape>` to assert the actual single-object shape, or check the array first. See `lib/db/repos/practiceLog.ts` for the pattern.
-
-## Audio (metronome)
-
-The metronome on web is a hand-rolled Web Audio API scheduler at `lib/audio/useMetronome.ts`. The iPad app uses `react-native-audio-api`; we intentionally did not depend on that on web because Web Audio is a clean, stable interface and the dependency isn't needed. The scheduler uses an `AudioContext` clock with a 100ms lookahead — stable timing despite main-thread jitter. Browsers require a user gesture before audio plays (the Start metronome button satisfies this).
-
-The hook also includes a **rhythm-pattern looper** (`startRhythmLoop` / `stopRhythmLoop` / `toggleRhythmLoop` + `rhythmLooping`) used by Rhythmic Variation. It walks an array of `RhythmToken`s and schedules each click at `tokenQuarterFraction × (4 / beatDenominator) × (60 / bpm)` seconds. A dedicated `GainNode` (`rhythmGate`) lets stop calls mute anything already queued in the lookahead window.
-
-## Notation rendering (abcjs)
-
-`components/AbcStaffView.tsx` renders ABC notation as a staff snippet for Rhythmic Variation. abcjs is **loaded from the unpkg CDN at runtime via a script-tag injection** — no `npm install abcjs` is needed. The first call adds `<script src="https://unpkg.com/abcjs@6/dist/abcjs-basic-min.js">` and resolves a shared promise on `script.onload`; subsequent renders read `window.ABCJS` directly.
-
-iPad's AbcStaffView lives in a WebView and uses scale 1.0 for centered (small) usages and 1.6 for the playing-card. The web port mirrors those scales and uses `staffwidth = width - 10`, **without** `responsive: 'resize'`. With `responsive: 'resize'`, abcjs stretches notes to fill the parent container — fine for big cards but ugly when the parent is narrow. Keeping it off makes notes render at their natural compact size.
-
-`lib/notation/buildAbc.ts` is a direct copy of the iPad version — it converts a `RhythmPattern` into an ABC string with auto-beam grouping based on time signature.
-
-## Floating cards: drag + pinch
-
-`FloatingSlowClickUpControls`, `FloatingClickUpControls`, `FloatingMetronome`, `FloatingRhythmCard` are draggable + pinch-resizable. iPad uses `useDraggableCard` (Reanimated + react-native-gesture-handler). Web uses pointer events directly:
-
-- One pointer on the drag handle → drag
-- Two pointers anywhere on the card → pinch (track distance change, scale 0.6–1.6)
-- `wheel` event with `ctrlKey: true` → trackpad pinch on Mac (Chrome/Safari fire this for trackpad pinch)
-- The card is `position: absolute` with `transform: scale(...)` and `transformOrigin: 'top left'`
-
-## Supabase quirks worth knowing
-
-- **PostgREST cannot infer FKs between `practice_log`, `pieces`, `exercises`, `folders`** in this project. Embedded joins (e.g. `practice_log?select=...,exercises(name)`) return `PGRST200` *or worse*: with `.eq('pieces.folder_id', ...)` chained off an embedded join the request silently returns zero rows instead of erroring (this bit `getPracticeLogForFolder` on first port — Folder Log appeared empty regardless of data). Workaround: fetch tables separately and join client-side via `Map<id, row>`. Every reader in `lib/db/repos/practiceLog.ts` (`getPracticeLogForLibrary`, `getPracticeLogForPiece`, `getPracticeLogForFolder`) uses this pattern — keep it that way.
-- **Storage URLs need a cache-buster.** When a piece is re-cropped, the upsert path is the same (`<userId>/<pieceId>.<ext>`), so the public URL is identical. Browsers and the Supabase CDN serve the stale bytes. `lib/supabase/storage.ts` appends `?v=<Date.now()>` to the returned URL, and that goes into `pieces.source_uri` — every save invalidates the cache.
-- **No `subdivision` column on `tempo_ladder_progress`.** Subdivision is metronome state, ephemeral, not persisted.
-
-## Adding a new route file
-
-Expo-router 6 sometimes does not detect a brand-new file under `app/` until Metro is restarted. Symptom: navigating to the URL renders the bare path (e.g. `piece/[id]/click-up`) as text instead of the screen. Fix: tell the user to **Ctrl+C** the dev server and run `playweb` again. HMR-only edits to existing files don't have this issue.
-
-## PDF export
-
-iPad uses `expo-print` to render Exercise Builder exercises into a PDF. The web equivalent lives in `lib/export/buildExerciseHtml.ts` (a direct copy of the iPad helper) plus a popup-window pipeline in `app/piece/[id]/rhythm-builder.tsx`'s `exportPdf()`:
-
-1. Build a fresh standalone HTML document via `buildExerciseHtml(...)`. abcjs in that document renders each exercise at `staffwidth: 680` with `responsive: 'resize'` — sized for the printable area of a US-letter page (8.5" - 2 × 0.6" margins ≈ 700 px).
-2. `window.open('', '_blank')` and `document.write(...)` the HTML. abcjs lays out fresh in that window, so measure wrapping is correct (a regression vs. trying to repurpose the on-screen abcjs SVGs, which were sized for the iPad viewport).
-3. After ~700 ms (enough for abcjs to render every exercise), the popup auto-calls `window.print()`. The browser's print dialog has "Save as PDF" as a destination.
-
-If the popup is blocked, the user gets a one-time browser bar to allow popups for the site. Browsers only open a popup when the call is synchronous in the click handler, so do not stick `await` calls before `window.open(...)`.
-
-## Low-latency taps on RN Web Pressables
-
-`Pressable` on React Native Web waits for full press recognition (touchstart → touchend / mousedown → mouseup) before firing `onPress`, which adds ~80–150 ms of perceived delay. For the piano keyboard in the Exercise Builder, that lag is felt as audible note-trigger latency. Switching to `onPressIn` (touchdown / mousedown) makes notes fire immediately. Use `onPressIn` on any Pressable that needs musician-grade response time; `onPress` is fine elsewhere.
-
-## Exercise Builder structure
-
-The Exercise Builder in `app/piece/[id]/rhythm-builder.tsx` has three phases — `setup`, `entry`, `generate` — driven by a `phase` state. Loading an exercise that already has saved pitches auto-routes to `generate`; new exercises start at `setup`. The entire phase state is persisted to `exercises.config_json` (debounced 400 ms) — `instrumentId`, `keyId`, `clefId`, `grouping`, `pitches`, `useSharps`. Pieces' `units_json` is unused by the rhythmic flow; it is reserved for Click-Up markers.
-
-`exercises.config_json` is the persistence seam. There is no separate `rhythm_builder_config` table — everything is stuffed in there as JSON. Schema unchanged from iPad.
-
-## Cross-screen session state (Serial Practice)
-
-Most screens own their session state locally — fine, because the user does not navigate away mid-session. **Serial Practice in Timer mode is the exception**: the user taps a strategy launch button (Tempo Ladder / Click-Up / Rhythmic Variation) mid-session, which `router.push`es to that strategy's screen. The Serial Practice timer must keep ticking while away, and coming back must resume the same session.
-
-The pattern lives in `lib/sessions/serialPractice.ts`:
-- A module-level mutable `_state` object holds the entire timer-mode session (spots, currentIndex, secondsLeft, etc.).
-- A module-level `setInterval` decrements `secondsLeft` every second. The interval lives outside any React component, so unmounting `/interleaved` does not stop it.
-- `subscribe(cb)` / `getSnapshot()` form an external-store pair compatible with React's built-in `useSyncExternalStore`.
-- `/interleaved` consumes via `useSyncExternalStore(subscribe, getSnapshot, () => null)`, so on remount it instantly re-renders from the live singleton — the user sees the time as if they never left.
-- `clearSession()` is called on celebration / END to release the interval and reset state.
-
-Mirror of iPad's `_activeSession` module-level pattern from `learn-fast-notes/hooks/useInterleavedSession.ts`. Reuse this pattern for any future flow where state must survive in-flight navigation. Consistency-mode Serial Practice keeps state local to the component because it does not navigate away mid-session — same screen for every Clean/Miss tap.
-
-## iPad references for porting
-
-`reference-screenshots/ipad/<route>.png` (and `<route>-state.png` for screens with multiple states) captures the iPad ground truth. Workflow: ask the user for one fresh screenshot per port, drop into the convention path, then read/diff after the port. Convention names already in tree: `library-log`, `library-add-modal`, `upload`, `multi-page-preview1..6`, `tempo-ladder-{setup,practice}`, `click-up-{marking,setup,practice}`, `piece-history`, `rhythm-1`/`rhythm-2`/`rhythm-3` (Rhythmic Variation).
-
-## Deploy
-
-- Hosted on Vercel, auto-deploys on push to `master`.
-- Public domain: `playfastnotes.com`.
-- Build command: `npx expo export -p web` → output dir: `dist`.
-- Env vars in Vercel project settings: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`. `EXPO_PUBLIC_FORMSPREE_URL` is optional (a working endpoint is hard-coded as fallback in `FeedbackButton.tsx`).
-- Auth redirect URLs configured in Supabase Auth → URL Configuration. For local dev: add `http://localhost:8081/**` to the **Redirect URLs** allowlist (the wildcard pattern). For production add `https://playfastnotes.com/**` (or at least `https://playfastnotes.com/reset-password` so the password-reset flow can land back on the site). Site URL should be the bare domain (`http://localhost:8081` for local, `https://playfastnotes.com` for production).
-- **`vercel.json` SPA rewrite** routes any path that is not a real static file (`_expo/*`, `assets/*`, `favicon.ico`, anything with a dot) to `/`, so deep links and reloads on `/library`, `/piece/[id]/...` etc. resolve to `index.html` instead of 404. Without this rule Vercel returns 404 for any URL that isn't a file on disk — Expo Web exports a single `index.html` and routes client-side.
-
-## iOS Add-to-Home-Screen icon
-
-iOS Safari ignores the standard favicon when adding a site as a home-screen shortcut and instead looks for `/apple-touch-icon.png` (180×180) at the site root. Without it, the shortcut shows the first letter of the page title on a generic gradient placeholder. The file lives in `public/apple-touch-icon.png` (Expo's `public/` directory is copied to the dist root on `expo export`). After updating, the user must **long-press → Remove Bookmark** on the existing shortcut and re-add via Share → Add to Home Screen — iOS won't refetch the icon for an already-created shortcut.
-
-`public/apple-touch-icon-precomposed.png` is the same bytes under the legacy filename for older iOS fallback.
-
-## Feedback button (Formspree)
-
-`components/FeedbackButton.tsx` is a floating bottom-right "💬 Feedback" button mounted in `app/_layout.tsx` (signed-in branch only). Tap → modal with a textarea → POST to a Formspree endpoint with this JSON shape:
-
-```json
-{
-  "email": "<signed-in user>",
-  "userId": "<supabase auth.uid>",
-  "feedback": "<textarea content>",
-  "page": "<window.location.href>",
-  "userAgent": "<navigator.userAgent>",
-  "timestamp": "<ISO8601>"
-}
-```
-
-The `email` field is the Formspree reply-to convention — hitting Reply in Gmail goes straight to the user. The endpoint defaults to `https://formspree.io/f/mjglgqve` (rdskiano@gmail.com inbox, free tier 50/month) and is overridable via `EXPO_PUBLIC_FORMSPREE_URL`.
-
-**This is a deliberate web-only addition** — the iPad-parity rule normally forbids web-only UI, but the user explicitly opted in for the testing-phase feedback channel. Don't extrapolate this exception to other web-only controls.
-
-## /import-seed dev tool
-
-`app/import-seed.tsx` is a one-off route to load an iPad `seed-export.json` into Supabase for testing — drag-and-drop the JSON, optionally wipe existing data, runs `supabase.from(t).insert(rows)` per table in dependency order. Pieces with image bytes in `seed.files` get base64-decoded and uploaded to the `pieces` storage bucket; the row's `source_uri` / `thumbnail_uri` are rewritten to the public URL.
-
-Important: the wipe step uses a per-table primary-key column (`TABLE_FILTERS` map) with `.neq(col, '__never__')` because **not every table has `updated_at` or `created_at`** — `settings`, `strategy_last_used`, and `practice_log` lack those columns, so a generic `.gte('updated_at', 0)` predicate silently throws and aborts the import. Use the per-table filter pattern.
-
-The route is unlinked — reach it by typing `/import-seed` in the URL bar. Auth-gated via the same `useSession` shell as the rest of the app. Safe to leave deployed since RLS prevents cross-user contamination; but it's a power tool, not user-facing UI.
+Phase 0 (2026-05-03) renamed `piece` → `passage` in TS / UI to match how musicians talk ("piece" = whole work; "passage" = section you drill). The SQL table stays `pieces`; FK columns stay `piece_id`. TS exports `Passage`, `passages`, `getPassage`, etc., but the SQL strings still read `from pieces`. Don't try to "fix" `piece_id` inside SQL identifiers.
 
 ## Don'ts
 
-- **Don't edit the iPad repo** (`../learn-fast-notes/`) from this repo's tasks. The roadmap forbids cross-coupling. Read-only references are fine.
-- **Don't add native-only deps** (`expo-haptics` no-ops are OK; `react-native-document-scanner-plugin`, `expo-audio` recording, etc. are not). Web is the goal here.
-- **Don't change `slug` in `app.json`** without coordinating — Vercel/Supabase config keys off the project identity.
+- **Don't edit `../learn-fast-notes/` or `../play-fast-notes-web/`** for new feature work. They're archives. The exception is keeping critical docs (CLAUDE.md/ROADMAP.md) in sync about the merge status.
+- **Don't `git push` from this repo until cutover.** The remote is `web-origin-archive` precisely so an accidental push hits the archive, not live web.
+- **Don't reintroduce `moduleSuffixes` in `tsconfig.json`.** It breaks `expo-file-system` resolution. The `.ts` / `.web.ts` pattern works without it.
+- **Don't make `_layout.web.tsx`.** expo-router 6 bundles both that and `_layout.tsx` together. Use `Platform.OS` inside a single `_layout.tsx`.
+- **Don't add native-only imports** to files that ship to web. If `lib/foo.ts` imports `expo-sqlite`, it must be only reached via the .ts (native) bundle. If a cross-platform file needs to call into SQLite, put the SQLite import in a `.ts` / `.web.ts` pair.
 
-## Source of truth for product context
+## Reference
 
-`../learn-fast-notes/ROADMAP.md` is the single source of truth for vocabulary, design principles, and execution phasing. Read it before making product decisions in this repo.
+- Old repos' ROADMAP.md files for product direction history and vocabulary decisions (`../learn-fast-notes/ROADMAP.md` is the deepest).
+- `~/Desktop/COWORK/PROJECTS/APPS/PlayFastNotes/Play Fast Notes — Reference/` — SOP, infographic, cheat sheet, iPad Build Runbook (the Runbook is iPad-specific; mostly still applies to the merged repo's iOS target).

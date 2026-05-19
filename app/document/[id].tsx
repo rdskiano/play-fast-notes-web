@@ -23,6 +23,8 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -62,9 +64,9 @@ import {
   getDocumentPassageStatus,
   type PassageStatus,
 } from '@/lib/db/repos/passageStatus';
-import { cropToBlob, stitchVertically, type Rect } from '@/lib/image/canvasCrop';
+import { cropImage, stitchVerticallyUris, type Rect } from '@/lib/image/canvasCrop';
+import { persistPassageImage } from '@/lib/image/persistPassageImage';
 import { consumeLastPassageInDoc } from '@/lib/sessions/lastPassageInDoc';
-import { uploadPassageImage } from '@/lib/supabase/storage';
 
 function newPassageId(): string {
   return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -75,6 +77,7 @@ type ViewMode = 'single' | 'spread';
 
 export default function DocumentScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { id, resize: resizeParam } = useLocalSearchParams<{
     id: string;
     resize?: string;
@@ -445,26 +448,25 @@ export default function DocumentScreen() {
     try {
       // Sort drafts by page so the composite stacks top-to-bottom in document order.
       const ordered = Array.from(drafts.entries()).sort((a, b) => a[0] - b[0]);
-      const blobs: Blob[] = [];
+      const croppedUris: string[] = [];
       const regions: PassageRegion[] = [];
       for (const [pageIndex, rect] of ordered) {
         const page = pages.find((pp) => pp.index === pageIndex);
         if (!page) continue;
-        const blob = await cropToBlob(page.image_uri, rect);
-        blobs.push(blob);
+        const uri = await cropImage(page.image_uri, rect);
+        croppedUris.push(uri);
         regions.push({ page: pageIndex, x: rect.x, y: rect.y, w: rect.w, h: rect.h });
       }
-      const finalBlob = blobs.length === 1 ? blobs[0] : await stitchVertically(blobs);
+      const finalUri = await stitchVerticallyUris(croppedUris);
 
       const passageId = newPassageId();
-      const file = new File([finalBlob], `${passageId}.jpg`, { type: 'image/jpeg' });
-      const publicUrl = await uploadPassageImage(passageId, file);
+      const sourceUri = await persistPassageImage(passageId, finalUri);
       await insertPassage({
         id: passageId,
         title,
         source_kind: 'image',
-        source_uri: publicUrl,
-        thumbnail_uri: publicUrl,
+        source_uri: sourceUri,
+        thumbnail_uri: sourceUri,
         document_id: doc.id,
         regions,
       });
@@ -574,17 +576,16 @@ export default function DocumentScreen() {
     setSavingResize(true);
     try {
       const ordered = [...resizeRegions].sort((a, b) => a.page - b.page);
-      const blobs: Blob[] = [];
+      const croppedUris: string[] = [];
       for (const r of ordered) {
         const page = pages.find((pp) => pp.index === r.page);
         if (!page) continue;
-        const blob = await cropToBlob(page.image_uri, { x: r.x, y: r.y, w: r.w, h: r.h });
-        blobs.push(blob);
+        const uri = await cropImage(page.image_uri, { x: r.x, y: r.y, w: r.w, h: r.h });
+        croppedUris.push(uri);
       }
-      const finalBlob = blobs.length === 1 ? blobs[0] : await stitchVertically(blobs);
-      const file = new File([finalBlob], `${resizingPassage.id}.jpg`, { type: 'image/jpeg' });
-      const publicUrl = await uploadPassageImage(resizingPassage.id, file);
-      await updatePassageRegionsAndAssets(resizingPassage.id, ordered, publicUrl, publicUrl);
+      const finalUri = await stitchVerticallyUris(croppedUris);
+      const sourceUri = await persistPassageImage(resizingPassage.id, finalUri);
+      await updatePassageRegionsAndAssets(resizingPassage.id, ordered, sourceUri, sourceUri);
       setResizingPassage(null);
       setResizeRegions([]);
       setMode('idle');
@@ -722,7 +723,9 @@ export default function DocumentScreen() {
         // Float the practice-timers pill over the PDF in the same top-right
         // area as other strategy screens, but absolute-positioned so the
         // page does not shrink to make room.
-        <View pointerEvents="box-none" style={styles.timerFloat}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.timerFloat, { top: insets.top + 60 + Spacing.sm }]}>
           <PracticeTimersPill />
         </View>
       )}
@@ -1101,8 +1104,10 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.xs,
   },
   timerFloat: {
+    // top is computed inline via insets.top + topBarHeight + Spacing.sm so the
+    // pill sits just below the SessionTopBar on both web (no safe area) and
+    // iOS (notch/status bar adds to the safe area top).
     position: 'absolute',
-    top: 70,
     right: Spacing.sm,
     zIndex: 50,
   },

@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase/client';
+import { getDb } from '../client';
 
 export type Strategy =
   | 'tempo_ladder'
@@ -27,33 +27,34 @@ export async function getOrCreateExercise(
   piece_id: string,
   strategy: Strategy,
 ): Promise<Exercise> {
-  const { data: existing, error: selErr } = await supabase
-    .from('exercises')
-    .select('*')
-    .eq('piece_id', piece_id)
-    .eq('strategy', strategy)
-    .is('deleted_at', null)
-    .limit(1)
-    .maybeSingle();
-  if (selErr) throw selErr;
-  if (existing) return existing as Exercise;
-
+  const db = getDb();
+  const existing = await db.getFirstAsync<Exercise>(
+    `SELECT * FROM exercises WHERE piece_id = ? AND strategy = ? AND deleted_at IS NULL LIMIT 1;`,
+    piece_id,
+    strategy,
+  );
+  if (existing) return existing;
   const id = `${piece_id}:${strategy}`;
   const now = Date.now();
-  const row = {
+  await db.runAsync(
+    `INSERT INTO exercises (id, piece_id, strategy, config_json, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?);`,
+    id,
+    piece_id,
+    strategy,
+    '{}',
+    now,
+    now,
+  );
+  return {
     id,
     piece_id,
     strategy,
     config_json: '{}',
-    created_at: now,
-    updated_at: now,
-  };
-  const { error: insErr } = await supabase.from('exercises').insert(row);
-  if (insErr) throw insErr;
-  return {
-    ...row,
     name: null,
     sort_order: 0,
+    created_at: now,
+    updated_at: now,
     deleted_at: null,
   };
 }
@@ -64,21 +65,29 @@ export async function insertExercise(
   name: string | null,
   config_json: string,
 ): Promise<Exercise> {
-  const { data: maxRow, error: maxErr } = await supabase
-    .from('exercises')
-    .select('sort_order')
-    .eq('piece_id', piece_id)
-    .eq('strategy', strategy)
-    .is('deleted_at', null)
-    .order('sort_order', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (maxErr) throw maxErr;
-  const sort_order = (maxRow?.sort_order ?? -1) + 1;
-
+  const db = getDb();
+  const row = await db.getFirstAsync<{ max_order: number | null }>(
+    `SELECT MAX(sort_order) AS max_order FROM exercises
+     WHERE piece_id = ? AND strategy = ? AND deleted_at IS NULL;`,
+    piece_id,
+    strategy,
+  );
+  const sort_order = (row?.max_order ?? -1) + 1;
   const id = newId();
   const now = Date.now();
-  const row = {
+  await db.runAsync(
+    `INSERT INTO exercises (id, piece_id, strategy, config_json, name, sort_order, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+    id,
+    piece_id,
+    strategy,
+    config_json,
+    name,
+    sort_order,
+    now,
+    now,
+  );
+  return {
     id,
     piece_id,
     strategy,
@@ -87,66 +96,83 @@ export async function insertExercise(
     sort_order,
     created_at: now,
     updated_at: now,
+    deleted_at: null,
   };
-  const { error } = await supabase.from('exercises').insert(row);
-  if (error) throw error;
-  return { ...row, deleted_at: null };
 }
 
 export async function getExerciseById(id: string): Promise<Exercise | null> {
-  const { data, error } = await supabase
-    .from('exercises')
-    .select('*')
-    .eq('id', id)
-    .is('deleted_at', null)
-    .maybeSingle();
-  if (error) throw error;
-  return (data as Exercise | null) ?? null;
+  const db = getDb();
+  const row = await db.getFirstAsync<Exercise>(
+    `SELECT * FROM exercises WHERE id = ? AND deleted_at IS NULL LIMIT 1;`,
+    id,
+  );
+  return row ?? null;
 }
 
 export async function listExercisesForPassage(
   piece_id: string,
   strategy?: Strategy,
 ): Promise<Exercise[]> {
-  let query = supabase
-    .from('exercises')
-    .select('*')
-    .eq('piece_id', piece_id)
-    .is('deleted_at', null)
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true });
-  if (strategy) query = query.eq('strategy', strategy);
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []) as Exercise[];
+  const db = getDb();
+  if (strategy) {
+    return db.getAllAsync<Exercise>(
+      `SELECT * FROM exercises
+       WHERE piece_id = ? AND strategy = ? AND deleted_at IS NULL
+       ORDER BY sort_order ASC, created_at ASC;`,
+      piece_id,
+      strategy,
+    );
+  }
+  return db.getAllAsync<Exercise>(
+    `SELECT * FROM exercises
+     WHERE piece_id = ? AND deleted_at IS NULL
+     ORDER BY sort_order ASC, created_at ASC;`,
+    piece_id,
+  );
 }
 
-export async function updateExerciseConfig(id: string, config_json: string): Promise<void> {
-  const { error } = await supabase
-    .from('exercises')
-    .update({ config_json, updated_at: Date.now() })
-    .eq('id', id);
-  if (error) throw error;
+export async function updateExerciseConfig(
+  id: string,
+  config_json: string,
+): Promise<void> {
+  const db = getDb();
+  await db.runAsync(
+    `UPDATE exercises SET config_json = ?, updated_at = ? WHERE id = ?;`,
+    config_json,
+    Date.now(),
+    id,
+  );
 }
 
 export async function renameExercise(id: string, name: string): Promise<void> {
-  const { error } = await supabase
-    .from('exercises')
-    .update({ name, updated_at: Date.now() })
-    .eq('id', id);
-  if (error) throw error;
+  const db = getDb();
+  await db.runAsync(
+    `UPDATE exercises SET name = ?, updated_at = ? WHERE id = ?;`,
+    name,
+    Date.now(),
+    id,
+  );
 }
 
-export async function updateExerciseSortOrder(id: string, sort_order: number): Promise<void> {
-  const { error } = await supabase.from('exercises').update({ sort_order }).eq('id', id);
-  if (error) throw error;
+export async function updateExerciseSortOrder(
+  id: string,
+  sort_order: number,
+): Promise<void> {
+  const db = getDb();
+  await db.runAsync(
+    `UPDATE exercises SET sort_order = ? WHERE id = ?;`,
+    sort_order,
+    id,
+  );
 }
 
 export async function softDeleteExercise(id: string): Promise<void> {
+  const db = getDb();
   const now = Date.now();
-  const { error } = await supabase
-    .from('exercises')
-    .update({ deleted_at: now, updated_at: now })
-    .eq('id', id);
-  if (error) throw error;
+  await db.runAsync(
+    `UPDATE exercises SET deleted_at = ?, updated_at = ? WHERE id = ?;`,
+    now,
+    now,
+    id,
+  );
 }

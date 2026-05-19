@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase/client';
+import { getDb } from '../client';
 
 export type Folder = {
   id: string;
@@ -17,164 +17,150 @@ export async function insertFolder(
   name: string,
   parent_folder_id: string | null,
 ): Promise<Folder> {
+  const db = getDb();
   const now = Date.now();
   const id = newId();
-  const row = { id, name, parent_folder_id, created_at: now, updated_at: now };
-  const { error } = await supabase.from('folders').insert(row);
-  if (error) throw error;
-  return { ...row, deleted_at: null };
+  await db.runAsync(
+    `INSERT INTO folders (id, name, parent_folder_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?);`,
+    id,
+    name,
+    parent_folder_id,
+    now,
+    now,
+  );
+  return {
+    id,
+    name,
+    parent_folder_id,
+    created_at: now,
+    updated_at: now,
+    deleted_at: null,
+  };
 }
 
 export async function listFoldersInParent(
   parent_folder_id: string | null,
 ): Promise<Folder[]> {
-  let query = supabase
-    .from('folders')
-    .select('*')
-    .is('deleted_at', null)
-    .order('sort_order', { ascending: true })
-    .order('name', { ascending: true });
-  query =
-    parent_folder_id === null
-      ? query.is('parent_folder_id', null)
-      : query.eq('parent_folder_id', parent_folder_id);
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []) as Folder[];
+  const db = getDb();
+  if (parent_folder_id === null) {
+    return db.getAllAsync<Folder>(
+      `SELECT * FROM folders WHERE parent_folder_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC, name ASC;`,
+    );
+  }
+  return db.getAllAsync<Folder>(
+    `SELECT * FROM folders WHERE parent_folder_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, name ASC;`,
+    parent_folder_id,
+  );
 }
 
 export async function updateFolderSortOrder(id: string, sortOrder: number): Promise<void> {
-  const { error } = await supabase.from('folders').update({ sort_order: sortOrder }).eq('id', id);
-  if (error) throw error;
+  const db = getDb();
+  await db.runAsync('UPDATE folders SET sort_order = ? WHERE id = ?;', sortOrder, id);
 }
 
 export async function getFolder(id: string): Promise<Folder | null> {
-  const { data, error } = await supabase
-    .from('folders')
-    .select('*')
-    .eq('id', id)
-    .is('deleted_at', null)
-    .maybeSingle();
-  if (error) throw error;
-  return (data as Folder | null) ?? null;
+  const db = getDb();
+  const row = await db.getFirstAsync<Folder>(
+    `SELECT * FROM folders WHERE id = ? AND deleted_at IS NULL;`,
+    id,
+  );
+  return row ?? null;
 }
 
 export async function renameFolder(id: string, name: string): Promise<void> {
-  const { error } = await supabase
-    .from('folders')
-    .update({ name, updated_at: Date.now() })
-    .eq('id', id);
-  if (error) throw error;
+  const db = getDb();
+  await db.runAsync(
+    `UPDATE folders SET name = ?, updated_at = ? WHERE id = ?;`,
+    name,
+    Date.now(),
+    id,
+  );
 }
 
 export async function moveFolder(
   id: string,
   parent_folder_id: string | null,
 ): Promise<void> {
+  // guard against moving a folder into itself or a descendant
   if (parent_folder_id === id) return;
   if (parent_folder_id !== null) {
+    // walk up to make sure we don't create a cycle
     let cursor: string | null = parent_folder_id;
     const visited = new Set<string>();
     while (cursor) {
-      if (cursor === id) return;
+      if (cursor === id) return; // would create cycle
       if (visited.has(cursor)) break;
       visited.add(cursor);
       const parent = await getFolder(cursor);
       cursor = parent?.parent_folder_id ?? null;
     }
   }
-  const { error } = await supabase
-    .from('folders')
-    .update({ parent_folder_id, updated_at: Date.now() })
-    .eq('id', id);
-  if (error) throw error;
+  const db = getDb();
+  await db.runAsync(
+    `UPDATE folders SET parent_folder_id = ?, updated_at = ? WHERE id = ?;`,
+    parent_folder_id,
+    Date.now(),
+    id,
+  );
 }
 
 export async function softDeleteFolder(id: string): Promise<void> {
+  const db = getDb();
   const target = await getFolder(id);
   if (!target) return;
   const newParent = target.parent_folder_id;
   const now = Date.now();
-
-  const { error: foldersErr } = await supabase
-    .from('folders')
-    .update({ parent_folder_id: newParent, updated_at: now })
-    .eq('parent_folder_id', id)
-    .is('deleted_at', null);
-  if (foldersErr) throw foldersErr;
-
-  const { error: piecesErr } = await supabase
-    .from('pieces')
-    .update({ folder_id: newParent, updated_at: now })
-    .eq('folder_id', id)
-    .is('deleted_at', null);
-  if (piecesErr) throw piecesErr;
-
-  const { error: deleteErr } = await supabase
-    .from('folders')
-    .update({ deleted_at: now, updated_at: now })
-    .eq('id', id);
-  if (deleteErr) throw deleteErr;
+  await db.runAsync(
+    `UPDATE folders SET parent_folder_id = ?, updated_at = ? WHERE parent_folder_id = ? AND deleted_at IS NULL;`,
+    newParent,
+    now,
+    id,
+  );
+  await db.runAsync(
+    `UPDATE pieces SET folder_id = ?, updated_at = ? WHERE folder_id = ? AND deleted_at IS NULL;`,
+    newParent,
+    now,
+    id,
+  );
+  await db.runAsync(
+    `UPDATE folders SET deleted_at = ?, updated_at = ? WHERE id = ?;`,
+    now,
+    now,
+    id,
+  );
 }
 
 export async function rehomeOrphans(): Promise<{ passages: number; folders: number }> {
-  // The iPad version does this via SQL subqueries; on Supabase we read the
-  // live folder ids first, then run two scoped updates. RLS already filters
-  // to the current user.
-  const { data: liveFolders, error: lfErr } = await supabase
-    .from('folders')
-    .select('id')
-    .is('deleted_at', null);
-  if (lfErr) throw lfErr;
-  const liveIds = (liveFolders ?? []).map((f) => f.id);
+  const db = getDb();
   const now = Date.now();
-
-  const { data: orphanPieces, error: opErr } = await supabase
-    .from('pieces')
-    .select('id, folder_id')
-    .is('deleted_at', null)
-    .not('folder_id', 'is', null);
-  if (opErr) throw opErr;
-  const orphanPieceIds = (orphanPieces ?? [])
-    .filter((p) => p.folder_id && !liveIds.includes(p.folder_id))
-    .map((p) => p.id);
-  if (orphanPieceIds.length > 0) {
-    const { error } = await supabase
-      .from('pieces')
-      .update({ folder_id: null, updated_at: now })
-      .in('id', orphanPieceIds);
-    if (error) throw error;
-  }
-
-  const { data: orphanFolders, error: ofErr } = await supabase
-    .from('folders')
-    .select('id, parent_folder_id')
-    .is('deleted_at', null)
-    .not('parent_folder_id', 'is', null);
-  if (ofErr) throw ofErr;
-  const orphanFolderIds = (orphanFolders ?? [])
-    .filter((f) => f.parent_folder_id && !liveIds.includes(f.parent_folder_id))
-    .map((f) => f.id);
-  if (orphanFolderIds.length > 0) {
-    const { error } = await supabase
-      .from('folders')
-      .update({ parent_folder_id: null, updated_at: now })
-      .in('id', orphanFolderIds);
-    if (error) throw error;
-  }
-
-  return { passages: orphanPieceIds.length, folders: orphanFolderIds.length };
+  const passageResult = await db.runAsync(
+    `UPDATE pieces
+       SET folder_id = NULL, updated_at = ?
+     WHERE deleted_at IS NULL
+       AND folder_id IS NOT NULL
+       AND folder_id NOT IN (SELECT id FROM folders WHERE deleted_at IS NULL);`,
+    now,
+  );
+  const folderResult = await db.runAsync(
+    `UPDATE folders
+       SET parent_folder_id = NULL, updated_at = ?
+     WHERE deleted_at IS NULL
+       AND parent_folder_id IS NOT NULL
+       AND parent_folder_id NOT IN (SELECT id FROM folders WHERE deleted_at IS NULL);`,
+    now,
+  );
+  return {
+    passages: passageResult.changes ?? 0,
+    folders: folderResult.changes ?? 0,
+  };
 }
 
 export async function listAllFolders(): Promise<Folder[]> {
-  const { data, error } = await supabase
-    .from('folders')
-    .select('*')
-    .is('deleted_at', null)
-    .order('sort_order', { ascending: true })
-    .order('name', { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as Folder[];
+  const db = getDb();
+  return db.getAllAsync<Folder>(
+    `SELECT * FROM folders WHERE deleted_at IS NULL ORDER BY sort_order ASC, name ASC;`,
+  );
 }
 
 export async function getFolderPath(id: string | null): Promise<Folder[]> {

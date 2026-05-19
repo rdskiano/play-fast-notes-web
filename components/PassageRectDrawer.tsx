@@ -1,18 +1,24 @@
 // Transient draw-rectangle component for marking a passage on a single page.
 //
-// Positions a pointer-event overlay over the rendered page image, lets the
-// user drag a rectangle, and reports the result in source-pixel coordinates.
-// One drawer mounts per page in draw mode; the parent decides which page is
-// active. Inactive pages render the existing draftRegion (if any) but don't
-// accept new drags.
+// iPad port of the web PassageRectDrawer. Same prop contract — pageIndex,
+// sourceWidth/Height, slotWidth/Height, draftRegion, active, onDraftChange —
+// so the parent's orchestration code is identical across platforms.
+//
+// Web uses DOM pointer events. iPad uses react-native-gesture-handler's Pan
+// gesture with reanimated shared values for smooth UI-thread updates.
 
-import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 
 import { Colors } from '@/constants/theme';
 import { Radii } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { displayToSource, type Rect } from '@/lib/image/canvasCrop';
+import { type Rect } from '@/lib/image/canvasCrop';
 
 const MIN_DRAG_DISPLAY_PX = 12; // ignore dragging less than this in screen px
 
@@ -28,7 +34,7 @@ type Props = {
   // Current draft rectangle for this page (in source pixels), if any.
   draftRegion: Rect | null;
   // Whether this page's drawer is the one accepting new drags right now.
-  // Inactive pages still render the draft rectangle but don't catch pointer events.
+  // Inactive pages still render the draft rectangle but don't catch gestures.
   active: boolean;
   // Fires when the user finishes a drag (or starts a new one and replaces).
   onDraftChange: (region: Rect | null) => void;
@@ -46,40 +52,67 @@ export function PassageRectDrawer({
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  // Live rectangle in display pixels (relative to the image rect's top-left).
-  const [liveRect, setLiveRect] = useState<Rect | null>(null);
 
   const imageRect = fitContain(slotWidth, slotHeight, sourceWidth, sourceHeight);
-  // Fallback: when slot dimensions haven't been measured yet (iPad Safari
-  // sometimes races the onLayout callback), fall through to a full-pageSlot
-  // hit area so the user can still draw. The source-coord conversion at
-  // pointerup uses getBoundingClientRect, so the rectangle stays accurate.
-  if (imageRect.w <= 0 || imageRect.h <= 0) {
-    if (!active) return null;
-    return (
-      <View
-        pointerEvents="auto"
-        style={[styles.layer, { left: 0, top: 0, right: 0, bottom: 0 }]}>
-        <div
-          ref={containerRef}
-          onPointerDown={onPointerDown}
-          style={{
-            position: 'absolute',
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            cursor: 'crosshair',
-            touchAction: 'none',
-            userSelect: 'none',
-            zIndex: 9999,
-          }}
-        />
-      </View>
-    );
+
+  // Live shared values updated on the UI thread for smooth drawing.
+  const drawing = useSharedValue(false);
+  const startX = useSharedValue(0);
+  const startY = useSharedValue(0);
+  const currentX = useSharedValue(0);
+  const currentY = useSharedValue(0);
+
+  function finalize(sx: number, sy: number, cx: number, cy: number) {
+    if (imageRect.w <= 0) return;
+    const x = clamp(Math.min(sx, cx), 0, imageRect.w);
+    const y = clamp(Math.min(sy, cy), 0, imageRect.h);
+    const w = clamp(Math.abs(cx - sx), 0, imageRect.w - x);
+    const h = clamp(Math.abs(cy - sy), 0, imageRect.h - y);
+    if (w < MIN_DRAG_DISPLAY_PX || h < MIN_DRAG_DISPLAY_PX) return;
+    // Display → source-pixel conversion. Uniform k because aspect is preserved.
+    const k = sourceWidth / imageRect.w;
+    onDraftChange({
+      x: Math.round(x * k),
+      y: Math.round(y * k),
+      w: Math.round(w * k),
+      h: Math.round(h * k),
+    });
   }
+
+  const pan = Gesture.Pan()
+    .enabled(active)
+    .onBegin((e) => {
+      startX.value = e.x;
+      startY.value = e.y;
+      currentX.value = e.x;
+      currentY.value = e.y;
+      drawing.value = true;
+    })
+    .onUpdate((e) => {
+      currentX.value = e.x;
+      currentY.value = e.y;
+    })
+    .onEnd(() => {
+      const sx = startX.value;
+      const sy = startY.value;
+      const cx = currentX.value;
+      const cy = currentY.value;
+      drawing.value = false;
+      runOnJS(finalize)(sx, sy, cx, cy);
+    })
+    .onFinalize(() => {
+      drawing.value = false;
+    });
+
+  // Live rect during the drag (display pixels, relative to imageRect).
+  const liveRectStyle = useAnimatedStyle(() => {
+    if (!drawing.value) return { opacity: 0, width: 0, height: 0 } as const;
+    const left = Math.min(startX.value, currentX.value);
+    const top = Math.min(startY.value, currentY.value);
+    const width = Math.abs(currentX.value - startX.value);
+    const height = Math.abs(currentY.value - startY.value);
+    return { opacity: 1, left, top, width, height } as const;
+  });
 
   // Convert the persisted source-pixel draft into display coords for rendering.
   const displayDraft: Rect | null =
@@ -92,70 +125,17 @@ export function PassageRectDrawer({
         }
       : null;
 
-  const renderRect = liveRect ?? displayDraft;
-
-  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    if (!active) return;
-    const target = e.currentTarget;
-    target.setPointerCapture?.(e.pointerId);
-    const rect = target.getBoundingClientRect();
-    const startX = e.clientX - rect.left;
-    const startY = e.clientY - rect.top;
-    setLiveRect({ x: startX, y: startY, w: 0, h: 0 });
-
-    function onMove(ev: PointerEvent) {
-      const r = target.getBoundingClientRect();
-      const cx = clamp(ev.clientX - r.left, 0, r.width);
-      const cy = clamp(ev.clientY - r.top, 0, r.height);
-      const x = Math.min(startX, cx);
-      const y = Math.min(startY, cy);
-      const w = Math.abs(cx - startX);
-      const h = Math.abs(cy - startY);
-      setLiveRect({ x, y, w, h });
-    }
-
-    function onUp(ev: PointerEvent) {
-      target.removeEventListener('pointermove', onMove);
-      target.removeEventListener('pointerup', onUp);
-      target.removeEventListener('pointercancel', onUp);
-      target.releasePointerCapture?.(ev.pointerId);
-
-      const r = target.getBoundingClientRect();
-      const cx = clamp(ev.clientX - r.left, 0, r.width);
-      const cy = clamp(ev.clientY - r.top, 0, r.height);
-      const x = Math.min(startX, cx);
-      const y = Math.min(startY, cy);
-      const w = Math.abs(cx - startX);
-      const h = Math.abs(cy - startY);
-
-      // Reject tiny drags (treat as accidental tap).
-      if (w < MIN_DRAG_DISPLAY_PX || h < MIN_DRAG_DISPLAY_PX) {
-        setLiveRect(null);
-        return;
-      }
-
-      const sourceRect = displayToSource(
-        { x, y, w, h },
-        r.width,
-        sourceWidth,
-      );
-      // For y/h we used the same ratio as x/w (aspect preserved by fitContain),
-      // but pass through displayToSource using h-axis explicitly:
-      const k = sourceWidth / r.width;
-      const finalRegion: Rect = {
-        x: Math.round(x * k),
-        y: Math.round(y * k),
-        w: Math.round(w * k),
-        h: Math.round(h * k),
-      };
-      void sourceRect;
-      setLiveRect(null);
-      onDraftChange(finalRegion);
-    }
-
-    target.addEventListener('pointermove', onMove);
-    target.addEventListener('pointerup', onUp);
-    target.addEventListener('pointercancel', onUp);
+  // Layout-race fallback — if imageRect dimensions haven't settled, mount a
+  // full-slot capture surface so the user can still draw.
+  if (imageRect.w <= 0 || imageRect.h <= 0) {
+    if (!active) return null;
+    return (
+      <View pointerEvents="auto" style={[styles.layer, { left: 0, top: 0, right: 0, bottom: 0 }]}>
+        <GestureDetector gesture={pan}>
+          <Animated.View style={StyleSheet.absoluteFill} />
+        </GestureDetector>
+      </View>
+    );
   }
 
   return (
@@ -168,44 +148,39 @@ export function PassageRectDrawer({
           top: imageRect.y,
           width: imageRect.w,
           height: imageRect.h,
-          zIndex: 9999,
         },
       ]}>
-      {/* Pointer-capture surface: only mounts when active so inactive pages
-          don't intercept page-swipe gestures from a parent. */}
       {active && (
-        <div
-          ref={containerRef}
-          onPointerDown={onPointerDown}
-          style={{
-            position: 'absolute',
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            cursor: 'crosshair',
-            touchAction: 'none',
-            userSelect: 'none',
-            zIndex: 9999,
-          }}
-        />
+        <GestureDetector gesture={pan}>
+          <Animated.View style={StyleSheet.absoluteFill} />
+        </GestureDetector>
       )}
-      {renderRect && (
+      {/* Persisted draft (between drags / on other pages). */}
+      {!drawing.value && displayDraft && (
         <View
           pointerEvents="none"
           style={[
             styles.rect,
             {
-              left: renderRect.x,
-              top: renderRect.y,
-              width: renderRect.w,
-              height: renderRect.h,
+              left: displayDraft.x,
+              top: displayDraft.y,
+              width: displayDraft.w,
+              height: displayDraft.h,
               borderColor: C.tint,
               backgroundColor: C.tint + '22',
             },
           ]}
         />
       )}
+      {/* Live rect while dragging. */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.rect,
+          { borderColor: C.tint, backgroundColor: C.tint + '22' },
+          liveRectStyle,
+        ]}
+      />
     </View>
   );
 }
