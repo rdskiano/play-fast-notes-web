@@ -7,8 +7,6 @@
 // scheduled oscillator/buffer logic in this class so the hook stays
 // thin and the React lifecycle owns disposal.
 
-import { NativeModules } from 'react-native';
-
 import { TOKEN_QUARTER_FRACTIONS, type RhythmToken } from '@/lib/strategies/rhythmPatterns';
 
 export type Subdivision = 1 | 2 | 3;
@@ -65,24 +63,17 @@ type RnGainNode = ReturnType<RnAudioContext['createGain']>;
 let audioApi: { AudioContext: AudioContextCtor } | null = null;
 let audioApiTried = false;
 
-// Heuristic: react-native-audio-api registers its TurboModule under one of
-// these names. If none exist on the NativeModules registry, the native side
-// isn't linked into this dev client and we must NOT touch the JS module at
-// all — loading it would fire an uncaught ErrorUtils report that LogBox
-// catches even when we try/catch around require().
-function isNativeModulePresent(): boolean {
-  const mods = NativeModules as unknown as Record<string, unknown>;
-  return !!(mods.AudioAPIModule || mods.RNAudioAPIModule || mods.AudioAPI);
-}
-
 function loadAudioApi(): { AudioContext: AudioContextCtor } | null {
   if (audioApi || audioApiTried) return audioApi;
   audioApiTried = true;
-  if (!isNativeModulePresent()) {
-    audioApi = null;
-    return null;
-  }
   try {
+    // react-native-audio-api is a hard dependency + Expo config plugin, so
+    // it is compiled into every real build — require it directly. An earlier
+    // NativeModules-name presence check was removed: it produced FALSE
+    // NEGATIVES on release builds (the TurboModule is not exposed on the
+    // legacy NativeModules registry the way it is in a debug build), which
+    // silently disabled the metronome on the iPad while it worked in the
+    // simulator.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     audioApi = require('react-native-audio-api');
   } catch {
