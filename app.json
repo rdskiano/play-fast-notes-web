@@ -70,7 +70,8 @@
           "cameraPermission": "Allow the camera to scan sheet music."
         }
       ],
-      "react-native-audio-api"
+      "react-native-audio-api",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
