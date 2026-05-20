@@ -129,6 +129,13 @@ The web file ALSO keeps the older Blob-based functions (`cropToBlob`, `cropImage
 ⚠️ **Pre-existing TS errors that are NOT blockers:**
 - `app/passage/[id]/self-led/[key].tsx(78,31)` and `app/passage/[id]/self-led/recording.tsx(194,31)` — `SelfLedKey` vs `Strategy` mismatch. Pre-existing in web's codebase; doesn't affect builds. Will likely resolve when we touch the self-led routes properly.
 
+## Debugging the merged repo
+
+This repo was built by porting the web codebase to *also* target native, which creates two recurring failure classes. When you hit either, fix the whole class — not just the one instance:
+
+- **Latent web-only code.** DOM globals (`window`, `document`), raw HTML JSX (`<div>`, `<input>`), and browser-only APIs survive in files shared with native and crash on iOS. When one surfaces, grep the whole class at once and fix in a single pass — don't discover them one crash at a time.
+- **Device/release-only bugs.** Some bugs appear only on a release or on-device build, never in the dev Simulator — Hermes compilation, TurboModule registration, iOS audio sessions, missing `EXPO_PUBLIC_*` env vars. Get real diagnostics *before* changing code (Console.app with the iPad tethered, or on-screen instrumentation in the app). Blind ~30-minute `playpreview` cycles to test a guess are a bad loop.
+
 ## Vocabulary: "passage" in TS, "pieces" in SQL
 
 Phase 0 (2026-05-03) renamed `piece` → `passage` in TS / UI to match how musicians talk ("piece" = whole work; "passage" = section you drill). The SQL table stays `pieces`; FK columns stay `piece_id`. TS exports `Passage`, `passages`, `getPassage`, etc., but the SQL strings still read `from pieces`. Don't try to "fix" `piece_id` inside SQL identifiers.
