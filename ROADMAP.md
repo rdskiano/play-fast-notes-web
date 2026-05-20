@@ -4,7 +4,7 @@ _Last updated: 2026-05-19_
 
 This roadmap covers **both surfaces** (iOS/iPad + web) of the unified Play Fast Notes app, which lives in this directory (`play-fast-notes/`). The two older repos (`../learn-fast-notes/` for iPad and `../play-fast-notes-web/` for web) are read-only archives and their roadmaps are historical only.
 
-> **🔄 2026-05-19 — Unified-codebase migration is the active workstream.** The two-repo split (iPad in `learn-fast-notes/`, web in `play-fast-notes-web/`) was costing 2× implementation effort on every feature and producing constant drift. The merge into this single Expo project is partially complete: foundation works, data layer and document-marker components are split by platform, both targets compile and bundle. **Live deploys still come from the OLD repos until cutover.** See "Unified-codebase migration" section below for what's done and what's pending.
+> **🔄 2026-05-19 — Unified-codebase migration, nearly feature-complete for iOS.** The two-repo split was costing 2× effort on every feature. The merge is now well advanced: both targets bundle, the data layer + all practice UI are platform-split, and the merged app **builds on EAS, installs, launches, and renders every practice flow on the physical iPad** — with ONE known blocker: the metronome produces no sound on device builds (it works in the Simulator). See the **⚠️ CURRENT BLOCKER** note in the migration section below. **Live deploys still come from the OLD repos until cutover.**
 
 The old web-only context note (2026-05-17 Mac upgrade) is now folded into history — the iPad still uses local Xcode builds, the web still deploys via Vercel. Both will eventually originate from this repo.
 
@@ -34,11 +34,20 @@ The old web-only context note (2026-05-17 Mac upgrade) is now folded into histor
 
 - **Native Floating practice controls + RhythmNotation + CropView** (2026-05-19): all four native `Floating*` components ported as real native implementations (gesture-handler + reanimated + `useDraggableCard` + `useResponsiveCardWidth` hooks). `RhythmNotation` (WebView + abcjs) ported as a sibling of `AbcStaffView`. `CropView` ported, plus the iPad's `app/passage/[id]/crop.tsx` flow (re-crop with restore-original + crop-another paths) plus `lib/files/import.ts`. Tempo Ladder / Click-Up / Rhythmic / Rhythm Builder all render fully on iOS. (Subdivision chips render correctly once the `AbcStaffView` native port lands — see below.) `InlineMetronome` / `NoteCardStrip` / `PreviewPlayButton` / `SubdivisionControls` from the original list confirmed as orphans in the iPad archive — zero importers — and skipped.
 
-**Pending:**
-- Bring in `/import-supabase` route (originally iPad-only, used to pull Supabase → SQLite for testing). Requires splitting `lib/supabase/client.ts` (currently web-only) into `.web.ts` + native `.ts`.
-- Smoke-test full practice flows on iOS simulator: each of Tempo Ladder, Click-Up, Rhythmic, Self-Led from a document-backed passage. Blocked by metronome split.
-- Smoke-test web flows (via local `npm run web` from this dir, not the live site).
-- Cutover: create GitHub remote, push, point Vercel at new repo, archive old dirs, update aliases if needed.
+- **EAS preview build + device-launch fixes** (2026-05-19): the merged repo's first `playpreview` surfaced three release-build-only bugs, all fixed. (1) **Hermes build failure** — `@supabase/supabase-js@2.106.0` added an OpenTelemetry dynamic `import()` that Hermes can't compile; pinned to `~2.104.1` (pre-otel, matches the deployed web repo). Also corrected `expo-document-picker` from a stray `55.x` to the SDK-54 `~14.0.8` and added `expo-asset@~12.0.13`. (2) **Instant launch crash** — `EXPO_PUBLIC_SUPABASE_*` env vars lived only in gitignored `.env.local`, so the EAS build never got them and the Supabase client threw at module load; added a committed `.env` and hardened the native client to not throw. (3) **Volume control** — `@react-native-community/slider` ignores its `value` prop on iOS New-Arch; replaced with a 5-step segmented `VolumeSlider`, plus a 2× engine gain. After these, the preview build installs + launches on the iPad and notation renders.
+
+**⚠️ CURRENT BLOCKER — metronome audio silent on device (open as of end of 2026-05-19):**
+The merged app builds, installs, launches, and renders everything on the physical iPad — but the metronome produces **no sound**. Audio works in the iOS Simulator (dev build); it is silent on the iPad (EAS preview / release build).
+- Ruled out: iPad silent mode (user verified); the `isNativeModulePresent()` NativeModules-registry gate in `lib/audio/metronomeEngine.ts` (removed in commit `7f5092c` — that did NOT fix it, though the gate was a genuine latent bug worth removing).
+- The engine uses `react-native-audio-api`. The bug is **release/device-specific** — it can't be reproduced in the dev Simulator, so blind `playpreview` cycles (~30 min each) are a bad debugging loop.
+- **NEXT SESSION — get device diagnostics BEFORE changing code. Don't guess.** Two ways: (a) tether the iPad, open Console.app on the Mac, filter by `playfastnotes`, reproduce the metronome, read the logs; (b) add an on-screen diagnostic readout to `metronomeEngine.ts` — a `getMetronomeDiagnostics()` plus a small always-on overlay — so a normal build shows the engine state right on the iPad: did `react-native-audio-api` load? was the `AudioContext` created? `ctx.state`? the `unavailable` flag? clicks scheduled? Option (b) suits this non-developer user best.
+- Hypotheses to test against the data: `react-native-audio-api` needs release/device audio-session setup, OR it's unreliable on iOS hardware and the metronome should move to `expo-audio` (already a project dependency). Decide from the diagnostics, not a hunch.
+- iPad housekeeping: a local Xcode "Play" during debugging installed a Debug build over the standalone preview build (same bundle id `com.playfastnotes.playfastnotes`). The iPad currently holds a Debug build that needs Metro. Reinstall the preview build from its EAS link, or rebuild, to get a usable standalone app back.
+
+**Pending (besides the audio blocker):**
+- Re-verify the web build — `npx expo export -p web` — it has not been re-checked since this session's many changes.
+- Smoke-test web practice flows locally (`playweb`).
+- Cutover: create a GitHub remote, push, point Vercel at the merged repo, archive the old dirs. The `~/.zshrc` aliases (`playfast`/`playweb`/`playbuild`/`playpreview`) already point at the merged repo. Web is the deployed, battle-tested surface — stage the web and iOS cutovers separately.
 
 **Pre-existing TS errors that are NOT blockers** (carried in from web's codebase):
 - `app/passage/[id]/self-led/[key].tsx(78,31)` and `app/passage/[id]/self-led/recording.tsx(194,31)` — `SelfLedKey` vs `Strategy` mismatch. Doesn't break builds.
