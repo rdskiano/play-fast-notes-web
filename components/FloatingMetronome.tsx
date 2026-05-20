@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import Slider from '@react-native-community/slider';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
+import Animated from 'react-native-reanimated';
 
-import { SubdivisionGlyph } from '@/components/SubdivisionGlyph';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useDraggableCard } from '@/hooks/useDraggableCard';
+import { useResponsiveCardWidth } from '@/hooks/useResponsiveCardWidth';
+import { SubdivisionGlyph } from '@/components/SubdivisionGlyph';
 import type { Subdivision } from '@/lib/audio/useMetronome';
 
 type Props = {
@@ -19,28 +23,23 @@ type Props = {
   onToggle: () => void;
   initialX?: number;
   initialY?: number;
-  defaultCollapsed?: boolean;
+  // For API parity with FloatingMetronome.web.tsx. `anchor: 'right'` pins
+  // the initial X to the right edge of the screen; `defaultCollapsed`
+  // mounts the card in its compact state. Both passed through to the
+  // useDraggableCard hook.
   anchor?: 'left' | 'right';
+  defaultCollapsed?: boolean;
 };
 
 const SUBS: Subdivision[] = [1, 2, 3];
 
-const CARD_W = 220;
+const BASE_CARD_W = 240;
+const EXPANDED_H = 360;
+const COLLAPSED_H = 72;
 const BPM_MIN = 30;
 const BPM_MAX = 240;
-const MIN_SCALE = 0.6;
-const MAX_SCALE = 1.6;
 
-// Web-only: this card attaches DOM pointer + wheel listeners to cardRef.current
-// (an HTMLDivElement on web) for drag + pinch + scroll-zoom. Those methods
-// don't exist on native View refs, so the component returns null on native.
-// iPad uses InlineMetronome instead (pending port — Task #4).
-export function FloatingMetronome(props: Props) {
-  if (Platform.OS !== 'web') return null;
-  return <FloatingMetronomeWeb {...props} />;
-}
-
-function FloatingMetronomeWeb({
+export function FloatingMetronome({
   bpm,
   subdivision,
   running,
@@ -50,175 +49,64 @@ function FloatingMetronomeWeb({
   onVolume,
   onToggle,
   initialX,
-  initialY = 100,
-  defaultCollapsed = false,
+  initialY = 160,
   anchor = 'left',
+  defaultCollapsed = false,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const cardW = useResponsiveCardWidth(BASE_CARD_W);
+  const { width: screenW } = useWindowDimensions();
+  const resolvedInitialX =
+    initialX !== undefined
+      ? initialX
+      : anchor === 'right'
+        ? Math.max(8, screenW - cardW - 8)
+        : 8;
 
-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
-  const [pos, setPos] = useState(() => {
-    if (initialX !== undefined) return { x: initialX, y: initialY };
-    const w = typeof window !== 'undefined' ? window.innerWidth : 0;
-    const x = anchor === 'right' ? Math.max(16, w - CARD_W - 16) : 16;
-    return { x, y: initialY };
+  const { collapsed, toggleCollapsed, gesture, animatedStyle } = useDraggableCard({
+    cardWidth: cardW,
+    expandedHeight: EXPANDED_H,
+    collapsedHeight: COLLAPSED_H,
+    initialX: resolvedInitialX,
+    initialY,
+    initialCollapsed: defaultCollapsed,
+    initialScale: 0.8,
   });
-  const [scale, setScale] = useState(0.85);
-
-  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const dragBaseRef = useRef<{ x: number; y: number } | null>(null);
-  const pinchBaseRef = useRef<{ dist: number; scale: number } | null>(null);
-  const cardRef = useRef<HTMLDivElement | null>(null);
-
-  function pinchDistance(): number {
-    const pts = Array.from(pointersRef.current.values());
-    if (pts.length < 2) return 0;
-    const [a, b] = pts;
-    return Math.hypot(b.x - a.x, b.y - a.y);
-  }
-
-  useEffect(() => {
-    const card = cardRef.current;
-    if (!card) return;
-    function onPointerDown(e: PointerEvent) {
-      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pointersRef.current.size === 2) {
-        dragBaseRef.current = null;
-        pinchBaseRef.current = { dist: pinchDistance(), scale };
-      }
-    }
-    function onPointerMove(e: PointerEvent) {
-      if (!pointersRef.current.has(e.pointerId)) return;
-      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pointersRef.current.size >= 2 && pinchBaseRef.current) {
-        e.preventDefault();
-        const dist = pinchDistance();
-        if (pinchBaseRef.current.dist > 0) {
-          const ns = pinchBaseRef.current.scale * (dist / pinchBaseRef.current.dist);
-          setScale(Math.max(MIN_SCALE, Math.min(MAX_SCALE, ns)));
-        }
-      }
-    }
-    function onPointerUp(e: PointerEvent) {
-      pointersRef.current.delete(e.pointerId);
-      if (pointersRef.current.size < 2) pinchBaseRef.current = null;
-    }
-    card.addEventListener('pointerdown', onPointerDown);
-    card.addEventListener('pointermove', onPointerMove);
-    card.addEventListener('pointerup', onPointerUp);
-    card.addEventListener('pointercancel', onPointerUp);
-    return () => {
-      card.removeEventListener('pointerdown', onPointerDown);
-      card.removeEventListener('pointermove', onPointerMove);
-      card.removeEventListener('pointerup', onPointerUp);
-      card.removeEventListener('pointercancel', onPointerUp);
-    };
-  }, [scale]);
-
-  useEffect(() => {
-    const card = cardRef.current;
-    if (!card) return;
-    function onWheel(e: WheelEvent) {
-      if (!e.ctrlKey) return;
-      e.preventDefault();
-      setScale((s) => {
-        const ns = s * (1 - e.deltaY * 0.01);
-        return Math.max(MIN_SCALE, Math.min(MAX_SCALE, ns));
-      });
-    }
-    card.addEventListener('wheel', onWheel, { passive: false });
-    return () => card.removeEventListener('wheel', onWheel);
-  }, []);
-
-  const onHandlePointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (pointersRef.current.size >= 2) return;
-      e.preventDefault();
-      const target = e.currentTarget;
-      target.setPointerCapture(e.pointerId);
-      const startX = e.clientX;
-      const startY = e.clientY;
-      dragBaseRef.current = { x: pos.x, y: pos.y };
-
-      function onMove(ev: PointerEvent) {
-        if (pointersRef.current.size >= 2 || !dragBaseRef.current) return;
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        const cw = CARD_W * scale;
-        const nextX = Math.max(0, Math.min(w - cw, dragBaseRef.current.x + (ev.clientX - startX)));
-        const nextY = Math.max(0, Math.min(h - 100, dragBaseRef.current.y + (ev.clientY - startY)));
-        setPos({ x: nextX, y: nextY });
-      }
-      function onUp() {
-        dragBaseRef.current = null;
-        target.removeEventListener('pointermove', onMove);
-        target.removeEventListener('pointerup', onUp);
-        target.removeEventListener('pointercancel', onUp);
-      }
-      target.addEventListener('pointermove', onMove);
-      target.addEventListener('pointerup', onUp);
-      target.addEventListener('pointercancel', onUp);
-    },
-    [pos.x, pos.y, scale],
-  );
 
   return (
-    <div
-      ref={cardRef}
-      style={{
-        position: 'absolute',
-        left: pos.x,
-        top: pos.y,
-        width: CARD_W,
-        transform: `scale(${scale})`,
-        transformOrigin: 'top left',
-        touchAction: 'none',
-        // Stay above inline page content (e.g. Exercise Builder generated
-        // rhythm cards). FloatingRhythmCard sits even higher so it lands
-        // on top of this when both are mounted.
-        zIndex: 150,
-      }}>
-      <View
+    <GestureDetector gesture={gesture}>
+      <Animated.View
         style={[
           styles.card,
+          animatedStyle,
           {
-            width: CARD_W,
+            width: cardW,
             backgroundColor: scheme === 'dark' ? '#1f2123ee' : '#ffffffee',
             borderColor: C.icon,
           },
         ]}>
-        <div
-          onPointerDown={onHandlePointerDown}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingTop: 4,
-            paddingBottom: 4,
-            touchAction: 'none',
-            cursor: 'grab',
-            position: 'relative',
-          }}>
+        <View style={styles.dragHandle}>
           <View style={styles.dragBars}>
             <View style={[styles.dragBar, { backgroundColor: C.icon }]} />
             <View style={[styles.dragBar, { backgroundColor: C.icon }]} />
           </View>
           <Pressable
-            onPress={() => setCollapsed((c) => !c)}
+            onPress={toggleCollapsed}
             hitSlop={10}
             style={[styles.collapseBtn, { borderColor: C.icon }]}>
             <ThemedText style={[styles.collapseText, { color: C.text }]}>
               {collapsed ? '▾' : '▴'}
             </ThemedText>
           </Pressable>
-        </div>
+        </View>
 
         {collapsed ? (
           <Pressable onPress={onToggle} style={styles.collapsedRow}>
             <ThemedText style={styles.collapsedBpm}>{bpm}</ThemedText>
             <ThemedText style={[styles.collapsedUnit, { color: C.icon }]}>BPM</ThemedText>
-            <ThemedText style={[styles.collapsedPlay, { color: running ? '#2ecc71' : C.tint }]}>
+            <ThemedText
+              style={[styles.collapsedPlay, { color: running ? '#2ecc71' : C.tint }]}>
               {running ? '■' : '▶'}
             </ThemedText>
           </Pressable>
@@ -227,9 +115,9 @@ function FloatingMetronomeWeb({
             <View style={styles.tempoRow}>
               <Pressable
                 onPress={() => onBpm(Math.max(BPM_MIN, bpm - 1))}
-                hitSlop={6}
-                style={[styles.nudgeBtn, { borderColor: C.icon }]}>
-                <ThemedText style={[styles.nudgeText, { color: C.icon }]}>−</ThemedText>
+                onLongPress={() => onBpm(Math.max(BPM_MIN, bpm - 5))}
+                style={[styles.stepBtn, { borderColor: C.icon }]}>
+                <ThemedText style={styles.stepText}>−</ThemedText>
               </Pressable>
               <View style={styles.tempoDisplay}>
                 <ThemedText style={styles.tempoNum}>{bpm}</ThemedText>
@@ -237,25 +125,34 @@ function FloatingMetronomeWeb({
               </View>
               <Pressable
                 onPress={() => onBpm(Math.min(BPM_MAX, bpm + 1))}
-                hitSlop={6}
-                style={[styles.nudgeBtn, { borderColor: C.icon }]}>
-                <ThemedText style={[styles.nudgeText, { color: C.icon }]}>+</ThemedText>
+                onLongPress={() => onBpm(Math.min(BPM_MAX, bpm + 5))}
+                style={[styles.stepBtn, { borderColor: C.icon }]}>
+                <ThemedText style={styles.stepText}>+</ThemedText>
               </Pressable>
             </View>
 
-            <input
-              type="range"
-              min={BPM_MIN}
-              max={BPM_MAX}
+            <Slider
+              style={styles.tempoSlider}
+              minimumValue={BPM_MIN}
+              maximumValue={BPM_MAX}
               step={1}
               value={bpm}
-              onChange={(e) => onBpm(parseInt(e.target.value, 10))}
-              style={{ width: '100%', accentColor: C.tint }}
+              onValueChange={onBpm}
+              minimumTrackTintColor={C.tint}
+              maximumTrackTintColor={C.icon}
+              thumbTintColor={C.tint}
             />
+            <View style={styles.tempoSliderLabels}>
+              <ThemedText style={styles.tempoSliderLabel}>{BPM_MIN}</ThemedText>
+              <ThemedText style={styles.tempoSliderLabel}>{BPM_MAX}</ThemedText>
+            </View>
 
             <Pressable
               onPress={onToggle}
-              style={[styles.playBtn, { backgroundColor: running ? '#c0392b' : '#e67e22' }]}>
+              style={[
+                styles.playBtn,
+                { backgroundColor: running ? '#c0392b' : '#e67e22' },
+              ]}>
               <ThemedText style={styles.playBtnText}>
                 {running ? '■ Stop' : '▶ Start'}
               </ThemedText>
@@ -280,93 +177,117 @@ function FloatingMetronomeWeb({
 
             <View style={styles.volRow}>
               <ThemedText style={styles.volLabel}>vol</ThemedText>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
+              <Slider
+                style={{ flex: 1 }}
+                minimumValue={0}
+                maximumValue={1}
                 value={volume}
-                onChange={(e) => onVolume(parseFloat(e.target.value))}
-                style={{ flex: 1, accentColor: C.tint }}
+                onValueChange={onVolume}
+                minimumTrackTintColor={C.tint}
+                maximumTrackTintColor={C.icon}
+                thumbTintColor={C.tint}
               />
             </View>
           </>
         )}
-      </View>
-    </div>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
     borderWidth: Borders.thin,
-    borderRadius: Radii['2xl'],
-    padding: 12,
-    gap: Spacing.sm,
+    borderRadius: 16,
+    padding: Spacing.md,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+    transformOrigin: 'top left',
+  },
+  dragHandle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
   },
   dragBars: { alignItems: 'center', gap: 3, flex: 1 },
-  dragBar: { width: 44, height: 3, borderRadius: 2 },
+  dragBar: { width: 40, height: 3, borderRadius: 2 },
   collapseBtn: {
     position: 'absolute',
     right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: Radii['2xl'],
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     borderWidth: Borders.thin,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  collapseText: { fontSize: Type.size.lg, fontWeight: Type.weight.heavy, lineHeight: 18 },
+  collapseText: { fontSize: Type.size.md, fontWeight: Type.weight.heavy, lineHeight: 16 },
 
   collapsedRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'center',
-    gap: 8,
+    gap: Spacing.sm,
     paddingVertical: Spacing.xs,
   },
-  collapsedBpm: { fontSize: 30, fontWeight: Type.weight.heavy, lineHeight: 34 },
-  collapsedUnit: { fontSize: 12, fontWeight: Type.weight.semibold },
-  collapsedPlay: { fontSize: Type.size.lg, fontWeight: Type.weight.heavy },
+  collapsedBpm: { fontSize: Type.size['3xl'], fontWeight: Type.weight.heavy, lineHeight: 32 },
+  collapsedUnit: { fontSize: Type.size.xs, fontWeight: Type.weight.semibold },
+  collapsedPlay: { fontSize: Type.size['2xl'], fontWeight: Type.weight.heavy },
 
   tempoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  nudgeBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: Radii.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    opacity: Opacity.subtle,
-    minWidth: 36,
+  stepBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: Borders.thin,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  nudgeText: { fontSize: Type.size.lg, fontWeight: Type.weight.bold },
+  stepText: { fontSize: Type.size['2xl'], fontWeight: Type.weight.bold, lineHeight: 26 },
   tempoDisplay: { alignItems: 'center' },
-  tempoNum: { fontSize: 36, fontWeight: Type.weight.heavy, lineHeight: 40 },
-  tempoUnit: { fontSize: Type.size.xs, opacity: Opacity.muted, marginTop: -2 },
-
+  tempoNum: { fontSize: 32, fontWeight: Type.weight.heavy, lineHeight: 36 },
+  tempoUnit: { fontSize: 10, opacity: Opacity.muted, marginTop: -2 },
   playBtn: {
     borderRadius: Radii.lg,
-    paddingVertical: Spacing.md,
+    paddingVertical: 14,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 3 },
   },
   playBtnText: {
     color: '#fff',
     fontWeight: Type.weight.black,
-    fontSize: Type.size.lg,
+    fontSize: 17,
     letterSpacing: 0.3,
   },
-
   subRow: { flexDirection: 'row', gap: Spacing.sm, justifyContent: 'center' },
   subChip: {
     borderWidth: Borders.thin,
-    borderRadius: Radii['2xl'],
+    borderRadius: 16,
     paddingHorizontal: 6,
     paddingVertical: 2,
     minWidth: 66,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   volRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   volLabel: { opacity: Opacity.muted, fontSize: 12 },
+  tempoSlider: { width: '100%', marginTop: -4 },
+  tempoSliderLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: -10,
+    marginHorizontal: Spacing.sm,
+  },
+  tempoSliderLabel: { fontSize: 10, opacity: 0.5 },
 });
