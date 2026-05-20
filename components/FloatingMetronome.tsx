@@ -10,6 +10,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDraggableCard } from '@/hooks/useDraggableCard';
 import { useResponsiveCardWidth } from '@/hooks/useResponsiveCardWidth';
 import { SubdivisionGlyph } from '@/components/SubdivisionGlyph';
+import { VolumeSlider } from '@/components/VolumeSlider';
 import type { Subdivision } from '@/lib/audio/useMetronome';
 
 type Props = {
@@ -177,12 +178,9 @@ export function FloatingMetronome({
 
             <View style={styles.volRow}>
               <ThemedText style={styles.volLabel}>vol</ThemedText>
-              <Slider
-                style={{ flex: 1 }}
-                minimumValue={0}
-                maximumValue={1}
+              <VolumeSlider
                 value={volume}
-                onValueChange={onVolume}
+                onChange={onVolume}
                 minimumTrackTintColor={C.tint}
                 maximumTrackTintColor={C.icon}
                 thumbTintColor={C.tint}

@@ -1,5 +1,6 @@
-import Slider from '@react-native-community/slider';
 import { Pressable, StyleSheet, View } from 'react-native';
+
+import { VolumeSlider } from '@/components/VolumeSlider';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 
@@ -131,12 +132,9 @@ export function FloatingClickUpControls({
 
             <View style={styles.volRow}>
               <ThemedText style={styles.volLabel}>vol</ThemedText>
-              <Slider
-                style={{ flex: 1 }}
-                minimumValue={0}
-                maximumValue={1}
+              <VolumeSlider
                 value={volume}
-                onValueChange={onVolume}
+                onChange={onVolume}
                 minimumTrackTintColor={C.tint}
                 maximumTrackTintColor={C.icon}
                 thumbTintColor={C.tint}

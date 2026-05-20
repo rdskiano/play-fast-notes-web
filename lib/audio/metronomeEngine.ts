@@ -167,7 +167,8 @@ export class MetronomeEngine {
 
   private _bpm = 80;
   private _subdivision: Subdivision = 1;
-  private _volume = 0.5;
+  // Matches the useMetronome hook's default (middle of the 5-step control).
+  private _volume = 0.6;
   private running = false;
 
   get bpm() {
@@ -610,15 +611,16 @@ export class MetronomeEngine {
       }) => {
         try {
           source.buffer = buffer;
-          if (this._volume >= 0.999) {
-            // Skip the extra gain node when volume is full-scale.
-            source.connect(destination ?? this.ctx!.destination);
-          } else {
-            const gain = this.ctx!.createGain();
-            gain.gain.value = this._volume;
-            source.connect(gain);
-            gain.connect(destination ?? this.ctx!.destination);
-          }
+          // 2× gain headroom so the default volume (0.5) plays at the
+          // click buffer's natural peak (which is what old vol=1.0 did),
+          // and vol=1.0 doubles that. Beat/sub buffers have peaks of
+          // 0.9 / 0.5; vol=1.0 lifts those to ~1.0 (saturating slightly
+          // on the beat), which on iPad simulator + Mac speakers is
+          // audibly comfortable.
+          const gain = this.ctx!.createGain();
+          gain.gain.value = Math.min(2, this._volume * 2);
+          source.connect(gain);
+          gain.connect(destination ?? this.ctx!.destination);
           source.start(when);
         } catch {
           // ignore individual tick failures
