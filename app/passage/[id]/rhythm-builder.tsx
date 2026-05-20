@@ -2,6 +2,8 @@ import { Image, type ImageLoadEventData } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -367,6 +369,13 @@ export default function RhythmBuilderScreen() {
   function exportPdf() {
     if (typeof window === 'undefined' || !passage) return;
     const patterns = patternsByGrouping(grouping);
+    if (Platform.OS !== 'web') {
+      Alert.alert(
+        'Not available on iPad',
+        'PDF export uses a browser print popup and is web-only for now. Open this exercise on playfastnotes.com to export.',
+      );
+      return;
+    }
     const html = buildExerciseHtml(
       exercise?.name && exercise.name.trim().length > 0
         ? exercise.name

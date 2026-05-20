@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   FlatList,
   Linking,
   Modal,
@@ -89,11 +90,16 @@ type UndoMove = {
   label: string;
 };
 
-function confirmDelete(label: string, message: string): boolean {
+function confirmDelete(label: string, message: string): Promise<boolean> {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    return window.confirm(`Delete "${label}"?\n\n${message}`);
+    return Promise.resolve(window.confirm(`Delete "${label}"?\n\n${message}`));
   }
-  return true;
+  return new Promise((resolve) => {
+    Alert.alert(`Delete "${label}"?`, message, [
+      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+      { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+    ]);
+  });
 }
 
 type FolderCardProps = {
@@ -534,28 +540,28 @@ export default function LibraryScreen() {
     refresh();
   }
 
-  function onDeleteFolder(f: Folder) {
+  async function onDeleteFolder(f: Folder) {
     if (
-      !confirmDelete(
+      !(await confirmDelete(
         f.name,
         'The folder will be removed. Anything inside will move up to the parent level — nothing is deleted with it.',
-      )
+      ))
     )
       return;
     softDeleteFolder(f.id).then(refresh).catch(() => undefined);
   }
 
-  function onDeletePassage(p: Passage) {
-    if (!confirmDelete(p.title, 'This removes the passage from your library.')) return;
+  async function onDeletePassage(p: Passage) {
+    if (!(await confirmDelete(p.title, 'This removes the passage from your library.'))) return;
     softDeletePassage(p.id).then(refresh).catch(() => undefined);
   }
 
-  function onDeleteDocument(d: DocumentRow) {
+  async function onDeleteDocument(d: DocumentRow) {
     if (
-      !confirmDelete(
+      !(await confirmDelete(
         d.title,
         'This removes the full part and any passages you marked inside it. Practice history under those passages stays in your log.',
-      )
+      ))
     )
       return;
     softDeleteDocument(d.id).then(refresh).catch(() => undefined);
