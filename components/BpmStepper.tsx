@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import Slider from '@react-native-community/slider';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
@@ -77,19 +78,32 @@ export function BpmStepper({
         </Pressable>
       </View>
 
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={1}
-        value={numValue}
-        onChange={(e) => setBpm(parseInt(e.target.value, 10))}
-        style={{
-          width: '100%',
-          accentColor: C.tint,
-          marginTop: -2,
-        }}
-      />
+      {Platform.OS === 'web' ? (
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={1}
+          value={numValue}
+          onChange={(e) => setBpm(parseInt(e.target.value, 10))}
+          style={{
+            width: '100%',
+            accentColor: C.tint,
+            marginTop: -2,
+          }}
+        />
+      ) : (
+        <Slider
+          minimumValue={min}
+          maximumValue={max}
+          step={1}
+          value={numValue}
+          onValueChange={(v) => setBpm(v)}
+          minimumTrackTintColor={C.tint}
+          maximumTrackTintColor={C.icon}
+          style={{ width: '100%', marginTop: -2 }}
+        />
+      )}
       <View style={styles.sliderLabels}>
         <ThemedText style={[styles.sliderLabelText, { color: C.icon }]}>{min}</ThemedText>
         <ThemedText style={[styles.sliderLabelText, { color: C.icon }]}>{max}</ThemedText>

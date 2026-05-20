@@ -807,7 +807,17 @@ export default function LibraryScreen() {
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
           {editMode ? (
-            <Button label="Done" size="sm" onPress={() => setEditMode(false)} />
+            <>
+              {Platform.OS !== 'web' && (
+                <Button
+                  label="Import from Supabase"
+                  variant="outline"
+                  size="sm"
+                  onPress={() => router.push('/import-supabase' as never)}
+                />
+              )}
+              <Button label="Done" size="sm" onPress={() => setEditMode(false)} />
+            </>
           ) : (
             <>
               <Button

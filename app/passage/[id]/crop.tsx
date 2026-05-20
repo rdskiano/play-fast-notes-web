@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { PromptModal } from '@/components/PromptModal';
@@ -128,6 +128,7 @@ export default function CropScreen() {
   }, []);
 
   useEffect(() => {
+    if (Platform.OS !== 'web') return;
     if (!passage?.source_uri) return;
     function onResize() {
       measureImg();

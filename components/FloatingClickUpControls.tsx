@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { SubdivisionGlyph } from '@/components/SubdivisionGlyph';
 import { ThemedText } from '@/components/themed-text';
@@ -25,7 +25,15 @@ const CARD_W = 280;
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 1.6;
 
-export function FloatingClickUpControls({
+// Web-only: attaches DOM pointer + wheel listeners to cardRef.current for
+// drag/pinch/scroll-zoom. Returns null on native; iPad uses InlineMetronome
+// (pending port — Task #4).
+export function FloatingClickUpControls(props: Props) {
+  if (Platform.OS !== 'web') return null;
+  return <FloatingClickUpControlsWeb {...props} />;
+}
+
+function FloatingClickUpControlsWeb({
   bpm,
   subdivision,
   running,

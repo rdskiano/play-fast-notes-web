@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
@@ -137,6 +137,7 @@ export default function PassageDetailScreen() {
   // Keyboard arrows on desktop. Skip while a sheet is open or focus is in
   // an input — otherwise we steal text-cursor movement.
   useEffect(() => {
+    if (Platform.OS !== 'web') return;
     if (rhythmicSheetOpen || selfLedOpen) return;
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
@@ -283,19 +284,25 @@ export default function PassageDetailScreen() {
         <PassageReminders passageId={passage.id} />
       </View>
 
-      <div
-        onPointerDown={onSwipeStart}
-        onPointerUp={onSwipeEnd}
-        onPointerCancel={() => {
-          swipeStartRef.current = null;
-        }}
+      <View
+        // Swipe handlers are web-only — onPointerDown/Up/Cancel are HTMLElement
+        // events. RN-Web forwards them through View. On native, this is a
+        // plain flex wrapper with no swipe support (the prev/next buttons
+        // still navigate).
+        {...(Platform.OS === 'web'
+          ? ({
+              onPointerDown: onSwipeStart,
+              onPointerUp: onSwipeEnd,
+              onPointerCancel: () => {
+                swipeStartRef.current = null;
+              },
+            } as object)
+          : {})}
         style={{
           flex: 1,
-          display: 'flex',
           flexDirection: 'column',
           minHeight: 0,
           position: 'relative',
-          touchAction: 'pan-y',
         }}>
         <View style={styles.body}>
           {passage.source_uri ? (
@@ -335,7 +342,7 @@ export default function PassageDetailScreen() {
             </ThemedText>
           </View>
         )}
-      </div>
+      </View>
 
       <Modal
         visible={rhythmicSheetOpen}

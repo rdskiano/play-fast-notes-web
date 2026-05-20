@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
@@ -79,6 +79,7 @@ export function InlineCropper({
   }, []);
 
   useEffect(() => {
+    if (Platform.OS !== 'web') return;
     function onResize() {
       measureImg();
     }

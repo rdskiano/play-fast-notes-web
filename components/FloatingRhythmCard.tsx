@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { ThemedText } from '@/components/themed-text';
@@ -25,7 +25,15 @@ const CARD_W = 440;
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 1.6;
 
-export function FloatingRhythmCard({
+// Web-only: attaches DOM pointer + wheel listeners to cardRef.current for
+// drag/pinch/scroll-zoom. Returns null on native; iPad uses RhythmNotation
+// (pending port — Task #4).
+export function FloatingRhythmCard(props: Props) {
+  if (Platform.OS !== 'web') return null;
+  return <FloatingRhythmCardWeb {...props} />;
+}
+
+function FloatingRhythmCardWeb({
   pattern,
   patternIndex,
   patternCount,

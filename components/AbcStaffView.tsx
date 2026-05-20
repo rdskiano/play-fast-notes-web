@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -61,7 +62,17 @@ type Props = {
   activeNoteIndex?: number | null;
 };
 
-export function AbcStaffView({
+// Web-only: abcjs renders via HTMLDivElement + a document.head <script> CDN
+// load. On native this is replaced by RhythmNotation (react-native-webview),
+// pending its port. Until then, render nothing rather than crash on the
+// unguarded document.createElement in loadAbcjs. The wrapper keeps hooks
+// out of the early-return path so we don't trip Rules of Hooks.
+export function AbcStaffView(props: Props) {
+  if (Platform.OS !== 'web') return null;
+  return <AbcStaffViewWeb {...props} />;
+}
+
+function AbcStaffViewWeb({
   abc,
   width,
   height,
