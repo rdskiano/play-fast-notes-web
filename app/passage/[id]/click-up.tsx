@@ -12,6 +12,7 @@ import {
 
 import { Button } from '@/components/Button';
 import { CollapsibleHelp } from '@/components/CollapsibleHelp';
+import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ScoreWithMarkers } from '@/components/ScoreWithMarkers';
@@ -38,6 +39,8 @@ export default function ClickUpScreen() {
   const { width: winWidth } = useWindowDimensions();
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
+  const [pedalMode, setPedalMode] = useState(false);
+  const [lastPedalKey, setLastPedalKey] = useState<string | null>(null);
   const session = useClickUpSession(id);
 
   useEffect(() => {
@@ -265,6 +268,18 @@ export default function ClickUpScreen() {
         }
         right={
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Pressable
+              onPress={() => setPedalMode((v) => !v)}
+              hitSlop={6}
+              style={[styles.topBtn, pedalMode && { backgroundColor: C.tint }]}>
+              <ThemedText
+                style={[
+                  styles.topBtnText,
+                  { color: pedalMode ? '#fff' : C.tint },
+                ]}>
+                PEDAL
+              </ThemedText>
+            </Pressable>
             <Pressable onPress={onPrev} hitSlop={6} style={styles.topBtn}>
               <ThemedText style={[styles.topBtnText, { color: C.tint }]}>
                 ← Prev
@@ -283,8 +298,18 @@ export default function ClickUpScreen() {
       />
 
       <ThemedText style={styles.playHelper}>
-        Play from one green arrow ▼ to the next.
+        {pedalMode
+          ? `Foot pedal on — press it to advance.  Last key seen: ${
+              lastPedalKey ?? '—'
+            }`
+          : 'Play from one green arrow ▼ to the next.'}
       </ThemedText>
+
+      <PedalCatcher
+        active={pedalMode && !notePromptVisible && !celebrating}
+        onAdvance={onNext}
+        onKey={setLastPedalKey}
+      />
 
       <View style={styles.contentArea}>
         <ScoreWithMarkers

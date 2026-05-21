@@ -72,8 +72,7 @@
       ],
       "react-native-audio-api",
       "expo-asset",
-      "./plugins/withPencilKitFramework.js",
-      "./plugins/withKeyCommandAppDelegate.js"
+      "./plugins/withPencilKitFramework.js"
     ],
     "experiments": {
       "typedRoutes": true,
