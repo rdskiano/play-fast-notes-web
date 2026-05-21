@@ -12,8 +12,7 @@ import {
 
 import { Button } from '@/components/Button';
 import { CollapsibleHelp } from '@/components/CollapsibleHelp';
-import { FloatingClickUpControls } from '@/components/FloatingClickUpControls';
-import { PracticeTimersPill } from '@/components/GlobalTimerTray';
+import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ScoreWithMarkers } from '@/components/ScoreWithMarkers';
 import { SessionTopBar } from '@/components/SessionTopBar';
@@ -97,7 +96,6 @@ export default function ClickUpScreen() {
           }
           right={
             <>
-              <PracticeTimersPill />
               <Pressable
                 onPress={undoMarker}
                 hitSlop={6}
@@ -209,9 +207,6 @@ export default function ClickUpScreen() {
     return (
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.configHeader}>
-          <PracticeTimersPill />
-        </View>
         <ScrollView contentContainerStyle={[styles.configContainer, { paddingTop: 10 }]}>
           <ThemedText type="title">Set the tempo range</ThemedText>
           <ThemedText style={{ opacity: 0.7 }}>
@@ -270,7 +265,6 @@ export default function ClickUpScreen() {
         }
         right={
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <PracticeTimersPill />
             <Pressable onPress={onPrev} hitSlop={6} style={styles.topBtn}>
               <ThemedText style={[styles.topBtnText, { color: C.tint }]}>
                 ← Prev
@@ -289,28 +283,22 @@ export default function ClickUpScreen() {
       />
 
       <ThemedText style={styles.playHelper}>
-        Play from one green arrow ▼ to the next. Tap{' '}
-        <ThemedText style={{ fontWeight: '800' }}>NEXT →</ThemedText> on the metronome
-        when ready to advance. Long-press the metronome to drag it, or pinch to resize.
+        Play from one green arrow ▼ to the next.
       </ThemedText>
 
-      <ScoreWithMarkers
-        uri={passage.source_uri}
-        markers={activeMarkers}
-        mode="play"
-        activePair={activePair}
-      />
-
-      <FloatingClickUpControls
-        bpm={metronome.bpm}
-        subdivision={metronome.subdivision}
-        running={metronome.running}
-        volume={metronome.volume}
-        onSubdivision={metronome.setSubdivision}
-        onVolume={metronome.setVolume}
-        onToggle={metronome.toggle}
-        onNext={onNext}
-      />
+      <View style={styles.contentArea}>
+        <ScoreWithMarkers
+          uri={passage.source_uri}
+          markers={activeMarkers}
+          mode="play"
+          activePair={activePair}
+        />
+        <PracticeToolsLayer
+          metronome={metronome}
+          metronomeNext={onNext}
+          metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."
+        />
+      </View>
 
       <PracticeLogNotePrompt
         visible={celebrating || notePromptVisible}
@@ -367,6 +355,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   doneBtn: { backgroundColor: Status.danger },
+  contentArea: { flex: 1 },
   divider: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.xs },
   blurbText: { opacity: Opacity.muted, fontSize: Type.size.lg, lineHeight: 23 },
   blurbBold: { fontWeight: Type.weight.heavy, opacity: 1 },

@@ -23,16 +23,14 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { PageBoxOverlay } from '@/components/PageBoxOverlay';
 import { PassageRectDrawer } from '@/components/PassageRectDrawer';
 import { PassageRectResizer } from '@/components/PassageRectResizer';
 import { PostSaveSheet } from '@/components/PostSaveSheet';
+import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { PromptModal } from '@/components/PromptModal';
 import { SectionMarkerCapturer } from '@/components/SectionMarkerCapturer';
 import { SectionsModal } from '@/components/SectionsModal';
@@ -77,7 +75,6 @@ type ViewMode = 'single' | 'spread';
 
 export default function DocumentScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { id, resize: resizeParam } = useLocalSearchParams<{
     id: string;
     resize?: string;
@@ -719,16 +716,6 @@ export default function DocumentScreen() {
           onCommitResize: commitResize,
         })}
       />
-      {mode === 'idle' && (
-        // Float the practice-timers pill over the PDF in the same top-right
-        // area as other strategy screens, but absolute-positioned so the
-        // page does not shrink to make room.
-        <View
-          pointerEvents="box-none"
-          style={[styles.timerFloat, { top: insets.top + 60 + Spacing.sm }]}>
-          <PracticeTimersPill />
-        </View>
-      )}
       <View style={styles.pagerWrap} onLayout={onPagerLayout}>
         {pages.length === 0 ? (
           <View style={styles.emptyWrap}>
@@ -892,6 +879,7 @@ export default function DocumentScreen() {
             )}
           </>
         )}
+        {mode === 'idle' && <PracticeToolsLayer />}
       </View>
 
       {markingSection && (

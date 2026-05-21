@@ -8,6 +8,9 @@ type Props = {
   maximumTrackTintColor: string;
   thumbTintColor: string;
   style?: StyleProp<ViewStyle>;
+  // When true, the segments rise in a staircase (short → tall) so the
+  // number of volume steps — and which way is louder — reads at a glance.
+  staircase?: boolean;
 };
 
 // Five-step volume control. Replaces @react-native-community/slider, which on
@@ -23,6 +26,7 @@ type Props = {
 // thumbTintColor is accepted for call-site compatibility with the old Slider
 // API but unused (no thumb in a segmented control).
 const LEVELS = [0.2, 0.4, 0.6, 0.8, 1.0];
+const STAIR_HEIGHTS = [9, 12, 15, 18, 22];
 
 export function VolumeSlider({
   value,
@@ -30,10 +34,11 @@ export function VolumeSlider({
   minimumTrackTintColor,
   maximumTrackTintColor,
   style,
+  staircase = false,
 }: Props) {
   return (
-    <View style={[styles.row, style]}>
-      {LEVELS.map((level) => {
+    <View style={[styles.row, staircase && styles.rowStair, style]}>
+      {LEVELS.map((level, i) => {
         const active = value >= level - 0.0001;
         return (
           <Pressable
@@ -42,10 +47,13 @@ export function VolumeSlider({
             hitSlop={6}
             style={({ pressed }) => [
               styles.segment,
+              staircase && { height: STAIR_HEIGHTS[i] },
               {
                 backgroundColor: active
                   ? minimumTrackTintColor
-                  : maximumTrackTintColor + '33',
+                  : staircase
+                    ? maximumTrackTintColor
+                    : maximumTrackTintColor + '33',
                 opacity: pressed ? 0.6 : 1,
               },
             ]}
@@ -58,5 +66,6 @@ export function VolumeSlider({
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 4, flex: 1, alignItems: 'center' },
+  rowStair: { alignItems: 'flex-end' },
   segment: { flex: 1, height: 22, borderRadius: 4 },
 });

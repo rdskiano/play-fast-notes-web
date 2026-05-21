@@ -12,7 +12,6 @@ import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
-import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
@@ -113,7 +112,6 @@ export default function SelfLedSessionScreen() {
             <Button label="DONE" size="sm" onPress={onDone} />
           </View>
         }
-        sub={<PracticeTimersPill />}
       />
 
       {passage?.source_uri ? (

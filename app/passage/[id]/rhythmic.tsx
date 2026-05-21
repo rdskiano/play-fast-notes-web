@@ -6,7 +6,6 @@ import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
 import { FloatingMetronome } from '@/components/FloatingMetronome';
 import { FloatingRhythmCard } from '@/components/FloatingRhythmCard';
-import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ScoreWithMarkers } from '@/components/ScoreWithMarkers';
@@ -209,12 +208,9 @@ export default function RhythmicScreen() {
         right={
           phase === 'playing' ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <PracticeTimersPill />
               <Button label="DONE" variant="danger" size="sm" onPress={doneSession} />
             </View>
-          ) : (
-            <PracticeTimersPill />
-          )
+          ) : null
         }
       />
 

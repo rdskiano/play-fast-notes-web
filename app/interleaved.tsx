@@ -12,7 +12,6 @@ import {
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { FloatingMetronome } from '@/components/FloatingMetronome';
-import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { SelfLedSheet } from '@/components/SelfLedSheet';
 import { SessionTopBar } from '@/components/SessionTopBar';
@@ -721,7 +720,6 @@ export default function InterleavedScreen() {
         }
         right={
           <View style={styles.topRightRow}>
-            <PracticeTimersPill hideMoveOn />
             <Button
               label="END"
               variant="danger"
@@ -908,7 +906,6 @@ function TimerActive({
         }
         right={
           <View style={styles.topRightRow}>
-            <PracticeTimersPill hideMoveOn />
             <Button label="END" variant="danger" size="sm" onPress={endSession} />
           </View>
         }

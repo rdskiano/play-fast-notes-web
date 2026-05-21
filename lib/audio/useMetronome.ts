@@ -12,9 +12,9 @@ import {
 } from '@/components/PracticeTimersContext';
 import type { RhythmToken } from '@/lib/strategies/rhythmPatterns';
 
-import { MetronomeEngine, type Subdivision } from './metronomeEngine';
+import { MetronomeEngine, type BeatState, type Subdivision } from './metronomeEngine';
 
-export type { Subdivision };
+export type { BeatState, Subdivision };
 
 export function useMetronome(initialBpm: number = 60) {
   const engineRef = useRef<MetronomeEngine | null>(null);
@@ -80,6 +80,9 @@ export function useMetronome(initialBpm: number = 60) {
     setSubdivision(s: Subdivision) {
       engineRef.current?.setSubdivision(s);
       setSubdivisionState(s);
+    },
+    setBeatPattern(pattern: BeatState[]) {
+      engineRef.current?.setBeatPattern(pattern);
     },
     start() {
       engineRef.current?.start();
@@ -155,3 +158,7 @@ export function useMetronome(initialBpm: number = 60) {
     },
   };
 }
+
+// The object useMetronome returns — passed around so a metronome owner
+// (e.g. a practice-strategy session) can hand its instance to the UI.
+export type MetronomeApi = ReturnType<typeof useMetronome>;

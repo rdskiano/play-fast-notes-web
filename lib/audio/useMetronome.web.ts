@@ -7,10 +7,14 @@ import {
 import { TOKEN_QUARTER_FRACTIONS, type RhythmToken } from '@/lib/strategies/rhythmPatterns';
 
 /**
- * Subdivision = 1 (quarters), 2 (eighths), 3 (triplets). The downbeat is
- * always emphasised; subdivisions are softer.
+ * Subdivision = clicks per beat: 1 (quarter), 2 (eighths), 3 (triplet),
+ * 4 (sixteenths). The downbeat is always emphasised; subdivisions softer.
  */
-export type Subdivision = 1 | 2 | 3;
+export type Subdivision = 1 | 2 | 3 | 4;
+
+// One entry per beat of the measure: 'accent' (loud), 'normal' (mid), or
+// 'mute' (skipped). Mirrors lib/audio/metronomeEngine.ts.
+export type BeatState = 'accent' | 'normal' | 'mute';
 
 /**
  * Web Audio API metronome with subdivision support, imperative
@@ -31,6 +35,10 @@ export function useMetronome(initialBpm = 60) {
   const bpmRef = useRef(bpm);
   const subRef = useRef<Subdivision>(1);
   const volRef = useRef(volume);
+  // Per-beat accent/normal/mute pattern. Default is a single accented beat
+  // (uniform, meterless) so practice-flow callers that never set a pattern
+  // keep the old behaviour. The MetronomePanel overrides it.
+  const beatPatternRef = useRef<BeatState[]>(['accent']);
 
   // Rhythm loop state
   const rhythmTokensRef = useRef<RhythmToken[] | null>(null);
@@ -103,18 +111,35 @@ export function useMetronome(initialBpm = 60) {
       while (nextNoteTimeRef.current < c.currentTime + 0.1) {
         const t = nextNoteTimeRef.current;
         const sub = subRef.current;
-        const isDownbeat = subStepRef.current === 0;
-        const osc = c.createOscillator();
-        const gain = c.createGain();
-        osc.frequency.value = isDownbeat ? 1200 : 800;
-        const peak = (isDownbeat ? 1.0 : 0.5) * volRef.current;
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + 0.001);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-        osc.connect(gain).connect(c.destination);
-        osc.start(t);
-        osc.stop(t + 0.05);
-        subStepRef.current = (subStepRef.current + 1) % sub;
+        const pattern = beatPatternRef.current;
+        // subStepRef counts ticks within the current measure.
+        const ticksPerMeasure = (pattern.length || 1) * sub;
+        const tim = subStepRef.current % ticksPerMeasure;
+        const beatIndex = Math.floor(tim / sub);
+        const isBeatStart = tim % sub === 0;
+        const beatState = pattern[beatIndex] ?? 'normal';
+        if (beatState !== 'mute') {
+          const osc = c.createOscillator();
+          const gain = c.createGain();
+          osc.frequency.value = isBeatStart
+            ? beatState === 'accent'
+              ? 1200
+              : 1000
+            : 800;
+          const level = isBeatStart
+            ? beatState === 'accent'
+              ? 1.0
+              : 0.65
+            : 0.45;
+          const peak = level * volRef.current;
+          gain.gain.setValueAtTime(0.0001, t);
+          gain.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + 0.001);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+          osc.connect(gain).connect(c.destination);
+          osc.start(t);
+          osc.stop(t + 0.05);
+        }
+        subStepRef.current = (subStepRef.current + 1) % ticksPerMeasure;
         nextNoteTimeRef.current += 60 / bpmRef.current / sub;
       }
       timerRef.current = setTimeout(scheduler, 25);
@@ -190,6 +215,9 @@ export function useMetronome(initialBpm = 60) {
   }
   function setSubdivision(s: Subdivision) {
     setSubdivisionState(s);
+  }
+  function setBeatPattern(pattern: BeatState[]) {
+    if (pattern.length > 0) beatPatternRef.current = pattern.slice();
   }
   function setVolume(v: number) {
     setVolumeState(Math.max(0, Math.min(1, v)));
@@ -411,6 +439,7 @@ export function useMetronome(initialBpm = 60) {
     playingSequence,
     setBpm,
     setSubdivision,
+    setBeatPattern,
     setVolume,
     start,
     stop,

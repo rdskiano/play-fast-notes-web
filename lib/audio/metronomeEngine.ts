@@ -9,7 +9,15 @@
 
 import { TOKEN_QUARTER_FRACTIONS, type RhythmToken } from '@/lib/strategies/rhythmPatterns';
 
-export type Subdivision = 1 | 2 | 3;
+// Clicks per beat: 1 (quarter), 2 (eighths), 3 (triplet), 4 (sixteenths).
+export type Subdivision = 1 | 2 | 3 | 4;
+
+// Per-beat sound within a measure. 'accent' = loud downbeat click,
+// 'normal' = mid click, 'mute' = silent (the beat and its subdivisions are
+// skipped). A metronome's beat pattern is an array of these, one per beat.
+export type BeatState = 'accent' | 'normal' | 'mute';
+
+type ClickKind = 'accent' | 'normal' | 'sub';
 
 // Lazy reference to react-native-audio-api so a missing native module
 // degrades gracefully instead of crashing at import time.
@@ -82,10 +90,15 @@ function loadAudioApi(): { AudioContext: AudioContextCtor } | null {
   }
   // Configure the iOS audio session for playback. Without this, the
   // AudioContext schedules clicks but the session sits in an inactive
-  // category and nothing reaches the speaker until another app
-  // (YouTube, etc.) activates the session. defaultToSpeaker routes to
-  // the device speaker rather than the earpiece; mixWithOthers lets
-  // music keep playing in parallel.
+  // category and nothing reaches the speaker.
+  //
+  // The iosOptions list must NOT include 'defaultToSpeaker': that option
+  // is only legal with the 'playAndRecord' category. Pairing it with
+  // 'playback' makes AVAudioSession.setActive(true) fail on a physical
+  // device (SessionActivationError) — which leaves the AudioContext
+  // stuck in 'suspended', so nothing plays. The Simulator silently
+  // tolerates the bad option, which is why the bug was device-only.
+  // mixWithOthers lets music keep playing in parallel.
   try {
     const am = (audioApi as { AudioManager?: {
       setAudioSessionOptions: (o: {
@@ -98,7 +111,7 @@ function loadAudioApi(): { AudioContext: AudioContextCtor } | null {
     if (am) {
       am.setAudioSessionOptions({
         iosCategory: 'playback',
-        iosOptions: ['defaultToSpeaker', 'mixWithOthers'],
+        iosOptions: ['mixWithOthers'],
       });
       void am.setAudioSessionActivity(true);
     }
@@ -111,8 +124,10 @@ function loadAudioApi(): { AudioContext: AudioContextCtor } | null {
 
 // Tuning (matches the user's prototype)
 const BEAT_FREQ = 2400;
+const NORMAL_FREQ = 1850;
 const SUB_FREQ = 1400;
 const BEAT_GAIN = 0.9;
+const NORMAL_GAIN = 0.72;
 const SUB_GAIN = 0.5;
 const ATTACK_S = 0.003;
 const CLICK_LEN_S = 0.075;
@@ -141,6 +156,7 @@ export class MetronomeEngine {
   // start(when). No envelope automation per tick, no oscillator
   // lifecycle churn, no opportunity for startup transients.
   private accentBuffer: RnAudioBuffer | null = null;
+  private normalBuffer: RnAudioBuffer | null = null;
   private subBuffer: RnAudioBuffer | null = null;
 
   // rhythm loop state
@@ -162,11 +178,21 @@ export class MetronomeEngine {
   private _volume = 0.6;
   private running = false;
 
+  // One entry per beat of the measure. The default is a single accented
+  // beat — i.e. every beat sounds identical (meterless), which is exactly
+  // what every metronome consumer had before per-beat patterns existed.
+  // The MetronomePanel overrides this via setBeatPattern; practice-flow
+  // callers that never touch it keep the uniform click.
+  private _beatPattern: BeatState[] = ['accent'];
+
   get bpm() {
     return this._bpm;
   }
   get subdivision() {
     return this._subdivision;
+  }
+  get beatPattern(): BeatState[] {
+    return this._beatPattern.slice();
   }
   get volume() {
     return this._volume;
@@ -185,6 +211,24 @@ export class MetronomeEngine {
     this.subCount = 0;
     if (this.running) {
       this.nextNoteTime = (this.ctx?.currentTime ?? 0) + 0.05;
+    }
+  }
+
+  /**
+   * Replace the per-beat accent/normal/mute pattern. The array length is
+   * the measure's beat count. A length change re-aligns beat 0; a
+   * same-length edit (just changing a beat's state) is read live on the
+   * next pass with no audible reset.
+   */
+  setBeatPattern(pattern: BeatState[]) {
+    if (pattern.length === 0) return;
+    const lengthChanged = pattern.length !== this._beatPattern.length;
+    this._beatPattern = pattern.slice();
+    if (lengthChanged) {
+      this.subCount = 0;
+      if (this.running) {
+        this.nextNoteTime = (this.ctx?.currentTime ?? 0) + 0.05;
+      }
     }
   }
 
@@ -448,7 +492,7 @@ export class MetronomeEngine {
     for (let i = 0; i < tokens.length; i++) {
       const beats = TOKEN_QUARTER_FRACTIONS[tokens[i]] ?? 1;
       const at = startAt + cursor * secondsPerQuarter;
-      const ok = this.scheduleClick(at, i === 0, destination);
+      const ok = this.scheduleClick(at, i === 0 ? 'accent' : 'sub', destination);
       if (!ok) {
         this.ctx = null;
         return 0;
@@ -505,6 +549,7 @@ export class MetronomeEngine {
       try {
         this.ctx = new api.AudioContext();
         this.accentBuffer = null;
+        this.normalBuffer = null;
         this.subBuffer = null;
       } catch {
         this.unavailable = true;
@@ -520,12 +565,17 @@ export class MetronomeEngine {
       this.unavailable = true;
       this.ctx = null;
     }
-    if (this.ctx && (!this.accentBuffer || !this.subBuffer)) {
+    if (
+      this.ctx &&
+      (!this.accentBuffer || !this.normalBuffer || !this.subBuffer)
+    ) {
       try {
         this.accentBuffer = this.buildClickBuffer(BEAT_FREQ, BEAT_GAIN);
+        this.normalBuffer = this.buildClickBuffer(NORMAL_FREQ, NORMAL_GAIN);
         this.subBuffer = this.buildClickBuffer(SUB_FREQ, SUB_GAIN);
       } catch {
         this.accentBuffer = null;
+        this.normalBuffer = null;
         this.subBuffer = null;
       }
     }
@@ -569,14 +619,25 @@ export class MetronomeEngine {
     }
     const interval = 60 / this._bpm / this._subdivision;
     const horizon = now + SCHEDULE_AHEAD_S;
+    const ticksPerMeasure = this._beatPattern.length * this._subdivision;
 
     while (this.nextNoteTime < horizon) {
-      const isDownbeat = this.subCount % this._subdivision === 0;
-      const ok = this.scheduleClick(this.nextNoteTime, isDownbeat);
-      if (!ok) {
-        // Native side threw — give up silently instead of looping errors.
-        this.ctx = null;
-        return;
+      const tickInMeasure = this.subCount % ticksPerMeasure;
+      const beatIndex = Math.floor(tickInMeasure / this._subdivision);
+      const isBeatStart = tickInMeasure % this._subdivision === 0;
+      const beatState = this._beatPattern[beatIndex] ?? 'normal';
+      if (beatState !== 'mute') {
+        const kind: ClickKind = isBeatStart
+          ? beatState === 'accent'
+            ? 'accent'
+            : 'normal'
+          : 'sub';
+        const ok = this.scheduleClick(this.nextNoteTime, kind);
+        if (!ok) {
+          // Native side threw — give up silently instead of looping errors.
+          this.ctx = null;
+          return;
+        }
       }
       this.nextNoteTime += interval;
       this.subCount += 1;
@@ -587,11 +648,16 @@ export class MetronomeEngine {
 
   private scheduleClick(
     when: number,
-    isDownbeat: boolean,
+    kind: ClickKind,
     destination: unknown = null,
   ): boolean {
     if (!this.ctx) return false;
-    const buffer = isDownbeat ? this.accentBuffer : this.subBuffer;
+    const buffer =
+      kind === 'accent'
+        ? this.accentBuffer
+        : kind === 'normal'
+          ? this.normalBuffer
+          : this.subBuffer;
     if (!buffer) return false;
     try {
       const srcResult = this.ctx.createBufferSource();

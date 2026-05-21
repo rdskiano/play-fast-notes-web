@@ -41,31 +41,37 @@ const TIMER_INFO: { icon: string; title: string; body: string }[] = [
   },
 ];
 
+type DeviceColors = {
+  keyOn: string;
+  keyOff: string;
+  onText: string;
+  offText: string;
+  help: string;
+};
+
 type DotProps = {
   icon: string;
   label: string;
   enabled: boolean;
-  color: string;
+  device: DeviceColors;
   onPress: () => void;
 };
 
-function TimerDot({ icon, label, enabled, color, onPress }: DotProps) {
+// A timer toggle rendered as a small raised device key — lit (bright) when
+// the timer is on, dark when off.
+function TimerDot({ icon, label, enabled, device, onPress }: DotProps) {
   return (
-    <Pressable onPress={onPress} hitSlop={6} style={styles.dot}>
-      <View
-        style={[
-          styles.dotCircle,
-          {
-            backgroundColor: enabled ? color : 'transparent',
-            borderColor: enabled ? color : color + '55',
-          },
-        ]}>
-        <ThemedText style={{ fontSize: 14 }}>{icon}</ThemedText>
-      </View>
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.timerKey,
+        { backgroundColor: enabled ? device.keyOn : device.keyOff },
+      ]}>
+      <ThemedText style={styles.timerKeyIcon}>{icon}</ThemedText>
       <ThemedText
         style={[
-          styles.dotLabel,
-          { color: enabled ? color : color + '99' },
+          styles.timerKeyLabel,
+          { color: enabled ? device.onText : device.offText },
         ]}>
         {label}
       </ThemedText>
@@ -78,11 +84,28 @@ type PracticeTimersPillProps = {
   // Timer mode), we hide the Move On dot so the user is not faced with
   // two parallel "rotate" timers.
   hideMoveOn?: boolean;
+  // `bare` drops the pill's background / border / shadow chrome so the
+  // dots can sit inside another container (e.g. the Timer tool card).
+  bare?: boolean;
+  // Colour palette for sitting on a coloured "device" surface (the Timer
+  // tool card). When omitted, theme colours are used.
+  device?: DeviceColors;
 };
 
-export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillProps = {}) {
+export function PracticeTimersPill({
+  hideMoveOn = false,
+  bare = false,
+  device,
+}: PracticeTimersPillProps = {}) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const dev: DeviceColors = device ?? {
+    keyOn: C.tint,
+    keyOff: C.icon + '22',
+    onText: '#fff',
+    offText: C.text,
+    help: C.icon,
+  };
   const router = useRouter();
   const pathname = usePathname();
   const [infoOpen, setInfoOpen] = useState(false);
@@ -136,13 +159,17 @@ export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillPro
   return (
     <>
       <View
-        style={[
-          styles.pill,
-          {
-            backgroundColor: scheme === 'dark' ? '#1f2123cc' : '#ffffffd0',
-            borderColor: C.icon + '55',
-          },
-        ]}>
+        style={
+          bare
+            ? styles.pillBare
+            : [
+                styles.pill,
+                {
+                  backgroundColor: scheme === 'dark' ? '#1f2123cc' : '#ffffffd0',
+                  borderColor: C.icon + '55',
+                },
+              ]
+        }>
         {showSerialChip && (
           <Pressable
             onPress={onSerialChipPress}
@@ -161,7 +188,7 @@ export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillPro
             icon="⏱"
             label="Move"
             enabled={moveOn.config.enabled}
-            color={C.tint}
+            device={dev}
             onPress={() =>
               moveOn.setConfig({ enabled: !moveOn.config.enabled })
             }
@@ -171,7 +198,7 @@ export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillPro
           icon="🧠"
           label="Break"
           enabled={microbreak.config.enabled}
-          color={C.tint}
+          device={dev}
           onPress={() =>
             microbreak.setConfig({ enabled: !microbreak.config.enabled })
           }
@@ -180,16 +207,16 @@ export function PracticeTimersPill({ hideMoveOn = false }: PracticeTimersPillPro
           icon="❄️"
           label="Cold"
           enabled={playItCold.config.enabled}
-          color={C.tint}
+          device={dev}
           onPress={toggleCold}
         />
         <Pressable onPress={() => setInfoOpen(true)} hitSlop={6} style={styles.helpBtn}>
           <View
             style={[
               styles.helpCircle,
-              { borderColor: C.icon, backgroundColor: 'transparent' },
+              { borderColor: dev.help + '55', backgroundColor: dev.keyOff },
             ]}>
-            <ThemedText style={[styles.helpText, { color: C.icon }]}>?</ThemedText>
+            <ThemedText style={[styles.helpText, { color: dev.help }]}>?</ThemedText>
           </View>
         </Pressable>
       </View>
@@ -276,6 +303,28 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
   },
+  pillBare: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  timerKey: {
+    width: 64,
+    paddingVertical: 9,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.32,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  timerKeyIcon: { fontSize: 17 },
+  timerKeyLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },
   dot: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -307,14 +356,14 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   helpCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     borderWidth: Borders.medium,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  helpText: { fontSize: Type.size.sm, fontWeight: Type.weight.heavy, lineHeight: 15 },
+  helpText: { fontSize: 18, fontWeight: Type.weight.heavy, lineHeight: 21 },
   infoBackdrop: {
     flex: 1,
     backgroundColor: '#000000aa',

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
-import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -96,7 +95,6 @@ export default function ChunkingScreen() {
             <Button label="DONE" size="sm" onPress={onDone} />
           </View>
         }
-        sub={<PracticeTimersPill />}
       />
 
       {passage?.source_uri ? (

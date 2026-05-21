@@ -12,7 +12,6 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
-import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
@@ -224,7 +223,6 @@ export default function SelfLedRecordingScreen() {
             Recording
           </ThemedText>
         }
-        sub={<PracticeTimersPill />}
       />
 
       {passage?.source_uri ? (

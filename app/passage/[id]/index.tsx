@@ -8,7 +8,7 @@ import { Button } from '@/components/Button';
 import type { Grouping } from '@/lib/strategies/rhythmPatterns';
 
 import { PassageReminders } from '@/components/PassageReminders';
-import { PracticeTimersPill } from '@/components/GlobalTimerTray';
+import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SelfLedSheet } from '@/components/SelfLedSheet';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
@@ -248,7 +248,6 @@ export default function PassageDetailScreen() {
           <ThemedText style={styles.topTitle} numberOfLines={1}>
             {passage.title}
           </ThemedText>
-          <PracticeTimersPill />
         </View>
         <View style={styles.pillRow}>
           {STRATEGIES.map(renderPill)}
@@ -342,6 +341,8 @@ export default function PassageDetailScreen() {
             </ThemedText>
           </View>
         )}
+
+        <PracticeToolsLayer />
       </View>
 
       <Modal

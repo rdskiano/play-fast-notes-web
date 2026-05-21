@@ -4,7 +4,7 @@ This is **the unified Play Fast Notes codebase** — one Expo project that targe
 
 The user is **not a developer**. Always give them one-word terminal shortcuts (e.g. `playfast`, `playweb`), never long `cd ... && npx ...` lines that break on paste due to spaces in paths.
 
-> **🔄 Status as of end of 2026-05-19.** The merge is **nearly feature-complete for iOS**: both targets bundle, the data layer + all practice UI are platform-split, and the merged app builds on EAS, installs, launches, and runs every practice flow on the physical iPad. **One open blocker:** the metronome is silent on device/release builds (it works in the Simulator) — see ROADMAP.md's "⚠️ CURRENT BLOCKER" note. **Live deploys still come from the OLD repos until cutover.** See **Active migration status** below.
+> **🔄 Status as of end of 2026-05-19.** The merge is **nearly feature-complete for iOS**: both targets bundle, the data layer + all practice UI are platform-split, and the merged app builds on EAS, installs, launches, and runs every practice flow on the physical iPad. The metronome-silent-on-device blocker is **resolved** (2026-05-20); a floating practice-tools redesign is the active work — see ROADMAP.md. **Live deploys still come from the OLD repos until cutover.** See **Active migration status** below.
 
 ## Where this lives
 
@@ -112,7 +112,7 @@ The web file ALSO keeps the older Blob-based functions (`cropToBlob`, `cropImage
 - All pure-RN components from web that were already used by iPad: `ActionSheet`, `ConfirmModal`, `PostSaveSheet`, `SectionsModal`, `PageBoxOverlay`.
 
 ⏳ **Still pending:**
-- **⚠️ OPEN BLOCKER — metronome audio is silent on device/release builds** (it works in the Simulator). Full debugging plan in ROADMAP.md "⚠️ CURRENT BLOCKER" — get device diagnostics before changing code; don't guess against 30-min `playpreview` cycles.
+- **✅ Metronome audio silent on device — RESOLVED (2026-05-20).** Root cause: an illegal `defaultToSpeaker` iOS audio-session option paired with the `playback` category; fixed in `lib/audio/metronomeEngine.ts`. Full write-up in ROADMAP.md.
 - Re-verify the web build (`npx expo export -p web`) — not re-checked since the heavy second-session changes.
 - Smoke-test web practice flows locally (`playweb`).
 - Cutover: GitHub remote, point Vercel + EAS at the merged repo, archive old repos.

@@ -2,14 +2,14 @@ import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BpmStepper } from '@/components/BpmStepper';
 import { Button } from '@/components/Button';
 import { CelebrationModal } from '@/components/CelebrationModal';
 import { CollapsibleHelp } from '@/components/CollapsibleHelp';
-import { FloatingSlowClickUpControls } from '@/components/FloatingSlowClickUpControls';
+import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
-import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
@@ -27,6 +27,7 @@ const INCREMENTS: Increment[] = [2, 5, 10];
 export default function TempoLadderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const [notePromptVisible, setNotePromptVisible] = useState(false);
@@ -65,12 +66,18 @@ export default function TempoLadderScreen() {
     return (
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={[styles.topBar, { borderBottomColor: C.icon + '44' }]}>
+        <View
+          style={[
+            styles.topBar,
+            {
+              borderBottomColor: C.icon + '44',
+              paddingTop: insets.top + Spacing.sm,
+            },
+          ]}>
           <Pressable onPress={() => router.back()} hitSlop={14} style={styles.backBtn}>
             <ThemedText style={[styles.backText, { color: C.tint }]}>‹ Passage</ThemedText>
           </Pressable>
           <ThemedText style={styles.topTitle}>Tempo Ladder</ThemedText>
-          <PracticeTimersPill />
         </View>
 
         <ScrollView contentContainerStyle={styles.configContainer}>
@@ -235,7 +242,11 @@ export default function TempoLadderScreen() {
   return (
     <View style={styles.playRoot}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={[styles.activeTopBar, { borderBottomColor: C.icon + '44' }]}>
+      <View
+        style={[
+          styles.activeTopBar,
+          { borderBottomColor: C.icon + '44', paddingTop: insets.top + 10 },
+        ]}>
         <Pressable
           onPress={() => {
             if (completedSets > 0) setNotePromptVisible(true);
@@ -258,29 +269,34 @@ export default function TempoLadderScreen() {
             />
           ))}
         </View>
-        <PracticeTimersPill />
+        <Pressable
+          onPress={onMiss}
+          hitSlop={6}
+          style={[styles.repBtn, styles.missBtn]}>
+          <ThemedText style={styles.repBtnText}>Miss ✗</ThemedText>
+        </Pressable>
+        <View style={styles.repGap} />
+        <Pressable
+          onPress={onClean}
+          hitSlop={6}
+          style={[styles.repBtn, styles.cleanBtn]}>
+          <ThemedText style={styles.repBtnText}>Clean ✓</ThemedText>
+        </Pressable>
       </View>
 
-      {passage?.source_uri && (
-        <Image
-          source={{ uri: passage.source_uri }}
-          style={styles.scoreFill}
-          contentFit="contain"
+      <View style={styles.contentArea}>
+        {passage?.source_uri && (
+          <Image
+            source={{ uri: passage.source_uri }}
+            style={styles.scoreContain}
+            contentFit="contain"
+          />
+        )}
+        <PracticeToolsLayer
+          metronome={metronome}
+          metronomeNote="Tempo Ladder controls the tempo — no need to adjust it. Just press play."
         />
-      )}
-
-      <FloatingSlowClickUpControls
-        bpm={metronome.bpm}
-        subdivision={metronome.subdivision}
-        running={metronome.running}
-        volume={metronome.volume}
-        onBpm={metronome.setBpm}
-        onSubdivision={metronome.setSubdivision}
-        onVolume={metronome.setVolume}
-        onToggle={metronome.toggle}
-        onClean={onClean}
-        onMiss={onMiss}
-      />
+      </View>
 
       <CelebrationModal
         visible={celebrating !== null && !reachedGoal}
@@ -391,11 +407,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   dotFilled: { backgroundColor: '#2ecc71', borderColor: '#2ecc71' },
-  scoreFill: {
-    position: 'absolute',
-    top: 70,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  contentArea: { flex: 1 },
+  scoreContain: { flex: 1, width: '100%' },
+  repBtn: {
+    paddingHorizontal: 26,
+    paddingVertical: 13,
+    borderRadius: 12,
+    minWidth: 104,
+    alignItems: 'center',
   },
+  repGap: { width: 28 },
+  cleanBtn: { backgroundColor: '#2ecc71' },
+  missBtn: { backgroundColor: '#c0392b' },
+  repBtnText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: 17 },
 });

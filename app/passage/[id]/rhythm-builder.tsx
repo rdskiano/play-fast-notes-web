@@ -20,7 +20,6 @@ import { NoteCardEditor } from '@/components/NoteCardEditor';
 import { PianoKeyboard } from '@/components/PianoKeyboard';
 import { PitchStaff } from '@/components/PitchStaff';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
-import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -441,7 +440,6 @@ export default function RhythmBuilderScreen() {
           right={
             phase === 'generate' ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <PracticeTimersPill />
                 <Pressable
                   onPress={exportPdf}
                   hitSlop={6}
@@ -458,9 +456,7 @@ export default function RhythmBuilderScreen() {
                 />
                 <Button label="DONE" variant="danger" size="sm" onPress={doneSession} />
               </View>
-            ) : (
-              <PracticeTimersPill />
-            )
+            ) : null
           }
         />
       </View>
