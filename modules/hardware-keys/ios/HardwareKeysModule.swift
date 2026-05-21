@@ -9,7 +9,7 @@ public class HardwareKeysModule: Module {
     Name("HardwareKeys")
 
     View(KeyCaptureView.self) {
-      Events("onArrowKey")
+      Events("onArrowKey", "onStatus")
     }
   }
 }

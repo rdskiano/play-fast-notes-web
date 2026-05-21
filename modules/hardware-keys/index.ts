@@ -6,10 +6,18 @@ import { requireNativeView } from 'expo';
 import type { ComponentType } from 'react';
 import type { ViewProps } from 'react-native';
 
-export type HardwareKey = 'up' | 'down' | 'left' | 'right' | 'enter' | 'space';
+// Whatever the native side reports — known names ('up', 'pagedown', …) or a
+// raw fallback for an unrecognized key. Pedals map to arbitrary keys, so any
+// value here counts as a pedal press.
+export type HardwareKey = string;
 
 export type KeyCaptureViewProps = ViewProps & {
-  onArrowKey?: (event: { nativeEvent: { key: HardwareKey } }) => void;
+  // `via` tells which native path caught it: 'gamepad' | 'command' | 'press'.
+  onArrowKey?: (event: { nativeEvent: { key: HardwareKey; via: string } }) => void;
+  // Liveness readout: is a keyboard connected, does this view hold focus.
+  onStatus?: (event: {
+    nativeEvent: { firstResponder: boolean; keyboard: boolean };
+  }) => void;
 };
 
 // Native view that becomes first responder and reports key presses. Null
