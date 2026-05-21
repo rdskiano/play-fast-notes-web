@@ -13,6 +13,7 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-
 
 import { Button } from '@/components/Button';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
+import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -225,19 +226,22 @@ export default function SelfLedRecordingScreen() {
         }
       />
 
-      {passage?.source_uri ? (
-        <Image
-          source={{ uri: passage.source_uri }}
-          style={styles.scoreFill}
-          contentFit="contain"
-        />
-      ) : (
-        <View style={styles.empty}>
-          <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>
-            Loading…
-          </ThemedText>
-        </View>
-      )}
+      <View style={styles.contentArea}>
+        {passage?.source_uri ? (
+          <Image
+            source={{ uri: passage.source_uri }}
+            style={styles.scoreFill}
+            contentFit="contain"
+          />
+        ) : (
+          <View style={styles.empty}>
+            <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>
+              Loading…
+            </ThemedText>
+          </View>
+        )}
+        <PracticeToolsLayer />
+      </View>
 
       <View
         style={[
@@ -330,6 +334,7 @@ export default function SelfLedRecordingScreen() {
 
 const styles = StyleSheet.create({
   topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
+  contentArea: { flex: 1 },
   scoreFill: { flex: 1, width: '100%' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   controls: {

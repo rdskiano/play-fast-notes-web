@@ -16,6 +16,11 @@ import { MetronomeEngine, type BeatState, type Subdivision } from './metronomeEn
 
 export type { BeatState, Subdivision };
 
+// MIDI note + A4 reference (440/441/442) → frequency in Hz.
+function droneHz(midi: number, a4Hz: number): number {
+  return a4Hz * Math.pow(2, (midi - 69) / 12);
+}
+
 export function useMetronome(initialBpm: number = 60) {
   const engineRef = useRef<MetronomeEngine | null>(null);
   if (!engineRef.current) {
@@ -29,6 +34,10 @@ export function useMetronome(initialBpm: number = 60) {
   const [volume, setVolumeState] = useState(0.6);
   const [rhythmLooping, setRhythmLooping] = useState(false);
   const [playingSequence, setPlayingSequence] = useState(false);
+  const [droneEnabled, setDroneEnabledState] = useState(false);
+  const [droneMidi, setDroneMidiState] = useState(69); // A4
+  const [droneSustain, setDroneSustainState] = useState(0.6);
+  const [droneA4, setDroneA4State] = useState(440);
   const sequenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-pause during interruptions (microbreak / Play It Cold). If the
@@ -69,6 +78,10 @@ export function useMetronome(initialBpm: number = 60) {
     volume,
     rhythmLooping,
     playingSequence,
+    droneEnabled,
+    droneMidi,
+    droneSustain,
+    droneA4,
     setBpm(v: number) {
       engineRef.current?.setBpm(v);
       setBpmState(engineRef.current?.bpm ?? v);
@@ -83,6 +96,23 @@ export function useMetronome(initialBpm: number = 60) {
     },
     setBeatPattern(pattern: BeatState[]) {
       engineRef.current?.setBeatPattern(pattern);
+    },
+    setDroneEnabled(enabled: boolean) {
+      engineRef.current?.setDroneEnabled(enabled);
+      setDroneEnabledState(enabled);
+    },
+    setDroneMidi(midi: number) {
+      engineRef.current?.setDroneFreq(droneHz(midi, droneA4));
+      setDroneMidiState(midi);
+    },
+    setDroneSustain(frac: number) {
+      const f = Math.max(0, Math.min(1, frac));
+      engineRef.current?.setDroneSustain(f);
+      setDroneSustainState(f);
+    },
+    setDroneA4(a4Hz: number) {
+      engineRef.current?.setDroneFreq(droneHz(droneMidi, a4Hz));
+      setDroneA4State(a4Hz);
     },
     start() {
       engineRef.current?.start();

@@ -4,8 +4,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
-import { FloatingMetronome } from '@/components/FloatingMetronome';
 import { FloatingRhythmCard } from '@/components/FloatingRhythmCard';
+import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ScoreWithMarkers } from '@/components/ScoreWithMarkers';
@@ -217,12 +217,16 @@ export default function RhythmicScreen() {
       {phase === 'playing' && (
         <ThemedText style={styles.playHelper}>
           Apply the rhythm pattern shown in the floating card to your passage. Tap
-          Loop to hear it, then play along with the metronome. Use ← → to cycle
-          patterns. Long-press either card to drag, or pinch to resize.
+          Loop to hear it, then play along with the metronome from the edge tab.
+          Use ← → to cycle patterns. Long-press the card to drag, or pinch to
+          resize.
         </ThemedText>
       )}
 
-      <ScoreWithMarkers uri={passage.source_uri} markers={[]} mode="play" activePair={null} />
+      <View style={styles.contentArea}>
+        <ScoreWithMarkers uri={passage.source_uri} markers={[]} mode="play" activePair={null} />
+        {phase === 'playing' && <PracticeToolsLayer metronome={metronome} />}
+      </View>
 
       {(phase === 'config' || pickerOpen) && (
         <Pressable
@@ -276,31 +280,17 @@ export default function RhythmicScreen() {
       )}
 
       {phase === 'playing' && grouping && patterns.length > 0 && (
-        <>
-          <FloatingMetronome
-            bpm={metronome.bpm}
-            subdivision={metronome.subdivision}
-            running={metronome.running}
-            volume={metronome.volume}
-            onBpm={metronome.setBpm}
-            onSubdivision={metronome.setSubdivision}
-            onVolume={metronome.setVolume}
-            onToggle={metronome.toggle}
-            initialX={16}
-            initialY={120}
-          />
-          <FloatingRhythmCard
-            pattern={patterns[currentIndex]}
-            patternIndex={currentIndex}
-            patternCount={patterns.length}
-            rhythmLooping={metronome.rhythmLooping}
-            onToggleRhythm={toggleRhythm}
-            onPrev={onPrev}
-            onNext={onNext}
-            canPrev={currentIndex > 0}
-            canNext={currentIndex < patterns.length - 1}
-          />
-        </>
+        <FloatingRhythmCard
+          pattern={patterns[currentIndex]}
+          patternIndex={currentIndex}
+          patternCount={patterns.length}
+          rhythmLooping={metronome.rhythmLooping}
+          onToggleRhythm={toggleRhythm}
+          onPrev={onPrev}
+          onNext={onNext}
+          canPrev={currentIndex > 0}
+          canNext={currentIndex < patterns.length - 1}
+        />
       )}
 
       <PracticeLogNotePrompt
@@ -319,6 +309,7 @@ export default function RhythmicScreen() {
 
 const styles = StyleSheet.create({
   topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.sm, textAlign: 'center' },
+  contentArea: { flex: 1 },
   playHelper: {
     textAlign: 'center',
     fontSize: Type.size.sm,
@@ -333,8 +324,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#00000066',
     padding: 20,
-    // Sit above FloatingRhythmCard (zIndex 200) and FloatingMetronome
-    // (zIndex 150) so the picker modal cleanly covers them.
+    // Sit above FloatingRhythmCard and the floating practice tools so the
+    // picker modal cleanly covers them.
     zIndex: 500,
   },
   pickerCard: {

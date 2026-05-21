@@ -1,10 +1,14 @@
 // The floating practice tools shared across every score-viewing screen
-// (passage detail, document/PDF viewer). Mount this inside a screen's
-// content area. Each tool is an edge-docked tab; tapping it pops out a
-// draggable, pinch-resizable card that flies back to its tab on collapse.
+// (passage detail, document/PDF viewer) and practice strategy. Mount this
+// inside a screen's content area. Each tool is an edge-docked tab; tapping
+// it pops out a draggable, pinch-resizable card that flies back to its tab
+// on collapse.
 //
-// Left edge:  Apple Pencil (compact) above Metronome.
-// Right edge: Timer (compact) above Tuner.
+// Default layout — left edge: Apple Pencil (compact) above Metronome;
+// right edge: Timer (compact) above Tuner. A screen can override the set
+// and placement of tools per edge via the `tools` prop: pass an array per
+// edge (an empty array clears that edge). The rhythm exercise generator,
+// for example, stacks Timer / Metronome / Pencil all on the right.
 
 import { useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
@@ -12,7 +16,7 @@ import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { DEVICE, MetronomePanel } from '@/components/MetronomePanel';
 import { ThemedText } from '@/components/themed-text';
-import { ToolDock } from '@/components/ToolDock';
+import { ToolDock, type DockEdge } from '@/components/ToolDock';
 import { Colors } from '@/constants/theme';
 import { Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -22,6 +26,21 @@ const TOP_INSET = 52;
 const TAB_GAP = 8;
 const SPAN = 142;
 const SPAN_COMPACT = 96;
+
+export type ToolKey = 'pencil' | 'metronome' | 'timer' | 'tuner';
+
+// Default edge layout. A screen passes `tools` to override either edge —
+// an empty array clears that edge entirely.
+const DEFAULT_LAYOUT: Record<DockEdge, ToolKey[]> = {
+  left: ['pencil', 'metronome'],
+  right: ['timer', 'tuner'],
+};
+
+// A tool's tab is "compact" (Pencil, Timer) or full-height (Metronome,
+// Tuner) — this drives both the tab length and how tabs stack down an edge.
+function tabSpan(key: ToolKey): number {
+  return key === 'metronome' || key === 'tuner' ? SPAN : SPAN_COMPACT;
+}
 
 // The Timer tool's device identity — a blue analogue of the metronome's
 // graphite DEVICE palette, matching the timer tab's blue.
@@ -39,10 +58,12 @@ export function PracticeToolsLayer({
   metronome,
   metronomeNote,
   metronomeNext,
+  tools,
 }: {
   metronome?: MetronomeApi;
   metronomeNote?: string;
   metronomeNext?: () => void;
+  tools?: { left?: ToolKey[]; right?: ToolKey[] };
 } = {}) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -58,9 +79,6 @@ export function PracticeToolsLayer({
     setSize({ w: width, h: height });
   }
 
-  const topTabTop = TOP_INSET;
-  const mainTabTop = TOP_INSET + SPAN_COMPACT + TAB_GAP;
-
   const common = {
     panelBg,
     borderColor: C.icon,
@@ -68,87 +86,122 @@ export function PracticeToolsLayer({
     containerH: size.h,
   };
 
+  function renderTool(key: ToolKey, edge: DockEdge, tabTop: number) {
+    const span = tabSpan(key);
+    const dockKey = `${edge}-${key}`;
+    switch (key) {
+      case 'pencil':
+        return (
+          <ToolDock
+            {...common}
+            key={dockKey}
+            edge={edge}
+            label="PENCIL"
+            accent="#9b59b6"
+            tabTop={tabTop}
+            tabSpan={span}
+            panelWidth={240}
+            panelHeight={224}>
+            <ToolPlaceholder
+              title="Apple Pencil"
+              body="Pencil tools — annotate the score, highlight, and erase — are coming soon."
+              color={C.icon}
+            />
+          </ToolDock>
+        );
+      case 'metronome':
+        return (
+          <ToolDock
+            {...common}
+            key={dockKey}
+            edge={edge}
+            label="METRONOME"
+            accent={DEVICE.body}
+            panelBg={DEVICE.body}
+            borderColor={DEVICE.rim}
+            defaultOpen={!!metronomeNote}
+            tabTop={tabTop}
+            tabSpan={span}
+            panelWidth={280}
+            panelHeight={metronomeNote ? 384 : 312}>
+            <MetronomePanel
+              metronome={metro}
+              note={metronomeNote}
+              onNext={metronomeNext}
+            />
+          </ToolDock>
+        );
+      case 'timer':
+        return (
+          <ToolDock
+            {...common}
+            key={dockKey}
+            edge={edge}
+            label="TIMER"
+            accent={TIMER_DEVICE.body}
+            panelBg={TIMER_DEVICE.body}
+            borderColor={TIMER_DEVICE.rim}
+            tabTop={tabTop}
+            tabSpan={span}
+            panelWidth={304}
+            panelHeight={144}>
+            <View style={styles.timerPanel}>
+              <ThemedText style={[styles.timerHeading, { color: '#fff' }]}>
+                Practice timers
+              </ThemedText>
+              <PracticeTimersPill
+                bare
+                device={{
+                  keyOn: TIMER_DEVICE.keyOn,
+                  keyOff: TIMER_DEVICE.keyOff,
+                  onText: TIMER_DEVICE.onText,
+                  offText: TIMER_DEVICE.offText,
+                  help: TIMER_DEVICE.text,
+                }}
+              />
+            </View>
+          </ToolDock>
+        );
+      case 'tuner':
+        return (
+          <ToolDock
+            {...common}
+            key={dockKey}
+            edge={edge}
+            label="TUNER"
+            accent={C.tint}
+            tabTop={tabTop}
+            tabSpan={span}
+            panelWidth={250}
+            panelHeight={300}>
+            <ToolPlaceholder
+              title="Tuner"
+              body="Live pitch detection is coming soon — this panel will show the note you’re playing and how sharp or flat it is."
+              color={C.icon}
+            />
+          </ToolDock>
+        );
+    }
+  }
+
+  // Stack each edge's tabs from TOP_INSET downward, spacing by tab span.
+  function renderEdge(edge: DockEdge) {
+    const keys = tools?.[edge] ?? DEFAULT_LAYOUT[edge];
+    let top = TOP_INSET;
+    return keys.map((key) => {
+      const dock = renderTool(key, edge, top);
+      top += tabSpan(key) + TAB_GAP;
+      return dock;
+    });
+  }
+
   return (
     <View
       style={StyleSheet.absoluteFill}
       pointerEvents="box-none"
       onLayout={onLayout}>
-      <ToolDock
-        {...common}
-        edge="left"
-        label="PENCIL"
-        accent="#9b59b6"
-        tabTop={topTabTop}
-        tabSpan={SPAN_COMPACT}
-        panelWidth={240}
-        panelHeight={224}>
-        <ToolPlaceholder
-          title="Apple Pencil"
-          body="Pencil tools — annotate the score, highlight, and erase — are coming soon."
-          color={C.icon}
-        />
-      </ToolDock>
-      <ToolDock
-        {...common}
-        edge="left"
-        label="METRONOME"
-        accent={DEVICE.body}
-        panelBg={DEVICE.body}
-        borderColor={DEVICE.rim}
-        defaultOpen={!!metronomeNote}
-        tabTop={mainTabTop}
-        tabSpan={SPAN}
-        panelWidth={280}
-        panelHeight={metronomeNote ? 384 : 312}>
-        <MetronomePanel
-          metronome={metro}
-          note={metronomeNote}
-          onNext={metronomeNext}
-        />
-      </ToolDock>
-
-      <ToolDock
-        {...common}
-        edge="right"
-        label="TIMER"
-        accent={TIMER_DEVICE.body}
-        panelBg={TIMER_DEVICE.body}
-        borderColor={TIMER_DEVICE.rim}
-        tabTop={topTabTop}
-        tabSpan={SPAN_COMPACT}
-        panelWidth={304}
-        panelHeight={144}>
-        <View style={styles.timerPanel}>
-          <ThemedText style={[styles.timerHeading, { color: '#fff' }]}>
-            Practice timers
-          </ThemedText>
-          <PracticeTimersPill
-            bare
-            device={{
-              keyOn: TIMER_DEVICE.keyOn,
-              keyOff: TIMER_DEVICE.keyOff,
-              onText: TIMER_DEVICE.onText,
-              offText: TIMER_DEVICE.offText,
-              help: TIMER_DEVICE.text,
-            }}
-          />
-        </View>
-      </ToolDock>
-      <ToolDock
-        {...common}
-        edge="right"
-        label="TUNER"
-        accent={C.tint}
-        tabTop={mainTabTop}
-        tabSpan={SPAN}
-        panelWidth={250}
-        panelHeight={300}>
-        <ToolPlaceholder
-          title="Tuner"
-          body="Live pitch detection is coming soon — this panel will show the note you’re playing and how sharp or flat it is."
-          color={C.icon}
-        />
-      </ToolDock>
+      {renderEdge('left')}
+      {renderEdge('right')}
     </View>
   );
 }

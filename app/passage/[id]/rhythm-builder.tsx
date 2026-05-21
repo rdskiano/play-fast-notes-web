@@ -14,12 +14,12 @@ import {
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
 import { DropdownField } from '@/components/DropdownField';
-import { FloatingMetronome } from '@/components/FloatingMetronome';
 import { GroupingPicker } from '@/components/GroupingPicker';
 import { NoteCardEditor } from '@/components/NoteCardEditor';
 import { PianoKeyboard } from '@/components/PianoKeyboard';
 import { PitchStaff } from '@/components/PitchStaff';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
+import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -671,7 +671,7 @@ export default function RhythmBuilderScreen() {
       )}
 
       {phase === 'generate' && (
-        <>
+        <View style={styles.generateArea}>
           <ExercisesPhase
             passageTitle={passage.title ?? 'Exercises'}
             pitches={pitches}
@@ -683,20 +683,11 @@ export default function RhythmBuilderScreen() {
             viewportWidth={winWidth}
             onBack={() => setPhase('entry')}
           />
-          <FloatingMetronome
-            bpm={metronome.bpm}
-            subdivision={metronome.subdivision}
-            running={metronome.running}
-            volume={metronome.volume}
-            onBpm={metronome.setBpm}
-            onSubdivision={metronome.setSubdivision}
-            onVolume={metronome.setVolume}
-            onToggle={metronome.toggle}
-            anchor="right"
-            initialY={160}
-            defaultCollapsed
+          <PracticeToolsLayer
+            metronome={metronome}
+            tools={{ left: [], right: ['timer', 'metronome', 'pencil'] }}
           />
-        </>
+        </View>
       )}
 
       <PracticeLogNotePrompt
@@ -805,7 +796,7 @@ function ExercisesPhase({
   }
 
   return (
-    <ScrollView contentContainerStyle={exerciseStyles.wrap}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={exerciseStyles.wrap}>
       <ThemedText type="subtitle" style={{ textAlign: 'center' }} numberOfLines={1}>
         {passageTitle}
       </ThemedText>
@@ -947,6 +938,7 @@ const exerciseStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  generateArea: { flex: 1 },
   topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md, textAlign: 'center' },
   topSubCenter: { opacity: Opacity.muted, fontSize: 11, textAlign: 'center' },
 

@@ -27,6 +27,10 @@ export function useMetronome(initialBpm = 60) {
   const [subdivision, setSubdivisionState] = useState<Subdivision>(1);
   const [volume, setVolumeState] = useState(0.4);
   const [rhythmLooping, setRhythmLooping] = useState(false);
+  const [droneEnabled, setDroneEnabledState] = useState(false);
+  const [droneMidi, setDroneMidiState] = useState(69); // A4
+  const [droneSustain, setDroneSustainState] = useState(0.6);
+  const [droneA4, setDroneA4State] = useState(440);
 
   const ctxRef = useRef<AudioContext | null>(null);
   const nextNoteTimeRef = useRef(0);
@@ -39,6 +43,9 @@ export function useMetronome(initialBpm = 60) {
   // (uniform, meterless) so practice-flow callers that never set a pattern
   // keep the old behaviour. The MetronomePanel overrides it.
   const beatPatternRef = useRef<BeatState[]>(['accent']);
+  const droneEnabledRef = useRef(false);
+  const droneFreqRef = useRef(440);
+  const droneSustainRef = useRef(0.6);
 
   // Rhythm loop state
   const rhythmTokensRef = useRef<RhythmToken[] | null>(null);
@@ -57,6 +64,15 @@ export function useMetronome(initialBpm = 60) {
   useEffect(() => {
     volRef.current = volume;
   }, [volume]);
+  useEffect(() => {
+    droneEnabledRef.current = droneEnabled;
+  }, [droneEnabled]);
+  useEffect(() => {
+    droneFreqRef.current = droneA4 * Math.pow(2, (droneMidi - 69) / 12);
+  }, [droneMidi, droneA4]);
+  useEffect(() => {
+    droneSustainRef.current = droneSustain;
+  }, [droneSustain]);
 
   function ensureContext(): AudioContext | null {
     if (ctxRef.current) return ctxRef.current;
@@ -119,25 +135,56 @@ export function useMetronome(initialBpm = 60) {
         const isBeatStart = tim % sub === 0;
         const beatState = pattern[beatIndex] ?? 'normal';
         if (beatState !== 'mute') {
-          const osc = c.createOscillator();
-          const gain = c.createGain();
-          osc.frequency.value = isBeatStart
-            ? beatState === 'accent'
-              ? 1200
-              : 1000
-            : 800;
-          const level = isBeatStart
-            ? beatState === 'accent'
-              ? 1.0
-              : 0.65
-            : 0.45;
-          const peak = level * volRef.current;
-          gain.gain.setValueAtTime(0.0001, t);
-          gain.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + 0.001);
-          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-          osc.connect(gain).connect(c.destination);
-          osc.start(t);
-          osc.stop(t + 0.05);
+          if (droneEnabledRef.current) {
+            // Drone-click: a pitched tone with a fast, defined attack that
+            // always ends before the next tick so each beat stays
+            // articulated. Sustain is squared so low steps stay short.
+            const tickSec = 60 / bpmRef.current / sub;
+            const ATTACK = 0.004;
+            const RELEASE = 0.045;
+            const MIN_TONE = 0.06;
+            const maxTone = Math.max(MIN_TONE, tickSec * 0.9);
+            const sus = droneSustainRef.current * droneSustainRef.current;
+            const toneLen = MIN_TONE + (maxTone - MIN_TONE) * sus;
+            const tier = isBeatStart
+              ? beatState === 'accent'
+                ? 1.0
+                : 0.72
+              : 0.5;
+            const peak = Math.max(0.0002, volRef.current * tier * 0.7);
+            const releaseStart = t + Math.max(ATTACK, toneLen - RELEASE);
+            const osc = c.createOscillator();
+            const gain = c.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = droneFreqRef.current;
+            gain.gain.setValueAtTime(0.0001, t);
+            gain.gain.linearRampToValueAtTime(peak, t + ATTACK);
+            gain.gain.setValueAtTime(peak, releaseStart);
+            gain.gain.linearRampToValueAtTime(0.0001, t + toneLen);
+            osc.connect(gain).connect(c.destination);
+            osc.start(t);
+            osc.stop(t + toneLen + 0.02);
+          } else {
+            const osc = c.createOscillator();
+            const gain = c.createGain();
+            osc.frequency.value = isBeatStart
+              ? beatState === 'accent'
+                ? 1200
+                : 1000
+              : 800;
+            const level = isBeatStart
+              ? beatState === 'accent'
+                ? 1.0
+                : 0.65
+              : 0.45;
+            const peak = level * volRef.current;
+            gain.gain.setValueAtTime(0.0001, t);
+            gain.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + 0.001);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+            osc.connect(gain).connect(c.destination);
+            osc.start(t);
+            osc.stop(t + 0.05);
+          }
         }
         subStepRef.current = (subStepRef.current + 1) % ticksPerMeasure;
         nextNoteTimeRef.current += 60 / bpmRef.current / sub;
@@ -218,6 +265,18 @@ export function useMetronome(initialBpm = 60) {
   }
   function setBeatPattern(pattern: BeatState[]) {
     if (pattern.length > 0) beatPatternRef.current = pattern.slice();
+  }
+  function setDroneEnabled(enabled: boolean) {
+    setDroneEnabledState(enabled);
+  }
+  function setDroneMidi(midi: number) {
+    setDroneMidiState(midi);
+  }
+  function setDroneSustain(frac: number) {
+    setDroneSustainState(Math.max(0, Math.min(1, frac)));
+  }
+  function setDroneA4(a4Hz: number) {
+    setDroneA4State(a4Hz);
   }
   function setVolume(v: number) {
     setVolumeState(Math.max(0, Math.min(1, v)));
@@ -437,9 +496,17 @@ export function useMetronome(initialBpm = 60) {
     volume,
     rhythmLooping,
     playingSequence,
+    droneEnabled,
+    droneMidi,
+    droneSustain,
+    droneA4,
     setBpm,
     setSubdivision,
     setBeatPattern,
+    setDroneEnabled,
+    setDroneMidi,
+    setDroneSustain,
+    setDroneA4,
     setVolume,
     start,
     stop,

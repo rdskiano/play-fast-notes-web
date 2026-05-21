@@ -185,6 +185,13 @@ export class MetronomeEngine {
   // callers that never touch it keep the uniform click.
   private _beatPattern: BeatState[] = ['accent'];
 
+  // Drone-click mode: when on, each tick sounds a sustained pitched tone
+  // instead of the percussive click. _droneSustain (0..1) scales the tone
+  // length from a short pitched blip up to a gapless continuous drone.
+  private _droneEnabled = false;
+  private _droneFreq = 440;
+  private _droneSustain = 0.6;
+
   get bpm() {
     return this._bpm;
   }
@@ -234,6 +241,18 @@ export class MetronomeEngine {
 
   setVolume(v: number) {
     this._volume = Math.max(0, Math.min(1, v));
+  }
+
+  setDroneEnabled(enabled: boolean) {
+    this._droneEnabled = enabled;
+  }
+
+  setDroneFreq(freqHz: number) {
+    if (freqHz > 0) this._droneFreq = freqHz;
+  }
+
+  setDroneSustain(frac: number) {
+    this._droneSustain = Math.max(0, Math.min(1, frac));
   }
 
   start() {
@@ -632,7 +651,9 @@ export class MetronomeEngine {
             ? 'accent'
             : 'normal'
           : 'sub';
-        const ok = this.scheduleClick(this.nextNoteTime, kind);
+        const ok = this._droneEnabled
+          ? this.scheduleDroneTone(this.nextNoteTime, kind)
+          : this.scheduleClick(this.nextNoteTime, kind);
         if (!ok) {
           // Native side threw — give up silently instead of looping errors.
           this.ctx = null;
@@ -688,6 +709,42 @@ export class MetronomeEngine {
       } else {
         startSource(srcResult as Parameters<typeof startSource>[0]);
       }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // A pitched tone for drone-click mode. A fast attack gives each beat a
+  // defined onset; the tone always ends before the next tick so the beat
+  // stays clearly articulated. _droneSustain (0..1) is squared so the lower
+  // slider steps stay short — it scales length from a short blip to most
+  // of the beat.
+  private scheduleDroneTone(when: number, kind: ClickKind): boolean {
+    if (!this.ctx) return false;
+    const tickSec = 60 / this._bpm / this._subdivision;
+    const ATTACK = 0.004;
+    const RELEASE = 0.045;
+    const MIN_TONE = 0.06;
+    const maxTone = Math.max(MIN_TONE, tickSec * 0.9);
+    const sus = this._droneSustain * this._droneSustain;
+    const toneLen = MIN_TONE + (maxTone - MIN_TONE) * sus;
+    const tier = kind === 'accent' ? 1 : kind === 'normal' ? 0.72 : 0.5;
+    const peak = Math.max(0.0002, Math.min(1, this._volume) * tier * 0.7);
+    const releaseStart = when + Math.max(ATTACK, toneLen - RELEASE);
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.frequency.value = this._droneFreq;
+      osc.type = 'triangle';
+      gain.gain.setValueAtTime(0.0001, when);
+      gain.gain.linearRampToValueAtTime(peak, when + ATTACK);
+      gain.gain.setValueAtTime(peak, releaseStart);
+      gain.gain.linearRampToValueAtTime(0.0001, when + toneLen);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(when);
+      osc.stop(when + toneLen + 0.02);
       return true;
     } catch {
       return false;

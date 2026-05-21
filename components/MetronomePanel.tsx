@@ -16,7 +16,7 @@
 // metronome is a free-standing practice aid, not driven by a strategy.
 
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { ActionSheet } from '@/components/ActionSheet';
 import { NoteValueGlyph, type NoteValue } from '@/components/NoteValueGlyph';
@@ -45,6 +45,29 @@ export const DEVICE = {
 
 const BPM_MIN = 30;
 const BPM_MAX = 240;
+
+// Drone-click pitch range (MIDI) and the A4 tuning references.
+const DRONE_LO = 36; // C2
+const DRONE_HI = 84; // C6
+const A4_OPTIONS = [440, 441, 442];
+const NOTE_NAMES = [
+  'C',
+  'C♯',
+  'D',
+  'D♯',
+  'E',
+  'F',
+  'F♯',
+  'G',
+  'G♯',
+  'A',
+  'A♯',
+  'B',
+];
+
+function noteName(midi: number): string {
+  return NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
+}
 
 const METERS = [
   '1/4',
@@ -131,14 +154,17 @@ export function MetronomePanel({
   onNext?: () => void;
 }) {
   const [meter, setMeter] = useState('4/4');
+  // Default to even beats — no beat-one accent. The user adds accents
+  // (or mutes) by tapping the per-beat dots.
   const [beatPattern, setBeatPattern] = useState<BeatState[]>([
-    'accent',
+    'normal',
     'normal',
     'normal',
     'normal',
   ]);
   const [meterOpen, setMeterOpen] = useState(false);
   const [subOpen, setSubOpen] = useState(false);
+  const [droneOpen, setDroneOpen] = useState(false);
 
   // Push the pattern to the audio engine on mount and whenever it changes.
   useEffect(() => {
@@ -269,15 +295,29 @@ export function MetronomePanel({
             <ThemedText style={styles.stepGlyph}>+</ThemedText>
           </Pressable>
         </View>
-        {onNext ? (
-          <Pressable onPress={onNext} style={[styles.nextBtn, styles.raised]}>
-            <ThemedText style={styles.nextText}>NEXT →</ThemedText>
+        <View style={styles.actionRow}>
+          {onNext ? (
+            <Pressable onPress={onNext} style={[styles.nextBtn, styles.raised]}>
+              <ThemedText style={styles.nextText}>NEXT →</ThemedText>
+            </Pressable>
+          ) : (
+            <Pressable onPress={onTapTempo} style={[styles.tapBtn, styles.raised]}>
+              <ThemedText style={styles.tapText}>TAP TEMPO</ThemedText>
+            </Pressable>
+          )}
+          <Pressable
+            onPress={() => setDroneOpen(true)}
+            style={[
+              styles.tapBtn,
+              styles.raised,
+              m.droneEnabled && { backgroundColor: DEVICE.accent },
+            ]}>
+            <ThemedText
+              style={[styles.tapText, m.droneEnabled && { color: '#fff' }]}>
+              DRONE
+            </ThemedText>
           </Pressable>
-        ) : (
-          <Pressable onPress={onTapTempo} style={[styles.tapBtn, styles.raised]}>
-            <ThemedText style={styles.tapText}>TAP TEMPO</ThemedText>
-          </Pressable>
-        )}
+        </View>
       </View>
 
       <View style={styles.divider} />
@@ -330,7 +370,135 @@ export function MetronomePanel({
         }))}
         onCancel={() => setSubOpen(false)}
       />
+
+      <DroneOverlay
+        visible={droneOpen}
+        m={m}
+        onClose={() => setDroneOpen(false)}
+      />
     </View>
+  );
+}
+
+// Drone-click configuration — a centred modal, so it gets room independent
+// of the (compact, draggable, pinch-scalable) metronome card. Picks the
+// drone pitch, sustain length, and A4 reference, with a master on/off.
+function DroneOverlay({
+  visible,
+  m,
+  onClose,
+}: {
+  visible: boolean;
+  m: MetronomeApi;
+  onClose: () => void;
+}) {
+  function stepMidi(delta: number) {
+    const next = Math.max(DRONE_LO, Math.min(DRONE_HI, m.droneMidi + delta));
+    if (next !== m.droneMidi) m.setDroneMidi(next);
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}>
+      <Pressable style={styles.droneBackdrop} onPress={onClose}>
+        <Pressable
+          style={styles.droneCard}
+          onPress={(e) => e.stopPropagation()}>
+          <View style={styles.overlayHeader}>
+            <ThemedText style={styles.overlayTitle}>Drone click</ThemedText>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              style={[styles.doneBtn, styles.raised]}>
+              <ThemedText style={styles.doneText}>Done</ThemedText>
+            </Pressable>
+          </View>
+
+          <View style={styles.droneRow}>
+            <ThemedText style={styles.droneRowLabel}>DRONE TONE</ThemedText>
+            <Pressable
+              onPress={() => m.setDroneEnabled(!m.droneEnabled)}
+              style={[
+                styles.onOff,
+                styles.raised,
+                {
+                  backgroundColor: m.droneEnabled ? DEVICE.accent : DEVICE.mute,
+                },
+              ]}>
+              <ThemedText style={styles.onOffText}>
+                {m.droneEnabled ? 'ON' : 'OFF'}
+              </ThemedText>
+            </Pressable>
+          </View>
+
+          <ThemedText style={styles.droneSectionLabel}>PITCH</ThemedText>
+          <View style={styles.pitchRow}>
+            <Pressable
+              onPress={() => stepMidi(-1)}
+              onLongPress={() => stepMidi(-12)}
+              style={[styles.stepBtn, styles.raised]}>
+              <ThemedText style={styles.stepGlyph}>−</ThemedText>
+            </Pressable>
+            <View style={styles.pitchDisplay}>
+              <ThemedText style={styles.pitchName}>
+                {noteName(m.droneMidi)}
+              </ThemedText>
+            </View>
+            <Pressable
+              onPress={() => stepMidi(1)}
+              onLongPress={() => stepMidi(12)}
+              style={[styles.stepBtn, styles.raised]}>
+              <ThemedText style={styles.stepGlyph}>+</ThemedText>
+            </Pressable>
+          </View>
+
+          <ThemedText style={styles.droneSectionLabel}>SUSTAIN</ThemedText>
+          <View style={styles.sustainRow}>
+            <VolumeSlider
+              value={m.droneSustain}
+              onChange={m.setDroneSustain}
+              minimumTrackTintColor={DEVICE.accent}
+              maximumTrackTintColor={DEVICE.rim}
+              thumbTintColor={DEVICE.text}
+              staircase
+            />
+          </View>
+          <ThemedText style={styles.droneHint}>
+            Short = a pitched blip each beat. Long = a continuous drone.
+          </ThemedText>
+
+          <ThemedText style={styles.droneSectionLabel}>
+            REFERENCE PITCH (A4)
+          </ThemedText>
+          <View style={styles.a4Row}>
+            {A4_OPTIONS.map((hz) => {
+              const sel = m.droneA4 === hz;
+              return (
+                <Pressable
+                  key={hz}
+                  onPress={() => m.setDroneA4(hz)}
+                  style={[
+                    styles.a4Btn,
+                    styles.raised,
+                    { backgroundColor: sel ? DEVICE.accent : DEVICE.cap },
+                  ]}>
+                  <ThemedText
+                    style={[
+                      styles.a4Text,
+                      { color: sel ? '#fff' : DEVICE.text },
+                    ]}>
+                    {hz}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -380,6 +548,12 @@ const styles = StyleSheet.create({
 
   tempoBlock: { gap: 10, alignItems: 'center' },
   tempoRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  actionRow: {
+    flexDirection: 'row',
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    gap: 10,
+  },
   stepBtn: {
     width: 42,
     height: 42,
@@ -415,13 +589,14 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   tapBtn: {
-    alignSelf: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    flex: 1,
+    paddingVertical: 9,
     borderRadius: 16,
     backgroundColor: DEVICE.cap,
     borderWidth: 1,
     borderColor: DEVICE.rim,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tapText: {
     fontSize: 12,
@@ -430,14 +605,15 @@ const styles = StyleSheet.create({
     color: DEVICE.text,
   },
   nextBtn: {
-    alignSelf: 'center',
-    paddingHorizontal: 30,
-    paddingVertical: 11,
+    flex: 1,
+    paddingVertical: 9,
     borderRadius: 16,
     backgroundColor: '#2ecc71',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   nextText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: Type.weight.black,
     letterSpacing: 0.5,
     color: '#fff',
@@ -478,4 +654,111 @@ const styles = StyleSheet.create({
     elevation: 7,
   },
   playGlyph: { color: '#fff', fontSize: 26, fontWeight: Type.weight.black },
+
+  droneBackdrop: {
+    flex: 1,
+    backgroundColor: '#000000aa',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  droneCard: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: DEVICE.body,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: DEVICE.rim,
+    padding: 22,
+    gap: 14,
+  },
+  overlayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  overlayTitle: {
+    fontSize: 17,
+    fontWeight: Type.weight.black,
+    color: DEVICE.text,
+  },
+  doneBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: DEVICE.cap,
+    borderWidth: 1,
+    borderColor: DEVICE.rim,
+  },
+  doneText: { fontSize: 13, fontWeight: Type.weight.heavy, color: DEVICE.text },
+
+  droneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  droneRowLabel: {
+    fontSize: 11,
+    fontWeight: Type.weight.bold,
+    letterSpacing: 1,
+    color: DEVICE.dim,
+  },
+  onOff: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DEVICE.rim,
+    minWidth: 66,
+    alignItems: 'center',
+  },
+  onOffText: { fontSize: 14, fontWeight: Type.weight.black, color: '#fff' },
+
+  droneSectionLabel: {
+    fontSize: 10,
+    fontWeight: Type.weight.bold,
+    letterSpacing: 1,
+    color: DEVICE.dim,
+    marginTop: 2,
+  },
+  pitchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  pitchDisplay: {
+    minWidth: 150,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: DEVICE.display,
+    borderWidth: 1,
+    borderColor: DEVICE.rim,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pitchName: {
+    fontSize: 38,
+    lineHeight: 44,
+    fontWeight: Type.weight.black,
+    color: DEVICE.text,
+    fontVariant: ['tabular-nums'],
+  },
+  sustainRow: { flexDirection: 'row', alignItems: 'center' },
+  droneHint: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: DEVICE.dim,
+  },
+  a4Row: { flexDirection: 'row', gap: 8 },
+  a4Btn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: DEVICE.rim,
+    alignItems: 'center',
+  },
+  a4Text: { fontSize: 17, fontWeight: Type.weight.heavy },
 });

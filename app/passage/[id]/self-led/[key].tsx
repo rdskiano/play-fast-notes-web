@@ -13,6 +13,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
+import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -114,19 +115,22 @@ export default function SelfLedSessionScreen() {
         }
       />
 
-      {passage?.source_uri ? (
-        <Image
-          source={{ uri: passage.source_uri }}
-          style={styles.scoreFill}
-          contentFit="contain"
-        />
-      ) : (
-        <View style={styles.empty}>
-          <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>
-            Loading…
-          </ThemedText>
-        </View>
-      )}
+      <View style={styles.contentArea}>
+        {passage?.source_uri ? (
+          <Image
+            source={{ uri: passage.source_uri }}
+            style={styles.scoreFill}
+            contentFit="contain"
+          />
+        ) : (
+          <View style={styles.empty}>
+            <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>
+              Loading…
+            </ThemedText>
+          </View>
+        )}
+        <PracticeToolsLayer />
+      </View>
 
       <SelfLedHelpModal
         visible={helpOpen}
@@ -207,6 +211,7 @@ function SelfLedHelpModal({
 
 const styles = StyleSheet.create({
   topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
+  contentArea: { flex: 1 },
   rightRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   helpBtn: {
     paddingHorizontal: Spacing.md,
