@@ -313,6 +313,7 @@ export default function ClickUpScreen() {
           markers={activeMarkers}
           mode="play"
           activePair={activePair}
+          passageId={passage.id}
         />
         <PracticeToolsLayer
           metronome={metronome}

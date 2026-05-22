@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { AnnotationOverlay } from '@/components/AnnotationOverlay';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -97,19 +98,22 @@ export default function ChunkingScreen() {
         }
       />
 
-      {passage?.source_uri ? (
-        <Image
-          source={{ uri: passage.source_uri }}
-          style={styles.scoreFill}
-          contentFit="contain"
-        />
-      ) : (
-        <View style={styles.empty}>
-          <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>
-            Loading…
-          </ThemedText>
-        </View>
-      )}
+      <View style={{ flex: 1 }}>
+        {passage?.source_uri ? (
+          <Image
+            source={{ uri: passage.source_uri }}
+            style={styles.scoreFill}
+            contentFit="contain"
+          />
+        ) : (
+          <View style={styles.empty}>
+            <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>
+              Loading…
+            </ThemedText>
+          </View>
+        )}
+        {passage && <AnnotationOverlay passageId={passage.id} />}
+      </View>
 
       <ChunkingHelpModal visible={helpOpen} onClose={() => setHelpOpen(false)} />
 

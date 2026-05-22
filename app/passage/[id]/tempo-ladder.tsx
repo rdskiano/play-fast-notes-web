@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { AnnotationOverlay } from '@/components/AnnotationOverlay';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -292,6 +293,7 @@ export default function TempoLadderScreen() {
             contentFit="contain"
           />
         )}
+        {passage && <AnnotationOverlay passageId={passage.id} />}
         <PracticeToolsLayer
           metronome={metronome}
           metronomeNote="Tempo Ladder controls the tempo — no need to adjust it. Just press play."

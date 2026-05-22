@@ -224,7 +224,13 @@ export default function RhythmicScreen() {
       )}
 
       <View style={styles.contentArea}>
-        <ScoreWithMarkers uri={passage.source_uri} markers={[]} mode="play" activePair={null} />
+        <ScoreWithMarkers
+          uri={passage.source_uri}
+          markers={[]}
+          mode="play"
+          activePair={null}
+          passageId={passage.id}
+        />
         {phase === 'playing' && <PracticeToolsLayer metronome={metronome} />}
       </View>
 

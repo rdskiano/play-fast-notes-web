@@ -7,6 +7,7 @@
 // MediaRecorder state machine.
 
 import { Image } from 'expo-image';
+import { AnnotationOverlay } from '@/components/AnnotationOverlay';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -129,6 +130,7 @@ export default function SelfLedSessionScreen() {
             </ThemedText>
           </View>
         )}
+        {passage && <AnnotationOverlay passageId={passage.id} />}
         <PracticeToolsLayer />
       </View>
 

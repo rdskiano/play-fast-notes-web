@@ -7,6 +7,7 @@
 // in a future playbuild.
 
 import { Image } from 'expo-image';
+import { AnnotationOverlay } from '@/components/AnnotationOverlay';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
@@ -240,6 +241,7 @@ export default function SelfLedRecordingScreen() {
             </ThemedText>
           </View>
         )}
+        {passage && <AnnotationOverlay passageId={passage.id} />}
         <PracticeToolsLayer />
       </View>
 
