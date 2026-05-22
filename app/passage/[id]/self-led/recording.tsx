@@ -61,7 +61,7 @@ export default function SelfLedRecordingScreen() {
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
 
-  const ann = useScoreAnnotation(passage?.id, passage?.source_uri);
+  const ann = useScoreAnnotation(passage);
 
   useEffect(() => {
     if (!id) return;

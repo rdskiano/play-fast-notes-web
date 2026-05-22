@@ -2,9 +2,6 @@ import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  type LayoutChangeEvent,
   Modal,
   Platform,
   Pressable,
@@ -26,6 +23,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getOrCreateExercise } from '@/lib/db/repos/exercises';
 import {
   getPassage,
@@ -35,15 +33,6 @@ import {
 } from '@/lib/db/repos/passages';
 import { getTempoLadder, type TempoLadderProgress } from '@/lib/db/repos/tempoLadder';
 import { rememberPassageInDoc } from '@/lib/sessions/lastPassageInDoc';
-import { PencilCanvas, type PencilCanvasHandle } from '@/components/PencilCanvas';
-import { SignInModal } from '@/components/SignInModal';
-import {
-  getAnnotation,
-  saveAnnotation,
-  type Annotation,
-} from '@/lib/db/repos/annotations';
-import { useSession } from '@/lib/supabase/auth';
-import { uploadAnnotationImage } from '@/lib/supabase/storage';
 
 type StrategyKey = 'tempo_ladder' | 'click_up' | 'rhythmic';
 
@@ -98,14 +87,8 @@ export default function PassageDetailScreen() {
   const [rhythmicStep, setRhythmicStep] = useState<'mode' | 'grouping'>('mode');
   const [selfLedOpen, setSelfLedOpen] = useState(false);
   const [siblings, setSiblings] = useState<Passage[]>([]);
-  const session = useSession();
-  const [annotation, setAnnotation] = useState<Annotation | null>(null);
-  const [annotating, setAnnotating] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [signInOpen, setSignInOpen] = useState(false);
-  const [scoreBox, setScoreBox] = useState({ w: 0, h: 0 });
-  const [imageAspect, setImageAspect] = useState(0);
-  const canvasRef = useRef<PencilCanvasHandle>(null);
+  const ann = useScoreAnnotation(passage);
+  const annotating = ann.pencil.active;
 
   useFocusEffect(
     useCallback(() => {
@@ -202,88 +185,6 @@ export default function PassageDetailScreen() {
     },
     [goPrev, goNext],
   );
-
-  // Annotations live in Supabase. Re-fetched on focus (not just on mount) so
-  // a mark added on a practice screen shows when you navigate back here —
-  // this screen stays mounted in the stack while a practice screen is open.
-  useFocusEffect(
-    useCallback(() => {
-      if (!id || !session) {
-        setAnnotation(null);
-        return;
-      }
-      let cancelled = false;
-      getAnnotation(id)
-        .then((a) => {
-          if (!cancelled) setAnnotation(a);
-        })
-        .catch(() => {
-          if (!cancelled) setAnnotation(null);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }, [id, session]),
-  );
-
-  // The score image is `contain`-fit, so it sits letterboxed inside its box.
-  // The annotation canvas must cover exactly the drawn-image sub-rect — using
-  // the same image aspect on both platforms makes marks register on iPad and
-  // web alike.
-  const drawnRect = useMemo(() => {
-    if (scoreBox.w <= 0 || scoreBox.h <= 0 || imageAspect <= 0) return null;
-    const boxAspect = scoreBox.w / scoreBox.h;
-    let w: number;
-    let h: number;
-    if (boxAspect > imageAspect) {
-      h = scoreBox.h;
-      w = h * imageAspect;
-    } else {
-      w = scoreBox.w;
-      h = w / imageAspect;
-    }
-    return { w, h, ox: (scoreBox.w - w) / 2, oy: (scoreBox.h - h) / 2 };
-  }, [scoreBox, imageAspect]);
-
-  const onScoreLayout = useCallback((e: LayoutChangeEvent) => {
-    const { width, height } = e.nativeEvent.layout;
-    setScoreBox({ w: width, h: height });
-  }, []);
-
-  // The PENCIL tab toggle: enter annotation mode, or exit and save.
-  const togglePencil = useCallback(async () => {
-    if (annotating) {
-      // Export the drawing BEFORE unmounting the live canvas.
-      const handle = canvasRef.current;
-      if (handle && passage) {
-        setSaving(true);
-        try {
-          const { data, png } = await handle.export();
-          const imageUri = png
-            ? await uploadAnnotationImage(passage.id, png)
-            : null;
-          const next: Annotation = { data: data || null, imageUri };
-          await saveAnnotation(passage.id, next);
-          setAnnotation(next);
-        } catch (e) {
-          Alert.alert(
-            'Could not save annotation',
-            e instanceof Error ? e.message : 'Please try again.',
-          );
-        } finally {
-          setSaving(false);
-        }
-      }
-      setAnnotating(false);
-    } else {
-      if (session === undefined) return; // session still resolving
-      if (!session) {
-        setSignInOpen(true);
-        return;
-      }
-      setAnnotating(true);
-    }
-  }, [annotating, passage, session]);
 
   if (loading) {
     return (
@@ -414,33 +315,13 @@ export default function PassageDetailScreen() {
         }}>
         <View style={styles.body}>
           {passage.source_uri ? (
-            <View style={styles.scoreFill} onLayout={onScoreLayout}>
+            <View style={styles.scoreFill}>
               <Image
                 source={{ uri: passage.source_uri }}
                 style={StyleSheet.absoluteFill}
                 contentFit="contain"
-                onLoad={(e) => {
-                  const { width, height } = e.source;
-                  if (width > 0 && height > 0) {
-                    setImageAspect(width / height);
-                  }
-                }}
               />
-              {drawnRect && (
-                <PencilCanvas
-                  ref={canvasRef}
-                  editable={annotating}
-                  initialData={annotation?.data}
-                  imageUri={annotation?.imageUri}
-                  style={{
-                    position: 'absolute',
-                    left: drawnRect.ox,
-                    top: drawnRect.oy,
-                    width: drawnRect.w,
-                    height: drawnRect.h,
-                  }}
-                />
-              )}
+              {ann.canvas}
             </View>
           ) : (
             <View style={styles.noScore}>
@@ -474,13 +355,7 @@ export default function PassageDetailScreen() {
           </View>
         )}
 
-        <PracticeToolsLayer
-          pencil={
-            Platform.OS !== 'web'
-              ? { active: annotating, onToggle: togglePencil }
-              : undefined
-          }
-        />
+        <PracticeToolsLayer pencil={ann.pencil} />
       </View>
 
       <Modal
@@ -593,24 +468,6 @@ export default function PassageDetailScreen() {
           }
         }}
       />
-
-      <SignInModal
-        visible={signInOpen}
-        onClose={() => setSignInOpen(false)}
-        onSignedIn={() => {
-          setSignInOpen(false);
-          setAnnotating(true);
-        }}
-      />
-
-      {saving && (
-        <View style={styles.savingOverlay}>
-          <View style={styles.savingPill}>
-            <ActivityIndicator color="#fff" />
-            <ThemedText style={styles.savingText}>Saving…</ThemedText>
-          </View>
-        </View>
-      )}
     </ThemedView>
   );
 }
@@ -743,20 +600,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   spotCounterText: { fontSize: 11, fontWeight: Type.weight.semibold },
-  savingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0000003a',
-  },
-  savingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#222',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 14,
-  },
-  savingText: { color: '#fff', fontWeight: Type.weight.heavy },
 });

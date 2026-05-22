@@ -74,7 +74,7 @@ export default function RhythmicScreen() {
   const metronome = useMetronome(80);
   const microbreak = useMicrobreakTimer();
 
-  const ann = useScoreAnnotation(passage?.id, passage?.source_uri);
+  const ann = useScoreAnnotation(passage);
 
   useEffect(() => {
     if (!id) return;

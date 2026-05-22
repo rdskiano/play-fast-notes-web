@@ -51,7 +51,7 @@ export default function SelfLedSessionScreen() {
     getPassage(id).then(setPassage);
   }, [id]);
 
-  const ann = useScoreAnnotation(passage?.id, passage?.source_uri);
+  const ann = useScoreAnnotation(passage);
 
   if (!strategy) {
     return (

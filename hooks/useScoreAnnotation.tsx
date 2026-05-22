@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
 import { AnnotationCanvas } from '@/components/AnnotationCanvas';
+import { DocumentPageUnderlay } from '@/components/DocumentPageUnderlay';
 import { type PencilCanvasHandle } from '@/components/PencilCanvas';
 import { SignInModal } from '@/components/SignInModal';
 import { ThemedText } from '@/components/themed-text';
@@ -16,13 +17,13 @@ import {
   saveAnnotation,
   type Annotation,
 } from '@/lib/db/repos/annotations';
+import { type Passage } from '@/lib/db/repos/passages';
 import { useSession } from '@/lib/supabase/auth';
 import { uploadAnnotationImage } from '@/lib/supabase/storage';
 
-export function useScoreAnnotation(
-  passageId: string | undefined,
-  scoreUri: string | undefined,
-) {
+export function useScoreAnnotation(passage: Passage | null | undefined) {
+  const passageId = passage?.id;
+  const scoreUri = passage?.source_uri;
   const session = useSession();
   const navigation = useNavigation();
   const [annotation, setAnnotation] = useState<Annotation | null>(null);
@@ -100,6 +101,7 @@ export function useScoreAnnotation(
 
   const canvas = scoreUri ? (
     <>
+      {passage && <DocumentPageUnderlay passage={passage} />}
       <AnnotationCanvas
         scoreUri={scoreUri}
         editable={annotating}

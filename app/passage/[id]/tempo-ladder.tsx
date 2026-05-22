@@ -63,7 +63,7 @@ export default function TempoLadderScreen() {
     endSession,
   } = session;
 
-  const ann = useScoreAnnotation(passage?.id, passage?.source_uri);
+  const ann = useScoreAnnotation(passage);
 
   if (phase === 'config') {
     return (

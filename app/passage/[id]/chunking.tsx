@@ -50,7 +50,7 @@ export default function ChunkingScreen() {
     getPassage(id).then(setPassage);
   }, [id]);
 
-  const ann = useScoreAnnotation(passage?.id, passage?.source_uri);
+  const ann = useScoreAnnotation(passage);
 
   function onDone() {
     setNotePromptVisible(true);

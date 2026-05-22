@@ -83,7 +83,7 @@ export default function ClickUpScreen() {
     goBackToMarking,
   } = session;
 
-  const ann = useScoreAnnotation(passage?.id, passage?.source_uri);
+  const ann = useScoreAnnotation(passage);
 
   // ── MARKING ────────────────────────────────────────────────────────────
   if (phase === 'marking') {
