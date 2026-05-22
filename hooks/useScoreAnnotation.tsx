@@ -1,15 +1,26 @@
-// Apple Pencil score annotation, packaged for any screen that shows a passage
-// score. Centralises the fetch / edit-toggle / save / sign-in logic so each
-// screen only has to: call the hook, drop `canvas` into the score's container,
-// and pass `pencil` to PracticeToolsLayer's PENCIL tab.
+// Apple Pencil score annotation for any screen showing a passage score.
+//
+// A standalone passage keeps its own annotation (pieces.annotation_data).
+// A passage cropped from a PDF instead shares the PDF PAGE's annotation:
+// drawing on it edits a region-viewport of the page, so a mark made while
+// practicing shows on the PDF and on every other passage from that page.
+// One shared set of marks.
 
 import { useFocusEffect, useNavigation } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
 import { AnnotationCanvas } from '@/components/AnnotationCanvas';
-import { DocumentPageUnderlay } from '@/components/DocumentPageUnderlay';
+import { CroppedAnnotation } from '@/components/CroppedAnnotation';
 import { type PencilCanvasHandle } from '@/components/PencilCanvas';
+import { RegionAnnotationCanvas } from '@/components/RegionAnnotationCanvas';
 import { SignInModal } from '@/components/SignInModal';
 import { ThemedText } from '@/components/themed-text';
 import {
@@ -17,56 +28,132 @@ import {
   saveAnnotation,
   type Annotation,
 } from '@/lib/db/repos/annotations';
-import { type Passage } from '@/lib/db/repos/passages';
+import {
+  getDocumentAnnotations,
+  saveDocumentAnnotation,
+} from '@/lib/db/repos/documentAnnotations';
+import { getDocument, parsePages } from '@/lib/db/repos/documents';
+import {
+  parseRegions,
+  type PassageRegion,
+  type Passage,
+} from '@/lib/db/repos/passages';
 import { useSession } from '@/lib/supabase/auth';
 import { uploadAnnotationImage } from '@/lib/supabase/storage';
 
+type DocTarget = { docId: string; page: number; region: PassageRegion };
+type DocPageInfo = {
+  data: string | null;
+  imageUri: string | null;
+  pageW: number;
+  pageH: number;
+};
+
 export function useScoreAnnotation(passage: Passage | null | undefined) {
-  const passageId = passage?.id;
-  const scoreUri = passage?.source_uri;
   const session = useSession();
   const navigation = useNavigation();
-  const [annotation, setAnnotation] = useState<Annotation | null>(null);
+  const scoreUri = passage?.source_uri;
   const [annotating, setAnnotating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
   const canvasRef = useRef<PencilCanvasHandle>(null);
 
-  // Annotations live in Supabase. Re-fetched on focus (not just on mount) so
-  // a mark saved on another screen shows when this one regains focus — the
-  // passage detail screen stays mounted while a practice screen is open.
+  // A passage cropped from exactly one PDF page shares that page's annotation.
+  const docTarget = useMemo<DocTarget | null>(() => {
+    if (!passage?.document_id) return null;
+    const regions = parseRegions(passage.regions_json);
+    if (regions.length !== 1) return null;
+    return {
+      docId: passage.document_id,
+      page: regions[0].page,
+      region: regions[0],
+    };
+  }, [passage?.document_id, passage?.regions_json]);
+
+  // Standalone passages: their own annotation. Document-backed: the page's.
+  const [annotation, setAnnotation] = useState<Annotation | null>(null);
+  const [docPage, setDocPage] = useState<DocPageInfo | null>(null);
+
+  // Re-fetched on focus so a mark saved on another screen shows on return.
   useFocusEffect(
     useCallback(() => {
-      if (!passageId || !session) {
+      let cancelled = false;
+      if (!session) {
         setAnnotation(null);
+        setDocPage(null);
         return;
       }
-      let cancelled = false;
-      getAnnotation(passageId)
-        .then((a) => {
-          if (!cancelled) setAnnotation(a);
-        })
-        .catch(() => {
-          if (!cancelled) setAnnotation(null);
-        });
+      if (docTarget) {
+        (async () => {
+          try {
+            const [doc, annotations] = await Promise.all([
+              getDocument(docTarget.docId),
+              getDocumentAnnotations(docTarget.docId),
+            ]);
+            if (cancelled) return;
+            const page = doc
+              ? parsePages(doc.pages_json).find(
+                  (p) => p.index === docTarget.page,
+                )
+              : undefined;
+            const ann = annotations.get(docTarget.page);
+            setDocPage(
+              page
+                ? {
+                    data: ann?.data ?? null,
+                    imageUri: ann?.imageUri ?? null,
+                    pageW: page.w,
+                    pageH: page.h,
+                  }
+                : null,
+            );
+          } catch {
+            if (!cancelled) setDocPage(null);
+          }
+        })();
+      } else if (passage?.id) {
+        getAnnotation(passage.id)
+          .then((a) => {
+            if (!cancelled) setAnnotation(a);
+          })
+          .catch(() => {
+            if (!cancelled) setAnnotation(null);
+          });
+      }
       return () => {
         cancelled = true;
       };
-    }, [passageId, session]),
+    }, [session, docTarget, passage?.id]),
   );
 
-  // Export the live drawing and persist it. Only meaningful while the canvas
-  // is mounted (annotation mode on).
+  // Export the live drawing and persist it — to the PDF page for a
+  // document-backed passage, else to the passage's own annotation.
   const saveDrawing = useCallback(async () => {
     const handle = canvasRef.current;
-    if (!handle || !passageId) return;
+    if (!handle) return;
     setSaving(true);
     try {
       const { data, png } = await handle.export();
-      const imageUri = png ? await uploadAnnotationImage(passageId, png) : null;
-      const next: Annotation = { data: data || null, imageUri };
-      await saveAnnotation(passageId, next);
-      setAnnotation(next);
+      if (docTarget) {
+        const imageUri = png
+          ? await uploadAnnotationImage(
+              `${docTarget.docId}-page${docTarget.page}`,
+              png,
+            )
+          : null;
+        const next: Annotation = { data: data || null, imageUri };
+        await saveDocumentAnnotation(docTarget.docId, docTarget.page, next);
+        setDocPage((prev) =>
+          prev ? { ...prev, data: next.data, imageUri: next.imageUri } : prev,
+        );
+      } else if (passage?.id) {
+        const imageUri = png
+          ? await uploadAnnotationImage(passage.id, png)
+          : null;
+        const next: Annotation = { data: data || null, imageUri };
+        await saveAnnotation(passage.id, next);
+        setAnnotation(next);
+      }
     } catch (e) {
       Alert.alert(
         'Could not save annotation',
@@ -75,7 +162,7 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
     } finally {
       setSaving(false);
     }
-  }, [passageId]);
+  }, [docTarget, passage?.id]);
 
   // The PENCIL tab: enter annotation mode, or exit and save.
   const toggle = useCallback(async () => {
@@ -92,8 +179,7 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
     }
   }, [annotating, session, saveDrawing]);
 
-  // Leaving the screen (exit / back / done) with unsaved marks: save first,
-  // then let the navigation proceed.
+  // Leaving the screen with unsaved marks: save first, then let nav proceed.
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       if (!annotating) return;
@@ -103,9 +189,30 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
     return unsubscribe;
   }, [navigation, annotating, saveDrawing]);
 
-  const canvas = scoreUri ? (
-    <>
-      {passage && <DocumentPageUnderlay passage={passage} />}
+  let layer: ReactNode = null;
+  if (docTarget) {
+    if (docPage && annotating) {
+      layer = (
+        <RegionAnnotationCanvas
+          pageData={docPage.data}
+          region={docTarget.region}
+          pageW={docPage.pageW}
+          pageH={docPage.pageH}
+          canvasRef={canvasRef}
+        />
+      );
+    } else if (docPage?.imageUri) {
+      layer = (
+        <CroppedAnnotation
+          imageUri={docPage.imageUri}
+          region={docTarget.region}
+          pageW={docPage.pageW}
+          pageH={docPage.pageH}
+        />
+      );
+    }
+  } else if (scoreUri) {
+    layer = (
       <AnnotationCanvas
         scoreUri={scoreUri}
         editable={annotating}
@@ -113,6 +220,12 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
         imageUri={annotation?.imageUri}
         canvasRef={canvasRef}
       />
+    );
+  }
+
+  const canvas = scoreUri ? (
+    <>
+      {layer}
       {saving && (
         <View style={styles.savingOverlay}>
           <View style={styles.savingPill}>
