@@ -3,7 +3,7 @@
 // screen only has to: call the hook, drop `canvas` into the score's container,
 // and pass `pencil` to PracticeToolsLayer's PENCIL tab.
 
-import { useNavigation } from 'expo-router';
+import { useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
@@ -32,24 +32,28 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
   const [signInOpen, setSignInOpen] = useState(false);
   const canvasRef = useRef<PencilCanvasHandle>(null);
 
-  // Annotations live in Supabase; they load once we have a session.
-  useEffect(() => {
-    if (!passageId || !session) {
-      setAnnotation(null);
-      return;
-    }
-    let cancelled = false;
-    getAnnotation(passageId)
-      .then((a) => {
-        if (!cancelled) setAnnotation(a);
-      })
-      .catch(() => {
-        if (!cancelled) setAnnotation(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [passageId, session]);
+  // Annotations live in Supabase. Re-fetched on focus (not just on mount) so
+  // a mark saved on another screen shows when this one regains focus — the
+  // passage detail screen stays mounted while a practice screen is open.
+  useFocusEffect(
+    useCallback(() => {
+      if (!passageId || !session) {
+        setAnnotation(null);
+        return;
+      }
+      let cancelled = false;
+      getAnnotation(passageId)
+        .then((a) => {
+          if (!cancelled) setAnnotation(a);
+        })
+        .catch(() => {
+          if (!cancelled) setAnnotation(null);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [passageId, session]),
+  );
 
   // Export the live drawing and persist it. Only meaningful while the canvas
   // is mounted (annotation mode on).
