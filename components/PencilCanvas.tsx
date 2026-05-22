@@ -28,11 +28,16 @@ export type PencilCanvasProps = {
   imageUri?: string | null;
   /** true = live drawing canvas; false = static display of the saved PNG. */
   editable: boolean;
+  /** Which inputs draw. 'pencilonly' lets a finger still scroll / page. */
+  drawingPolicy?: 'default' | 'anyinput' | 'pencilonly';
   style?: StyleProp<ViewStyle>;
 };
 
 export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
-  function PencilCanvas({ initialData, imageUri, editable, style }, ref) {
+  function PencilCanvas(
+    { initialData, imageUri, editable, drawingPolicy = 'anyinput', style },
+    ref,
+  ) {
     const pk = useRef<PencilKitRef>(null);
 
     useImperativeHandle(ref, () => ({
@@ -81,7 +86,7 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
         isOpaque={false}
         alwaysBounceVertical={false}
         alwaysBounceHorizontal={false}
-        drawingPolicy="anyinput"
+        drawingPolicy={drawingPolicy}
       />
     );
   },

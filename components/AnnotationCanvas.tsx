@@ -2,7 +2,7 @@
 // absolute-fill child of a score's container: it measures that container,
 // learns the score image's aspect ratio, computes the letterboxed draw rect,
 // and renders the PencilKit canvas (edit) or the saved PNG (view) exactly
-// over the score. Used by the useScoreAnnotation hook.
+// over the score. Used by the useScoreAnnotation / useDocumentAnnotation hooks.
 
 import { Image } from 'expo-image';
 import { type RefObject, useState } from 'react';
@@ -16,15 +16,21 @@ export function AnnotationCanvas({
   initialData,
   imageUri,
   canvasRef,
+  aspect: aspectProp,
+  drawingPolicy,
 }: {
   scoreUri: string;
   editable: boolean;
   initialData?: string | null;
   imageUri?: string | null;
-  canvasRef: RefObject<PencilCanvasHandle | null>;
+  canvasRef?: RefObject<PencilCanvasHandle | null>;
+  /** Explicit score aspect (w / h). When omitted, the score is probed. */
+  aspect?: number;
+  drawingPolicy?: 'default' | 'anyinput' | 'pencilonly';
 }) {
   const [box, setBox] = useState({ w: 0, h: 0 });
-  const [aspect, setAspect] = useState(0);
+  const [probedAspect, setProbedAspect] = useState(0);
+  const aspect = aspectProp ?? probedAspect;
 
   const drawn =
     box.w > 0 && box.h > 0 && aspect > 0
@@ -39,21 +45,24 @@ export function AnnotationCanvas({
         const { width, height } = e.nativeEvent.layout;
         setBox({ w: width, h: height });
       }}>
-      {/* Hidden — loaded only to read the score's intrinsic aspect ratio. */}
-      <Image
-        source={{ uri: scoreUri }}
-        style={styles.probe}
-        onLoad={(e) => {
-          const { width, height } = e.source;
-          if (width > 0 && height > 0) setAspect(width / height);
-        }}
-      />
+      {aspectProp === undefined && (
+        // Hidden — loaded only to read the score's intrinsic aspect ratio.
+        <Image
+          source={{ uri: scoreUri }}
+          style={styles.probe}
+          onLoad={(e) => {
+            const { width, height } = e.source;
+            if (width > 0 && height > 0) setProbedAspect(width / height);
+          }}
+        />
+      )}
       {drawn && (
         <PencilCanvas
           ref={canvasRef}
           editable={editable}
           initialData={initialData}
           imageUri={imageUri}
+          drawingPolicy={drawingPolicy}
           style={{
             position: 'absolute',
             left: drawn.ox,

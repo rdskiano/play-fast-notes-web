@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 
 import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
+import { AnnotationCanvas } from '@/components/AnnotationCanvas';
 import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PageBoxOverlay } from '@/components/PageBoxOverlay';
@@ -65,6 +66,7 @@ import {
 import { cropImage, stitchVerticallyUris, type Rect } from '@/lib/image/canvasCrop';
 import { persistPassageImage } from '@/lib/image/persistPassageImage';
 import { consumeLastPassageInDoc } from '@/lib/sessions/lastPassageInDoc';
+import { useDocumentAnnotation } from '@/hooks/useDocumentAnnotation';
 
 function newPassageId(): string {
   return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -147,6 +149,10 @@ export default function DocumentScreen() {
     const nextMode: ViewMode = viewMode === 'spread' ? 'single' : 'spread';
     setViewModeOverride(nextMode === autoViewMode ? null : nextMode);
   }
+
+  // 0-indexed page that Apple Pencil annotation applies to.
+  const currentPage = currentIndex * (viewMode === 'spread' ? 2 : 1);
+  const docAnn = useDocumentAnnotation(id, currentPage);
 
   const scrollRef = useRef<ScrollView | null>(null);
 
@@ -613,6 +619,16 @@ export default function DocumentScreen() {
     );
   }
 
+  const pencilProp = {
+    active: docAnn.annotating,
+    onToggle: () => {
+      // Annotation edits one page — force single-page view so it's unambiguous.
+      if (!docAnn.annotating) setViewModeOverride('single');
+      else setViewModeOverride(null);
+      docAnn.pencil.onToggle();
+    },
+  };
+
   return (
     <ThemedView style={styles.container}>
       <SessionTopBar
@@ -744,7 +760,8 @@ export default function DocumentScreen() {
                 !sectionsModalOpen &&
                 !renamePromptFor &&
                 !namePromptOpen &&
-                !postSaveTitle
+                !postSaveTitle &&
+                !docAnn.annotating
               }
               showsHorizontalScrollIndicator={false}
               onScroll={onScroll}
@@ -789,6 +806,15 @@ export default function DocumentScreen() {
                             selectedId={selectedPassageId}
                             onSelect={setSelectedPassageId}
                             onDeselect={() => setSelectedPassageId(null)}
+                          />
+                          <AnnotationCanvas
+                            scoreUri={p.image_uri}
+                            aspect={p.w / p.h}
+                            editable={docAnn.annotating && p.index === currentPage}
+                            drawingPolicy="pencilonly"
+                            initialData={docAnn.annotations.get(p.index)?.data}
+                            imageUri={docAnn.annotations.get(p.index)?.imageUri}
+                            canvasRef={p.index === currentPage ? docAnn.canvasRef : undefined}
                           />
                           {mode === 'draw' && (() => {
                             // Once a draft exists for this page, swap the
@@ -863,7 +889,7 @@ export default function DocumentScreen() {
             {/* Edge tap zones — only active in idle mode so they don't swallow
                 drag gestures during draw/resize, and only active when nothing
                 is selected so the deselect-by-tapping-backdrop still works. */}
-            {mode === 'idle' && !selectedPassageId && (
+            {mode === 'idle' && !selectedPassageId && !docAnn.annotating && (
               <>
                 <Pressable
                   style={[styles.tapZone, { left: 0, width: 60 }]}
@@ -879,7 +905,7 @@ export default function DocumentScreen() {
             )}
           </>
         )}
-        {mode === 'idle' && <PracticeToolsLayer />}
+        {mode === 'idle' && <PracticeToolsLayer pencil={pencilProp} />}
       </View>
 
       {markingSection && (
@@ -965,6 +991,8 @@ export default function DocumentScreen() {
         }}
         onClose={() => setSectionsModalOpen(false)}
       />
+
+      {docAnn.overlay}
     </ThemedView>
   );
 }

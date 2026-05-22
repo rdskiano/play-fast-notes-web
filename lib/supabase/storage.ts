@@ -40,17 +40,18 @@ export async function uploadPassageImage(
  * public URL. The PNG is the flattened Apple Pencil drawing — the web app
  * displays it over the score because it can't render native PencilKit data.
  *
- * Path scheme: `<user_id>/<piece_id>-annotation.png`. Works on iPad and web.
+ * `key` identifies the annotation: a passage id, or `<docId>-page<N>` for a
+ * document page. Path scheme: `<user_id>/<key>-annotation.png`.
  */
 export async function uploadAnnotationImage(
-  pieceId: string,
+  key: string,
   base64Png: string,
 ): Promise<string> {
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData.session?.user.id;
   if (!userId) throw new Error('Not signed in');
 
-  const path = `${userId}/${pieceId}-annotation.png`;
+  const path = `${userId}/${key}-annotation.png`;
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(path, base64ToBytes(base64Png), {
