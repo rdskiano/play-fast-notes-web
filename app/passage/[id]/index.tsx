@@ -203,25 +203,28 @@ export default function PassageDetailScreen() {
     [goPrev, goNext],
   );
 
-  // Annotations live in Supabase; they load once we have a session (web is
-  // always signed in, iPad after sign-in).
-  useEffect(() => {
-    if (!id || !session) {
-      setAnnotation(null);
-      return;
-    }
-    let cancelled = false;
-    getAnnotation(id)
-      .then((a) => {
-        if (!cancelled) setAnnotation(a);
-      })
-      .catch(() => {
-        if (!cancelled) setAnnotation(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, session]);
+  // Annotations live in Supabase. Re-fetched on focus (not just on mount) so
+  // a mark added on a practice screen shows when you navigate back here —
+  // this screen stays mounted in the stack while a practice screen is open.
+  useFocusEffect(
+    useCallback(() => {
+      if (!id || !session) {
+        setAnnotation(null);
+        return;
+      }
+      let cancelled = false;
+      getAnnotation(id)
+        .then((a) => {
+          if (!cancelled) setAnnotation(a);
+        })
+        .catch(() => {
+          if (!cancelled) setAnnotation(null);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [id, session]),
+  );
 
   // The score image is `contain`-fit, so it sits letterboxed inside its box.
   // The annotation canvas must cover exactly the drawn-image sub-rect — using
