@@ -3,6 +3,7 @@
 // screen only has to: call the hook, drop `canvas` into the score's container,
 // and pass `pencil` to PracticeToolsLayer's PENCIL tab.
 
+import { useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
@@ -23,6 +24,7 @@ export function useScoreAnnotation(
   scoreUri: string | undefined,
 ) {
   const session = useSession();
+  const navigation = useNavigation();
   const [annotation, setAnnotation] = useState<Annotation | null>(null);
   const [annotating, setAnnotating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -48,30 +50,32 @@ export function useScoreAnnotation(
     };
   }, [passageId, session]);
 
+  // Export the live drawing and persist it. Only meaningful while the canvas
+  // is mounted (annotation mode on).
+  const saveDrawing = useCallback(async () => {
+    const handle = canvasRef.current;
+    if (!handle || !passageId) return;
+    setSaving(true);
+    try {
+      const { data, png } = await handle.export();
+      const imageUri = png ? await uploadAnnotationImage(passageId, png) : null;
+      const next: Annotation = { data: data || null, imageUri };
+      await saveAnnotation(passageId, next);
+      setAnnotation(next);
+    } catch (e) {
+      Alert.alert(
+        'Could not save annotation',
+        e instanceof Error ? e.message : 'Please try again.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [passageId]);
+
   // The PENCIL tab: enter annotation mode, or exit and save.
   const toggle = useCallback(async () => {
     if (annotating) {
-      // Export the drawing BEFORE unmounting the live canvas.
-      const handle = canvasRef.current;
-      if (handle && passageId) {
-        setSaving(true);
-        try {
-          const { data, png } = await handle.export();
-          const imageUri = png
-            ? await uploadAnnotationImage(passageId, png)
-            : null;
-          const next: Annotation = { data: data || null, imageUri };
-          await saveAnnotation(passageId, next);
-          setAnnotation(next);
-        } catch (e) {
-          Alert.alert(
-            'Could not save annotation',
-            e instanceof Error ? e.message : 'Please try again.',
-          );
-        } finally {
-          setSaving(false);
-        }
-      }
+      await saveDrawing();
       setAnnotating(false);
     } else {
       if (session === undefined) return; // session still resolving
@@ -81,7 +85,18 @@ export function useScoreAnnotation(
       }
       setAnnotating(true);
     }
-  }, [annotating, passageId, session]);
+  }, [annotating, session, saveDrawing]);
+
+  // Leaving the screen (exit / back / done) with unsaved marks: save first,
+  // then let the navigation proceed.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (!annotating) return;
+      e.preventDefault();
+      saveDrawing().finally(() => navigation.dispatch(e.data.action));
+    });
+    return unsubscribe;
+  }, [navigation, annotating, saveDrawing]);
 
   const canvas = scoreUri ? (
     <>

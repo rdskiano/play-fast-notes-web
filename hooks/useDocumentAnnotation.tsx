@@ -3,8 +3,8 @@
 // pager is locked while annotating), and that page's drawing is saved on
 // exit. Every page still *displays* its saved annotation via the map.
 
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useFocusEffect, useNavigation } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
 import { type PencilCanvasHandle } from '@/components/PencilCanvas';
@@ -23,6 +23,7 @@ export function useDocumentAnnotation(
   currentPage: number,
 ) {
   const session = useSession();
+  const navigation = useNavigation();
   const [annotations, setAnnotations] = useState<Map<number, Annotation>>(
     new Map(),
   );
@@ -52,32 +53,34 @@ export function useDocumentAnnotation(
     }, [documentId, session]),
   );
 
+  // Export the current page's drawing and persist it. Only meaningful while
+  // the canvas is mounted (annotation mode on).
+  const saveDrawing = useCallback(async () => {
+    const handle = canvasRef.current;
+    if (!handle || !documentId) return;
+    setSaving(true);
+    try {
+      const { data, png } = await handle.export();
+      const imageUri = png
+        ? await uploadAnnotationImage(`${documentId}-page${currentPage}`, png)
+        : null;
+      const next: Annotation = { data: data || null, imageUri };
+      await saveDocumentAnnotation(documentId, currentPage, next);
+      setAnnotations((prev) => new Map(prev).set(currentPage, next));
+    } catch (e) {
+      Alert.alert(
+        'Could not save annotation',
+        e instanceof Error ? e.message : 'Please try again.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [documentId, currentPage]);
+
   // The PENCIL tab: enter annotation mode on the current page, or exit + save.
   const toggle = useCallback(async () => {
     if (annotating) {
-      const handle = canvasRef.current;
-      if (handle && documentId) {
-        setSaving(true);
-        try {
-          const { data, png } = await handle.export();
-          const imageUri = png
-            ? await uploadAnnotationImage(
-                `${documentId}-page${currentPage}`,
-                png,
-              )
-            : null;
-          const next: Annotation = { data: data || null, imageUri };
-          await saveDocumentAnnotation(documentId, currentPage, next);
-          setAnnotations((prev) => new Map(prev).set(currentPage, next));
-        } catch (e) {
-          Alert.alert(
-            'Could not save annotation',
-            e instanceof Error ? e.message : 'Please try again.',
-          );
-        } finally {
-          setSaving(false);
-        }
-      }
+      await saveDrawing();
       setAnnotating(false);
     } else {
       if (session === undefined) return; // session still resolving
@@ -87,7 +90,17 @@ export function useDocumentAnnotation(
       }
       setAnnotating(true);
     }
-  }, [annotating, documentId, currentPage, session]);
+  }, [annotating, session, saveDrawing]);
+
+  // Leaving the screen with unsaved marks: save first, then let nav proceed.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (!annotating) return;
+      e.preventDefault();
+      saveDrawing().finally(() => navigation.dispatch(e.data.action));
+    });
+    return unsubscribe;
+  }, [navigation, annotating, saveDrawing]);
 
   const overlay = (
     <>
