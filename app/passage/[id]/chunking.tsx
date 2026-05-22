@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { AnnotationOverlay } from '@/components/AnnotationOverlay';
+import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -12,6 +12,7 @@ import { Button } from '@/components/Button';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
@@ -48,6 +49,8 @@ export default function ChunkingScreen() {
     if (!id) return;
     getPassage(id).then(setPassage);
   }, [id]);
+
+  const ann = useScoreAnnotation(passage?.id, passage?.source_uri);
 
   function onDone() {
     setNotePromptVisible(true);
@@ -112,7 +115,8 @@ export default function ChunkingScreen() {
             </ThemedText>
           </View>
         )}
-        {passage && <AnnotationOverlay passageId={passage.id} />}
+        {ann.canvas}
+        <PracticeToolsLayer pencil={ann.pencil} />
       </View>
 
       <ChunkingHelpModal visible={helpOpen} onClose={() => setHelpOpen(false)} />
