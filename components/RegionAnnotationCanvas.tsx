@@ -16,6 +16,7 @@ export function RegionAnnotationCanvas({
   pageW,
   pageH,
   canvasRef,
+  onChange,
 }: {
   /** The PDF page's PencilKit drawing (base64) to keep editing. */
   pageData: string | null;
@@ -24,6 +25,8 @@ export function RegionAnnotationCanvas({
   pageW: number;
   pageH: number;
   canvasRef: RefObject<PencilCanvasHandle | null>;
+  /** Fires after each user edit. */
+  onChange?: () => void;
 }) {
   const [box, setBox] = useState({ w: 0, h: 0 });
 
@@ -71,6 +74,7 @@ export function RegionAnnotationCanvas({
               ref={canvasRef}
               editable
               initialData={pageData}
+              onChange={onChange}
               style={StyleSheet.absoluteFill}
             />
           </View>

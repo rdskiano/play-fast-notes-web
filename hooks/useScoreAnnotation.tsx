@@ -41,6 +41,10 @@ import {
 import { useSession } from '@/lib/supabase/auth';
 import { uploadAnnotationImage } from '@/lib/supabase/storage';
 
+// Auto-save this long after the last pencil edit, so marks survive even a
+// navigation path that doesn't flush.
+const AUTOSAVE_IDLE_MS = 2500;
+
 type DocTarget = { docId: string; page: number; region: PassageRegion };
 type DocPageInfo = {
   data: string | null;
@@ -57,6 +61,7 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
   const [saving, setSaving] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
   const canvasRef = useRef<PencilCanvasHandle>(null);
+  const idleSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // A passage cropped from exactly one PDF page shares that page's annotation.
   const docTarget = useMemo<DocTarget | null>(() => {
@@ -127,48 +132,75 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
   );
 
   // Export the live drawing and persist it — to the PDF page for a
-  // document-backed passage, else to the passage's own annotation.
-  const saveDrawing = useCallback(async () => {
-    const handle = canvasRef.current;
-    if (!handle) return;
-    setSaving(true);
-    try {
-      const { data, png } = await handle.export();
-      if (docTarget) {
-        const imageUri = png
-          ? await uploadAnnotationImage(
-              `${docTarget.docId}-page${docTarget.page}`,
-              png,
-            )
-          : null;
-        const next: Annotation = { data: data || null, imageUri };
-        await saveDocumentAnnotation(docTarget.docId, docTarget.page, next);
-        setDocPage((prev) =>
-          prev ? { ...prev, data: next.data, imageUri: next.imageUri } : prev,
+  // document-backed passage, else to the passage's own annotation. `silent`
+  // skips the dimming overlay (used by the idle auto-save).
+  const saveDrawing = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const handle = canvasRef.current;
+      if (!handle) return;
+      if (!opts?.silent) setSaving(true);
+      try {
+        const { data, png } = await handle.export();
+        if (docTarget) {
+          const imageUri = png
+            ? await uploadAnnotationImage(
+                `${docTarget.docId}-page${docTarget.page}`,
+                png,
+              )
+            : null;
+          const next: Annotation = { data: data || null, imageUri };
+          await saveDocumentAnnotation(docTarget.docId, docTarget.page, next);
+          setDocPage((prev) =>
+            prev
+              ? { ...prev, data: next.data, imageUri: next.imageUri }
+              : prev,
+          );
+        } else if (passage?.id) {
+          const imageUri = png
+            ? await uploadAnnotationImage(passage.id, png)
+            : null;
+          const next: Annotation = { data: data || null, imageUri };
+          await saveAnnotation(passage.id, next);
+          setAnnotation(next);
+        }
+      } catch (e) {
+        Alert.alert(
+          'Could not save annotation',
+          e instanceof Error ? e.message : 'Please try again.',
         );
-      } else if (passage?.id) {
-        const imageUri = png
-          ? await uploadAnnotationImage(passage.id, png)
-          : null;
-        const next: Annotation = { data: data || null, imageUri };
-        await saveAnnotation(passage.id, next);
-        setAnnotation(next);
+      } finally {
+        if (!opts?.silent) setSaving(false);
       }
-    } catch (e) {
-      Alert.alert(
-        'Could not save annotation',
-        e instanceof Error ? e.message : 'Please try again.',
-      );
-    } finally {
-      setSaving(false);
+    },
+    [docTarget, passage?.id],
+  );
+
+  // Each pencil edit (re)arms the idle auto-save.
+  const onDraw = useCallback(() => {
+    if (idleSaveRef.current) clearTimeout(idleSaveRef.current);
+    idleSaveRef.current = setTimeout(() => {
+      idleSaveRef.current = null;
+      saveDrawing({ silent: true });
+    }, AUTOSAVE_IDLE_MS);
+  }, [saveDrawing]);
+
+  // Persist unsaved marks before forward navigation. A push doesn't fire
+  // 'beforeRemove', so the screen must await this before navigating — else
+  // the next screen loads before the save lands. Pops use 'beforeRemove'.
+  const flush = useCallback(async () => {
+    if (idleSaveRef.current) {
+      clearTimeout(idleSaveRef.current);
+      idleSaveRef.current = null;
     }
-  }, [docTarget, passage?.id]);
+    if (!annotating) return;
+    await saveDrawing();
+    setAnnotating(false);
+  }, [annotating, saveDrawing]);
 
   // The PENCIL tab: enter annotation mode, or exit and save.
   const toggle = useCallback(async () => {
     if (annotating) {
-      await saveDrawing();
-      setAnnotating(false);
+      await flush();
     } else {
       if (session === undefined) return; // session still resolving
       if (!session) {
@@ -177,17 +209,29 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
       }
       setAnnotating(true);
     }
-  }, [annotating, session, saveDrawing]);
+  }, [annotating, session, flush]);
 
   // Leaving the screen with unsaved marks: save first, then let nav proceed.
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       if (!annotating) return;
       e.preventDefault();
+      if (idleSaveRef.current) {
+        clearTimeout(idleSaveRef.current);
+        idleSaveRef.current = null;
+      }
       saveDrawing().finally(() => navigation.dispatch(e.data.action));
     });
     return unsubscribe;
   }, [navigation, annotating, saveDrawing]);
+
+  // Drop a pending auto-save if the screen unmounts.
+  useEffect(
+    () => () => {
+      if (idleSaveRef.current) clearTimeout(idleSaveRef.current);
+    },
+    [],
+  );
 
   let layer: ReactNode = null;
   if (docTarget) {
@@ -199,6 +243,7 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
           pageW={docPage.pageW}
           pageH={docPage.pageH}
           canvasRef={canvasRef}
+          onChange={onDraw}
         />
       );
     } else if (docPage?.imageUri) {
@@ -219,6 +264,7 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
         initialData={annotation?.data}
         imageUri={annotation?.imageUri}
         canvasRef={canvasRef}
+        onChange={onDraw}
       />
     );
   }
@@ -250,6 +296,8 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
     pencil: { active: annotating, onToggle: toggle },
     /** Drop inside the score's (relatively positioned) container. */
     canvas,
+    /** Await before any forward navigation to persist unsaved marks. */
+    flush,
   };
 }
 

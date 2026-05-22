@@ -1,18 +1,14 @@
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { FloatingMetronome } from '@/components/FloatingMetronome';
+import { PassagePicker } from '@/components/PassagePicker';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
+import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SelfLedSheet } from '@/components/SelfLedSheet';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
@@ -20,8 +16,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { listAllDocuments, type DocumentRow } from '@/lib/db/repos/documents';
-import { listAllFolders, type Folder } from '@/lib/db/repos/folders';
+import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { listPassages, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
@@ -51,17 +46,6 @@ const TIMER_OPTIONS: TimerMinutes[] = [3, 5, 10, 15];
 const TIMER_MODE_ENABLED = false;
 
 type Phase = 'config' | 'select' | 'playing';
-
-// Sections are flat: each PDF document and each folder-with-loose-passages
-// gets its own section. Passages in a document group under the document;
-// passages outside any document fall back to their folder.
-type SectionKind = 'document' | 'folder' | 'unfiled';
-type Section = {
-  key: string;
-  kind: SectionKind;
-  title: string;
-  data: Passage[];
-};
 
 type SpotState = {
   passage: Passage;
@@ -161,10 +145,7 @@ export default function InterleavedScreen() {
   const [targetReps, setTargetReps] = useState<RepTarget>(3);
   const [timerMinutes, setTimerMinutes] = useState<TimerMinutes>(5);
 
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [passages, setPassages] = useState<Passage[]>([]);
-  const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Active-session state.
@@ -179,16 +160,20 @@ export default function InterleavedScreen() {
   // they were actually working at.
   const engagedTempoMap = useRef<Map<string, number>>(new Map());
 
+  // Per-passage tempo memory (in-session only): when a passage cycles back
+  // through the rotation, the metronome snaps to the BPM last used on it.
+  const tempoMap = useRef<Map<string, number>>(new Map());
+
+  // The passage on screen in the playing phase — also drives the score
+  // annotation (Apple Pencil tool) for that passage.
+  const currentSpot = spots[currentIndex] ?? null;
+  const ann = useScoreAnnotation(currentSpot?.passage);
+
   useEffect(() => {
     let cancelled = false;
-    Promise.all([listAllFolders(), listPassages(), listAllDocuments()]).then(
-      ([flds, pcs, docs]) => {
-        if (cancelled) return;
-        setFolders(flds);
-        setPassages(pcs);
-        setDocuments(docs);
-      },
-    );
+    listPassages().then((pcs) => {
+      if (!cancelled) setPassages(pcs);
+    });
     return () => {
       cancelled = true;
     };
@@ -234,6 +219,14 @@ export default function InterleavedScreen() {
     engagedTempoMap.current.set(cur.passage.id, metronome.bpm);
   }, [phase, mode, currentIndex, spots, timerSession, metronome.bpm, metronome.running]);
 
+  // On rotation, snap the metronome back to this passage's last-used tempo.
+  useEffect(() => {
+    if (!currentSpot) return;
+    const saved = tempoMap.current.get(currentSpot.passage.id);
+    if (saved && saved !== metronome.bpm) metronome.setBpm(saved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex]);
+
   function exit() {
     router.back();
   }
@@ -271,6 +264,7 @@ export default function InterleavedScreen() {
     }));
     setSpots(initial);
     engagedTempoMap.current = new Map();
+    tempoMap.current = new Map();
     let first = 0;
     let initialLap: LapState | null = null;
     if (order === 'serial') {
@@ -286,7 +280,15 @@ export default function InterleavedScreen() {
     setPhase('playing');
   }
 
-  function onClean() {
+  // Remember the tempo set on the current passage so it returns on rotation.
+  function saveCurrentTempo() {
+    if (currentSpot) tempoMap.current.set(currentSpot.passage.id, metronome.bpm);
+  }
+
+  async function onClean() {
+    saveCurrentTempo();
+    // Persist any unsaved pencil mark before rotating off this passage.
+    await ann.flush();
     setSpots((prev) => {
       const next = [...prev];
       const spot = { ...next[currentIndex] };
@@ -310,7 +312,10 @@ export default function InterleavedScreen() {
     });
   }
 
-  function onMiss() {
+  async function onMiss() {
+    saveCurrentTempo();
+    // Persist any unsaved pencil mark before rotating off this passage.
+    await ann.flush();
     setSpots((prev) => {
       const next = [...prev];
       const spot = { ...next[currentIndex] };
@@ -367,62 +372,6 @@ export default function InterleavedScreen() {
     metronome.stop();
     router.back();
   }
-
-  // Build flat sections: PDF documents and folders (for loose passages)
-  // appear at the same visual level. Passages belonging to a document are
-  // grouped under the document title; passages without a document fall back
-  // to their folder.
-  const sections: Section[] = (() => {
-    const q = search.trim().toLowerCase();
-    const visible = q
-      ? passages.filter((p) => (p.title ?? '').toLowerCase().includes(q))
-      : passages;
-
-    type GroupKey =
-      | { kind: 'document'; id: string }
-      | { kind: 'folder'; id: string }
-      | { kind: 'unfiled' };
-    const groupKey = (p: Passage): GroupKey =>
-      p.document_id
-        ? { kind: 'document', id: p.document_id }
-        : p.folder_id
-          ? { kind: 'folder', id: p.folder_id }
-          : { kind: 'unfiled' };
-    const keyString = (k: GroupKey) =>
-      k.kind === 'unfiled' ? 'unfiled' : `${k.kind}:${k.id}`;
-
-    const byKey = new Map<string, { key: GroupKey; data: Passage[] }>();
-    for (const p of visible) {
-      const k = groupKey(p);
-      const ks = keyString(k);
-      const entry = byKey.get(ks);
-      if (entry) entry.data.push(p);
-      else byKey.set(ks, { key: k, data: [p] });
-    }
-
-    const titleFor = (k: GroupKey): string => {
-      if (k.kind === 'unfiled') return 'Unfiled';
-      if (k.kind === 'document')
-        return documents.find((d) => d.id === k.id)?.title ?? 'Document';
-      return folders.find((f) => f.id === k.id)?.name ?? 'Folder';
-    };
-
-    const result: Section[] = Array.from(byKey.values()).map(({ key, data }) => ({
-      key: keyString(key),
-      kind: key.kind,
-      title: titleFor(key),
-      data,
-    }));
-
-    // Documents + folders sort alphabetically by title; Unfiled lands last.
-    result.sort((a, b) => {
-      if (a.kind === 'unfiled') return 1;
-      if (b.kind === 'unfiled') return -1;
-      return a.title.localeCompare(b.title);
-    });
-
-    return result;
-  })();
 
   // ── Config phase ─────────────────────────────────────────────────────────
   if (phase === 'config') {
@@ -571,86 +520,12 @@ export default function InterleavedScreen() {
           }
         />
 
-        <ThemedText style={[styles.selectHelp, { color: C.icon }]}>
-          {mode === 'consistency'
-            ? 'Choose 4–7 passages to practice in the order you want to play them.'
-            : 'Choose 4–7 passages to practice.'}
-        </ThemedText>
-
-        <View style={[styles.searchWrap, { borderColor: C.icon + '55' }]}>
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search passages"
-            placeholderTextColor={C.icon}
-            style={[styles.searchInput, { color: C.text }]}
-          />
-        </View>
-
-        <ScrollView contentContainerStyle={styles.selectList}>
-          {sections.map((section) => (
-            <View key={section.key} style={{ marginBottom: 8 }}>
-              <View style={styles.folderHeader}>
-                <ThemedText style={styles.folderHeaderText}>
-                  {section.kind === 'document'
-                    ? '📄 '
-                    : section.kind === 'folder'
-                      ? '📁 '
-                      : ''}
-                  {section.title}
-                </ThemedText>
-              </View>
-              {section.data.map((passage) => {
-                const orderIndex = selectedIds.indexOf(passage.id);
-                const isSelected = orderIndex >= 0;
-                return (
-                  <Pressable
-                    key={passage.id}
-                    onPress={() => toggleSelect(passage.id)}
-                    style={[
-                      styles.passageRow,
-                      {
-                        borderColor: isSelected ? C.tint : C.icon + '55',
-                        backgroundColor: isSelected ? C.tint + '11' : 'transparent',
-                      },
-                    ]}>
-                    {passage.thumbnail_uri ? (
-                      <Image
-                        source={{ uri: passage.thumbnail_uri }}
-                        style={styles.passageThumb}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <View
-                        style={[
-                          styles.passageThumb,
-                          { backgroundColor: C.icon + '22' },
-                        ]}
-                      />
-                    )}
-                    <ThemedText style={[styles.passageTitle, { flex: 1 }]} numberOfLines={1}>
-                      {passage.title || 'Untitled'}
-                    </ThemedText>
-                    <View
-                      style={[
-                        styles.indicator,
-                        {
-                          borderColor: isSelected ? C.tint : C.icon,
-                          backgroundColor: isSelected ? C.tint : 'transparent',
-                        },
-                      ]}>
-                      {isSelected && (
-                        <ThemedText style={styles.indicatorText}>
-                          {order === 'serial' ? String(orderIndex + 1) : '✓'}
-                        </ThemedText>
-                      )}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ))}
-        </ScrollView>
+        <PassagePicker
+          selectedIds={selectedIds}
+          passages={passages}
+          order={order}
+          onToggle={toggleSelect}
+        />
 
         <View style={{ padding: 16 }}>
           <Button
@@ -669,7 +544,6 @@ export default function InterleavedScreen() {
   }
 
   // ── Playing phase ────────────────────────────────────────────────────────
-  const currentSpot = spots[currentIndex] ?? null;
   const completedCount = spots.filter((s) => s.completed).length;
 
   if (mode === 'timer') {
@@ -693,7 +567,10 @@ export default function InterleavedScreen() {
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
       <SessionTopBar
-        onExit={() => setPhase('select')}
+        onExit={async () => {
+          await ann.flush();
+          setPhase('select');
+        }}
         exitLabel="EXIT"
         center={
           <View style={{ alignItems: 'center', maxWidth: '100%' }}>
@@ -730,26 +607,23 @@ export default function InterleavedScreen() {
         }
       />
 
-      {currentSpot?.passage.source_uri && (
-        <Image
-          source={{ uri: currentSpot.passage.source_uri }}
-          style={styles.scoreFill}
-          contentFit="contain"
+      <View style={styles.contentArea}>
+        {currentSpot?.passage.source_uri ? (
+          <View style={styles.scoreFill}>
+            <Image
+              source={{ uri: currentSpot.passage.source_uri }}
+              style={StyleSheet.absoluteFill}
+              contentFit="contain"
+            />
+            {ann.canvas}
+          </View>
+        ) : null}
+        <PracticeToolsLayer
+          metronome={metronome}
+          pencil={ann.pencil}
+          recorderPassageId={currentSpot?.passage.id}
         />
-      )}
-
-      <FloatingMetronome
-        bpm={metronome.bpm}
-        subdivision={metronome.subdivision}
-        running={metronome.running}
-        volume={metronome.volume}
-        onBpm={metronome.setBpm}
-        onSubdivision={metronome.setSubdivision}
-        onVolume={metronome.setVolume}
-        onToggle={metronome.toggle}
-        initialX={16}
-        initialY={140}
-      />
+      </View>
 
       <View style={[styles.repBar, { borderTopColor: C.icon + '44' }]}>
         <Pressable
@@ -1040,6 +914,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   dotFilled: { backgroundColor: Status.success, borderColor: Status.success },
+  contentArea: { flex: 1 },
   scoreFill: { flex: 1, width: '100%' },
   repBar: {
     flexDirection: 'row',
@@ -1170,62 +1045,6 @@ const styles = StyleSheet.create({
     fontWeight: Type.weight.heavy,
   },
 
-  selectHelp: {
-    textAlign: 'center',
-    fontSize: Type.size.sm,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
-  },
-  searchWrap: {
-    margin: Spacing.lg,
-    borderWidth: Borders.thin,
-    borderRadius: Radii.md,
-    paddingHorizontal: Spacing.md,
-  },
-  searchInput: {
-    paddingVertical: Spacing.md,
-    fontSize: Type.size.md,
-  },
-  selectList: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.lg },
-  folderHeader: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.xs,
-  },
-  folderHeaderText: {
-    fontWeight: Type.weight.bold,
-    fontSize: Type.size.sm,
-  },
-  passageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    padding: Spacing.sm,
-    borderWidth: Borders.thin,
-    borderRadius: Radii.md,
-    marginBottom: 6,
-  },
-  passageThumb: {
-    width: 48,
-    height: 32,
-    borderRadius: Radii.sm,
-  },
-  passageTitle: {
-    fontSize: Type.size.md,
-    fontWeight: Type.weight.semibold,
-  },
-  indicator: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: Borders.thin,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  indicatorText: {
-    color: '#fff',
-    fontWeight: Type.weight.heavy,
-    fontSize: Type.size.sm,
-  },
 
   body: {
     flex: 1,

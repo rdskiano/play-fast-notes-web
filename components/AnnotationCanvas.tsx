@@ -18,6 +18,7 @@ export function AnnotationCanvas({
   canvasRef,
   aspect: aspectProp,
   drawingPolicy,
+  onChange,
 }: {
   scoreUri: string;
   editable: boolean;
@@ -27,6 +28,8 @@ export function AnnotationCanvas({
   /** Explicit score aspect (w / h). When omitted, the score is probed. */
   aspect?: number;
   drawingPolicy?: 'default' | 'anyinput' | 'pencilonly';
+  /** Fires after each user edit. */
+  onChange?: () => void;
 }) {
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [probedAspect, setProbedAspect] = useState(0);
@@ -63,6 +66,7 @@ export function AnnotationCanvas({
           initialData={initialData}
           imageUri={imageUri}
           drawingPolicy={drawingPolicy}
+          onChange={onChange}
           style={{
             position: 'absolute',
             left: drawn.ox,

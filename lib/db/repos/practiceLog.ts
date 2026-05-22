@@ -1,3 +1,5 @@
+import { getAllRecordingEntries } from '@/lib/supabase/recordingLog';
+
 import { getDb } from '../client';
 import { parseSections, sectionForPosition } from './documents';
 import { parseRegions } from './passages';
@@ -41,7 +43,7 @@ export async function getPracticeLogForPassage(
   piece_id: string,
 ): Promise<PracticeLogEntry[]> {
   const db = getDb();
-  return db.getAllAsync<PracticeLogEntry>(
+  const local = await db.getAllAsync<PracticeLogEntry>(
     `SELECT pl.id, pl.piece_id, pl.strategy, pl.practiced_at, pl.data_json,
             pl.exercise_id, e.name AS exercise_name
      FROM practice_log pl
@@ -49,6 +51,13 @@ export async function getPracticeLogForPassage(
      WHERE pl.piece_id = ?
      ORDER BY pl.practiced_at DESC;`,
     piece_id,
+  );
+  // Recordings live only in Supabase — merge in the ones for this passage.
+  const recordings = (await getAllRecordingEntries()).filter(
+    (r) => r.piece_id === piece_id,
+  );
+  return [...local, ...recordings].sort(
+    (a, b) => b.practiced_at - a.practiced_at,
   );
 }
 
@@ -109,7 +118,7 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
      WHERE p.deleted_at IS NULL
      ORDER BY pl.practiced_at DESC;`,
   );
-  return rows.map((r) => ({
+  const local = rows.map((r) => ({
     id: r.id,
     piece_id: r.piece_id,
     strategy: r.strategy,
@@ -124,6 +133,10 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
     document_title: r.document_title,
     section_name: resolveSectionName(r),
   }));
+  const recordings = await getAllRecordingEntries();
+  return [...local, ...recordings].sort(
+    (a, b) => b.practiced_at - a.practiced_at,
+  );
 }
 
 export async function updatePracticeLogMoodNote(
@@ -302,7 +315,7 @@ export async function getPracticeLogForDocument(
      ORDER BY pl.practiced_at DESC;`,
     document_id,
   );
-  return rows.map((r) => ({
+  const local = rows.map((r) => ({
     id: r.id,
     piece_id: r.piece_id,
     strategy: r.strategy,
@@ -315,6 +328,14 @@ export async function getPracticeLogForDocument(
     document_title: r.document_title,
     section_name: resolveSectionName(r),
   }));
+  // Recordings for this document: doc-level takes (synthetic piece_id = the
+  // document id) plus any take attached to one of its passages.
+  const recordings = (await getAllRecordingEntries()).filter(
+    (r) => r.document_id === document_id || r.piece_id === document_id,
+  );
+  return [...local, ...recordings].sort(
+    (a, b) => b.practiced_at - a.practiced_at,
+  );
 }
 
 export async function getPracticeLogForFolder(
@@ -356,7 +377,7 @@ export async function getPracticeLogForFolder(
      ORDER BY pl.practiced_at DESC;`,
     ...params,
   );
-  return rows.map((r) => ({
+  const local = rows.map((r) => ({
     id: r.id,
     piece_id: r.piece_id,
     strategy: r.strategy,
@@ -369,4 +390,10 @@ export async function getPracticeLogForFolder(
     document_title: r.document_title,
     section_name: resolveSectionName(r),
   }));
+  const recordings = (await getAllRecordingEntries()).filter(
+    (r) => r.folder_id === folder_id,
+  );
+  return [...local, ...recordings].sort(
+    (a, b) => b.practiced_at - a.practiced_at,
+  );
 }

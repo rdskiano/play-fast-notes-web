@@ -100,6 +100,7 @@ type DocLite = {
   id: string;
   title: string;
   sections_json: string | null;
+  folder_id: string | null;
 };
 
 function resolveSection(
@@ -123,7 +124,7 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
   const [logsRes, piecesRes, exercisesRes, foldersRes, documentsRes] = await Promise.all([
     supabase
       .from('practice_log')
-      .select('id, piece_id, strategy, practiced_at, data_json, exercise_id')
+      .select('id, piece_id, document_id, strategy, practiced_at, data_json, exercise_id')
       .order('practiced_at', { ascending: false }),
     supabase
       .from('pieces')
@@ -131,7 +132,7 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
       .is('deleted_at', null),
     supabase.from('exercises').select('id, name'),
     supabase.from('folders').select('id, name').is('deleted_at', null),
-    supabase.from('documents').select('id, title, sections_json').is('deleted_at', null),
+    supabase.from('documents').select('id, title, sections_json, folder_id').is('deleted_at', null),
   ]);
   if (logsRes.error) throw logsRes.error;
   if (piecesRes.error) throw piecesRes.error;
@@ -158,31 +159,60 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
 
   return ((logsRes.data ?? []) as unknown as Array<{
     id: number;
-    piece_id: string;
+    piece_id: string | null;
+    document_id: string | null;
     strategy: string;
     practiced_at: number;
     data_json: string | null;
     exercise_id: string | null;
   }>)
-    .map((r) => {
-      const piece = pieceById.get(r.piece_id);
-      if (!piece) return null;
-      const { document_title, section_name } = resolveSection(piece, documents);
-      return {
+    .map((r): LibraryPracticeLogEntry | null => {
+      const base = {
         id: r.id,
-        piece_id: r.piece_id,
         strategy: r.strategy,
         practiced_at: r.practiced_at,
         data_json: r.data_json,
         exercise_id: r.exercise_id,
-        exercise_name: r.exercise_id ? exerciseNames.get(r.exercise_id) ?? null : null,
-        piece_title: piece.title,
-        document_id: piece.document_id,
-        document_title,
-        section_name,
-        folder_id: piece.folder_id,
-        folder_name: piece.folder_id ? folderNames.get(piece.folder_id) ?? null : null,
+        exercise_name: r.exercise_id
+          ? exerciseNames.get(r.exercise_id) ?? null
+          : null,
       };
+      if (r.piece_id) {
+        const piece = pieceById.get(r.piece_id);
+        if (!piece) return null;
+        const { document_title, section_name } = resolveSection(piece, documents);
+        return {
+          ...base,
+          piece_id: r.piece_id,
+          piece_title: piece.title,
+          document_id: piece.document_id,
+          document_title,
+          section_name,
+          folder_id: piece.folder_id,
+          folder_name: piece.folder_id
+            ? folderNames.get(piece.folder_id) ?? null
+            : null,
+        };
+      }
+      // A document-level entry (a recording made on the PDF viewer): file it
+      // under the document's title, in the document's folder.
+      if (r.document_id) {
+        const doc = documents.get(r.document_id);
+        if (!doc) return null;
+        return {
+          ...base,
+          piece_id: r.document_id,
+          piece_title: doc.title,
+          document_id: null,
+          document_title: null,
+          section_name: null,
+          folder_id: doc.folder_id,
+          folder_name: doc.folder_id
+            ? folderNames.get(doc.folder_id) ?? null
+            : null,
+        };
+      }
+      return null;
     })
     .filter((r): r is LibraryPracticeLogEntry => r !== null);
 }
@@ -338,10 +368,10 @@ export async function getPracticeLogForDocument(
       .is('deleted_at', null),
     supabase
       .from('practice_log')
-      .select('id, piece_id, strategy, practiced_at, data_json, exercise_id')
+      .select('id, piece_id, document_id, strategy, practiced_at, data_json, exercise_id')
       .order('practiced_at', { ascending: false }),
     supabase.from('exercises').select('id, name'),
-    supabase.from('documents').select('id, title, sections_json').eq('id', document_id),
+    supabase.from('documents').select('id, title, sections_json, folder_id').eq('id', document_id),
   ]);
   if (piecesRes.error) throw piecesRes.error;
   if (logsRes.error) throw logsRes.error;
@@ -363,29 +393,53 @@ export async function getPracticeLogForDocument(
 
   return ((logsRes.data ?? []) as unknown as Array<{
     id: number;
-    piece_id: string;
+    piece_id: string | null;
+    document_id: string | null;
     strategy: string;
     practiced_at: number;
     data_json: string | null;
     exercise_id: string | null;
   }>)
-    .map((r) => {
-      const piece = pieceById.get(r.piece_id);
-      if (!piece) return null;
-      const { document_title, section_name } = resolveSection(piece, documents);
-      return {
+    .map((r): PracticeLogWithTitle | null => {
+      const base = {
         id: r.id,
-        piece_id: r.piece_id,
         strategy: r.strategy,
         practiced_at: r.practiced_at,
         data_json: r.data_json,
         exercise_id: r.exercise_id,
-        exercise_name: r.exercise_id ? exerciseNames.get(r.exercise_id) ?? null : null,
-        piece_title: piece.title,
-        document_id: piece.document_id,
-        document_title,
-        section_name,
+        exercise_name: r.exercise_id
+          ? exerciseNames.get(r.exercise_id) ?? null
+          : null,
       };
+      if (r.piece_id) {
+        const piece = pieceById.get(r.piece_id);
+        if (!piece) return null;
+        const { document_title, section_name } = resolveSection(piece, documents);
+        return {
+          ...base,
+          piece_id: r.piece_id,
+          piece_title: piece.title,
+          document_id: piece.document_id,
+          document_title,
+          section_name,
+        };
+      }
+      // A document-level entry (a recording made on the PDF viewer). The
+      // documents map holds only this document, so a no-piece row matches
+      // here only when it belongs to this document.
+      if (r.document_id) {
+        const doc = documents.get(r.document_id);
+        if (!doc) return null;
+        return {
+          ...base,
+          piece_id: r.document_id,
+          piece_title: doc.title,
+          document_id: null,
+          document_title: null,
+          section_name: null,
+        };
+      }
+      return null;
     })
     .filter((r): r is PracticeLogWithTitle => r !== null);
 }
@@ -406,10 +460,10 @@ export async function getPracticeLogForFolder(
     filteredPiecesQuery,
     supabase
       .from('practice_log')
-      .select('id, piece_id, strategy, practiced_at, data_json, exercise_id')
+      .select('id, piece_id, document_id, strategy, practiced_at, data_json, exercise_id')
       .order('practiced_at', { ascending: false }),
     supabase.from('exercises').select('id, name'),
-    supabase.from('documents').select('id, title, sections_json').is('deleted_at', null),
+    supabase.from('documents').select('id, title, sections_json, folder_id').is('deleted_at', null),
   ]);
   if (piecesRes.error) throw piecesRes.error;
   if (logsRes.error) throw logsRes.error;
@@ -431,29 +485,52 @@ export async function getPracticeLogForFolder(
 
   return ((logsRes.data ?? []) as unknown as Array<{
     id: number;
-    piece_id: string;
+    piece_id: string | null;
+    document_id: string | null;
     strategy: string;
     practiced_at: number;
     data_json: string | null;
     exercise_id: string | null;
   }>)
-    .map((r) => {
-      const piece = pieceById.get(r.piece_id);
-      if (!piece) return null;
-      const { document_title, section_name } = resolveSection(piece, documents);
-      return {
+    .map((r): PracticeLogWithTitle | null => {
+      const base = {
         id: r.id,
-        piece_id: r.piece_id,
         strategy: r.strategy,
         practiced_at: r.practiced_at,
         data_json: r.data_json,
         exercise_id: r.exercise_id,
-        exercise_name: r.exercise_id ? exerciseNames.get(r.exercise_id) ?? null : null,
-        piece_title: piece.title,
-        document_id: piece.document_id,
-        document_title,
-        section_name,
+        exercise_name: r.exercise_id
+          ? exerciseNames.get(r.exercise_id) ?? null
+          : null,
       };
+      if (r.piece_id) {
+        const piece = pieceById.get(r.piece_id);
+        if (!piece) return null;
+        const { document_title, section_name } = resolveSection(piece, documents);
+        return {
+          ...base,
+          piece_id: r.piece_id,
+          piece_title: piece.title,
+          document_id: piece.document_id,
+          document_title,
+          section_name,
+        };
+      }
+      // A document-level entry (a recording made on the PDF viewer): keep it
+      // only when its document lives in this folder.
+      if (r.document_id) {
+        const doc = documents.get(r.document_id);
+        if (!doc || doc.folder_id !== folder_id) return null;
+        return {
+          ...base,
+          piece_id: r.document_id,
+          piece_title: doc.title,
+          document_id: null,
+          document_title: null,
+          section_name: null,
+        };
+      }
+      return null;
     })
     .filter((r): r is PracticeLogWithTitle => r !== null);
 }

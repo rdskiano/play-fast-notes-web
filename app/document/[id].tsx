@@ -155,6 +155,18 @@ export default function DocumentScreen() {
   const currentPage = currentIndex * (viewMode === 'spread' ? 2 : 1) + 1;
   const docAnn = useDocumentAnnotation(id, currentPage);
 
+  // Forward navigation (a push) doesn't fire 'beforeRemove', so an unsaved
+  // page annotation must be flushed here first — else the next screen loads
+  // stale data. Also drop the annotation-forced single-page view.
+  const guardedNav = useCallback(
+    async (navigate: () => void) => {
+      if (docAnn.annotating) setViewModeOverride(null);
+      await docAnn.flush();
+      navigate();
+    },
+    [docAnn],
+  );
+
   const scrollRef = useRef<ScrollView | null>(null);
 
   const refresh = useCallback(async () => {
@@ -496,7 +508,7 @@ export default function DocumentScreen() {
         primary: true,
         onPress: () => {
           setSelectedPassageId(null);
-          router.push(`/passage/${passage.id}` as never);
+          guardedNav(() => router.push(`/passage/${passage.id}` as never));
         },
       },
       {
@@ -684,10 +696,12 @@ export default function DocumentScreen() {
                 size="sm"
                 onPress={() => {
                   if (!doc) return;
-                  router.push({
-                    pathname: '/document-log',
-                    params: { documentId: doc.id, documentTitle: doc.title },
-                  } as never);
+                  guardedNav(() =>
+                    router.push({
+                      pathname: '/document-log',
+                      params: { documentId: doc.id, documentTitle: doc.title },
+                    } as never),
+                  );
                 }}
               />
               <Button
@@ -817,6 +831,7 @@ export default function DocumentScreen() {
                               pageW={p.w}
                               pageH={p.h}
                               canvasRef={docAnn.canvasRef}
+                              onChange={docAnn.onDraw}
                             />
                           ) : docAnn.annotations.get(p.index)?.imageUri ? (
                             <View
@@ -921,7 +936,9 @@ export default function DocumentScreen() {
             )}
           </>
         )}
-        {mode === 'idle' && <PracticeToolsLayer pencil={pencilProp} />}
+        {mode === 'idle' && (
+          <PracticeToolsLayer pencil={pencilProp} recorderDocumentId={id} />
+        )}
       </View>
 
       {markingSection && (

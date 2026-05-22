@@ -10,7 +10,8 @@
 // edge (an empty array clears that edge). The rhythm exercise generator,
 // for example, stacks Timer / Metronome / Pencil all on the right.
 
-import { useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   type LayoutChangeEvent,
   Pressable,
@@ -20,6 +21,7 @@ import {
 
 import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { DEVICE, MetronomePanel } from '@/components/MetronomePanel';
+import { RecorderPanel } from '@/components/RecorderPanel';
 import { ThemedText } from '@/components/themed-text';
 import { ToolDock, type DockEdge } from '@/components/ToolDock';
 import { Colors } from '@/constants/theme';
@@ -33,19 +35,19 @@ const SPAN = 142;
 const SPAN_COMPACT = 96;
 const TAB_THICKNESS = 34;
 
-export type ToolKey = 'pencil' | 'metronome' | 'timer' | 'tuner';
+export type ToolKey = 'pencil' | 'metronome' | 'timer' | 'recorder';
 
 // Default edge layout. A screen passes `tools` to override either edge —
 // an empty array clears that edge entirely.
 const DEFAULT_LAYOUT: Record<DockEdge, ToolKey[]> = {
   left: ['pencil', 'metronome'],
-  right: ['timer', 'tuner'],
+  right: ['timer', 'recorder'],
 };
 
 // A tool's tab is "compact" (Pencil, Timer) or full-height (Metronome,
-// Tuner) — this drives both the tab length and how tabs stack down an edge.
+// Recorder) — this drives both the tab length and how tabs stack down an edge.
 function tabSpan(key: ToolKey): number {
-  return key === 'metronome' || key === 'tuner' ? SPAN : SPAN_COMPACT;
+  return key === 'metronome' || key === 'recorder' ? SPAN : SPAN_COMPACT;
 }
 
 // The Timer tool's device identity — a blue analogue of the metronome's
@@ -65,6 +67,8 @@ export function PracticeToolsLayer({
   metronomeNote,
   metronomeNext,
   pencil,
+  recorderPassageId,
+  recorderDocumentId,
   tools,
 }: {
   metronome?: MetronomeApi;
@@ -72,12 +76,21 @@ export function PracticeToolsLayer({
   metronomeNext?: () => void;
   /** When set, the PENCIL tab becomes an annotation-mode toggle. */
   pencil?: { active: boolean; onToggle: () => void };
+  /** Current passage — lets the RECORDER tool save takes to its practice log. */
+  recorderPassageId?: string;
+  /** Current document — used by the RECORDER on the PDF viewer (no passage). */
+  recorderDocumentId?: string;
   tools?: { left?: ToolKey[]; right?: ToolKey[] };
 } = {}) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const panelBg = scheme === 'dark' ? '#1f2123f4' : '#fffffff4';
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // Tool cards collapse when the screen loses focus: bumping this key on blur
+  // remounts every dock, so a popped-out tool (e.g. the Recorder) never
+  // persists open — or keeps stale takes — across navigation.
+  const [resetKey, setResetKey] = useState(0);
+  useFocusEffect(useCallback(() => () => setResetKey((k) => k + 1), []));
   // On a score-viewing screen the layer owns a free-standing metronome; on
   // a practice screen the strategy passes its own so it can drive it.
   const ownMetronome = useMetronome(120);
@@ -97,7 +110,7 @@ export function PracticeToolsLayer({
 
   function renderTool(key: ToolKey, edge: DockEdge, tabTop: number) {
     const span = tabSpan(key);
-    const dockKey = `${edge}-${key}`;
+    const dockKey = `${edge}-${key}-${resetKey}`;
     switch (key) {
       case 'pencil':
         if (pencil) {
@@ -118,7 +131,7 @@ export function PracticeToolsLayer({
             key={dockKey}
             edge={edge}
             label="PENCIL"
-            accent="#9b59b6"
+            accent={DEVICE.body}
             tabTop={tabTop}
             tabSpan={span}
             panelWidth={240}
@@ -159,7 +172,7 @@ export function PracticeToolsLayer({
             key={dockKey}
             edge={edge}
             label="TIMER"
-            accent={TIMER_DEVICE.body}
+            accent={DEVICE.body}
             panelBg={TIMER_DEVICE.body}
             borderColor={TIMER_DEVICE.rim}
             tabTop={tabTop}
@@ -183,22 +196,21 @@ export function PracticeToolsLayer({
             </View>
           </ToolDock>
         );
-      case 'tuner':
+      case 'recorder':
         return (
           <ToolDock
             {...common}
             key={dockKey}
             edge={edge}
-            label="TUNER"
-            accent={C.tint}
+            label="RECORDER"
+            accent={DEVICE.body}
             tabTop={tabTop}
             tabSpan={span}
-            panelWidth={250}
-            panelHeight={300}>
-            <ToolPlaceholder
-              title="Tuner"
-              body="Live pitch detection is coming soon — this panel will show the note you’re playing and how sharp or flat it is."
-              color={C.icon}
+            panelWidth={300}
+            panelHeight={430}>
+            <RecorderPanel
+              passageId={recorderPassageId}
+              documentId={recorderDocumentId}
             />
           </ToolDock>
         );
@@ -268,7 +280,7 @@ function PencilTab({
         {
           top: tabTop,
           height: tabSpan,
-          backgroundColor: active ? '#5b2c6f' : '#9b59b6',
+          backgroundColor: active ? DEVICE.rim : DEVICE.body,
         },
       ]}>
       <ThemedText

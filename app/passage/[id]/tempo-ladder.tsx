@@ -300,6 +300,7 @@ export default function TempoLadderScreen() {
           metronome={metronome}
           metronomeNote="Tempo Ladder controls the tempo — no need to adjust it. Just press play."
           pencil={ann.pencil}
+          recorderPassageId={passage?.id}
         />
       </View>
 

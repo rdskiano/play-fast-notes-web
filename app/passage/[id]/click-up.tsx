@@ -322,6 +322,7 @@ export default function ClickUpScreen() {
           metronome={metronome}
           metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."
           pencil={ann.pencil}
+          recorderPassageId={passage?.id}
         />
       </View>
 

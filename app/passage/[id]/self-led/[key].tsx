@@ -133,7 +133,7 @@ export default function SelfLedSessionScreen() {
           </View>
         )}
         {ann.canvas}
-        <PracticeToolsLayer pencil={ann.pencil} />
+        <PracticeToolsLayer pencil={ann.pencil} recorderPassageId={passage?.id} />
       </View>
 
       <SelfLedHelpModal

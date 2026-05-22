@@ -235,7 +235,11 @@ export default function RhythmicScreen() {
         />
         {ann.canvas}
         {phase === 'playing' && (
-          <PracticeToolsLayer metronome={metronome} pencil={ann.pencil} />
+          <PracticeToolsLayer
+            metronome={metronome}
+            pencil={ann.pencil}
+            recorderPassageId={passage?.id}
+          />
         )}
       </View>
 

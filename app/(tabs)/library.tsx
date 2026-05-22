@@ -1207,7 +1207,7 @@ function PracticeProgressionModal({
     {
       title: 'Serial Practice',
       body:
-        'Drill several passages in a single session — spend a fixed amount of time or a fixed number of repetitions on each, then move on. Inside, you pick an order: Serial (same rotation each time, predictable) or Interleaved (random rotation across selected passages — tests whether you can perform on the first try, like an audition).',
+        'Drill several passages in a single session — a fixed number of clean repetitions on each, then move on. Inside, you pick an order: Serial (same rotation each time, predictable) or Interleaved (random rotation across selected passages — tests whether you can perform on the first try, like an audition).',
     },
   ];
   return (

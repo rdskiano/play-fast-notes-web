@@ -90,6 +90,17 @@ export default function PassageDetailScreen() {
   const ann = useScoreAnnotation(passage);
   const annotating = ann.pencil.active;
 
+  // Forward navigation (a push) doesn't fire 'beforeRemove', so an unsaved
+  // pencil mark must be flushed here before leaving — otherwise the next
+  // screen loads stale annotation data.
+  const guardedNav = useCallback(
+    async (navigate: () => void) => {
+      await ann.flush();
+      navigate();
+    },
+    [ann],
+  );
+
   useFocusEffect(
     useCallback(() => {
       if (!id) return;
@@ -215,9 +226,9 @@ export default function PassageDetailScreen() {
   function openStrategy(key: StrategyKey) {
     if (!passage) return;
     if (key === 'tempo_ladder') {
-      router.push(`/passage/${passage.id}/tempo-ladder`);
+      guardedNav(() => router.push(`/passage/${passage.id}/tempo-ladder`));
     } else if (key === 'click_up') {
-      router.push(`/passage/${passage.id}/click-up`);
+      guardedNav(() => router.push(`/passage/${passage.id}/click-up`));
     } else if (key === 'rhythmic') {
       setRhythmicStep('mode');
       setRhythmicSheetOpen(true);
@@ -270,7 +281,9 @@ export default function PassageDetailScreen() {
           </Pressable>
           <View style={{ flex: 1 }} />
           <Pressable
-            onPress={() => router.push(`/passage/${passage.id}/history`)}
+            onPress={() =>
+              guardedNav(() => router.push(`/passage/${passage.id}/history`))
+            }
             style={[styles.outlinePill, { borderColor: C.icon }]}>
             <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
               Practice History
@@ -278,11 +291,13 @@ export default function PassageDetailScreen() {
           </Pressable>
           <Pressable
             onPress={() =>
-              passage.document_id
-                ? router.push(
-                    `/document/${passage.document_id}?resize=${passage.id}`,
-                  )
-                : router.push(`/passage/${passage.id}/crop`)
+              guardedNav(() =>
+                passage.document_id
+                  ? router.push(
+                      `/document/${passage.document_id}?resize=${passage.id}`,
+                    )
+                  : router.push(`/passage/${passage.id}/crop`),
+              )
             }
             style={[styles.outlinePill, { borderColor: C.icon }]}>
             <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
@@ -355,7 +370,7 @@ export default function PassageDetailScreen() {
           </View>
         )}
 
-        <PracticeToolsLayer pencil={ann.pencil} />
+        <PracticeToolsLayer pencil={ann.pencil} recorderPassageId={passage?.id} />
       </View>
 
       <Modal
@@ -401,10 +416,12 @@ export default function PassageDetailScreen() {
                     label="Exercise Builder"
                     onPress={() => {
                       setRhythmicSheetOpen(false);
-                      router.push({
-                        pathname: '/passage/[id]/rhythm-list',
-                        params: { id: passage.id },
-                      });
+                      guardedNav(() =>
+                        router.push({
+                          pathname: '/passage/[id]/rhythm-list',
+                          params: { id: passage.id },
+                        }),
+                      );
                     }}
                     style={{ backgroundColor: '#9b59b6' }}
                     fullWidth
@@ -431,10 +448,12 @@ export default function PassageDetailScreen() {
                         key={n}
                         onPress={() => {
                           setRhythmicSheetOpen(false);
-                          router.push({
-                            pathname: '/passage/[id]/rhythmic',
-                            params: { id: passage.id, grouping: String(n) },
-                          });
+                          guardedNav(() =>
+                            router.push({
+                              pathname: '/passage/[id]/rhythmic',
+                              params: { id: passage.id, grouping: String(n) },
+                            }),
+                          );
                         }}
                         style={[styles.groupingChip, { borderColor: C.icon }]}>
                         <AbcStaffView abc={abc} width={w} height={60} hideStaffLines centered />
@@ -461,11 +480,13 @@ export default function PassageDetailScreen() {
         onPick={(key) => {
           setSelfLedOpen(false);
           if (!passage) return;
-          if (key === 'recording') {
-            router.push(`/passage/${passage.id}/self-led/recording` as never);
-          } else {
-            router.push(`/passage/${passage.id}/self-led/${key}` as never);
-          }
+          guardedNav(() => {
+            if (key === 'recording') {
+              router.push(`/passage/${passage.id}/self-led/recording` as never);
+            } else {
+              router.push(`/passage/${passage.id}/self-led/${key}` as never);
+            }
+          });
         }}
       />
     </ThemedView>

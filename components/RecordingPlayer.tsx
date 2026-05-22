@@ -1,14 +1,21 @@
-// Inline player for a Self-Led Recording entry in the practice log.
-// Uses a raw HTML <audio> element with native controls — simplest path on
-// web, and the browser handles play/pause/seek/buffering. iPad parity will
-// swap this for an expo-audio component when Self-Led Recording lands on
-// the iPad in a future playbuild.
+// Inline player for a recording entry in the practice log (iOS).
+// An expo-audio player with a play/pause button, a progress bar, and time.
+// (The web sibling uses a raw HTML <audio> element.)
+//
+// New recordings are AAC (.m4a) and play natively. Older web-made recordings
+// are .webm/opus, which iOS can't decode — those simply won't start.
 
-import { useState } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import {
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+} from 'expo-audio';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, Type } from '@/constants/tokens';
+import { Colors } from '@/constants/theme';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 type Props = {
   uri: string;
@@ -16,56 +23,89 @@ type Props = {
   maxWidth?: number;
 };
 
-// Stops every relevant pointer / touch / click event from bubbling up to
-// the surrounding Pressable, which would otherwise open the entry's edit
-// modal whenever the user just wanted to scrub or play the audio.
-function stopAll(e: { stopPropagation: () => void }) {
-  e.stopPropagation();
+function fmt(sec: number): string {
+  const s = Math.max(0, Math.floor(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
 export function RecordingPlayer({ uri, maxWidth }: Props) {
-  const [errored, setErrored] = useState(false);
-  const [errorCode, setErrorCode] = useState<number | null>(null);
-  if (Platform.OS !== 'web') return null;
-  if (errored) {
-    return (
-      <View style={{ paddingTop: Spacing.xs, maxWidth, gap: 2 }}>
-        <ThemedText style={{ fontSize: Type.size.xs, fontStyle: 'italic', opacity: 0.6 }}>
-          Recording unavailable{errorCode != null ? ` (code ${errorCode})` : ''}.
-        </ThemedText>
-        <Pressable
-          onPress={() => {
-            if (typeof window !== 'undefined') window.open(uri, '_blank');
-          }}>
-          <ThemedText style={{ fontSize: Type.size.xs, color: '#1976d2', textDecorationLine: 'underline' }}>
-            Open audio URL in new tab
-          </ThemedText>
-        </Pressable>
-      </View>
-    );
+  const scheme = useColorScheme() ?? 'light';
+  const C = Colors[scheme];
+  const player = useAudioPlayer({ uri });
+  const status = useAudioPlayerStatus(player);
+
+  const total = status.duration > 0 ? status.duration : 0;
+  const progress = total > 0 ? Math.min(1, status.currentTime / total) : 0;
+
+  async function toggle() {
+    if (status.playing) {
+      player.pause();
+      return;
+    }
+    // Restart if it finished; otherwise resume where it paused.
+    if (total > 0 && status.currentTime >= total - 0.25) {
+      player.seekTo(0);
+    }
+    await setAudioModeAsync({ playsInSilentMode: true });
+    player.play();
   }
+
   return (
-    <div
-      onPointerDown={stopAll}
-      onMouseDown={stopAll}
-      onTouchStart={stopAll}
-      onClick={stopAll}
-      style={{ paddingTop: Spacing.xs, maxWidth, width: '100%' }}>
-      {/* eslint-disable-next-line react-native/no-raw-text */}
-      <audio
-        src={uri}
-        controls
-        preload="metadata"
-        onError={(e) => {
-          const target = e.currentTarget as HTMLAudioElement;
-          const code = target?.error?.code ?? null;
-          // eslint-disable-next-line no-console
-          console.warn('[RecordingPlayer] audio error', { uri, code, error: target?.error });
-          setErrorCode(code);
-          setErrored(true);
-        }}
-        style={{ width: '100%', height: 30 }}
-      />
-    </div>
+    <View style={[styles.row, { maxWidth, borderColor: C.icon + '33' }]}>
+      <Pressable
+        onPress={toggle}
+        hitSlop={8}
+        style={[styles.btn, { borderColor: C.tint }]}>
+        <ThemedText style={[styles.glyph, { color: C.tint }]}>
+          {status.playing ? '❚❚' : '▶'}
+        </ThemedText>
+      </Pressable>
+      <View style={[styles.track, { backgroundColor: C.icon + '22' }]}>
+        <View
+          style={[
+            styles.fill,
+            { width: `${progress * 100}%`, backgroundColor: C.tint },
+          ]}
+        />
+      </View>
+      <ThemedText style={[styles.time, { color: C.icon }]}>
+        {fmt(status.currentTime)}
+        {total > 0 ? ` / ${fmt(total)}` : ''}
+      </ThemedText>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderWidth: Borders.thin,
+    borderRadius: Radii.md,
+  },
+  btn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: Borders.thin,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glyph: { fontSize: 11, fontWeight: Type.weight.heavy },
+  track: {
+    flex: 1,
+    height: 5,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  fill: { height: '100%', borderRadius: 3 },
+  time: {
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.semibold,
+    fontVariant: ['tabular-nums'],
+  },
+});

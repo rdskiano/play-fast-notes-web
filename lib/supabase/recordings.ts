@@ -1,3 +1,5 @@
+import { File } from 'expo-file-system';
+
 import { supabase } from './client';
 
 const BUCKET = 'recordings';
@@ -78,4 +80,56 @@ export async function deleteRecording(publicUrl: string): Promise<void> {
 
 export function newRecordingId(): string {
   return `r_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Where a saved recording is filed in the practice log. */
+export type RecordingTarget =
+  | { passageId: string }
+  | { documentId: string };
+
+/**
+ * Save a finished recording: upload the audio to Supabase Storage and write a
+ * `'recording'` entry into the Supabase `practice_log`. The entry attaches to
+ * a passage, or to a whole document when recorded from the PDF viewer (which
+ * has no single passage). It's written straight to Supabase (not the local
+ * SQLite log) so a recording made on the iPad shows up in the practice log on
+ * the web app too.
+ *
+ * `fileUri` is a local `file://` URI from expo-audio's recorder.
+ */
+export async function saveRecording(
+  target: RecordingTarget,
+  fileUri: string,
+  durationSec: number,
+): Promise<void> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+  if (!userId) throw new Error('Not signed in');
+
+  // Read the recording's bytes directly. `fetch(fileUri).blob()` yields a
+  // zero-length blob in React Native, which would silently upload an empty
+  // file — the recording would look saved but play back as silence.
+  const bytes = await new File(fileUri).bytes();
+  if (bytes.length === 0) throw new Error('Recording is empty.');
+
+  const recordingId = newRecordingId();
+  const path = `${userId}/${recordingId}.m4a`;
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, bytes, { contentType: 'audio/mp4', upsert: false });
+  if (uploadError) throw uploadError;
+  const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
+
+  const { error } = await supabase.from('practice_log').insert({
+    piece_id: 'passageId' in target ? target.passageId : null,
+    document_id: 'documentId' in target ? target.documentId : null,
+    strategy: 'recording',
+    practiced_at: Date.now(),
+    data_json: JSON.stringify({
+      recording_uri: pub.publicUrl,
+      recording_id: recordingId,
+      duration_seconds: Math.round(durationSec),
+    }),
+  });
+  if (error) throw error;
 }

@@ -116,7 +116,7 @@ export default function ChunkingScreen() {
           </View>
         )}
         {ann.canvas}
-        <PracticeToolsLayer pencil={ann.pencil} />
+        <PracticeToolsLayer pencil={ann.pencil} recorderPassageId={passage?.id} />
       </View>
 
       <ChunkingHelpModal visible={helpOpen} onClose={() => setHelpOpen(false)} />

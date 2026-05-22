@@ -244,7 +244,7 @@ export default function SelfLedRecordingScreen() {
           </View>
         )}
         {ann.canvas}
-        <PracticeToolsLayer pencil={ann.pencil} />
+        <PracticeToolsLayer pencil={ann.pencil} recorderPassageId={passage?.id} />
       </View>
 
       <View
