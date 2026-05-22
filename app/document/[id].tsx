@@ -150,8 +150,9 @@ export default function DocumentScreen() {
     setViewModeOverride(nextMode === autoViewMode ? null : nextMode);
   }
 
-  // 0-indexed page that Apple Pencil annotation applies to.
-  const currentPage = currentIndex * (viewMode === 'spread' ? 2 : 1);
+  // The page Apple Pencil annotation applies to — 1-indexed, matching
+  // DocumentPage.index (so `p.index === currentPage` picks the visible page).
+  const currentPage = currentIndex * (viewMode === 'spread' ? 2 : 1) + 1;
   const docAnn = useDocumentAnnotation(id, currentPage);
 
   const scrollRef = useRef<ScrollView | null>(null);
