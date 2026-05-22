@@ -314,7 +314,7 @@ export function MetronomePanel({
             ]}>
             <ThemedText
               style={[styles.tapText, m.droneEnabled && { color: '#fff' }]}>
-              DRONE
+              DRONE MET
             </ThemedText>
           </Pressable>
         </View>

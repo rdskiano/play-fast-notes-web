@@ -1,29 +1,24 @@
 // Foot-pedal capture. Renders the native KeyCaptureView from the local
 // `hardware-keys` Expo module — an invisible view that reports hardware key
-// presses (arrows / enter / space / page up-down). A Bluetooth foot pedal
-// pairs as a keyboard; any key it sends counts as a pedal press and calls
-// `onAdvance`. The on-screen readout shows whether a keyboard is connected
-// and which capture path is seeing the key.
+// presses. A Bluetooth foot pedal pairs as a keyboard; any key it sends
+// counts as a pedal press and calls `onAdvance`. Renders nothing while the
+// pedal is working — only surfaces a warning when no keyboard is detected.
 
 import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { KeyCaptureView, type HardwareKey } from '@/modules/hardware-keys';
+import { KeyCaptureView } from '@/modules/hardware-keys';
 
 export function PedalCatcher({
   active,
   onAdvance,
-  onKey,
 }: {
   active: boolean;
   onAdvance: () => void;
-  /** Reports the last key seen — for the on-screen "is it working" readout. */
-  onKey?: (key: string) => void;
 }) {
-  const [lastKey, setLastKey] = useState('—');
-  const [connected, setConnected] = useState(false);
-  const [armed, setArmed] = useState(false);
+  // null until the native side first reports; then true / false.
+  const [connected, setConnected] = useState<boolean | null>(null);
   const lastAdvanceRef = useRef(0);
 
   if (!active) return null;
@@ -31,19 +26,15 @@ export function PedalCatcher({
   const Capture = KeyCaptureView;
   if (!Capture) {
     return (
-      <View style={styles.wrap}>
-        <ThemedText style={styles.line}>
-          Foot pedal: native module not in this build — reinstall the latest build.
-        </ThemedText>
-      </View>
+      <ThemedText style={styles.warn}>
+        Foot pedal needs the latest app build — reinstall to use it.
+      </ThemedText>
     );
   }
 
-  function handleKey(key: HardwareKey, via: string) {
-    setLastKey(`${key} (${via})`);
-    onKey?.(key);
+  function advance() {
     const now = Date.now();
-    // De-dupe rapid repeats / key auto-repeat / multiple capture paths firing.
+    // De-dupe key auto-repeat and the multiple native capture paths.
     if (now - lastAdvanceRef.current > 300) {
       lastAdvanceRef.current = now;
       onAdvance();
@@ -51,26 +42,29 @@ export function PedalCatcher({
   }
 
   return (
-    <View style={styles.wrap}>
+    <View>
       <Capture
         style={styles.capture}
-        onArrowKey={(e) => handleKey(e.nativeEvent.key, e.nativeEvent.via)}
-        onStatus={(e) => {
-          setConnected(e.nativeEvent.keyboard);
-          setArmed(e.nativeEvent.firstResponder);
-        }}
+        onArrowKey={() => advance()}
+        onStatus={(e) => setConnected(e.nativeEvent.keyboard)}
       />
-      <ThemedText style={styles.line}>
-        Foot pedal: {connected ? 'connected' : 'not detected'} — last press: {lastKey}
-      </ThemedText>
-      <ThemedText style={styles.sub}>capture armed: {armed ? 'yes' : 'no'}</ThemedText>
+      {connected === false && (
+        <ThemedText style={styles.warn}>
+          Foot pedal not detected — switch it on and check it&apos;s paired in
+          Settings → Bluetooth.
+        </ThemedText>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: 20, paddingVertical: 6 },
-  line: { fontSize: 13, fontWeight: '700' },
-  sub: { fontSize: 11, opacity: 0.6 },
+  warn: {
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 6,
+  },
   capture: { position: 'absolute', width: 1, height: 1, opacity: 0 },
 });

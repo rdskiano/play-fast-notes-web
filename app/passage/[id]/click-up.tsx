@@ -40,7 +40,6 @@ export default function ClickUpScreen() {
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   const [pedalMode, setPedalMode] = useState(false);
-  const [lastPedalKey, setLastPedalKey] = useState<string | null>(null);
   const session = useClickUpSession(id);
 
   useEffect(() => {
@@ -299,16 +298,13 @@ export default function ClickUpScreen() {
 
       <ThemedText style={styles.playHelper}>
         {pedalMode
-          ? `Foot pedal on — press it to advance.  Last key seen: ${
-              lastPedalKey ?? '—'
-            }`
+          ? 'Foot pedal on — press it to advance.'
           : 'Play from one green arrow ▼ to the next.'}
       </ThemedText>
 
       <PedalCatcher
         active={pedalMode && !notePromptVisible && !celebrating}
         onAdvance={onNext}
-        onKey={setLastPedalKey}
       />
 
       <View style={styles.contentArea}>
@@ -320,9 +316,17 @@ export default function ClickUpScreen() {
         />
         <PracticeToolsLayer
           metronome={metronome}
-          metronomeNext={onNext}
           metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."
         />
+      </View>
+
+      <View style={styles.bottomBar}>
+        <ThemedText style={styles.pedalNote}>
+          Tap PEDAL (top-right) to advance with an optional foot pedal.
+        </ThemedText>
+        <Pressable onPress={onNext} style={styles.nextBtn}>
+          <ThemedText style={styles.nextBtnText}>NEXT →</ThemedText>
+        </Pressable>
       </View>
 
       <PracticeLogNotePrompt
@@ -380,6 +384,28 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   doneBtn: { backgroundColor: Status.danger },
+  bottomBar: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  pedalNote: {
+    textAlign: 'center',
+    fontSize: 12,
+    opacity: Opacity.muted,
+  },
+  nextBtn: {
+    backgroundColor: '#2ecc71',
+    paddingVertical: 16,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+  },
+  nextBtnText: {
+    color: '#fff',
+    fontWeight: Type.weight.heavy,
+    fontSize: Type.size.lg,
+  },
   contentArea: { flex: 1 },
   divider: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.xs },
   blurbText: { opacity: Opacity.muted, fontSize: Type.size.lg, lineHeight: 23 },
