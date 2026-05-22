@@ -35,6 +35,47 @@ export async function uploadPassageImage(
   return `${data.publicUrl}?v=${Date.now()}`;
 }
 
+/**
+ * Upload an annotation PNG (a base64 string) to the pieces bucket. Returns the
+ * public URL. The PNG is the flattened Apple Pencil drawing — the web app
+ * displays it over the score because it can't render native PencilKit data.
+ *
+ * Path scheme: `<user_id>/<piece_id>-annotation.png`. Works on iPad and web.
+ */
+export async function uploadAnnotationImage(
+  pieceId: string,
+  base64Png: string,
+): Promise<string> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+  if (!userId) throw new Error('Not signed in');
+
+  const path = `${userId}/${pieceId}-annotation.png`;
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, base64ToBytes(base64Png), {
+      upsert: true,
+      contentType: 'image/png',
+    });
+  if (error) throw error;
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  // Cache-bust: the path is stable (upsert overwrites), so without a version
+  // query the CDN keeps serving the previous annotation.
+  return `${data.publicUrl}?v=${Date.now()}`;
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  // Tolerate a data-URL prefix (`data:image/png;base64,...`).
+  const clean = base64.includes(',')
+    ? base64.slice(base64.indexOf(',') + 1)
+    : base64;
+  const binary = atob(clean);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 function inferExt(file: File): string {
   // Prefer the actual file extension; fall back to MIME type; default to jpg.
   const fromName = file.name.split('.').pop();

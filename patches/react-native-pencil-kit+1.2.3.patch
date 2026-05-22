@@ -1,0 +1,16 @@
+diff --git a/node_modules/react-native-pencil-kit/ios/RNPencilKit.mm b/node_modules/react-native-pencil-kit/ios/RNPencilKit.mm
+index 82c8b1e..8c360fe 100644
+--- a/node_modules/react-native-pencil-kit/ios/RNPencilKit.mm
++++ b/node_modules/react-native-pencil-kit/ios/RNPencilKit.mm
+@@ -29,6 +29,11 @@ - (instancetype)initWithFrame:(CGRect)frame {
+     _props = defaultProps;
+ 
+     _view = [[PKCanvasView alloc] initWithFrame:frame];
++    // patched (patch-package): start transparent so a score image behind the
++    // canvas shows through. The backgroundColor / isOpaque props can't deliver
++    // this reliably — updateProps skips any value equal to the zero default.
++    _view.backgroundColor = UIColor.clearColor;
++    _view.opaque = NO;
+     _view.delegate = self;
+     _toolPicker = [[PKToolPicker alloc] init];
+     [_toolPicker addObserver:_view];

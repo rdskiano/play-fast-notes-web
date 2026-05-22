@@ -11,7 +11,12 @@
 // for example, stacks Timer / Metronome / Pencil all on the right.
 
 import { useState } from 'react';
-import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
+import {
+  type LayoutChangeEvent,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { DEVICE, MetronomePanel } from '@/components/MetronomePanel';
@@ -26,6 +31,7 @@ const TOP_INSET = 52;
 const TAB_GAP = 8;
 const SPAN = 142;
 const SPAN_COMPACT = 96;
+const TAB_THICKNESS = 34;
 
 export type ToolKey = 'pencil' | 'metronome' | 'timer' | 'tuner';
 
@@ -58,11 +64,14 @@ export function PracticeToolsLayer({
   metronome,
   metronomeNote,
   metronomeNext,
+  pencil,
   tools,
 }: {
   metronome?: MetronomeApi;
   metronomeNote?: string;
   metronomeNext?: () => void;
+  /** When set, the PENCIL tab becomes an annotation-mode toggle. */
+  pencil?: { active: boolean; onToggle: () => void };
   tools?: { left?: ToolKey[]; right?: ToolKey[] };
 } = {}) {
   const scheme = useColorScheme() ?? 'light';
@@ -91,6 +100,18 @@ export function PracticeToolsLayer({
     const dockKey = `${edge}-${key}`;
     switch (key) {
       case 'pencil':
+        if (pencil) {
+          return (
+            <PencilTab
+              key={dockKey}
+              edge={edge}
+              tabTop={tabTop}
+              tabSpan={span}
+              active={pencil.active}
+              onToggle={pencil.onToggle}
+            />
+          );
+        }
         return (
           <ToolDock
             {...common}
@@ -223,7 +244,77 @@ function ToolPlaceholder({
   );
 }
 
+// The Apple Pencil tab is a toggle, not a pop-out card: tapping it turns the
+// annotation canvas on the host screen on or off.
+function PencilTab({
+  edge,
+  tabTop,
+  tabSpan,
+  active,
+  onToggle,
+}: {
+  edge: DockEdge;
+  tabTop: number;
+  tabSpan: number;
+  active: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onToggle}
+      style={[
+        styles.pencilTab,
+        edge === 'left' ? styles.pencilTabLeft : styles.pencilTabRight,
+        {
+          top: tabTop,
+          height: tabSpan,
+          backgroundColor: active ? '#5b2c6f' : '#9b59b6',
+        },
+      ]}>
+      <ThemedText
+        numberOfLines={1}
+        style={[
+          styles.pencilTabLabel,
+          {
+            width: tabSpan,
+            transform: [{ rotate: edge === 'left' ? '-90deg' : '90deg' }],
+          },
+        ]}>
+        {active ? 'DONE' : 'PENCIL'}
+      </ThemedText>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  pencilTab: {
+    position: 'absolute',
+    width: TAB_THICKNESS,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
+  },
+  pencilTabLeft: {
+    left: 0,
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+  },
+  pencilTabRight: {
+    right: 0,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+  },
+  pencilTabLabel: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    textAlign: 'center',
+  },
   placeholder: {
     flex: 1,
     padding: Spacing.lg,
