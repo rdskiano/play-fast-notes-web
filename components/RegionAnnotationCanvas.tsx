@@ -1,8 +1,9 @@
-// The editable Apple Pencil canvas for a passage cropped from a PDF page.
-// The PencilKit canvas is the WHOLE page — so strokes land in page
-// coordinates and become part of the page's annotation — but it's oversized
-// and offset inside a clip so only the passage's region box is visible and
-// drawable. Geometry mirrors CroppedAnnotation (its inverse).
+// The editable Apple Pencil canvas for a page-based annotation — a PDF page,
+// or a passage cropped from one. The PencilKit canvas is pinned to the page's
+// NATIVE pixel dimensions, so a drawing keeps the same coordinates no matter
+// which screen, size, or orientation edited it. It's then visually scaled
+// (and, for a passage, clipped) so the chosen `region` fills the score view:
+// a passage's crop box, or the whole page for the PDF viewer.
 
 import { type RefObject, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
@@ -18,6 +19,7 @@ export function RegionAnnotationCanvas({
 }: {
   /** The PDF page's PencilKit drawing (base64) to keep editing. */
   pageData: string | null;
+  /** The part of the page to show — a passage box, or the whole page. */
   region: { x: number; y: number; w: number; h: number };
   pageW: number;
   pageH: number;
@@ -30,12 +32,8 @@ export function RegionAnnotationCanvas({
     box.w > 0 && box.h > 0 && aspect > 0
       ? drawnRect(box.w, box.h, aspect)
       : null;
-
-  // The passage's box as a fraction of the full page.
-  const fx = pageW > 0 ? region.x / pageW : 0;
-  const fy = pageH > 0 ? region.y / pageH : 0;
-  const fw = pageW > 0 ? region.w / pageW : 0;
-  const fh = pageH > 0 ? region.h / pageH : 0;
+  // Page pixels -> on-screen points, sized so the region fills the score rect.
+  const scale = drawn && region.w > 0 ? drawn.w / region.w : 0;
 
   return (
     <View
@@ -45,9 +43,8 @@ export function RegionAnnotationCanvas({
         const { width, height } = e.nativeEvent.layout;
         setBox({ w: width, h: height });
       }}>
-      {drawn && fw > 0 && fh > 0 && (
-        // Clip to the passage's score rect; the page-sized canvas is offset so
-        // just the passage's box shows through and is drawable.
+      {drawn && scale > 0 && (
+        // Clip to the passage's score rect.
         <View
           style={{
             position: 'absolute',
@@ -57,18 +54,26 @@ export function RegionAnnotationCanvas({
             height: drawn.h,
             overflow: 'hidden',
           }}>
-          <PencilCanvas
-            ref={canvasRef}
-            editable
-            initialData={pageData}
+          {/* The canvas is the WHOLE page at native pixel size; scaled from
+              its top-left corner and offset so the region shows in the clip.
+              The PencilKit drawing therefore always lives in page pixels. */}
+          <View
             style={{
               position: 'absolute',
-              width: drawn.w / fw,
-              height: drawn.h / fh,
-              left: -fx * (drawn.w / fw),
-              top: -fy * (drawn.h / fh),
-            }}
-          />
+              left: -region.x * scale,
+              top: -region.y * scale,
+              width: pageW,
+              height: pageH,
+              transformOrigin: '0% 0%',
+              transform: [{ scale }],
+            }}>
+            <PencilCanvas
+              ref={canvasRef}
+              editable
+              initialData={pageData}
+              style={StyleSheet.absoluteFill}
+            />
+          </View>
         </View>
       )}
     </View>

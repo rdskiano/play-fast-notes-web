@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 
 import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
-import { AnnotationCanvas } from '@/components/AnnotationCanvas';
+import { RegionAnnotationCanvas } from '@/components/RegionAnnotationCanvas';
 import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PageBoxOverlay } from '@/components/PageBoxOverlay';
@@ -808,15 +808,30 @@ export default function DocumentScreen() {
                             onSelect={setSelectedPassageId}
                             onDeselect={() => setSelectedPassageId(null)}
                           />
-                          <AnnotationCanvas
-                            scoreUri={p.image_uri}
-                            aspect={p.w / p.h}
-                            editable={docAnn.annotating && p.index === currentPage}
-                            drawingPolicy="pencilonly"
-                            initialData={docAnn.annotations.get(p.index)?.data}
-                            imageUri={docAnn.annotations.get(p.index)?.imageUri}
-                            canvasRef={p.index === currentPage ? docAnn.canvasRef : undefined}
-                          />
+                          {docAnn.annotating && p.index === currentPage ? (
+                            <RegionAnnotationCanvas
+                              pageData={
+                                docAnn.annotations.get(p.index)?.data ?? null
+                              }
+                              region={{ x: 0, y: 0, w: p.w, h: p.h }}
+                              pageW={p.w}
+                              pageH={p.h}
+                              canvasRef={docAnn.canvasRef}
+                            />
+                          ) : docAnn.annotations.get(p.index)?.imageUri ? (
+                            <View
+                              style={StyleSheet.absoluteFill}
+                              pointerEvents="none">
+                              <Image
+                                source={{
+                                  uri: docAnn.annotations.get(p.index)!
+                                    .imageUri!,
+                                }}
+                                style={StyleSheet.absoluteFill}
+                                contentFit="contain"
+                              />
+                            </View>
+                          ) : null}
                           {mode === 'draw' && (() => {
                             // Once a draft exists for this page, swap the
                             // drag-to-draw surface for resize handles so the
