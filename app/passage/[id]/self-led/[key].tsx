@@ -7,7 +7,6 @@
 // MediaRecorder state machine.
 
 import { Image } from 'expo-image';
-import { AnnotationOverlay } from '@/components/AnnotationOverlay';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -21,6 +20,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
@@ -50,6 +50,8 @@ export default function SelfLedSessionScreen() {
     if (!id) return;
     getPassage(id).then(setPassage);
   }, [id]);
+
+  const ann = useScoreAnnotation(passage?.id, passage?.source_uri);
 
   if (!strategy) {
     return (
@@ -130,8 +132,8 @@ export default function SelfLedSessionScreen() {
             </ThemedText>
           </View>
         )}
-        {passage && <AnnotationOverlay passageId={passage.id} />}
-        <PracticeToolsLayer />
+        {ann.canvas}
+        <PracticeToolsLayer pencil={ann.pencil} />
       </View>
 
       <SelfLedHelpModal

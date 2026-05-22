@@ -1,5 +1,4 @@
 import { Image } from 'expo-image';
-import { AnnotationOverlay } from '@/components/AnnotationOverlay';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -16,6 +15,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import {
   REP_TARGETS,
   useTempoLadderSession,
@@ -62,6 +62,8 @@ export default function TempoLadderScreen() {
     dismissCelebration,
     endSession,
   } = session;
+
+  const ann = useScoreAnnotation(passage?.id, passage?.source_uri);
 
   if (phase === 'config') {
     return (
@@ -293,10 +295,11 @@ export default function TempoLadderScreen() {
             contentFit="contain"
           />
         )}
-        {passage && <AnnotationOverlay passageId={passage.id} />}
+        {ann.canvas}
         <PracticeToolsLayer
           metronome={metronome}
           metronomeNote="Tempo Ladder controls the tempo — no need to adjust it. Just press play."
+          pencil={ann.pencil}
         />
       </View>
 

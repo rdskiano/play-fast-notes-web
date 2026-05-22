@@ -15,6 +15,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
@@ -72,6 +73,8 @@ export default function RhythmicScreen() {
 
   const metronome = useMetronome(80);
   const microbreak = useMicrobreakTimer();
+
+  const ann = useScoreAnnotation(passage?.id, passage?.source_uri);
 
   useEffect(() => {
     if (!id) return;
@@ -229,9 +232,11 @@ export default function RhythmicScreen() {
           markers={[]}
           mode="play"
           activePair={null}
-          passageId={passage.id}
         />
-        {phase === 'playing' && <PracticeToolsLayer metronome={metronome} />}
+        {ann.canvas}
+        {phase === 'playing' && (
+          <PracticeToolsLayer metronome={metronome} pencil={ann.pencil} />
+        )}
       </View>
 
       {(phase === 'config' || pickerOpen) && (

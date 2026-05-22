@@ -7,7 +7,6 @@
 // in a future playbuild.
 
 import { Image } from 'expo-image';
-import { AnnotationOverlay } from '@/components/AnnotationOverlay';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
@@ -21,6 +20,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
@@ -60,6 +60,8 @@ export default function SelfLedRecordingScreen() {
   const startedAtRef = useRef<number>(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
+
+  const ann = useScoreAnnotation(passage?.id, passage?.source_uri);
 
   useEffect(() => {
     if (!id) return;
@@ -241,8 +243,8 @@ export default function SelfLedRecordingScreen() {
             </ThemedText>
           </View>
         )}
-        {passage && <AnnotationOverlay passageId={passage.id} />}
-        <PracticeToolsLayer />
+        {ann.canvas}
+        <PracticeToolsLayer pencil={ann.pencil} />
       </View>
 
       <View

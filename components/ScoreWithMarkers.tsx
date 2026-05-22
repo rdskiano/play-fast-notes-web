@@ -7,7 +7,6 @@ import {
   View,
 } from 'react-native';
 
-import { AnnotationOverlay } from '@/components/AnnotationOverlay';
 import { ThemedText } from '@/components/themed-text';
 import { Borders, Radii, Status, Type } from '@/constants/tokens';
 import type { Marker } from '@/lib/db/repos/passages';
@@ -19,8 +18,6 @@ type Props = {
   activePair?: [number, number] | null;
   onTap?: (point: { x: number; y: number }) => void;
   onRemoveMarker?: (index: number) => void;
-  /** When set, the passage's saved Apple Pencil annotation is shown. */
-  passageId?: string;
 };
 
 const MARKER_HIT_RADIUS = 24;
@@ -52,7 +49,6 @@ export function ScoreWithMarkers({
   mode,
   onTap,
   onRemoveMarker,
-  passageId,
 }: Props) {
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [aspect, setAspect] = useState<number | null>(null);
@@ -102,7 +98,6 @@ export function ScoreWithMarkers({
         contentFit="contain"
         onLoad={handleLoad}
       />
-      {passageId && <AnnotationOverlay passageId={passageId} />}
       {markers.map((m) => {
         if (mode === 'play') {
           return (

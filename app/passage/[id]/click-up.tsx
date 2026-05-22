@@ -23,6 +23,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { MIN_MARKERS, useClickUpSession } from '@/hooks/useClickUpSession';
 import { activePairMarkers } from '@/lib/strategies/clickUp';
 
@@ -81,6 +82,8 @@ export default function ClickUpScreen() {
     dismissCelebration,
     goBackToMarking,
   } = session;
+
+  const ann = useScoreAnnotation(passage?.id, passage?.source_uri);
 
   // ── MARKING ────────────────────────────────────────────────────────────
   if (phase === 'marking') {
@@ -313,11 +316,12 @@ export default function ClickUpScreen() {
           markers={activeMarkers}
           mode="play"
           activePair={activePair}
-          passageId={passage.id}
         />
+        {ann.canvas}
         <PracticeToolsLayer
           metronome={metronome}
           metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."
+          pencil={ann.pencil}
         />
       </View>
 
