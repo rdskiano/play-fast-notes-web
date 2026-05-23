@@ -48,7 +48,7 @@ export async function getPracticeLogForPassage(
             pl.exercise_id, e.name AS exercise_name
      FROM practice_log pl
      LEFT JOIN exercises e ON e.id = pl.exercise_id
-     WHERE pl.piece_id = ?
+     WHERE pl.piece_id = ? AND pl.strategy != 'recording'
      ORDER BY pl.practiced_at DESC;`,
     piece_id,
   );
@@ -115,7 +115,7 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
      LEFT JOIN exercises e ON e.id = pl.exercise_id
      LEFT JOIN folders f ON f.id = p.folder_id
      LEFT JOIN documents d ON d.id = p.document_id
-     WHERE p.deleted_at IS NULL
+     WHERE p.deleted_at IS NULL AND pl.strategy != 'recording'
      ORDER BY pl.practiced_at DESC;`,
   );
   const local = rows.map((r) => ({
@@ -311,7 +311,7 @@ export async function getPracticeLogForDocument(
      JOIN pieces p ON pl.piece_id = p.id
      LEFT JOIN exercises e ON e.id = pl.exercise_id
      LEFT JOIN documents d ON d.id = p.document_id
-     WHERE p.document_id = ? AND p.deleted_at IS NULL
+     WHERE p.document_id = ? AND p.deleted_at IS NULL AND pl.strategy != 'recording'
      ORDER BY pl.practiced_at DESC;`,
     document_id,
   );
@@ -373,7 +373,7 @@ export async function getPracticeLogForFolder(
      JOIN pieces p ON pl.piece_id = p.id
      LEFT JOIN exercises e ON e.id = pl.exercise_id
      LEFT JOIN documents d ON d.id = p.document_id
-     WHERE ${where} AND p.deleted_at IS NULL
+     WHERE ${where} AND p.deleted_at IS NULL AND pl.strategy != 'recording'
      ORDER BY pl.practiced_at DESC;`,
     ...params,
   );
