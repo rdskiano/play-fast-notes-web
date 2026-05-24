@@ -128,4 +128,36 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE documents ADD COLUMN sections_json TEXT;
   `,
+  `
+  -- Tempo Ladder Custom mode. Patterns live in Supabase only (per-user library
+  -- read straight from the cloud), but the progress row needs the three new
+  -- position columns so the iPad can resume a Custom session. SQLite doesn't
+  -- support dropping a CHECK constraint inline; the iPad's mode column is
+  -- already untyped enough (TEXT) that an out-of-range value won't be a
+  -- runtime issue, but a clean rebuild is the safest move for the CHECK
+  -- update — copy data through a temp table.
+  CREATE TABLE tempo_ladder_progress_new (
+    exercise_id TEXT PRIMARY KEY NOT NULL REFERENCES exercises(id),
+    mode TEXT NOT NULL CHECK (mode IN ('step', 'cluster', 'custom')),
+    start_tempo INTEGER NOT NULL,
+    goal_tempo INTEGER NOT NULL,
+    increment INTEGER,
+    cluster_low INTEGER,
+    cluster_high INTEGER,
+    target_reps INTEGER NOT NULL,
+    goal_date INTEGER,
+    custom_pattern_id TEXT,
+    custom_block_index INTEGER,
+    custom_rep_in_block INTEGER,
+    current_tempo INTEGER NOT NULL,
+    current_streak INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL
+  );
+  INSERT INTO tempo_ladder_progress_new
+    (exercise_id, mode, start_tempo, goal_tempo, increment, cluster_low, cluster_high, target_reps, goal_date, current_tempo, current_streak, updated_at)
+  SELECT exercise_id, mode, start_tempo, goal_tempo, increment, cluster_low, cluster_high, target_reps, goal_date, current_tempo, current_streak, updated_at
+  FROM tempo_ladder_progress;
+  DROP TABLE tempo_ladder_progress;
+  ALTER TABLE tempo_ladder_progress_new RENAME TO tempo_ladder_progress;
+  `,
 ];

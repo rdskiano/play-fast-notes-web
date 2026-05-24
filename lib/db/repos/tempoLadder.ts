@@ -1,6 +1,6 @@
 import { getDb } from '../client';
 
-export type TempoLadderMode = 'step' | 'cluster';
+export type TempoLadderMode = 'step' | 'cluster' | 'custom';
 
 export type TempoLadderConfig = {
   exercise_id: string;
@@ -12,6 +12,11 @@ export type TempoLadderConfig = {
   cluster_high?: number | null;
   target_reps: number;
   goal_date?: number | null;
+  // Custom mode: which user pattern is selected, plus the live position
+  // (which block + which rep within the block). Null in step/cluster mode.
+  custom_pattern_id?: string | null;
+  custom_block_index?: number | null;
+  custom_rep_in_block?: number | null;
 };
 
 export type TempoLadderProgress = TempoLadderConfig & {
@@ -31,8 +36,8 @@ export async function upsertTempoLadder(cfg: TempoLadderConfig): Promise<TempoLa
   const current_streak = existing?.current_streak ?? 0;
   await db.runAsync(
     `INSERT INTO tempo_ladder_progress
-       (exercise_id, mode, start_tempo, goal_tempo, increment, cluster_low, cluster_high, target_reps, goal_date, current_tempo, current_streak, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       (exercise_id, mode, start_tempo, goal_tempo, increment, cluster_low, cluster_high, target_reps, goal_date, custom_pattern_id, custom_block_index, custom_rep_in_block, current_tempo, current_streak, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(exercise_id) DO UPDATE SET
        mode = excluded.mode,
        start_tempo = excluded.start_tempo,
@@ -42,6 +47,9 @@ export async function upsertTempoLadder(cfg: TempoLadderConfig): Promise<TempoLa
        cluster_high = excluded.cluster_high,
        target_reps = excluded.target_reps,
        goal_date = excluded.goal_date,
+       custom_pattern_id = excluded.custom_pattern_id,
+       custom_block_index = excluded.custom_block_index,
+       custom_rep_in_block = excluded.custom_rep_in_block,
        updated_at = excluded.updated_at;`,
     cfg.exercise_id,
     cfg.mode,
@@ -52,11 +60,37 @@ export async function upsertTempoLadder(cfg: TempoLadderConfig): Promise<TempoLa
     cfg.cluster_high ?? null,
     cfg.target_reps,
     cfg.goal_date ?? null,
+    cfg.custom_pattern_id ?? null,
+    cfg.custom_block_index ?? null,
+    cfg.custom_rep_in_block ?? null,
     current_tempo,
     current_streak,
     now,
   );
   return { ...cfg, current_tempo, current_streak, updated_at: now };
+}
+
+// Custom mode persists three position fields (current base + block index +
+// rep in block) rather than just (current_tempo + current_streak). Kept
+// separate from updateTempoLadderState so the step/cluster code path stays
+// unchanged.
+export async function updateCustomPosition(
+  exerciseId: string,
+  current_base: number,
+  custom_block_index: number,
+  custom_rep_in_block: number,
+): Promise<void> {
+  const db = getDb();
+  await db.runAsync(
+    `UPDATE tempo_ladder_progress
+       SET current_tempo = ?, custom_block_index = ?, custom_rep_in_block = ?, updated_at = ?
+       WHERE exercise_id = ?;`,
+    current_base,
+    custom_block_index,
+    custom_rep_in_block,
+    Date.now(),
+    exerciseId,
+  );
 }
 
 export async function getTempoLadder(exerciseId: string): Promise<TempoLadderProgress | null> {

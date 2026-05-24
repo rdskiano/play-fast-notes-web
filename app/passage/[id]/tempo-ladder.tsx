@@ -8,6 +8,8 @@ import { BpmStepper } from '@/components/BpmStepper';
 import { Button } from '@/components/Button';
 import { CelebrationModal } from '@/components/CelebrationModal';
 import { CollapsibleHelp } from '@/components/CollapsibleHelp';
+import { CustomPatternDots } from '@/components/CustomPatternDots';
+import { CustomPatternEditor } from '@/components/CustomPatternEditor';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
@@ -24,6 +26,15 @@ import {
   type Increment,
   type RepTarget,
 } from '@/hooks/useTempoLadderSession';
+import {
+  summarizePattern,
+  totalRepsInPattern,
+  type CustomPattern,
+} from '@/lib/strategies/customPatterns';
+import {
+  createCustomPattern,
+  updateCustomPattern,
+} from '@/lib/supabase/customPatterns';
 
 const INCREMENTS: Increment[] = [2, 5, 10];
 
@@ -34,6 +45,11 @@ export default function TempoLadderScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const [notePromptVisible, setNotePromptVisible] = useState(false);
+  // Pattern editor sheet — opens for "+ Build a custom pattern" or
+  // "Edit pattern" on the selected Custom card. `initial` non-null = edit
+  // mode; null = new-build.
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorInitial, setEditorInitial] = useState<CustomPattern | null>(null);
   // Phone density check — hoisted ABOVE all early returns so the hook
   // count stays stable across renders (config → loading → play phases).
   const { width: vpW, height: vpH } = useWindowDimensions();
@@ -54,6 +70,12 @@ export default function TempoLadderScreen() {
     targetReps,
     metronome,
     completedSets,
+    customPatterns,
+    customPatternId,
+    customPattern,
+    customBlockIndex,
+    customRepInBlock,
+    customBase,
     setMode,
     setStartTempo,
     setGoalTempo,
@@ -61,6 +83,8 @@ export default function TempoLadderScreen() {
     setFinalTempo,
     setIncrement,
     setTargetReps,
+    selectCustomPattern,
+    reloadCustomPatterns,
     startSession,
     onClean,
     onMiss,
@@ -90,15 +114,11 @@ export default function TempoLadderScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.configContainer}>
-          {/* Phone hides the H1 + tagline — the screen's nav strip already
-              says "Tempo Ladder" right above, and the full explanation
-              lives inside the "How it works" expandable below. Saves
-              ~100 px of vertical real estate. */}
           {!isPhone && (
             <>
               <ThemedText type="title">Tempo Ladder</ThemedText>
               <ThemedText style={{ opacity: 0.7 }}>
-                Slow-practice with graduated tempos. Set your goal and target reps.
+                Slow-practice with graduated tempos. Pick a mode, set your goal, and play.
               </ThemedText>
             </>
           )}
@@ -108,36 +128,71 @@ export default function TempoLadderScreen() {
               Tempo Ladder builds tempo control through disciplined repetition. Start well
               below your target tempo and play the passage with the metronome. After each
               rep, tap <ThemedText style={styles.blurbBold}>Clean ✓</ThemedText> if it was
-              accurate or <ThemedText style={styles.blurbBold}>Miss ✗</ThemedText> if it was
-              not. A <ThemedText style={styles.blurbBold}>Miss ✗</ThemedText> resets your
-              streak to zero.
+              accurate or <ThemedText style={styles.blurbBold}>Miss ✗</ThemedText> if it
+              was not.
             </ThemedText>
             <ThemedText style={styles.blurbText}>
-              Once you hit your target number of consecutive{' '}
-              <ThemedText style={styles.blurbBold}>Clean ✓</ThemedText> reps, the metronome
-              automatically advances by your chosen increment. The goal is to climb from
-              your starting tempo all the way to your target without rushing — building
-              real muscle memory at every speed along the way.
-            </ThemedText>
-            <ThemedText style={styles.blurbText}>
-              In <ThemedText style={styles.blurbBold}>Step click-up</ThemedText> the tempo
-              increases in fixed jumps. In{' '}
-              <ThemedText style={styles.blurbBold}>Randomized cluster</ThemedText> each rep
-              picks a random tempo from a window that slides upward as you succeed,
-              training flexibility within a range.
+              <ThemedText style={styles.blurbBold}>Step click-up</ThemedText> — climb in
+              fixed jumps after N clean reps in a row.
+              {'\n'}
+              <ThemedText style={styles.blurbBold}>Randomized cluster</ThemedText> — each
+              rep picks a random tempo from a window that slides up as you succeed.
+              {'\n'}
+              <ThemedText style={styles.blurbBold}>Custom</ThemedText> — define your own
+              sequence (e.g. 9 reps at base + 1 rep at base+10). One clean run of the
+              pattern bumps the tempo. A miss restarts the pattern.
             </ThemedText>
           </CollapsibleHelp>
+
+          {/* ── Mode picker (top of the form) ───────────────────────── */}
+          <ThemedText type="subtitle" style={{ marginTop: Spacing.sm }}>Mode</ThemedText>
+          <View style={styles.modeGrid}>
+            <ModeCard
+              title="Step click-up"
+              subtitle="Climb one step after N clean reps."
+              selected={mode === 'step'}
+              onPress={() => setMode('step')}
+            />
+            <ModeCard
+              title="Randomized cluster"
+              subtitle="Random tempo in a sliding band."
+              selected={mode === 'cluster'}
+              onPress={() => setMode('cluster')}
+            />
+            {customPatterns.map((p) => (
+              <ModeCard
+                key={p.id}
+                title={p.name}
+                subtitle={summarizePattern(p)}
+                selected={mode === 'custom' && customPatternId === p.id}
+                onPress={async () => {
+                  await selectCustomPattern(p.id);
+                  setMode('custom');
+                }}
+                onEdit={() => {
+                  setEditorInitial(p);
+                  setEditorOpen(true);
+                }}
+              />
+            ))}
+            <ModeCard
+              title="+ Build a custom pattern"
+              subtitle="9 + 1 patterns, climbs, anything."
+              selected={false}
+              dashed
+              onPress={() => {
+                setEditorInitial(null);
+                setEditorOpen(true);
+              }}
+            />
+          </View>
           <View style={[styles.divider, { backgroundColor: C.icon + '33' }]} />
 
-          {/* Phone: stack BPM cards vertically — at 3-across they squish to
-              ~120px each and the +/- buttons clip the BPM number; "Hear
-              this tempo" also wraps to 3 lines. One full-width card per
-              row reads cleanly. Tablet / desktop keep the side-by-side
-              layout. */}
+          {/* ── Shared config: BPM range + increment ─────────────────── */}
           <View style={isPhone ? styles.rowPhone : styles.row}>
             <View style={styles.field}>
               <ThemedText style={styles.label}>
-                {mode === 'cluster' ? 'Low BPM' : 'Start BPM'}
+                {mode === 'cluster' ? 'Low BPM' : mode === 'custom' ? 'Base BPM' : 'Start BPM'}
               </ThemedText>
               <BpmStepper
                 value={startTempo}
@@ -147,7 +202,7 @@ export default function TempoLadderScreen() {
             </View>
             <View style={styles.field}>
               <ThemedText style={styles.label}>
-                {mode === 'cluster' ? 'High BPM' : 'Goal BPM'}
+                {mode === 'cluster' ? 'High BPM' : mode === 'custom' ? 'Performance BPM' : 'Goal BPM'}
               </ThemedText>
               <BpmStepper
                 value={mode === 'cluster' ? clusterHigh : goalTempo}
@@ -166,30 +221,6 @@ export default function TempoLadderScreen() {
               </View>
             )}
           </View>
-
-          <View style={[styles.divider, { backgroundColor: C.icon + '33' }]} />
-          <ThemedText type="subtitle">Mode</ThemedText>
-          <ThemedText style={{ opacity: 0.7 }}>Pick how the metronome advances.</ThemedText>
-          <View style={styles.chipRow}>
-            {(['step', 'cluster'] as const).map((m) => (
-              <Pressable
-                key={m}
-                onPress={() => setMode(m)}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: C.icon,
-                    backgroundColor: mode === m ? C.tint : 'transparent',
-                    flex: 1,
-                  },
-                ]}>
-                <ThemedText style={{ color: mode === m ? '#fff' : C.text }}>
-                  {m === 'step' ? 'Step click-up' : 'Randomized cluster'}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-          <View style={[styles.divider, { backgroundColor: C.icon + '33' }]} />
 
           <ThemedText style={styles.label}>
             {mode === 'cluster' ? 'Shift window by, per advance' : 'Increment per advance'}
@@ -212,38 +243,102 @@ export default function TempoLadderScreen() {
               </Pressable>
             ))}
           </View>
+
+          {/* ── Mode-specific extras ────────────────────────────────── */}
           {mode === 'cluster' && (
             <ThemedText style={{ opacity: 0.6, fontSize: 13 }}>
               Each rep picks a random tempo in the current window. On reaching your streak
               target, the window slides up by the increment.
             </ThemedText>
           )}
+          {mode !== 'custom' && (
+            <>
+              <ThemedText style={styles.label}>Clean reps in a row to advance</ThemedText>
+              <View style={styles.chipRow}>
+                {REP_TARGETS.map((n: RepTarget) => (
+                  <Pressable
+                    key={n}
+                    onPress={() => setTargetReps(n)}
+                    style={[
+                      styles.chip,
+                      {
+                        borderColor: C.icon,
+                        backgroundColor: targetReps === n ? C.tint : 'transparent',
+                      },
+                    ]}>
+                    <ThemedText style={{ color: targetReps === n ? '#fff' : C.text }}>
+                      {n}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
 
-          <ThemedText style={styles.label}>Clean reps in a row to advance</ThemedText>
-          <View style={styles.chipRow}>
-            {REP_TARGETS.map((n: RepTarget) => (
+          {mode === 'custom' && customPattern && (
+            <View style={[styles.customPreviewBox, { borderColor: C.icon + '33' }]}>
+              <ThemedText style={[styles.label, { marginBottom: 4 }]}>
+                Pattern: {customPattern.name}
+              </ThemedText>
+              <CustomPatternDots
+                pattern={customPattern}
+                base={parseInt(startTempo, 10) || 60}
+                performance={parseInt(goalTempo, 10) || 120}
+                size="small"
+                accent={C.tint}
+              />
+              <ThemedText style={{ opacity: 0.6, fontSize: 13, marginTop: 6 }}>
+                {summarizePattern(customPattern)} — {totalRepsInPattern(customPattern)} reps per set.
+                One clean run bumps the tempo by your increment. A miss restarts the pattern.
+              </ThemedText>
               <Pressable
-                key={n}
-                onPress={() => setTargetReps(n)}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: C.icon,
-                    backgroundColor: targetReps === n ? C.tint : 'transparent',
-                  },
-                ]}>
-                <ThemedText style={{ color: targetReps === n ? '#fff' : C.text }}>
-                  {n}
+                onPress={() => {
+                  setEditorInitial(customPattern);
+                  setEditorOpen(true);
+                }}
+                style={[styles.editPatternBtn, { borderColor: C.tint }]}>
+                <ThemedText style={{ color: C.tint, fontWeight: Type.weight.heavy }}>
+                  Edit pattern
                 </ThemedText>
               </Pressable>
-            ))}
-          </View>
+            </View>
+          )}
+
+          {mode === 'custom' && !customPattern && (
+            <ThemedText style={{ opacity: 0.6, fontSize: 13 }}>
+              Pick a saved pattern above, or tap{' '}
+              <ThemedText style={styles.blurbBold}>+ Build a custom pattern</ThemedText> to
+              create one.
+            </ThemedText>
+          )}
 
         </ScrollView>
 
         <View style={{ margin: 20 }}>
-          <Button label="Start" onPress={startSession} fullWidth />
+          <Button
+            label="Start"
+            onPress={startSession}
+            disabled={mode === 'custom' && !customPattern}
+            fullWidth
+          />
         </View>
+
+        <CustomPatternEditor
+          visible={editorOpen}
+          initial={editorInitial}
+          previewBase={parseInt(startTempo, 10) || 60}
+          previewPerformance={parseInt(goalTempo, 10) || 120}
+          onCancel={() => setEditorOpen(false)}
+          onSave={async (name, blocks) => {
+            const saved = editorInitial
+              ? await updateCustomPattern(editorInitial.id, { name, blocks })
+              : await createCustomPattern(name, blocks);
+            await reloadCustomPatterns();
+            await selectCustomPattern(saved.id);
+            setMode('custom');
+            setEditorOpen(false);
+          }}
+        />
       </ThemedView>
     );
   }
@@ -251,15 +346,30 @@ export default function TempoLadderScreen() {
   if (!progress) return <ThemedView style={{ flex: 1 }} />;
 
   const reachedGoal = celebrating?.reached ?? false;
+  // Custom mode: position in the expanded rep list = sum of reps in
+  // earlier blocks + customRepInBlock. The dot ring sits on the rep the
+  // user is ABOUT to play. expandPatternToReps is also called internally
+  // by CustomPatternDots to lay out the strip — kept in sync via the
+  // same helper.
+  const customPosition =
+    progress.mode === 'custom' && customPattern
+      ? customPattern.blocks
+          .slice(0, customBlockIndex)
+          .reduce((acc, b) => acc + b.count, 0) + customRepInBlock
+      : null;
   const nextPreviewTempo =
     progress.mode === 'cluster'
       ? null
-      : Math.min(progress.goal_tempo, progress.current_tempo + (progress.increment ?? 5));
+      : progress.mode === 'custom'
+        ? Math.min(progress.goal_tempo, customBase + (progress.increment ?? 5))
+        : Math.min(progress.goal_tempo, progress.current_tempo + (progress.increment ?? 5));
   const celebrationBody = reachedGoal
     ? `You reached your goal tempo of ${progress.goal_tempo} BPM.`
     : progress.mode === 'cluster'
       ? `Ready to slide the cluster up by ${progress.increment ?? 5} BPM?`
-      : `Ready to step up to ${nextPreviewTempo} BPM?`;
+      : progress.mode === 'custom'
+        ? `Pattern clean! Bump the base up to ${nextPreviewTempo} BPM?`
+        : `Ready to step up to ${nextPreviewTempo} BPM?`;
 
   // Phone: hide the chunky top bar and float the controls. The
   // streak dots sit center-top of the score, the Miss / Clean targets
@@ -297,17 +407,29 @@ export default function TempoLadderScreen() {
             <ThemedText style={styles.endBtnText}>End</ThemedText>
           </Pressable>
           <View style={styles.streakDots}>
-            {Array.from({ length: progress.target_reps }).map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.dot,
-                  i < progress.current_streak
-                    ? styles.dotFilled
-                    : { borderColor: C.icon },
-                ]}
+            {progress.mode === 'custom' && customPattern ? (
+              <CustomPatternDots
+                pattern={customPattern}
+                base={customBase}
+                performance={progress.goal_tempo}
+                position={customPosition}
+                state="playing"
+                size="medium"
+                accent="#2ecc71"
               />
-            ))}
+            ) : (
+              Array.from({ length: progress.target_reps }).map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.dot,
+                    i < progress.current_streak
+                      ? styles.dotFilled
+                      : { borderColor: C.icon },
+                  ]}
+                />
+              ))
+            )}
           </View>
           <Pressable
             onPress={onMiss}
@@ -375,17 +497,29 @@ export default function TempoLadderScreen() {
               pointerEvents="none"
               style={[styles.phoneDotsWrap, { top: insets.top + 10 }]}>
               <View style={styles.phoneDotsPill}>
-                {Array.from({ length: progress.target_reps }).map((_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.phoneDot,
-                      i < progress.current_streak
-                        ? styles.phoneDotFilled
-                        : styles.phoneDotEmpty,
-                    ]}
+                {progress.mode === 'custom' && customPattern ? (
+                  <CustomPatternDots
+                    pattern={customPattern}
+                    base={customBase}
+                    performance={progress.goal_tempo}
+                    position={customPosition}
+                    state="playing"
+                    size="small"
+                    accent="#2ecc71"
                   />
-                ))}
+                ) : (
+                  Array.from({ length: progress.target_reps }).map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.phoneDot,
+                        i < progress.current_streak
+                          ? styles.phoneDotFilled
+                          : styles.phoneDotEmpty,
+                      ]}
+                    />
+                  ))
+                )}
               </View>
             </View>
 
@@ -425,7 +559,11 @@ export default function TempoLadderScreen() {
 
       <CelebrationModal
         visible={celebrating !== null && !reachedGoal}
-        title={`${progress.target_reps} clean in a row!`}
+        title={
+          progress.mode === 'custom'
+            ? 'Pattern clean!'
+            : `${progress.target_reps} clean in a row!`
+        }
         body={celebrationBody}
         primary={{
           label: 'End session',
@@ -460,6 +598,70 @@ export default function TempoLadderScreen() {
         }}
       />
     </View>
+  );
+}
+
+// Mode picker card. Used for both built-in modes (Step / Cluster) and
+// saved Custom patterns. `dashed` renders the "+ Build" affordance with
+// a dashed border so it's visibly an add-action, not a selectable mode.
+// `onEdit` (Custom-only) adds a small pencil button to the corner.
+function ModeCard({
+  title,
+  subtitle,
+  selected,
+  onPress,
+  onEdit,
+  dashed = false,
+}: {
+  title: string;
+  subtitle: string;
+  selected: boolean;
+  onPress: () => void;
+  onEdit?: () => void;
+  dashed?: boolean;
+}) {
+  const scheme = useColorScheme() ?? 'light';
+  const C = Colors[scheme];
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.modeCard,
+        {
+          borderColor: selected ? C.tint : C.icon + '55',
+          borderStyle: dashed ? 'dashed' : 'solid',
+          backgroundColor: selected
+            ? C.tint + '11'
+            : pressed
+              ? C.icon + '11'
+              : 'transparent',
+        },
+      ]}>
+      <ThemedText
+        style={[
+          styles.modeCardTitle,
+          { color: selected ? C.tint : C.text },
+        ]}
+        numberOfLines={2}>
+        {title}
+      </ThemedText>
+      <ThemedText
+        style={[styles.modeCardSubtitle, { color: C.icon }]}
+        numberOfLines={2}>
+        {subtitle}
+      </ThemedText>
+      {onEdit && (
+        <Pressable
+          onPress={onEdit}
+          hitSlop={8}
+          style={styles.modeCardEditBtn}
+          accessibilityLabel="Edit pattern">
+          <ThemedText style={[styles.modeCardEditGlyph, { color: C.icon }]}>
+            ✎
+          </ThemedText>
+        </Pressable>
+      )}
+    </Pressable>
   );
 }
 
@@ -502,6 +704,62 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     minWidth: 56,
     alignItems: 'center',
+  },
+  // ── Mode picker card grid ────────────────────────────────────────
+  modeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  // Each card sits ~half the row at the typical phone/tablet width, with
+  // wrap so a third or fourth card (saved Custom patterns) flows to the
+  // next row. minWidth keeps them legible on narrow phones.
+  modeCard: {
+    flexGrow: 1,
+    flexBasis: '47%',
+    minWidth: 140,
+    minHeight: 78,
+    borderWidth: 1.5,
+    borderRadius: Radii.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: 4,
+    position: 'relative',
+  },
+  modeCardTitle: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.heavy,
+  },
+  modeCardSubtitle: {
+    fontSize: Type.size.xs,
+    lineHeight: 16,
+  },
+  modeCardEditBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 6,
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeCardEditGlyph: {
+    fontSize: 14,
+  },
+  // ── Custom-mode preview box ──────────────────────────────────────
+  customPreviewBox: {
+    borderWidth: Borders.thin,
+    borderRadius: Radii.md,
+    padding: Spacing.md,
+    gap: 6,
+  },
+  editPatternBtn: {
+    borderWidth: Borders.thin,
+    borderRadius: Radii.md,
+    paddingVertical: 8,
+    paddingHorizontal: Spacing.md,
+    alignSelf: 'flex-start',
+    marginTop: Spacing.sm,
   },
 
   playRoot: { flex: 1, backgroundColor: '#000' },

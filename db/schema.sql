@@ -202,3 +202,38 @@ create index if not exists idx_pieces_document on pieces(document_id);
 -- sections, e.g. movements of a symphony part. Drives the practice log
 -- grouping ("Mahler 9 - IV. Adagio - bars 281-291") and section-jump nav.
 alter table documents add column if not exists sections_json text;
+
+-- ─────────────────────────────────────────────────────────────────────
+-- custom_patterns (Tempo Ladder Custom mode)
+-- Per-user library of named "N reps at tempo X" patterns. Each pattern
+-- is a list of blocks; one execution of the whole pattern with no misses
+-- counts as a clean set and bumps the base tempo by the exercise's
+-- increment. Patterns are user-scoped (one library per user) and show up
+-- alongside Step click-up + Randomized cluster in the mode picker.
+-- ─────────────────────────────────────────────────────────────────────
+create table if not exists custom_patterns (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  name text not null,
+  blocks jsonb not null,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_custom_patterns_user on custom_patterns(user_id, sort_order);
+alter table custom_patterns enable row level security;
+create policy custom_patterns_owner_all on custom_patterns
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- tempo_ladder_progress additions for Custom mode.
+-- The existing CHECK on `mode` only allows 'step' or 'cluster'; drop and
+-- re-add so 'custom' is permitted. The new columns track which pattern is
+-- selected for this exercise plus the live position inside it (which block,
+-- which rep within the block). Null in step/cluster mode.
+alter table tempo_ladder_progress drop constraint if exists tempo_ladder_progress_mode_check;
+alter table tempo_ladder_progress add constraint tempo_ladder_progress_mode_check
+  check (mode in ('step', 'cluster', 'custom'));
+alter table tempo_ladder_progress add column if not exists custom_pattern_id uuid
+  references custom_patterns(id) on delete set null;
+alter table tempo_ladder_progress add column if not exists custom_block_index integer;
+alter table tempo_ladder_progress add column if not exists custom_rep_in_block integer;

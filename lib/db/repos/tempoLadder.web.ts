@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase/client';
 
-export type TempoLadderMode = 'step' | 'cluster';
+export type TempoLadderMode = 'step' | 'cluster' | 'custom';
 
 export type TempoLadderConfig = {
   exercise_id: string;
@@ -12,6 +12,11 @@ export type TempoLadderConfig = {
   cluster_high?: number | null;
   target_reps: number;
   goal_date?: number | null;
+  // Custom mode: which user pattern is selected, plus the live position
+  // (which block + which rep within the block). Null in step/cluster mode.
+  custom_pattern_id?: string | null;
+  custom_block_index?: number | null;
+  custom_rep_in_block?: number | null;
 };
 
 export type TempoLadderProgress = TempoLadderConfig & {
@@ -44,6 +49,9 @@ export async function upsertTempoLadder(
     cluster_high: cfg.cluster_high ?? null,
     target_reps: cfg.target_reps,
     goal_date: cfg.goal_date ?? null,
+    custom_pattern_id: cfg.custom_pattern_id ?? null,
+    custom_block_index: cfg.custom_block_index ?? null,
+    custom_rep_in_block: cfg.custom_rep_in_block ?? null,
     current_tempo,
     current_streak,
     updated_at: now,
@@ -53,6 +61,28 @@ export async function upsertTempoLadder(
     .upsert(row, { onConflict: 'exercise_id' });
   if (error) throw error;
   return { ...cfg, current_tempo, current_streak, updated_at: now };
+}
+
+// Custom mode persists three position fields (current base + block index +
+// rep in block) rather than just (current_tempo + current_streak). Kept
+// separate from updateTempoLadderState so the step/cluster code path stays
+// unchanged.
+export async function updateCustomPosition(
+  exerciseId: string,
+  current_base: number,
+  custom_block_index: number,
+  custom_rep_in_block: number,
+): Promise<void> {
+  const { error } = await supabase
+    .from('tempo_ladder_progress')
+    .update({
+      current_tempo: current_base,
+      custom_block_index,
+      custom_rep_in_block,
+      updated_at: Date.now(),
+    })
+    .eq('exercise_id', exerciseId);
+  if (error) throw error;
 }
 
 export async function getTempoLadder(

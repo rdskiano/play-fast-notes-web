@@ -10,16 +10,27 @@ import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import {
   advanceClusterWindow,
   getTempoLadder,
+  updateCustomPosition,
   updateTempoLadderConfigBounds,
   updateTempoLadderState,
   upsertTempoLadder,
   type TempoLadderProgress,
 } from '@/lib/db/repos/tempoLadder';
+import {
+  expandPatternToReps,
+  resolveBlockBpm,
+  totalRepsInPattern,
+  type CustomPattern,
+} from '@/lib/strategies/customPatterns';
+import {
+  getCustomPattern,
+  listCustomPatterns,
+} from '@/lib/supabase/customPatterns';
 
 // Bump the ladder floor by this many BPM after a session that reached goal.
 const SUCCESS_BUMP_BPM = 5;
 
-export type Mode = 'step' | 'cluster';
+export type Mode = 'step' | 'cluster' | 'custom';
 export type Increment = 2 | 5 | 10;
 export type RepTarget = 5 | 10 | 20;
 export const REP_TARGETS: RepTarget[] = [5, 10, 20];
@@ -56,12 +67,35 @@ export function useTempoLadderSession(id: string | undefined) {
   const [increment, setIncrement] = useState<Increment>(5);
   const [targetReps, setTargetReps] = useState<RepTarget>(5);
 
+  // Custom-mode state. customPatterns is the per-user library fetched on
+  // mount; customPatternId is which pattern is selected for THIS exercise;
+  // customPattern is the resolved object. Block/rep position lives both
+  // here (live) and in the progress row (persisted) so the user can resume
+  // mid-set across page reloads.
+  const [customPatterns, setCustomPatterns] = useState<CustomPattern[]>([]);
+  const [customPatternId, setCustomPatternId] = useState<string | null>(null);
+  const [customPattern, setCustomPattern] = useState<CustomPattern | null>(null);
+  const [customBlockIndex, setCustomBlockIndex] = useState(0);
+  const [customRepInBlock, setCustomRepInBlock] = useState(0);
+  const [customBase, setCustomBase] = useState(60);
+
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     getPassage(id).then((p) => {
       if (!cancelled) setPassage(p);
     });
+    // Per-user Custom pattern library — fetched eagerly so the mode picker
+    // can render saved patterns alongside Step / Cluster. Catch errors
+    // quietly: a network blip just means the user sees no saved patterns
+    // until they reload (still strictly better than blocking the screen).
+    listCustomPatterns()
+      .then((patterns) => {
+        if (!cancelled) setCustomPatterns(patterns);
+      })
+      .catch((e) => {
+        console.warn('[tempoLadder] listCustomPatterns failed:', e);
+      });
     getOrCreateExercise(id, 'tempo_ladder').then(async (ex) => {
       if (cancelled) return;
       setExerciseId(ex.id);
@@ -73,6 +107,35 @@ export function useTempoLadderSession(id: string | undefined) {
         setStartTempo(String(existing.cluster_low ?? existing.start_tempo));
         setClusterHigh(String(existing.cluster_high ?? existing.start_tempo + 12));
         setFinalTempo(String(existing.goal_tempo));
+      } else if (existing.mode === 'custom') {
+        // For Custom mode, current_tempo represents the live BASE tempo (the
+        // value that climbs by increment per clean set), and the block/rep
+        // indices hold the within-set position. The pattern itself is
+        // fetched separately by id.
+        const effectiveBase =
+          existing.current_tempo >= existing.goal_tempo
+            ? existing.start_tempo
+            : Math.max(existing.start_tempo, existing.current_tempo);
+        setStartTempo(String(effectiveBase));
+        setGoalTempo(String(existing.goal_tempo));
+        setCustomBase(effectiveBase);
+        setCustomBlockIndex(existing.custom_block_index ?? 0);
+        setCustomRepInBlock(existing.custom_rep_in_block ?? 0);
+        if (existing.custom_pattern_id) {
+          setCustomPatternId(existing.custom_pattern_id);
+          getCustomPattern(existing.custom_pattern_id)
+            .then((p) => {
+              if (cancelled) return;
+              if (p) setCustomPattern(p);
+              else {
+                // Pattern was deleted from the library since last session.
+                // Fall back to step mode so the user isn't stranded.
+                setCustomPatternId(null);
+                setMode('step');
+              }
+            })
+            .catch((e) => console.warn('[tempoLadder] getCustomPattern failed:', e));
+        }
       } else {
         // Resume from the highest tempo the user climbed to last session.
         // start_tempo only bumps when goal is reached (SUCCESS_BUMP_BPM); if
@@ -112,11 +175,80 @@ export function useTempoLadderSession(id: string | undefined) {
     }
   }
 
+  // Re-fetch the pattern library — called after the editor saves / deletes
+  // so the mode picker stays in sync without a screen reload.
+  async function reloadCustomPatterns(): Promise<CustomPattern[]> {
+    try {
+      const ps = await listCustomPatterns();
+      setCustomPatterns(ps);
+      return ps;
+    } catch (e) {
+      console.warn('[tempoLadder] reloadCustomPatterns failed:', e);
+      return customPatterns;
+    }
+  }
+
+  // Pick (or unpick) a Custom pattern as the active mode. The pattern is
+  // fetched-by-id so we always have the freshest blocks even if the list
+  // is stale.
+  async function selectCustomPattern(patternId: string | null) {
+    if (patternId === null) {
+      setCustomPatternId(null);
+      setCustomPattern(null);
+      return;
+    }
+    setCustomPatternId(patternId);
+    const local = customPatterns.find((p) => p.id === patternId);
+    if (local) setCustomPattern(local);
+    try {
+      const fresh = await getCustomPattern(patternId);
+      if (fresh) setCustomPattern(fresh);
+    } catch (e) {
+      console.warn('[tempoLadder] getCustomPattern failed:', e);
+    }
+  }
+
   async function startSession() {
     if (!exerciseId || !id) return;
     lastHitTempoRef.current = null;
     reachedGoalRef.current = false;
     setCompletedSets(0);
+
+    if (mode === 'custom') {
+      if (!customPattern || !customPatternId) return;
+      const base = parseInt(startTempo, 10);
+      const goal = parseInt(goalTempo, 10);
+      if (!base || !goal || goal <= base) return;
+      const saved = await upsertTempoLadder({
+        exercise_id: exerciseId,
+        mode: 'custom',
+        start_tempo: base,
+        goal_tempo: goal,
+        increment,
+        cluster_low: null,
+        cluster_high: null,
+        target_reps: targetReps,
+        custom_pattern_id: customPatternId,
+        custom_block_index: 0,
+        custom_rep_in_block: 0,
+      });
+      await updateCustomPosition(exerciseId, base, 0, 0);
+      setCustomBase(base);
+      setCustomBlockIndex(0);
+      setCustomRepInBlock(0);
+      setProgress({
+        ...saved,
+        current_tempo: base,
+        current_streak: 0,
+        custom_block_index: 0,
+        custom_rep_in_block: 0,
+      });
+      const firstBlock = customPattern.blocks[0];
+      const firstBpm = resolveBlockBpm(firstBlock.tempo, base, goal);
+      metronome.setBpm(firstBpm);
+      setPhase('playing');
+      return;
+    }
 
     if (mode === 'step') {
       const start = parseInt(startTempo, 10);
@@ -168,6 +300,52 @@ export function useTempoLadderSession(id: string | undefined) {
 
   async function onClean() {
     if (!progress || !exerciseId || !id) return;
+
+    // ── Custom mode ──────────────────────────────────────────────────
+    // One full execution of the pattern with no misses = one clean set,
+    // which bumps the base by Increment. Position is (blockIndex,
+    // repInBlock); we advance through the blocks sequentially.
+    if (progress.mode === 'custom' && customPattern) {
+      const currentBlock = customPattern.blocks[customBlockIndex];
+      const nextRepInBlock = customRepInBlock + 1;
+      if (nextRepInBlock < currentBlock.count) {
+        // Still inside the current block — same tempo, next rep.
+        setCustomRepInBlock(nextRepInBlock);
+        await updateCustomPosition(exerciseId, customBase, customBlockIndex, nextRepInBlock);
+        return;
+      }
+      // Block done. Move to the next block.
+      const nextBlockIndex = customBlockIndex + 1;
+      if (nextBlockIndex < customPattern.blocks.length) {
+        const nextBlock = customPattern.blocks[nextBlockIndex];
+        const nextBpm = resolveBlockBpm(nextBlock.tempo, customBase, progress.goal_tempo);
+        setCustomBlockIndex(nextBlockIndex);
+        setCustomRepInBlock(0);
+        metronome.setBpm(nextBpm);
+        await updateCustomPosition(exerciseId, customBase, nextBlockIndex, 0);
+        return;
+      }
+      // All blocks done → completed pattern cleanly. Trigger celebration
+      // and let advanceAfterCelebration bump the base.
+      setCompletedSets((n) => n + 1);
+      lastHitTempoRef.current = customBase;
+      const newBase = Math.min(progress.goal_tempo, customBase + (progress.increment ?? 5));
+      const reached = newBase >= progress.goal_tempo;
+      if (reached) reachedGoalRef.current = true;
+      // Persist the position pre-bump so a reload mid-celebration restores
+      // the user at the END of the just-completed pattern. The actual
+      // bump-and-reset happens in advanceAfterCelebration.
+      await updateCustomPosition(
+        exerciseId,
+        customBase,
+        customPattern.blocks.length - 1,
+        currentBlock.count - 1,
+      );
+      metronome.stop();
+      setCelebrating({ reached });
+      return;
+    }
+
     const nextStreak = progress.current_streak + 1;
     const hitTarget = nextStreak >= progress.target_reps;
 
@@ -207,6 +385,18 @@ export function useTempoLadderSession(id: string | undefined) {
 
   async function onMiss() {
     if (!progress || !exerciseId) return;
+    // Custom mode: strict miss — reset position to (block 0, rep 0)
+    // immediately. The base tempo stays unchanged; the metronome jumps
+    // back to block 0's tempo so the user can start the pattern over.
+    if (progress.mode === 'custom' && customPattern) {
+      const firstBlock = customPattern.blocks[0];
+      const firstBpm = resolveBlockBpm(firstBlock.tempo, customBase, progress.goal_tempo);
+      setCustomBlockIndex(0);
+      setCustomRepInBlock(0);
+      metronome.setBpm(firstBpm);
+      await updateCustomPosition(exerciseId, customBase, 0, 0);
+      return;
+    }
     setProgress({ ...progress, current_streak: 0 });
     await updateTempoLadderState(exerciseId, progress.current_tempo, 0);
   }
@@ -214,6 +404,28 @@ export function useTempoLadderSession(id: string | undefined) {
   async function advanceAfterCelebration() {
     if (!progress || !exerciseId) {
       setCelebrating(null);
+      return;
+    }
+    if (progress.mode === 'custom' && customPattern) {
+      const newBase = Math.min(
+        progress.goal_tempo,
+        customBase + (progress.increment ?? 5),
+      );
+      const firstBlock = customPattern.blocks[0];
+      const firstBpm = resolveBlockBpm(firstBlock.tempo, newBase, progress.goal_tempo);
+      setCustomBase(newBase);
+      setCustomBlockIndex(0);
+      setCustomRepInBlock(0);
+      setProgress({
+        ...progress,
+        current_tempo: newBase,
+        custom_block_index: 0,
+        custom_rep_in_block: 0,
+      });
+      metronome.setBpm(firstBpm);
+      await updateCustomPosition(exerciseId, newBase, 0, 0);
+      setCelebrating(null);
+      metronome.start();
       return;
     }
     if (progress.mode === 'cluster') {
@@ -270,6 +482,13 @@ export function useTempoLadderSession(id: string | undefined) {
         mode: progress?.mode,
         completedSets,
       };
+      // Capture which Custom pattern was practiced so the practice log can
+      // render "Tempo Ladder · My 9+1" rather than just "Tempo Ladder".
+      if (progress?.mode === 'custom' && customPattern) {
+        data.patternId = customPattern.id;
+        data.patternName = customPattern.name;
+        data.patternReps = totalRepsInPattern(customPattern);
+      }
       if (annotation?.mood) data.mood = annotation.mood;
       if (annotation?.note) data.note = annotation.note;
       if (annotation?.remindNext) data.remindNext = true;
@@ -313,6 +532,13 @@ export function useTempoLadderSession(id: string | undefined) {
     targetReps,
     metronome,
     completedSets,
+    // Custom mode
+    customPatterns,
+    customPatternId,
+    customPattern,
+    customBlockIndex,
+    customRepInBlock,
+    customBase,
     setMode: setModeAndSyncCluster,
     setStartTempo: setStartWithClusterSync,
     setGoalTempo,
@@ -320,6 +546,8 @@ export function useTempoLadderSession(id: string | undefined) {
     setFinalTempo,
     setIncrement,
     setTargetReps,
+    selectCustomPattern,
+    reloadCustomPatterns,
     startSession,
     onClean,
     onMiss,

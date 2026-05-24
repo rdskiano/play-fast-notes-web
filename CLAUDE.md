@@ -186,6 +186,56 @@ The "web parity work" plan from the previous version of this file is **done** �
 **Self-Led:**
 - Removed the Recording entry from `lib/strategies/selfLed.ts` since the Recorder is now a cross-cutting practice tool available on every screen. `/passage/[id]/self-led/recording` route stays in place so old practice-log rows still display correctly.
 
+## ✅ Tempo Ladder Custom mode — SHIPPED 2026-05-24
+
+Third mode added to Tempo Ladder (alongside Step click-up and Randomized cluster): **Custom**, a user-defined sequence of `count × tempo` blocks that runs as a click-up session. The motivating use case is the "9 + 1" pattern — 9 reps at base, 1 rep at base + 10, repeat — which is hard to drive yourself because you can't reliably surprise yourself with when the +10 rep lands.
+
+**Architecture.** Saved Custom patterns live in a new per-user Supabase table `custom_patterns` and show up in the mode picker as peer cards alongside Step and Cluster. The user library follows the user across passages and devices.
+
+**Plan doc lives at `TEMPO_LADDER_CUSTOM_PLAN.md`** — read it before extending the feature.
+
+**Key files:**
+- `lib/strategies/customPatterns.ts` — types (`CustomPattern`, `CustomBlock`, `TempoRef`) + helpers (`resolveBlockBpm`, `expandPatternToReps`, `summarizePattern`, `validatePattern`).
+- `lib/supabase/customPatterns.ts` — per-user CRUD.
+- `components/CustomPatternDots.tsx` — variable-size dot strip that encodes each rep's tempo as its radius (offset over base → up to 1.5× the smallest dot). Same component used in the editor preview and on the practice screen.
+- `components/CustomPatternEditor.tsx` — modal sheet for build/edit with a live preview.
+- `hooks/useTempoLadderSession.ts` — added Custom branch with `customBlockIndex` / `customRepInBlock` state and **strict miss-restart** (any miss resets position to block 0 / rep 0 immediately).
+- `app/passage/[id]/tempo-ladder.tsx` — setup screen restructured: **mode picker at the top** as a card grid, then shared config (Base/Performance/Increment), then mode-specific extras. "Reps to advance" only shows for Step/Cluster; Custom shows the pattern preview + an Edit button.
+- `db/schema.sql` + `lib/db/schema.ts` — new `custom_patterns` table + new columns on `tempo_ladder_progress` (`custom_pattern_id`, `custom_block_index`, `custom_rep_in_block`).
+
+**One-time Supabase migration** (run in Supabase Studio SQL editor — already part of `db/schema.sql`):
+```sql
+create table if not exists custom_patterns (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  name text not null,
+  blocks jsonb not null,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_custom_patterns_user on custom_patterns(user_id, sort_order);
+alter table custom_patterns enable row level security;
+create policy custom_patterns_owner_all on custom_patterns
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+alter table tempo_ladder_progress drop constraint if exists tempo_ladder_progress_mode_check;
+alter table tempo_ladder_progress add constraint tempo_ladder_progress_mode_check
+  check (mode in ('step', 'cluster', 'custom'));
+alter table tempo_ladder_progress add column if not exists custom_pattern_id uuid
+  references custom_patterns(id) on delete set null;
+alter table tempo_ladder_progress add column if not exists custom_block_index integer;
+alter table tempo_ladder_progress add column if not exists custom_rep_in_block integer;
+```
+
+**Decisions captured in the conversation that built this:**
+- **Tempos relative, not absolute.** Block tempos are `Base`, `Base + N`, `Performance`, or a literal BPM. Most patterns use relative refs because users care about relationships, not absolute numbers.
+- **No "Reps to advance" in Custom.** The pattern itself is the success criterion — one clean run = one bump. Different from Step/Cluster, where N clean reps in a row triggers the advance.
+- **Strict miss-restart.** A miss anywhere in the pattern returns the user to rep 1 of block 1 immediately. The user explicitly chose this over "finish the set anyway, but the set doesn't count."
+- **Per-user library.** A saved pattern follows the user to every passage; it's not scoped per-passage.
+- **Block tempos can exceed Performance.** That's overshoot training, intentional. No validation against this.
+- **Variable-size dots.** Each rep's dot is sized by its tempo offset from base. The user sees the difficulty curve of their pattern at a glance before they play it.
+
 ## Where to pick up next
 
 In rough priority order:
