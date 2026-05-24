@@ -4,17 +4,17 @@ This is **the unified Play Fast Notes codebase** — one Expo project that targe
 
 The user is **not a developer**. Always give them one-word terminal shortcuts (e.g. `playfast`, `playweb`), never long `cd ... && npx ...` lines that break on paste due to spaces in paths.
 
-> **🔄 Status as of 2026-05-22.** The merge is **feature-complete for iOS** — both targets bundle, the data layer + practice UI are platform-split, and the merged app builds on EAS, installs, launches, and runs every practice flow on the physical iPad. All four practice tools shipped on iPad: **Metronome**, **Timer**, **Apple Pencil** (PencilKit, foot-pedal-driven), **Recorder** (expo-audio, replaces the original Tuner concept). See `ROADMAP.md` for the full shipping log. **Live deploys still come from the OLD repos until cutover** — playfastnotes.com runs the old web repo, physical iPad runs the old iPad repo. The merged app can be reviewed via Vercel preview URLs without cutover. **Current workstream (next session): web parity + responsive UI** — see "Upcoming: web parity work" below.
+> **🔄 Status as of 2026-05-24 — web cutover DONE; iPad cutover pending.** `playfastnotes.com` now ships from THIS repo. The remote `web-origin-archive` (alias name kept from before cutover, despite the misleading word "archive") points at `rdskiano/play-fast-notes-web` — Vercel auto-deploys its `master`. So `git push web-origin-archive master` IS a live deploy. Treat it that way: smoke-test the web build before pushing. The physical iPad still runs Xcode-built dev clients from `learn-fast-notes/` — that side of the cutover hasn't happened yet. EAS is wired to this repo (slug `learn-fast-notes`, project `c2ba6a6f…`) and will build from here whenever we run `playbuild` / `playpreview`. **Most recent workstream (2026-05-23 → 24): web parity, phone density, timer overhaul, keyboard advance.** See ROADMAP.md for the full log. **Current workstream**: friend-test the live web build, then iPad cutover, then Stripe (Phase 4.4.2).
 
 ## Where this lives
 
 - Working directory: `~/Desktop/COWORK/PROJECTS/APPS/PlayFastNotes/play-fast-notes/`
-- Git: local-only for now. The web's GitHub remote was renamed `web-origin-archive` so accidental `git push origin` can't deploy to live. When ready to cut over, create a new GitHub repo named `play-fast-notes` (or rename the existing one) and point Vercel at it.
+- Git: single remote, `web-origin-archive` → `rdskiano/play-fast-notes-web.git`. **This is the live web deploy.** The remote alias kept the "archive" name from before cutover; despite the name, pushing to it ships to playfastnotes.com via Vercel.
 - Sibling layout:
   ```
   ~/Desktop/COWORK/PROJECTS/APPS/PlayFastNotes/
-  ├── learn-fast-notes/        ← old iPad repo (read-only archive; physical iPad still runs this)
-  ├── play-fast-notes-web/     ← old web repo (read-only archive; playfastnotes.com still deploys from this)
+  ├── learn-fast-notes/        ← old iPad repo (read-only archive; physical iPad still runs this until iPad cutover)
+  ├── play-fast-notes-web/     ← old web repo (now a read-only archive; the GitHub repo of the same name is the LIVE web upstream for THIS repo)
   ├── play-fast-notes/         ← unified — YOU ARE HERE
   └── Play Fast Notes — Reference/  ← cross-cutting SOPs, runbooks
   ```
@@ -81,20 +81,16 @@ Then `lib/image/persistPassageImage.{ts,web.ts}` finalizes by either saving the 
 
 The web file ALSO keeps the older Blob-based functions (`cropToBlob`, `cropImageToBlob`, `stitchVertically(blobs)`, `loadImage`) because `components/InlineCropper.tsx`, `app/multi-page.tsx`, and other web-only callers still use them directly. The native file stubs them with throws ("X is web-only; use cropImage on iOS").
 
-## Live deploys (still from the OLD repos as of 2026-05-19)
+## Live deploys
 
-- **playfastnotes.com** — Vercel auto-deploys on push to `master` of `rdskiano/play-fast-notes-web`. The merged repo's git remote was deliberately renamed `web-origin-archive` so it can't accidentally push there yet.
-- **Physical iPad** — runs the dev client built from `learn-fast-notes/` via local Xcode. The merged repo's iOS build only runs on the **simulator** so far.
-- **EAS** — registered under slug `learn-fast-notes` and project ID `c2ba6a6f-d40c-4e17-a930-4ab813b5c870`. The merged repo's `app.json` keeps this slug to preserve the EAS identity. When the merged repo eventually ships, EAS builds will use this same project.
+- **playfastnotes.com** — Vercel auto-deploys on push to `master` of `rdskiano/play-fast-notes-web`. **Cutover happened 2026-05-24** — this remote (`web-origin-archive`) is the live upstream. `git push web-origin-archive master` IS a deploy. Smoke-test the web bundle locally (`playweb` + click through every practice flow) before pushing anything risky.
+- **Physical iPad** — still runs the dev client built from `learn-fast-notes/` via local Xcode. The merged repo's iOS build runs on the simulator and via EAS, but the user's working iPad hasn't been swapped over yet. iPad cutover is the next plumbing milestone.
+- **EAS** — registered under slug `learn-fast-notes` and project ID `c2ba6a6f-d40c-4e17-a930-4ab813b5c870`. The merged repo's `app.json` keeps this slug to preserve the EAS identity. `playbuild` / `playpreview` builds come from this repo.
 
-**Cutover plan** (not done yet — see ROADMAP):
-1. Create a new GitHub repo (or rename the existing `play-fast-notes-web` to `play-fast-notes`) and add it as the remote.
-2. Push the merged repo as `master`.
-3. Point Vercel at the new repo / new branch.
-4. Verify the web build passes from the new source.
-5. EAS automatically picks up the new repo because it's all `eas.json` + local source. Local builds in Xcode from the new dir work without coordination.
-6. Update the four aliases in `~/.zshrc` to point at the merged dir if not already.
-7. Archive the old repos (rename dirs to `learn-fast-notes-archive/` etc., or move outside the COWORK tree).
+**Remaining cutover work (iPad):**
+1. `playpreview` from this repo, install on the iPad over the existing learn-fast-notes build (same bundle id), verify all practice flows work on device.
+2. Once verified, archive the `learn-fast-notes/` directory (rename to `learn-fast-notes-archive/` or move outside the COWORK tree).
+3. The aliases in `~/.zshrc` (`playfast` / `playweb` / `playbuild` / `playpreview`) already point at this repo — no change needed.
 
 ## Active migration status
 
@@ -139,28 +135,59 @@ The metronome-silent-on-device blocker is **RESOLVED** (2026-05-20) — an illeg
 ⚠️ **Pre-existing TS errors that are NOT blockers:**
 - `app/passage/[id]/self-led/[key].tsx(77,31)` and `app/passage/[id]/self-led/recording.tsx(193,31)` — `SelfLedKey` vs `Strategy` mismatch. Pre-existing in web's codebase; doesn't affect builds. Will likely resolve when we touch the self-led routes properly.
 
-## Upcoming: web parity work (planned 2026-05-22)
+## ✅ Web parity + phone density + timer overhaul — SHIPPED 2026-05-23 → 2026-05-24
 
-The merged repo's web bundle has all the cross-platform features (strategies, practice loops, metronome, score viewing, data layer) but two tools are intentionally crippled on web: `PencilCanvas.web.tsx` is view-only, `RecorderPanel.web.tsx` is informational text. Plus the responsive layer was tuned for tablet sizes — laptop and phone viewports have visible UI bugs (broken tab text, missing page nav). The next workstream brings these to parity.
+The "web parity work" plan from the previous version of this file is **done** — pushed live to playfastnotes.com on 2026-05-24 as commits `3d031c2` and `17767f6`. Highlights below; full per-feature notes in ROADMAP.md.
 
-**Design rules for this work** (decided 2026-05-22):
+**Web parity:**
+- `components/RecorderPanel.web.tsx` — real MediaRecorder + Web Audio meter + variable-speed playback + Supabase upload. Parity with the native expo-audio panel.
+- `components/PencilCanvas.web.tsx` — `perfect-freehand` strokes with pressure, undo, composite-on-top of existing PNGs.
+- `hooks/usePenDetected.web.ts` — listens for `pointerType === 'pen'` to reveal the Pencil tab only when a stylus is in use. `?pencil=1` URL override for testing. Native always returns true.
+- `components/PedalCatcher.web.tsx` — BT foot pedals pair as keyboards, captured via `keydown`. Now always live during the playing phase (no toggle).
+- Laptop UI: tab text no longer clipped (RN-Web rotated-text wrapper), page-nav corners no longer covered by tool tabs.
 
-- **Don't ask users to pick their device.** Use viewport size + `PointerEvent.pointerType` for capability detection. Pickers create friction before value and people pick wrong on hybrid devices.
-- **Pencil is a stylus-surface feature, not a cross-surface one.** Build a real web `PencilCanvas` (Pointer Events with pressure, e.g. `perfect-freehand`, output PNG to match the iOS PencilKit format) but hide the pencil tab on initial load. Reveal it the first time any pointer event fires with `pointerType === 'pen'`. Apple Pencil in iPad Safari, Surface pens, and Android stylus tablets all fire this. Mouse-only and finger-only surfaces never see the tab. The existing view-only display of saved markup stays everywhere — that part of `PencilCanvas.web.tsx` is correct.
-- **Recorder is cross-surface.** Every device has a usable mic. The native `RecorderPanel.tsx` already uses `expo-audio` which supports web (wraps MediaRecorder). The legacy `app/passage/[id]/self-led/recording.tsx` already proves MediaRecorder works for this app's recording needs. Build the web Recorder for parity with the native one (meter, variable-speed playback, save takes to practice log).
-- **Phone is score-first.** The `ToolDock` / `PracticeToolsLayer` architecture is already shaped right for phone: tools live as edge tabs and pop out as draggable cards above the score. What changes on phone is density (icon-only tabs under ~600px viewport) and defaults (all tools collapsed at first open; app nav bar auto-hides during practice screens).
-- **PWA mode for phone.** Add a Web App Manifest + iOS meta tags so users can "Add to Home Screen" and run the app full-screen without browser chrome. Pure config, not architecture.
-- **Camera capture entry point.** For the in-lesson snap-a-passage workflow, add an `<input type="file" accept="image/*" capture="environment">` affordance near `app/upload.tsx` to open the rear camera directly on phones.
+**Phone density (always at `min(width, height) < 600`):**
+- `components/ZoomableImage.tsx` — pinch + pan + double-tap reset, with an in-memory **`persistKey`** so each passage remembers its own zoom across cycling (Interleaved was carrying the previous passage's zoom forward). Wired into every practice score: Click-Up, Tempo Ladder, Interleaved (both modes), Rhythmic, Chunking, Self-Led, Rhythm Builder, passage detail.
+- All tool tabs collapse to icon-only on phone and stack on the right edge (clear of iPhone Dynamic Island / front camera).
+- Tempo Ladder + Interleaved/Serial phone mode: SessionTopBar + bottom repBar hidden, replaced by floating dots pill + ✕ End top-left + ✗ Miss bottom-left + ✓ Clean bottom-right (56 px circles).
+- Metronome card on phone hides note pill + TAP TEMPO + DRONE rows; Recorder card phone-mode goes to a compact pill with the meter inline.
+- `app/_layout.tsx` mounts `SafeAreaProvider` so iPhone status bar stops overlapping every hand-rolled top bar.
+- ⋯ ActionSheet menus for strategies + side actions on phone (passage detail, Document viewer, Click-Up).
 
-**Sequenced order** (gates earlier steps before later ones):
+**PWA + camera:**
+- `app/+html.tsx` + `public/manifest.webmanifest` + 192/512 icons → "Add to Home Screen" on iOS works.
+- `app/upload.tsx` + `app/multi-page.tsx`: drop zone redesign + `<input type="file" accept="image/*" capture="environment">` for direct camera capture on phones.
 
-1. Fix laptop UI bugs (tab text, page nav). Small, unblocks laptop evaluation, surfaces how the responsive layer is currently wired.
-2. Build web recorder.
-3. Build web pencil (stylus-gated).
-4. Phone density pass + PWA + camera capture.
-5. Friend-test all three surfaces via Vercel preview (web) and TestFlight (iPad).
-6. Cutover live deploys.
-7. Stripe + paid tier (Phase 4.4.2).
+**Timer overhaul:**
+- New **Break** timer (`bodyMove`) — physical stand-up reminder, distinct from **Rotate** (was Move On) which just rotates passages.
+- All four user-facing names are short labels: **Rotate / Micro / Cold / Break**. Internal config keys (`moveOn / microbreak / playItCold / bodyMove`) unchanged, so persisted prefs survive the rename.
+- In-tool ⚙ Settings sheet (`TimerSettingsModal` in `components/GlobalTimerTray.tsx`) with enable + interval pickers per timer — no library round-trip required.
+- Timer card recolored from blue to the metronome's charcoal `DEVICE` palette; off-state keys are warm off-white (`DEVICE.text`) so the emoji on each timer stays legible.
+- Card resized to 360×132 so all six pill items (4 timer keys + ⚙ + ?) sit in one row on every device.
+
+**Keyboard advance / "what next" UX:**
+- `PedalCatcher.web.tsx` gained an optional `secondaryKey` + `onSecondary` so a single component covers both Click-Up (Space = NEXT) and Tempo Ladder / Interleaved (Space = Clean ✓, X = Miss ✗). Same 300 ms auto-repeat de-dupe + typing-target protection it always had.
+- Pedal mode toggle removed entirely — the catcher is now always on during the playing phase, so foot pedals work without a mode switch.
+- Bottom hint copy spells out the available shortcuts (laptop only — hidden on phone where there's no keyboard).
+
+**ToolDock laptop affordances:**
+- Corner ⊖ / ⊕ buttons (×1.15 per tap, clamped to `[MIN_SCALE, MAX_SCALE]` — same band the pinch uses) so mouse-only users can resize without pinch.
+- Vertical drag clamp loosened to match horizontal (25% of the card can poke off any edge). The previous `minY: 4` made the Metronome card un-draggable upward.
+
+**Self-Led:**
+- Removed the Recording entry from `lib/strategies/selfLed.ts` since the Recorder is now a cross-cutting practice tool available on every screen. `/passage/[id]/self-led/recording` route stays in place so old practice-log rows still display correctly.
+
+## Where to pick up next
+
+In rough priority order:
+
+1. **Friend-test the live web build** at playfastnotes.com on a laptop, on a phone (PWA install), and on a tablet. The whole 2026-05-24 push is on master now; real-user smoke test is the only thing that catches the bugs Vercel/CI didn't.
+2. **iPad cutover.** `playpreview` from this repo, install over the existing learn-fast-notes build, verify on the physical iPad. Then archive `../learn-fast-notes/`.
+3. **Pre-existing TS errors in self-led routes** (`app/passage/[id]/self-led/[key].tsx`, `recording.tsx`) — `SelfLedKey` vs `Strategy` mismatch. Cheap cleanup next time we touch those files.
+4. **Document viewer pinch-zoom** (intentionally deferred). The page image shares its coordinate space with `PageBoxOverlay` + draw/resize/draft surfaces, so wrapping in `ZoomableImage` would break the box-drawing math. Would need overlays scaled inside the transform too.
+5. **Stripe + paid tier** (Phase 4.4.2 — the original cutover-then-monetize plan).
+6. **Microbreak timer trigger wiring** — verify whether `microbreak.trigger()` is actually called by any practice flow (Tempo Ladder used to call it every N clean reps; check it survived the recent rework).
+7. **Tuner placeholder removal** — `PracticeToolsLayer` no longer mounts a Tuner tool; verify no orphan references remain.
 
 ## Debugging the merged repo
 
@@ -176,10 +203,12 @@ Phase 0 (2026-05-03) renamed `piece` → `passage` in TS / UI to match how music
 ## Don'ts
 
 - **Don't edit `../learn-fast-notes/` or `../play-fast-notes-web/`** for new feature work. They're archives. The exception is keeping critical docs (CLAUDE.md/ROADMAP.md) in sync about the merge status.
-- **Don't `git push` from this repo until cutover.** The remote is `web-origin-archive` precisely so an accidental push hits the archive, not live web.
+- **`git push web-origin-archive master` is a live deploy.** Vercel ships it to playfastnotes.com within minutes. Smoke-test locally (`playweb`) first; the user is fine running the push themselves so the agent permission model doesn't get in the way.
 - **Don't reintroduce `moduleSuffixes` in `tsconfig.json`.** It breaks `expo-file-system` resolution. The `.ts` / `.web.ts` pattern works without it.
 - **Don't make `_layout.web.tsx`.** expo-router 6 bundles both that and `_layout.tsx` together. Use `Platform.OS` inside a single `_layout.tsx`.
 - **Don't add native-only imports** to files that ship to web. If `lib/foo.ts` imports `expo-sqlite`, it must be only reached via the .ts (native) bundle. If a cross-platform file needs to call into SQLite, put the SQLite import in a `.ts` / `.web.ts` pair.
+- **Don't break the `persistKey` contract on `ZoomableImage`.** Practice screens that cycle passages (Interleaved especially) rely on the per-passage transform cache; passing `undefined` means every passage inherits the previous one's zoom.
+- **Don't gate the keyboard catcher behind a mode toggle.** `PedalCatcher` is supposed to be always live during the playing phase — the typing-target protection already prevents stray captures while the user is typing in a note prompt or BPM stepper.
 
 ## Reference
 

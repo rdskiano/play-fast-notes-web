@@ -1,12 +1,12 @@
 # Play Fast Notes — Roadmap (unified)
 
-_Last updated: 2026-05-22_
+_Last updated: 2026-05-24_
 
 This roadmap covers **both surfaces** (iOS/iPad + web) of the unified Play Fast Notes app, which lives in this directory (`play-fast-notes/`). The two older repos (`../learn-fast-notes/` for iPad and `../play-fast-notes-web/` for web) are read-only archives and their roadmaps are historical only.
 
-> **🔄 2026-05-22 — Unified-codebase migration feature-complete for iOS; native practice tools fleshing out.** The merged app builds on EAS, installs, launches, and runs every practice flow on the physical iPad. The metronome-silent-on-device blocker is **resolved**. Recent workstreams: floating practice-tools redesign (2026-05-20), Apple Pencil + foot pedal (2026-05-21), and the **Recorder tool + browse-and-pick passage selection + recordings in the iPad practice log** (2026-05-22 — see the entries below). The Tuner tab has been replaced by the Recorder. **Live deploys still come from the OLD repos until cutover** — pushing the merged repo to web for testing is the next step.
+> **🚀 2026-05-24 — WEB CUTOVER COMPLETE.** `playfastnotes.com` now ships from THIS repo via `git push web-origin-archive master` (the remote alias still has the "archive" word, but it points at `rdskiano/play-fast-notes-web` and Vercel auto-deploys from there). The 2026-05-23/24 push (`3d031c2` + `17767f6`) shipped: web Recorder + web Pencil (stylus-gated) + PWA + camera capture + phone density pass + per-passage pinch-zoom + timer overhaul (4 timers Rotate/Micro/Cold/Break + ⚙ settings sheet) + Space/X keyboard advance + ToolDock −/+ resize. **iPad cutover is the remaining plumbing milestone** — the physical iPad still runs Xcode-built dev clients from `learn-fast-notes/`.
 
-The old web-only context note (2026-05-17 Mac upgrade) is now folded into history — the iPad still uses local Xcode builds, the web still deploys via Vercel. Both will eventually originate from this repo.
+The old web-only context note (2026-05-17 Mac upgrade) is now folded into history. iPad still uses local Xcode builds for the user's working device; web now ships from this repo via Vercel.
 
 ## Unified-codebase migration (active 2026-05-19)
 
@@ -81,6 +81,71 @@ Root cause: `lib/audio/metronomeEngine.ts` configured the iOS audio session as `
 
 **Pre-existing TS errors that are NOT blockers** (carried in from web's codebase):
 - `app/passage/[id]/self-led/[key].tsx(81,31)` and `app/passage/[id]/self-led/recording.tsx(197,31)` — `SelfLedKey` vs `Strategy` mismatch. Doesn't break builds.
+
+**✅ 2026-05-23 → 2026-05-24 — Web parity, phone density, timer overhaul, keyboard advance.** Shipped live to playfastnotes.com on 2026-05-24 as commits `3d031c2` (the big push, 51 files / +4025/-729) and `17767f6` (keyboard + ToolDock follow-up). This closes out the entire "Upcoming: web parity work" plan from the prior version of CLAUDE.md.
+
+**Web parity (Steps 2–3 of that plan):**
+- **Web Recorder.** `components/RecorderPanel.web.tsx` rewritten from informational text to real MediaRecorder + Web Audio AnalyserNode meter + `HTMLAudioElement#preservesPitch` variable-speed playback (1× / 0.75× / 0.5×) + Supabase upload via `saveRecording`. Parity with the native expo-audio panel. `lib/supabase/recordings.ts` `saveRecording` now accepts `string | Blob`.
+- **Web Pencil (stylus-gated).** `components/PencilCanvas.web.tsx` rewritten as a real edit canvas — `perfect-freehand` strokes with pressure (added the dep), Pointer Events, undo (button + Cmd/Ctrl+Z), composite-on-top of existing PNG annotations. Tab is hidden by default; revealed first time any pointer event fires with `pointerType === 'pen'` — Apple Pencil in iPad Safari, Surface, Android stylus all fire this. New `hooks/usePenDetected.{ts,web.ts}` (native always returns true; web persists detected state in localStorage). `?pencil=1` URL override for testing. **Bug fix mid-session:** marks were being lost on a second edit because the `[imageUri]` cleanup effect cleared `bgImgRef`, racing the DONE capture against an empty canvas. Fix: don't clear `bgImgRef` in cleanup; add `bgPendingRef` to block draws while a new background loads. `components/AnnotationCanvas.tsx` gained a ResizeObserver fallback because RN-Web's `onLayout` reports 0×0 for absolute-fill Views.
+- **Web foot pedal.** `components/PedalCatcher.web.tsx` listens for `keydown` on `window` (Bluetooth pedals pair as keyboards and emit arrows / PageUp/Down / Space / Enter). Same 300 ms auto-repeat de-dupe as the native sibling. Typing-target protection (input / textarea / contentEditable).
+- **Laptop UI fixes.** `components/ToolDock.tsx` tab text wrapped in an absolutely-positioned wrapper sized to the rotated footprint so RN-Web stops clipping "METRONOME" / "RECORDER" to 34 px. Page-nav chevrons moved to top corners on the Document viewer so they're not covered by tool tabs.
+
+**Phone density pass (Step 4 of that plan) — `min(width, height) < 600`:**
+- `components/ZoomableImage.tsx` — pinch + pan + double-tap reset, built on gesture-handler (same pattern as ToolDock). Accepts `uri` OR `children` (e.g. wrap a `ScoreWithMarkers` so the ▼ markers ride along the transform — used in Click-Up). Gained an in-memory **`persistKey`** so cycling between passages in Interleaved doesn't carry the previous passage's zoom forward. Module-level `Map<string, {scale, tx, ty}>` keyed by `passage.id`; on key change save outgoing, load incoming. Wired into every practice score: Click-Up, Tempo Ladder, Interleaved (both modes), Rhythmic, Chunking, Self-Led generic + recording, Rhythm Builder, passage detail. Document viewer is intentionally deferred — its page image shares its coordinate space with `PageBoxOverlay` + draw/resize/draft surfaces, so wrapping in ZoomableImage would break the box-drawing math.
+- All tool tabs collapse to icon-only square tabs on phone (`tabSpan(key, isPhone)` returns `TAB_THICKNESS`). `PHONE_LAYOUT` stacks every tool on the RIGHT edge so the iPhone Dynamic Island / front camera (left side in landscape) can't cover a tab. Metronome takes the top slot.
+- Tempo Ladder + Interleaved/Serial consistency-mode phone layout: `SessionTopBar` and the bottom rep-bar are hidden, replaced by — floating **dots pill** at top center (streak indicators + `n/N` complete on Interleaved) — `✕ End` 36 px circle top-left — `✗ Miss` 56 px red circle bottom-left — `✓ Clean` 56 px green circle bottom-right. Score gets `paddingBottom: insets.bottom + 40` so the rep circles sit in their own band.
+- `MetronomePanel` on phone hides the instructional note pill + TAP TEMPO + DRONE MET row (saves a row of vertical height). Card sized 220×230 on phone vs 280×312 (or 280×384 with a note) on tablet.
+- `RecorderPanel.web` on phone: compact record button inline with the meter, hidden "Playback speed" label + "Input level" caption + bottom hint, tighter padding. Card 240×290 on phone vs 300×430 on tablet.
+- `app/_layout.tsx` mounts `SafeAreaProvider` at root so `useSafeAreaInsets()` returns real values on iPhone — every hand-rolled top bar now pads `insets.top` to clear the status bar.
+- Phone-density passes on Library, Document viewer, passage detail (⋯ ActionSheet menu for strategies + side actions), Tempo Ladder setup (`TempoConfigFields` BPM cards stack vertically via `rowPhone` style), Rhythm Builder (pinch-zoom score in setup + entry; tools reordered to right edge; centered exercise music).
+- Log entry chips no longer overflow cards (`maxWidth: '100%'` + card `overflow: 'hidden'`); single-column layout on phone.
+- `BpmStepper` play button relabeled `▶ Hear this tempo`.
+- "strategies →" hint pointing at the ⋯ menu on phone.
+- `FeedbackButton` hidden entirely on phone (and the original bottom-right pill restored on laptop after a mid-session experiment with a side-edge circle stranded it between tool tabs).
+
+**PWA + camera (Step 4):**
+- `app/+html.tsx` (new) — PWA + iOS Add-to-Home-Screen meta tags. Viewport: `width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no`.
+- `public/manifest.webmanifest` + 192/512 icons → "Add to Home Screen" on iOS gives a full-screen app icon.
+- `app/upload.tsx` + `app/multi-page.tsx`: drop zone redesign (drag handlers via `useEffect` + `addEventListener` because RN-Web doesn't forward drag through `Pressable`) + a second `<input type="file" capture="environment">` for direct rear-camera capture on phones.
+- `lib/image/canvasCrop.web.ts` `stitchVertically` gained `opts.srcWidths` so multi-page composites preserve note scale across crops from differently-framed pages.
+
+**Timer overhaul (`components/PracticeTimersContext.tsx` + `GlobalTimerTray.tsx` + `MetronomePanel.tsx` + `PracticeTimerAlertModal.tsx` + `app/settings.tsx`):**
+- New `bodyMove` timer — physical stand-up reminder. Config `{ enabled, intervalMin }`, default 20 min, persisted under `timers.bodyMove`. Fires its own modal overlay (🚶 emoji + "Break" + "Step away from the instrument…" + "On it"). Doesn't suppress during Serial Practice — the body still needs to stand up.
+- All four user-facing names normalized to short labels: **Rotate** (was Move On), **Micro** (was Microbreak), **Cold** (was Play It Cold), **Break** (the new bodyMove). Internal config keys (`moveOn / microbreak / playItCold / bodyMove`) unchanged so persisted prefs survive the rename. Renamed everywhere: pill labels, `TIMER_INFO` titles + bodies, `TimerSettingsModal` toggle titles, `PracticeTimerAlertModal` titles, library `/settings` page.
+- New `TimerSettingsModal` opens from a ⚙ button in the timer pill — enable toggles + chip-row pickers for interval / break duration / interval — so configuration doesn't require leaving practice and navigating to the library. Cold's full config (interval range + passage picker) still lives in `/settings`.
+- `TIMER_DEVICE` palette switched from blue to the metronome's charcoal `DEVICE` palette. Off-state keys use `DEVICE.text` (warm off-white) so the emoji on every timer reads clearly against the charcoal card body; on-state stays `DEVICE.accent` orange. Utility ⚙ / ? buttons use dark glyph color on the new light keys.
+- Card sized 360×132 (was 304×144) so all six pill items (4 timer keys + ⚙ + ?) sit in one row on every device. `pillBare` flexWrap forced to `nowrap`. `timerKey` icon bumped 17 → 24 px. ⚙ / ? became key-shaped (38×46) instead of 34 px circles so the row reads as one uniform strip.
+- `TimerInfoModal` footer ("Configure interval, break length…in the library") dropped — stale now that ⚙ is in the pill and Cold prompts for a passage on toggle.
+
+**Self-Led:**
+- Removed `'recording'` from `SelfLedKey` and from `SELF_LED_STRATEGIES` — the Recorder is now a cross-cutting practice tool available on every screen, so a separate "Recording" strategy is redundant. `SelfLedSheet` icon map trimmed. Routing in `passage/[id]/index.tsx` + `interleaved.tsx` simplified — every picked key now routes to the generic `/self-led/[key]` page. The old `/passage/[id]/self-led/recording` route file stays so old practice-log rows with `strategy: 'recording'` continue to render "Recording · 0:24" in history.
+
+**Click-Up:**
+- "Prev" button repurposed as `← Setup` (back to tempo config).
+- Resume button on the setup screen when there's an in-progress session.
+- `PEDAL` mode toggle removed entirely (header button + phone ⋯ menu item). The keyboard catcher is now always live during the playing phase — a BT foot pedal works without a mode switch.
+- Bottom hint on laptop: "Press Space, Enter, or a foot pedal to advance — or tap NEXT." Phone hides the hint.
+
+**Tempo Ladder + Interleaved keyboard shortcuts:**
+- `PedalCatcher.web.tsx` gained an optional `secondaryKey` + `onSecondary`. Used by Tempo Ladder + Interleaved to bind X to Miss while Space stays Clean. Native sibling accepts the same props for type parity, ignores them (iPad foot pedal only emits arrow keys).
+- Tiny laptop-only hint under the top bar / appended to the existing tempo-hint line: "Space = Clean ✓ · X = Miss ✗".
+
+**Metronome polish:**
+- Volume persisted in localStorage (`DEFAULT_VOLUME = 0.7`) — survives reload.
+- Sharper, louder click — square wave, 2200/1800/1400 Hz, 2× headroom.
+
+**ToolDock laptop affordances:**
+- Corner ⊖ / ⊕ buttons (×1.15 per tap, clamped to `[MIN_SCALE, MAX_SCALE]`) so mouse-only users can resize without pinch. Same `scale` shared value pinch uses — single source of truth.
+- Vertical drag clamp loosened to match horizontal: 25% of the card can poke off any edge. The previous `minY: 4` made the Metronome card (already opening near the top of its tab) un-draggable upward.
+
+**Open follow-ups going into the next session:**
+- Friend-test the live web build on laptop / phone / tablet.
+- iPad cutover (`playpreview` → install → verify on physical iPad → archive `learn-fast-notes/`).
+- Pre-existing TS errors in `self-led/[key].tsx` + `self-led/recording.tsx` (cheap cleanup next time those routes are touched).
+- Document viewer pinch-zoom (deferred; needs overlays scaled inside the transform).
+- Stripe + paid tier (Phase 4.4.2).
+- Verify the Microbreak timer is still triggered by practice flows (Tempo Ladder used to fire `microbreak.trigger()` every N clean reps; check that survived rework).
+- Verify no orphan Tuner references remain.
 
 ---
 
