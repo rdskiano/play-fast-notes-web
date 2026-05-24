@@ -2,12 +2,20 @@ import { Image } from 'expo-image';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ZoomableImage } from '@/components/ZoomableImage';
 import { Button } from '@/components/Button';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
@@ -40,6 +48,8 @@ export default function ChunkingScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   const [passage, setPassage] = useState<Passage | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
@@ -103,11 +113,19 @@ export default function ChunkingScreen() {
 
       <View style={{ flex: 1 }}>
         {passage?.source_uri ? (
-          <Image
-            source={{ uri: passage.source_uri }}
-            style={styles.scoreFill}
-            contentFit="contain"
-          />
+          isPhone ? (
+            <ZoomableImage
+              uri={passage.source_uri}
+              style={styles.scoreFill}
+              persistKey={passage.id}
+            />
+          ) : (
+            <Image
+              source={{ uri: passage.source_uri }}
+              style={styles.scoreFill}
+              contentFit="contain"
+            />
+          )
         ) : (
           <View style={styles.empty}>
             <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>

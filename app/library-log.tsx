@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
@@ -207,11 +207,16 @@ function renderDateCard(
   C: typeof Colors.light,
   STRATEGY_COLORS: Record<string, string>,
   setEditing: (e: LibraryPracticeLogEntry) => void,
+  isPhone: boolean,
 ) {
   return (
     <View
       key={key}
-      style={[styles.card, { borderColor: C.icon + '33' }]}>
+      style={[
+        styles.card,
+        isPhone && styles.cardPhone,
+        { borderColor: C.icon + '33' },
+      ]}>
       <ThemedText style={styles.passageName} numberOfLines={1}>
         {pg.passageTitle}
       </ThemedText>
@@ -314,6 +319,8 @@ export default function LibraryLogScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { colors: STRATEGY_COLORS } = useStrategyColors();
+  const { width, height } = useWindowDimensions();
+  const isPhone = Math.min(width, height) < 600;
 
   const [viewMode, setViewMode] = useState<ViewMode>('date');
   const [entries, setEntries] = useState<LibraryPracticeLogEntry[]>([]);
@@ -661,7 +668,7 @@ export default function LibraryLogScreen() {
                           </ThemedText>
                           <View style={styles.grid}>
                             {docGroup.passages.map((pg, j) =>
-                              renderDateCard(pg, j, C, STRATEGY_COLORS, setEditing),
+                              renderDateCard(pg, j, C, STRATEGY_COLORS, setEditing, isPhone),
                             )}
                           </View>
                         </View>
@@ -669,7 +676,7 @@ export default function LibraryLogScreen() {
                       {folder.standalonePassages.length > 0 && (
                         <View style={styles.grid}>
                           {folder.standalonePassages.map((pg, j) =>
-                            renderDateCard(pg, j, C, STRATEGY_COLORS, setEditing),
+                            renderDateCard(pg, j, C, STRATEGY_COLORS, setEditing, isPhone),
                           )}
                         </View>
                       )}
@@ -846,6 +853,10 @@ const styles = StyleSheet.create({
     borderRadius: Radii.md,
     padding: 10,
     gap: 6,
+    overflow: 'hidden',
+  },
+  cardPhone: {
+    flexBasis: '100%',
   },
   passageName: { fontWeight: Type.weight.bold, fontSize: Type.size.sm },
   folderSubtitle: { fontSize: Type.size.xs, fontWeight: Type.weight.semibold, marginTop: -2 },

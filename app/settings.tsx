@@ -13,6 +13,7 @@ import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PassagePickerModal } from '@/components/PassagePickerModal';
 import {
+  useBodyMoveTimer,
   useMicrobreakTimer,
   useMoveOnTimer,
   usePlayItColdTimer,
@@ -119,6 +120,7 @@ export default function SettingsScreen() {
   const moveOn = useMoveOnTimer();
   const microbreak = useMicrobreakTimer();
   const playItCold = usePlayItColdTimer();
+  const bodyMove = useBodyMoveTimer();
 
   const session = useSession();
   const userEmail = session?.user.email ?? null;
@@ -230,14 +232,14 @@ export default function SettingsScreen() {
           <ThemedText style={styles.sectionTitle}>Practice timers</ThemedText>
         </View>
         <ThemedText style={styles.sectionHint}>
-          Three focus tools. Toggle them on or off from the ⏱🧠❄️ pill at the
-          top of any passage screen; configure them here.
+          Four focus tools. Toggle them on or off from the ⏱🧠❄️🚶 pill on the
+          Timer card in any passage screen; configure them here.
         </ThemedText>
 
-        {/* Move On */}
+        {/* Rotate */}
         <View style={[styles.timerCard, { borderColor: C.icon + '33' }]}>
           <View style={styles.timerHeader}>
-            <ThemedText style={styles.timerTitle}>⏱ Move On Timer</ThemedText>
+            <ThemedText style={styles.timerTitle}>⏱ Rotate Timer</ThemedText>
             <Switch
               value={moveOn.config.enabled}
               onValueChange={(v) => moveOn.setConfig({ enabled: v })}
@@ -263,10 +265,10 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Microbreak */}
+        {/* Micro */}
         <View style={[styles.timerCard, { borderColor: C.icon + '33' }]}>
           <View style={styles.timerHeader}>
-            <ThemedText style={styles.timerTitle}>🧠 Microbreak Timer</ThemedText>
+            <ThemedText style={styles.timerTitle}>🧠 Micro Timer</ThemedText>
             <Switch
               value={microbreak.config.enabled}
               onValueChange={(v) => microbreak.setConfig({ enabled: v })}
@@ -296,10 +298,10 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Play It Cold */}
+        {/* Cold */}
         <View style={[styles.timerCard, { borderColor: C.icon + '33' }]}>
           <View style={styles.timerHeader}>
-            <ThemedText style={styles.timerTitle}>❄️ Play It Cold Timer</ThemedText>
+            <ThemedText style={styles.timerTitle}>❄️ Cold Timer</ThemedText>
             <Switch
               value={playItCold.config.enabled}
               onValueChange={(v) => {
@@ -352,6 +354,36 @@ export default function SettingsScreen() {
                 {selectedPassage ? selectedPassage.title : 'Pick a passage…'}
               </ThemedText>
             </Pressable>
+          </View>
+        </View>
+
+        {/* Break — physical stand-up reminder, distinct from Rotate which
+            just swaps passages without leaving the chair. */}
+        <View style={[styles.timerCard, { borderColor: C.icon + '33' }]}>
+          <View style={styles.timerHeader}>
+            <ThemedText style={styles.timerTitle}>🚶 Break Timer</ThemedText>
+            <Switch
+              value={bodyMove.config.enabled}
+              onValueChange={(v) => bodyMove.setConfig({ enabled: v })}
+              trackColor={{ true: C.tint }}
+            />
+          </View>
+          <ThemedText style={[styles.timerWhy, { color: C.icon }]}>
+            A gentle nudge to step away from the instrument, stretch, and walk
+            around. Long motionless sessions hurt your back and your focus;
+            brief movement breaks reset both.
+          </ThemedText>
+          <View style={styles.controlRow}>
+            <ThemedText style={styles.controlLabel}>Fire every</ThemedText>
+            <Stepper
+              value={bodyMove.config.intervalMin}
+              min={10}
+              max={60}
+              unit="min"
+              tint={C.tint}
+              icon={C.icon}
+              onChange={(n) => bodyMove.setConfig({ intervalMin: n })}
+            />
           </View>
         </View>
 

@@ -21,7 +21,6 @@ const ICONS: Record<SelfLedKey, string> = {
   add_a_note: '➕',
   pitch: '🎯',
   phrasing: '🎵',
-  recording: '🎙',
   freeform: '✏️',
 };
 

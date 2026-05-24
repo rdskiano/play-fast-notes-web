@@ -23,6 +23,10 @@ export type PlayItColdConfig = {
   intervalMax: number;
   pieceId: string | null;
 };
+// "Body Move" reminder — fires every N minutes to remind the player to
+// stand up, stretch, walk around. Distinct from Move On (which rotates
+// passages) and Microbreak (which is a short mental rest after reps).
+export type BodyMoveConfig = { enabled: boolean; intervalMin: number };
 
 const DEFAULT_MOVE_ON: MoveOnConfig = { enabled: false, intervalMin: 3 };
 const DEFAULT_MICROBREAK: MicrobreakConfig = {
@@ -35,13 +39,15 @@ const DEFAULT_PLAY_IT_COLD: PlayItColdConfig = {
   intervalMax: 10,
   pieceId: null,
 };
+const DEFAULT_BODY_MOVE: BodyMoveConfig = { enabled: false, intervalMin: 20 };
 
 const KEY_MOVE_ON = 'timers.moveOn';
 const KEY_MICROBREAK = 'timers.microbreak';
 const KEY_PLAY_IT_COLD = 'timers.playItCold';
+const KEY_BODY_MOVE = 'timers.bodyMove';
 
-// Fire priority: Move On > Play It Cold > Microbreak
-type FiringKind = 'moveOn' | 'microbreak' | 'playItCold' | null;
+// Fire priority: Move On > Play It Cold > Microbreak > Body Move
+type FiringKind = 'moveOn' | 'microbreak' | 'playItCold' | 'bodyMove' | null;
 
 // ── Hook-facing shapes ──────────────────────────────────────────────────────
 
@@ -68,10 +74,18 @@ type PlayItColdHook = {
   dismiss: () => void;
 };
 
+type BodyMoveHook = {
+  config: BodyMoveConfig;
+  setConfig: (next: Partial<BodyMoveConfig>) => void;
+  firing: boolean;
+  dismiss: () => void;
+};
+
 type Ctx = {
   moveOn: MoveOnHook;
   microbreak: MicrobreakHook;
   playItCold: PlayItColdHook;
+  bodyMove: BodyMoveHook;
 };
 
 const CtxObj = createContext<Ctx | null>(null);
@@ -101,6 +115,7 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
   const [moveOnCfg, setMoveOnCfg] = useState<MoveOnConfig>(DEFAULT_MOVE_ON);
   const [microbreakCfg, setMicrobreakCfg] = useState<MicrobreakConfig>(DEFAULT_MICROBREAK);
   const [playItColdCfg, setPlayItColdCfg] = useState<PlayItColdConfig>(DEFAULT_PLAY_IT_COLD);
+  const [bodyMoveCfg, setBodyMoveCfg] = useState<BodyMoveConfig>(DEFAULT_BODY_MOVE);
   const [hydrated, setHydrated] = useState(false);
 
   const [firing, setFiring] = useState<FiringKind>(null);
@@ -112,6 +127,7 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
   const [coldPassage, setColdPassage] = useState<Passage | null>(null);
 
   const moveOnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const bodyMoveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const coldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const moveOnCfgRef = useRef(moveOnCfg);
@@ -120,19 +136,23 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
   microbreakCfgRef.current = microbreakCfg;
   const playItColdCfgRef = useRef(playItColdCfg);
   playItColdCfgRef.current = playItColdCfg;
+  const bodyMoveCfgRef = useRef(bodyMoveCfg);
+  bodyMoveCfgRef.current = bodyMoveCfg;
   const firingRef = useRef<FiringKind>(null);
   firingRef.current = firing;
 
   useEffect(() => {
     (async () => {
-      const [mo, mb, pc] = await Promise.all([
+      const [mo, mb, pc, bm] = await Promise.all([
         loadJson<MoveOnConfig>(KEY_MOVE_ON, DEFAULT_MOVE_ON),
         loadJson<MicrobreakConfig>(KEY_MICROBREAK, DEFAULT_MICROBREAK),
         loadJson<PlayItColdConfig>(KEY_PLAY_IT_COLD, DEFAULT_PLAY_IT_COLD),
+        loadJson<BodyMoveConfig>(KEY_BODY_MOVE, DEFAULT_BODY_MOVE),
       ]);
       setMoveOnCfg(mo);
       setMicrobreakCfg(mb);
       setPlayItColdCfg(pc);
+      setBodyMoveCfg(bm);
       setHydrated(true);
     })();
   }, []);
@@ -208,6 +228,27 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
     };
   }, [hydrated, moveOnCfg.enabled, moveOnCfg.intervalMin, enqueueFire]);
 
+  // Body Move scheduler. Fires irrespective of Serial Practice — the
+  // user's body still needs to stand up regardless of what practice flow
+  // they are in.
+  useEffect(() => {
+    if (bodyMoveIntervalRef.current) {
+      clearInterval(bodyMoveIntervalRef.current);
+      bodyMoveIntervalRef.current = null;
+    }
+    if (!hydrated || !bodyMoveCfg.enabled) return;
+    const ms = Math.max(60_000, bodyMoveCfg.intervalMin * 60_000);
+    bodyMoveIntervalRef.current = setInterval(() => {
+      enqueueFire('bodyMove');
+    }, ms);
+    return () => {
+      if (bodyMoveIntervalRef.current) {
+        clearInterval(bodyMoveIntervalRef.current);
+        bodyMoveIntervalRef.current = null;
+      }
+    };
+  }, [hydrated, bodyMoveCfg.enabled, bodyMoveCfg.intervalMin, enqueueFire]);
+
   const schedulePlayItCold = useCallback(() => {
     if (coldTimeoutRef.current) {
       clearTimeout(coldTimeoutRef.current);
@@ -261,6 +302,12 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
     schedulePlayItCold();
   }, [drainQueue, schedulePlayItCold]);
 
+  const dismissBodyMove = useCallback(() => {
+    if (firingRef.current !== 'bodyMove') return;
+    setFiring(null);
+    drainQueue();
+  }, [drainQueue]);
+
   const triggerMicrobreak = useCallback(() => {
     if (!microbreakCfgRef.current.enabled) return;
     enqueueFire('microbreak');
@@ -290,6 +337,14 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setBodyMoveConfig = useCallback((patch: Partial<BodyMoveConfig>) => {
+    setBodyMoveCfg((prev) => {
+      const next = { ...prev, ...patch };
+      setSetting(KEY_BODY_MOVE, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
   const value: Ctx = {
     moveOn: {
       config: moveOnCfg,
@@ -310,6 +365,12 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
       firing: firing === 'playItCold',
       passage: coldPassage,
       dismiss: dismissPlayItCold,
+    },
+    bodyMove: {
+      config: bodyMoveCfg,
+      setConfig: setBodyMoveConfig,
+      firing: firing === 'bodyMove',
+      dismiss: dismissBodyMove,
     },
   };
 
@@ -340,6 +401,12 @@ function useCtx(): Ctx {
         passage: null,
         dismiss: () => {},
       },
+      bodyMove: {
+        config: DEFAULT_BODY_MOVE,
+        setConfig: () => {},
+        firing: false,
+        dismiss: () => {},
+      },
     };
   }
   return ctx;
@@ -355,6 +422,10 @@ export function useMicrobreakTimer() {
 
 export function usePlayItColdTimer() {
   return useCtx().playItCold;
+}
+
+export function useBodyMoveTimer() {
+  return useCtx().bodyMove;
 }
 
 export function usePracticeTimers() {

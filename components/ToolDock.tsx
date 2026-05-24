@@ -9,7 +9,7 @@
 // while collapsed.
 
 import { type ReactNode, useEffect, useState } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle,
@@ -172,17 +172,34 @@ export function ToolDock({
           { top: tabTop, height: tabSpan, backgroundColor: accent },
           edge === 'left' ? styles.tabLeft : styles.tabRight,
         ]}>
-        <ThemedText
-          numberOfLines={1}
-          style={[
-            styles.tabLabel,
-            {
+        {tabSpan <= TAB_THICKNESS + 4 ? (
+          // Phone density: square tab with an upright icon. No rotation —
+          // the label is a single emoji and rotating it would just be
+          // confusing.
+          <ThemedText style={styles.tabIcon}>{label}</ThemedText>
+        ) : (
+          // Full label rendered in an absolutely-positioned wrapper sized
+          // to the rotated tab footprint. Centering + rotating the wrapper
+          // (rather than the text) avoids RN-Web shrinking the text's
+          // width to the 34px Pressable, which clipped "METRONOME" /
+          // "RECORDER" on web.
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
               width: tabSpan,
+              height: TAB_THICKNESS,
+              left: (TAB_THICKNESS - tabSpan) / 2,
+              top: (tabSpan - TAB_THICKNESS) / 2,
+              alignItems: 'center',
+              justifyContent: 'center',
               transform: [{ rotate: edge === 'left' ? '-90deg' : '90deg' }],
-            },
-          ]}>
-          {label}
-        </ThemedText>
+            }}>
+            <ThemedText numberOfLines={1} style={styles.tabLabel}>
+              {label}
+            </ThemedText>
+          </View>
+        )}
       </Pressable>
     </>
   );
@@ -218,8 +235,15 @@ const styles = StyleSheet.create({
   tabLabel: {
     color: '#fff',
     fontSize: 12,
+    lineHeight: 14,
     fontWeight: '800',
     letterSpacing: 1.5,
+    textAlign: 'center',
+  },
+  tabIcon: {
+    color: '#fff',
+    fontSize: 18,
+    lineHeight: 22,
     textAlign: 'center',
   },
 });

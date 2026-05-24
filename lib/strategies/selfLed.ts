@@ -2,7 +2,13 @@
 // the app teaches and logs but does NOT drive (no metronome scheduler, no
 // step counter). Includes Learn-Fast-Notes methods (Chunking, Add a Note)
 // and general practice modes that musicians do every day (pitch work,
-// phrasing, recording themselves, freeform).
+// phrasing, freeform).
+//
+// "Recording" used to be in this list, but the Recorder is now a
+// cross-cutting practice tool available on every screen — there's no
+// reason to make it a separate self-led strategy. The 'recording' key
+// is still tolerated by `getSelfLedStrategy` to keep old practice-log
+// rows readable.
 //
 // Each entry corresponds to one possible value of practice_log.strategy.
 // The data shape is deliberately flat so the catalog can grow without
@@ -13,7 +19,6 @@ export type SelfLedKey =
   | 'add_a_note'
   | 'pitch'
   | 'phrasing'
-  | 'recording'
   | 'freeform';
 
 export type SelfLedStrategy = {
@@ -27,8 +32,6 @@ export type SelfLedStrategy = {
   steps: string[];
   // Surfaced visibly per design principle "Attribution is marketing, not baggage."
   attribution?: string;
-  // True only for the strategy that captures audio.
-  recordingMode?: boolean;
 };
 
 export const SELF_LED_STRATEGIES: SelfLedStrategy[] = [
@@ -84,20 +87,6 @@ export const SELF_LED_STRATEGIES: SelfLedStrategy[] = [
       'Decide where the breath or bow change will be and rehearse it.',
       'Vary it: same line three different ways. Pick the one that feels right.',
     ],
-  },
-  {
-    key: 'recording',
-    title: 'Recording',
-    shortDescription: 'Record yourself, listen back, log it',
-    longDescription:
-      'Hit record, play the passage, then listen with a critical ear. The microphone hears things you do not — rushed sixteenths, lopsided dynamics, intonation drift. Save the clip alongside the log entry so you can compare last week to this week.',
-    steps: [
-      'Tap Record. Wait one second, then play.',
-      'Tap Stop when you finish.',
-      'Tap Play. Listen all the way through without skipping.',
-      'Save with a one-line note about what you heard.',
-    ],
-    recordingMode: true,
   },
   {
     key: 'freeform',

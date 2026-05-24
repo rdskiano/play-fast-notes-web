@@ -10,6 +10,7 @@ import {
   Pressable,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -110,6 +111,7 @@ type FolderCardProps = {
   editMode: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  isPhone?: boolean;
   onEnter: () => void;
   onLongPress: () => void;
   onMoveUp: () => void;
@@ -127,6 +129,7 @@ function FolderCard({
   editMode,
   canMoveUp,
   canMoveDown,
+  isPhone,
   onEnter,
   onLongPress,
   onMoveUp,
@@ -140,9 +143,13 @@ function FolderCard({
       onPress={editMode ? undefined : onEnter}
       onLongPress={editMode ? undefined : onLongPress}
       delayLongPress={400}
-      style={[styles.card, { borderColor }]}>
-      <View style={[styles.folderIcon, { backgroundColor: tintColor + '22' }]}>
-        <IconSymbol name="folder.fill" size={44} color={tintColor} />
+      style={[isPhone ? styles.cardPhone : styles.card, { borderColor }]}>
+      <View
+        style={[
+          isPhone ? styles.folderIconPhone : styles.folderIcon,
+          { backgroundColor: tintColor + '22' },
+        ]}>
+        <IconSymbol name="folder.fill" size={isPhone ? 28 : 44} color={tintColor} />
       </View>
       <ThemedView style={styles.cardText}>
         <ThemedText type="defaultSemiBold">{folder.name}</ThemedText>
@@ -194,6 +201,7 @@ type PassageCardProps = {
   editMode: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  isPhone?: boolean;
   scuPct: number | null;
   onOpen: () => void;
   onLongPress: () => void;
@@ -213,6 +221,7 @@ function PassageCard({
   editMode,
   canMoveUp,
   canMoveDown,
+  isPhone,
   scuPct,
   onOpen,
   onLongPress,
@@ -222,20 +231,21 @@ function PassageCard({
   onMove,
   onDelete,
 }: PassageCardProps) {
+  const thumbStyle = isPhone ? styles.thumbPhone : styles.thumb;
   return (
     <Pressable
       onPress={editMode ? undefined : onOpen}
       onLongPress={editMode ? undefined : onLongPress}
       delayLongPress={400}
-      style={[styles.card, { borderColor }]}>
+      style={[isPhone ? styles.cardPhone : styles.card, { borderColor }]}>
       {passage.thumbnail_uri ? (
         <Image
           source={{ uri: passage.thumbnail_uri }}
-          style={styles.thumb}
+          style={thumbStyle}
           contentFit="cover"
         />
       ) : (
-        <View style={[styles.thumb, { backgroundColor: tintColor + '11' }]} />
+        <View style={[thumbStyle, { backgroundColor: tintColor + '11' }]} />
       )}
       <ThemedView style={styles.cardText}>
         <ThemedText type="defaultSemiBold">{passage.title}</ThemedText>
@@ -291,6 +301,7 @@ type DocumentCardProps = {
   editMode: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  isPhone?: boolean;
   onOpen: () => void;
   onLongPress: () => void;
   onMoveUp: () => void;
@@ -308,6 +319,7 @@ function DocumentCard({
   editMode,
   canMoveUp,
   canMoveDown,
+  isPhone,
   onOpen,
   onLongPress,
   onMoveUp,
@@ -320,24 +332,25 @@ function DocumentCard({
   // until the first render lands.
   const pages = parsePages(document.pages_json);
   const thumbUri = pages.length > 0 ? pages[0].image_uri : null;
+  const thumbStyle = isPhone ? styles.thumbPhone : styles.thumb;
   return (
     <Pressable
       onPress={editMode ? undefined : onOpen}
       onLongPress={editMode ? undefined : onLongPress}
       delayLongPress={400}
-      style={[styles.card, { borderColor }]}>
+      style={[isPhone ? styles.cardPhone : styles.card, { borderColor }]}>
       {thumbUri ? (
         // Anchor the crop to the top so the title block + tempo / key markings
         // stay visible. The middle of an orchestral part is mostly notation
         // and looks like every other middle.
         <Image
           source={{ uri: thumbUri }}
-          style={styles.thumb}
+          style={thumbStyle}
           contentFit="cover"
           contentPosition="top"
         />
       ) : (
-        <View style={[styles.thumb, { backgroundColor: tintColor + '11' }]} />
+        <View style={[thumbStyle, { backgroundColor: tintColor + '11' }]} />
       )}
       <ThemedView style={styles.cardText}>
         <ThemedText type="defaultSemiBold">{document.title}</ThemedText>
@@ -388,6 +401,12 @@ export default function LibraryScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { colors: strategyColors } = useStrategyColors();
+  // Phone density: at narrow viewports we hide the intro copy, shrink the
+  // header to icons, and use compact card art so more of the user's
+  // actual library is above the fold. Either-axis check so landscape
+  // phones also get the dense layout.
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [path, setPath] = useState<Folder[]>([]);
@@ -824,6 +843,50 @@ export default function LibraryScreen() {
               )}
               <Button label="Done" size="sm" onPress={() => setEditMode(false)} />
             </>
+          ) : isPhone ? (
+            // Phone: icon-only secondary actions on the left, primary
+            // "+ Add" stays labeled on the right. Buttons sized like the
+            // chevron / undo overlays used elsewhere in the app so the
+            // header feels familiar.
+            <>
+              <Pressable
+                onPress={() => Linking.openURL(bmacUrl())}
+                accessibilityLabel="Support the developer"
+                style={[styles.iconBtn, { borderColor: C.icon }]}>
+                <ThemedText style={styles.iconBtnText}>☕</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (currentFolderId) {
+                    router.push({
+                      pathname: '/folder-log',
+                      params: {
+                        folderId: currentFolderId,
+                        folderName: currentFolderName,
+                      },
+                    });
+                  } else {
+                    router.push('/library-log');
+                  }
+                }}
+                accessibilityLabel="Practice log"
+                style={[styles.iconBtn, { borderColor: C.icon }]}>
+                <ThemedText style={styles.iconBtnText}>📋</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => router.push('/settings')}
+                accessibilityLabel="Settings"
+                style={[styles.iconBtn, { borderColor: C.icon }]}>
+                <ThemedText style={styles.iconBtnText}>⚙</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => setEditMode(true)}
+                accessibilityLabel="Edit"
+                style={[styles.iconBtn, { borderColor: C.icon }]}>
+                <ThemedText style={styles.iconBtnText}>✎</ThemedText>
+              </Pressable>
+              <Button label="+ Add" size="sm" onPress={() => setAddOpen(true)} />
+            </>
           ) : (
             <>
               <Button
@@ -868,7 +931,10 @@ export default function LibraryScreen() {
         </View>
       </ThemedView>
 
-      {isAtRoot && !editMode && (
+      {/* Phone hides the marketing/teaching copy — returning users
+          don't need a re-pitch every launch, and three paragraphs eat
+          half the iPhone viewport before any actual content shows. */}
+      {isAtRoot && !editMode && !isPhone && (
         <View style={styles.hintBlock}>
           <ThemedText style={styles.tagline}>
             Crop difficult passages from your music and practice them with guided strategies.
@@ -990,6 +1056,7 @@ export default function LibraryScreen() {
                   editMode={editMode}
                   canMoveUp={folderIdx > 0}
                   canMoveDown={folderIdx >= 0 && folderIdx < filteredFolders.length - 1}
+                  isPhone={isPhone}
                   onEnter={() => enterFolder(item.folder.id)}
                   onLongPress={() => setActionTarget({ kind: 'folder', folder: item.folder })}
                   onMoveUp={() => moveItem('folder', item.folder.id, -1)}
@@ -1013,6 +1080,7 @@ export default function LibraryScreen() {
                   editMode={editMode}
                   canMoveUp={documentIdx > 0}
                   canMoveDown={documentIdx >= 0 && documentIdx < filteredDocuments.length - 1}
+                  isPhone={isPhone}
                   onOpen={() => router.push(`/document/${item.document.id}` as never)}
                   onLongPress={() =>
                     setActionTarget({ kind: 'document', document: item.document })
@@ -1042,6 +1110,7 @@ export default function LibraryScreen() {
                 editMode={editMode}
                 canMoveUp={passageIdx > 0}
                 canMoveDown={passageIdx >= 0 && passageIdx < filteredPassages.length - 1}
+                isPhone={isPhone}
                 scuPct={scuProgress[item.passage.id] ?? null}
                 onOpen={() => router.push(`/passage/${item.passage.id}`)}
                 onLongPress={() => setActionTarget({ kind: 'passage', passage: item.passage })}
@@ -1346,6 +1415,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Phone density: shrink the leading thumbnail / folder icon so each
+  // row uses roughly half the vertical space, letting ~4–5 entries fit
+  // above the fold on an iPhone instead of ~2.
+  thumbPhone: {
+    width: 44,
+    height: 44,
+    borderRadius: Radii.sm,
+    backgroundColor: '#0002',
+  },
+  folderIconPhone: {
+    width: 44,
+    height: 44,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardPhone: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    borderWidth: Borders.thin,
+    borderRadius: Radii.md,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
+    alignItems: 'center',
+  },
+  // Compact icon-only buttons in the phone header row.
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: Radii.md,
+    borderWidth: Borders.thin,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBtnText: { fontSize: 18, lineHeight: 20 },
   cardText: { flex: 1, gap: Spacing.xs },
   scuBadge: {
     paddingHorizontal: Spacing.sm,

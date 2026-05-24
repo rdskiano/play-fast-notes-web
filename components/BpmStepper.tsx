@@ -113,13 +113,10 @@ export function BpmStepper({
         <Pressable
           onPress={toggle}
           hitSlop={8}
+          accessibilityLabel={running ? 'Stop preview' : 'Hear this tempo'}
           style={[styles.playBtn, { backgroundColor: running ? '#c0392b' : '#e67e22' }]}>
-          <ThemedText
-            style={[
-              styles.playBtnText,
-              !running && styles.playBtnTextTriangle,
-            ]}>
-            {running ? '■' : '▶'}
+          <ThemedText style={styles.playBtnText}>
+            {running ? '■  Stop' : '▶  Hear this tempo'}
           </ThemedText>
         </Pressable>
       )}
@@ -160,19 +157,17 @@ const styles = StyleSheet.create({
   sliderLabelText: { fontSize: 10, opacity: Opacity.muted },
   playBtn: {
     alignSelf: 'center',
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    height: 44,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
   playBtnText: {
     color: '#fff',
-    fontWeight: Type.weight.black,
-    fontSize: 22,
-    lineHeight: 22,
-  },
-  playBtnTextTriangle: {
-    marginLeft: 3,
+    fontWeight: Type.weight.bold,
+    fontSize: Type.size.sm,
+    lineHeight: 18,
+    letterSpacing: 0.3,
   },
 });

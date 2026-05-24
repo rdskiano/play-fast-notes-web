@@ -23,6 +23,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { LogBox, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { FeedbackButton } from '@/components/FeedbackButton';
 import {
@@ -86,10 +87,19 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StrategyColorsProvider>
-        <NativeWrapper>
-          <PracticeTimersProvider>
-            <ThemeProvider value={DefaultTheme}>
+      {/* SafeAreaProvider feeds `useSafeAreaInsets()` real values from
+          the device's safe-area insets. On iOS native it reads the
+          notch / status bar. On web it reads CSS `env(safe-area-inset-*)`
+          — which the iPhone PWA exposes because we set
+          `viewport-fit=cover` in app/+html.tsx. Without this provider
+          mounted, every header that calls `useSafeAreaInsets()` (e.g.
+          SessionTopBar) got `{top: 0}` and rendered behind the iPhone
+          status bar's "4:48" / wifi icons. */}
+      <SafeAreaProvider>
+        <StrategyColorsProvider>
+          <NativeWrapper>
+            <PracticeTimersProvider>
+              <ThemeProvider value={DefaultTheme}>
               <Stack>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="sign-in" options={{ headerShown: false }} />
@@ -165,15 +175,16 @@ export default function RootLayout() {
                 <Stack.Screen name="import-seed" options={{ headerShown: false }} />
                 <Stack.Screen name="import-supabase" options={{ headerShown: false }} />
               </Stack>
-              {!IS_WEB && <InterleavedStatusBar />}
-              <PracticeTimerAlertModal />
-              {!IS_WEB && <StitchHost />}
-              {IS_WEB && <FeedbackButton />}
-              <StatusBar style="dark" />
-            </ThemeProvider>
-          </PracticeTimersProvider>
-        </NativeWrapper>
-      </StrategyColorsProvider>
+                {!IS_WEB && <InterleavedStatusBar />}
+                <PracticeTimerAlertModal />
+                {!IS_WEB && <StitchHost />}
+                {IS_WEB && <FeedbackButton />}
+                <StatusBar style="dark" />
+              </ThemeProvider>
+            </PracticeTimersProvider>
+          </NativeWrapper>
+        </StrategyColorsProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

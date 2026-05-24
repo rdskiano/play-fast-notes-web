@@ -1,4 +1,3 @@
-import { Image, type ImageLoadEventData } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -22,6 +21,7 @@ import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
+import { ZoomableImage } from '@/components/ZoomableImage';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
@@ -105,7 +105,6 @@ export default function RhythmBuilderScreen() {
   const [pitches, setPitches] = useState<Pitch[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
-  const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
 
   const metronome = useMetronome(80);
@@ -467,22 +466,12 @@ export default function RhythmBuilderScreen() {
           contentContainerStyle={styles.setupControls}
           keyboardShouldPersistTaps="handled">
           {passage.source_uri ? (
-            <View
-              style={[
-                styles.setupScore,
-                imageAspect ? { aspectRatio: imageAspect } : null,
-              ]}>
-              <Image
-                source={{ uri: passage.source_uri }}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                onLoad={(e: ImageLoadEventData) => {
-                  const w = e.source?.width;
-                  const h = e.source?.height;
-                  if (w && h && h > 0) setImageAspect(w / h);
-                }}
-              />
-            </View>
+            // Pinch + pan to zoom up to 4× so the user can read the
+            // source notation clearly while choosing instrument / key /
+            // grouping. Container has a fixed height so the rest of
+            // the screen stays accessible — the user can still scroll
+            // past the score to the dropdowns + Continue button.
+            <ZoomableImage uri={passage.source_uri} style={styles.setupScore} />
           ) : null}
 
           <View style={styles.setupControlsInner}>
@@ -549,22 +538,8 @@ export default function RhythmBuilderScreen() {
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingBottom: Spacing['2xl'] }}>
           {passage.source_uri ? (
-            <View
-              style={[
-                styles.entryScore,
-                imageAspect ? { aspectRatio: imageAspect } : null,
-              ]}>
-              <Image
-                source={{ uri: passage.source_uri }}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                onLoad={(e: ImageLoadEventData) => {
-                  const w = e.source?.width;
-                  const h = e.source?.height;
-                  if (w && h && h > 0) setImageAspect(w / h);
-                }}
-              />
-            </View>
+            // Same pinch + pan zoom as the setup phase.
+            <ZoomableImage uri={passage.source_uri} style={styles.entryScore} />
           ) : null}
 
           <View style={[styles.summary, { borderColor: C.icon + '44' }]}>
@@ -685,7 +660,7 @@ export default function RhythmBuilderScreen() {
           />
           <PracticeToolsLayer
             metronome={metronome}
-            tools={{ left: [], right: ['timer', 'metronome', 'pencil'] }}
+            tools={{ left: [], right: ['metronome', 'timer', 'pencil'] }}
           />
         </View>
       )}
@@ -888,6 +863,13 @@ function ExerciseCard({
         width={viewportWidth - 32}
         height={140}
         wrap
+        // Trim the SVG to its actual content and center it in the row.
+        // Without this, abcjs renders the music left-aligned and pads
+        // the requested width with empty space — on phone landscape /
+        // tablet, that leaves a huge blank gap to the right of each
+        // pattern. With `centered`, the staff sits in the middle of
+        // its row regardless of viewport width.
+        centered
         preferredMeasuresPerLine={measuresPerLine}
         fallbackText={pattern.notes.join('  ')}
       />
@@ -944,7 +926,11 @@ const styles = StyleSheet.create({
 
   setupScore: {
     width: '100%',
-    minHeight: 200,
+    // Fixed height (not aspectRatio) so a tall portrait passage doesn't
+    // push the dropdowns and Continue button below the fold. The image
+    // inside renders contentFit:contain at 1×; the user pinches to
+    // zoom and pans to navigate.
+    height: 260,
     backgroundColor: '#0001',
     overflow: 'hidden',
     position: 'relative',
@@ -975,7 +961,9 @@ const styles = StyleSheet.create({
   // Entry phase
   entryScore: {
     width: '100%',
-    minHeight: 160,
+    // Same fixed-height treatment as setupScore — leaves room for the
+    // pitch staff + piano keyboard below without scrolling.
+    height: 200,
     backgroundColor: '#0001',
     overflow: 'hidden',
     position: 'relative',

@@ -1,6 +1,7 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { PromptModal } from '@/components/PromptModal';
@@ -57,6 +58,7 @@ export default function CropScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
 
   const [passage, setPassage] = useState<Passage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -276,7 +278,11 @@ export default function CropScreen() {
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={[styles.topBar, { borderBottomColor: C.icon + '44' }]}>
+      <View
+        style={[
+          styles.topBar,
+          { borderBottomColor: C.icon + '44', paddingTop: insets.top + 14 },
+        ]}>
         <Button label="Cancel" variant="ghost" size="sm" onPress={onSkip} />
         <ThemedText style={styles.title}>Crop</ThemedText>
         <Button

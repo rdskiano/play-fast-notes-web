@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BpmStepper } from '@/components/BpmStepper';
@@ -12,6 +12,7 @@ import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -32,6 +33,10 @@ export default function TempoLadderScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const [notePromptVisible, setNotePromptVisible] = useState(false);
+  // Phone density check — hoisted ABOVE all early returns so the hook
+  // count stays stable across renders (config → loading → play phases).
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   const session = useTempoLadderSession(id);
   const {
@@ -84,10 +89,18 @@ export default function TempoLadderScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.configContainer}>
-          <ThemedText type="title">Tempo Ladder</ThemedText>
-          <ThemedText style={{ opacity: 0.7 }}>
-            Slow-practice with graduated tempos. Set your goal and target reps.
-          </ThemedText>
+          {/* Phone hides the H1 + tagline — the screen's nav strip already
+              says "Tempo Ladder" right above, and the full explanation
+              lives inside the "How it works" expandable below. Saves
+              ~100 px of vertical real estate. */}
+          {!isPhone && (
+            <>
+              <ThemedText type="title">Tempo Ladder</ThemedText>
+              <ThemedText style={{ opacity: 0.7 }}>
+                Slow-practice with graduated tempos. Set your goal and target reps.
+              </ThemedText>
+            </>
+          )}
 
           <CollapsibleHelp title="How it works">
             <ThemedText style={styles.blurbText}>
@@ -115,7 +128,12 @@ export default function TempoLadderScreen() {
           </CollapsibleHelp>
           <View style={[styles.divider, { backgroundColor: C.icon + '33' }]} />
 
-          <View style={styles.row}>
+          {/* Phone: stack BPM cards vertically — at 3-across they squish to
+              ~120px each and the +/- buttons clip the BPM number; "Hear
+              this tempo" also wraps to 3 lines. One full-width card per
+              row reads cleanly. Tablet / desktop keep the side-by-side
+              layout. */}
+          <View style={isPhone ? styles.rowPhone : styles.row}>
             <View style={styles.field}>
               <ThemedText style={styles.label}>
                 {mode === 'cluster' ? 'Low BPM' : 'Start BPM'}
@@ -242,59 +260,83 @@ export default function TempoLadderScreen() {
       ? `Ready to slide the cluster up by ${progress.increment ?? 5} BPM?`
       : `Ready to step up to ${nextPreviewTempo} BPM?`;
 
+  // Phone: hide the chunky top bar and float the controls. The
+  // streak dots sit center-top of the score, the Miss / Clean targets
+  // become small circular buttons in opposite bottom corners (so a
+  // mis-tap can't accidentally fire the wrong call), and End shrinks
+  // to a top-left × glyph. Desktop keeps the original layout.
+  // (isPhone is derived once at the top of the component — see above.)
+
+  function onEndPress() {
+    if (completedSets > 0) setNotePromptVisible(true);
+    else endSession();
+  }
+
   return (
     <View style={styles.playRoot}>
       <Stack.Screen options={{ headerShown: false }} />
+      {!isPhone && (
+        <View
+          style={[
+            styles.activeTopBar,
+            { borderBottomColor: C.icon + '44', paddingTop: insets.top + 10 },
+          ]}>
+          <Pressable onPress={onEndPress} hitSlop={8} style={styles.endBtn}>
+            <ThemedText style={styles.endBtnText}>End</ThemedText>
+          </Pressable>
+          <View style={styles.streakDots}>
+            {Array.from({ length: progress.target_reps }).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.dot,
+                  i < progress.current_streak
+                    ? styles.dotFilled
+                    : { borderColor: C.icon },
+                ]}
+              />
+            ))}
+          </View>
+          <Pressable
+            onPress={onMiss}
+            hitSlop={6}
+            style={[styles.repBtn, styles.missBtn]}>
+            <ThemedText style={styles.repBtnText}>Miss ✗</ThemedText>
+          </Pressable>
+          <View style={styles.repGap} />
+          <Pressable
+            onPress={onClean}
+            hitSlop={6}
+            style={[styles.repBtn, styles.cleanBtn]}>
+            <ThemedText style={styles.repBtnText}>Clean ✓</ThemedText>
+          </Pressable>
+        </View>
+      )}
+
       <View
         style={[
-          styles.activeTopBar,
-          { borderBottomColor: C.icon + '44', paddingTop: insets.top + 10 },
+          styles.contentArea,
+          // Trim just enough off the score's bottom so the floating
+          // ✗ / ✓ buttons don't sit on top of notes. The buttons are
+          // ~56 tall; this leaves them sitting in a thin band below the
+          // score's letterbox without wasting a big strip of vertical
+          // space the music could be using.
+          isPhone && { paddingBottom: insets.bottom + 40 },
         ]}>
-        <Pressable
-          onPress={() => {
-            if (completedSets > 0) setNotePromptVisible(true);
-            else endSession();
-          }}
-          hitSlop={8}
-          style={styles.endBtn}>
-          <ThemedText style={styles.endBtnText}>End</ThemedText>
-        </Pressable>
-        <View style={styles.streakDots}>
-          {Array.from({ length: progress.target_reps }).map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.dot,
-                i < progress.current_streak
-                  ? styles.dotFilled
-                  : { borderColor: C.icon },
-              ]}
+        {passage?.source_uri &&
+          (isPhone ? (
+            <ZoomableImage
+              uri={passage.source_uri}
+              style={styles.scoreContain}
+              persistKey={passage.id}
+            />
+          ) : (
+            <Image
+              source={{ uri: passage.source_uri }}
+              style={styles.scoreContain}
+              contentFit="contain"
             />
           ))}
-        </View>
-        <Pressable
-          onPress={onMiss}
-          hitSlop={6}
-          style={[styles.repBtn, styles.missBtn]}>
-          <ThemedText style={styles.repBtnText}>Miss ✗</ThemedText>
-        </Pressable>
-        <View style={styles.repGap} />
-        <Pressable
-          onPress={onClean}
-          hitSlop={6}
-          style={[styles.repBtn, styles.cleanBtn]}>
-          <ThemedText style={styles.repBtnText}>Clean ✓</ThemedText>
-        </Pressable>
-      </View>
-
-      <View style={styles.contentArea}>
-        {passage?.source_uri && (
-          <Image
-            source={{ uri: passage.source_uri }}
-            style={styles.scoreContain}
-            contentFit="contain"
-          />
-        )}
         {ann.canvas}
         <PracticeToolsLayer
           metronome={metronome}
@@ -302,6 +344,61 @@ export default function TempoLadderScreen() {
           pencil={ann.pencil}
           recorderPassageId={passage?.id}
         />
+
+        {/* Phone overlays — float on top of the score so the practice
+            controls don't steal vertical space. */}
+        {isPhone && (
+          <>
+            <View
+              pointerEvents="none"
+              style={[styles.phoneDotsWrap, { top: insets.top + 10 }]}>
+              <View style={styles.phoneDotsPill}>
+                {Array.from({ length: progress.target_reps }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.phoneDot,
+                      i < progress.current_streak
+                        ? styles.phoneDotFilled
+                        : styles.phoneDotEmpty,
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
+
+            <Pressable
+              onPress={onEndPress}
+              hitSlop={6}
+              accessibilityLabel="End session"
+              style={[styles.phoneEndBtn, { top: insets.top + 8 }]}>
+              <ThemedText style={styles.phoneEndGlyph}>✕</ThemedText>
+            </Pressable>
+
+            <Pressable
+              onPress={onMiss}
+              hitSlop={6}
+              accessibilityLabel="Mark as miss"
+              style={[
+                styles.phoneRepBtn,
+                styles.phoneMissBtn,
+                { bottom: insets.bottom + 24 },
+              ]}>
+              <ThemedText style={styles.phoneRepGlyph}>✗</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={onClean}
+              hitSlop={6}
+              accessibilityLabel="Mark as clean"
+              style={[
+                styles.phoneRepBtn,
+                styles.phoneCleanBtn,
+                { bottom: insets.bottom + 24 },
+              ]}>
+              <ThemedText style={styles.phoneRepGlyph}>✓</ThemedText>
+            </Pressable>
+          </>
+        )}
       </View>
 
       <CelebrationModal
@@ -370,6 +467,7 @@ const styles = StyleSheet.create({
   },
   divider: { height: 1, marginVertical: Spacing.sm, borderRadius: 1 },
   row: { flexDirection: 'row', gap: Spacing.md },
+  rowPhone: { flexDirection: 'column', gap: Spacing.md },
   field: { flex: 1, gap: 6 },
   label: { opacity: Opacity.subtle },
   blurbText: { opacity: Opacity.muted, fontSize: Type.size.md, lineHeight: 20 },
@@ -426,4 +524,67 @@ const styles = StyleSheet.create({
   cleanBtn: { backgroundColor: '#2ecc71' },
   missBtn: { backgroundColor: '#c0392b' },
   repBtnText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: 17 },
+
+  // Phone overlays. Z-indexed above the score but below modals.
+  phoneDotsWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  phoneDotsPill: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#000000aa',
+  },
+  phoneDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+  },
+  phoneDotEmpty: { borderColor: '#ffffff77', backgroundColor: 'transparent' },
+  phoneDotFilled: { borderColor: '#2ecc71', backgroundColor: '#2ecc71' },
+  phoneEndBtn: {
+    position: 'absolute',
+    left: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#000000aa',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  phoneEndGlyph: {
+    color: '#fff',
+    fontSize: 18,
+    lineHeight: 20,
+    fontWeight: Type.weight.heavy,
+  },
+  phoneRepBtn: {
+    position: 'absolute',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    zIndex: 5,
+  },
+  phoneMissBtn: { left: 16, backgroundColor: '#c0392b' },
+  phoneCleanBtn: { right: 16, backgroundColor: '#2ecc71' },
+  phoneRepGlyph: {
+    color: '#fff',
+    fontSize: 28,
+    lineHeight: 30,
+    fontWeight: Type.weight.heavy,
+  },
 });

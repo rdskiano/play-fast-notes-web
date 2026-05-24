@@ -1,7 +1,14 @@
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
@@ -17,6 +24,7 @@ import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
+import { ZoomableImage } from '@/components/ZoomableImage';
 import { listPassages, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
@@ -138,6 +146,12 @@ export default function InterleavedScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  // Phone density: shorter side under 600 px (catches landscape too).
+  // On phone the score gets wrapped in ZoomableImage so the user can
+  // pinch in to read notes without leaving practice mode.
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
+  const insets = useSafeAreaInsets();
 
   const [phase, setPhase] = useState<Phase>('config');
   const [mode, setMode] = useState<SessionMode>('consistency');
@@ -566,55 +580,79 @@ export default function InterleavedScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SessionTopBar
-        onExit={async () => {
-          await ann.flush();
-          setPhase('select');
-        }}
-        exitLabel="EXIT"
-        center={
-          <View style={{ alignItems: 'center', maxWidth: '100%' }}>
-            <ThemedText style={styles.topCenter} numberOfLines={1}>
-              {currentSpot?.passage.title ?? 'Passage'}
-            </ThemedText>
-            <ThemedText style={styles.topSubCenter}>
-              {completedCount}/{spots.length} complete
-            </ThemedText>
-            <View style={styles.streakDots}>
-              {Array.from({ length: targetReps }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.dot,
-                    i < (currentSpot?.streak ?? 0)
-                      ? styles.dotFilled
-                      : { borderColor: C.icon },
-                  ]}
-                />
-              ))}
+      {/* Phone hides the SessionTopBar (replaced by a floating dots
+          pill + ✕ button) and the bottom repBar (replaced by floating
+          ✗ / ✓ circles), to give the score the full screen the way
+          Tempo Ladder does. */}
+      {!isPhone && (
+        <SessionTopBar
+          onExit={async () => {
+            await ann.flush();
+            setPhase('select');
+          }}
+          exitLabel="EXIT"
+          center={
+            <View style={{ alignItems: 'center', maxWidth: '100%' }}>
+              <ThemedText style={styles.topCenter} numberOfLines={1}>
+                {currentSpot?.passage.title ?? 'Passage'}
+              </ThemedText>
+              <ThemedText style={styles.topSubCenter}>
+                {completedCount}/{spots.length} complete
+              </ThemedText>
+              <View style={styles.streakDots}>
+                {Array.from({ length: targetReps }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.dot,
+                      i < (currentSpot?.streak ?? 0)
+                        ? styles.dotFilled
+                        : { borderColor: C.icon },
+                    ]}
+                  />
+                ))}
+              </View>
             </View>
-          </View>
-        }
-        right={
-          <View style={styles.topRightRow}>
-            <Button
-              label="END"
-              variant="danger"
-              size="sm"
-              onPress={endSession}
-            />
-          </View>
-        }
-      />
+          }
+          right={
+            <View style={styles.topRightRow}>
+              <Button
+                label="END"
+                variant="danger"
+                size="sm"
+                onPress={endSession}
+              />
+            </View>
+          }
+        />
+      )}
 
-      <View style={styles.contentArea}>
+      <View
+        style={[
+          styles.contentArea,
+          // Reserve a thin band under the score so the floating ✗ / ✓
+          // circles don't overlap the music. Matches the Tempo Ladder
+          // pattern.
+          isPhone && { paddingBottom: insets.bottom + 40 },
+        ]}>
         {currentSpot?.passage.source_uri ? (
           <View style={styles.scoreFill}>
-            <Image
-              source={{ uri: currentSpot.passage.source_uri }}
-              style={StyleSheet.absoluteFill}
-              contentFit="contain"
-            />
+            {isPhone ? (
+              <ZoomableImage
+                uri={currentSpot.passage.source_uri}
+                style={StyleSheet.absoluteFill}
+                // Remember the zoom + pan per passage so cycling
+                // between rotated passages doesn't carry over the
+                // previous passage's zoom.
+                persistKey={currentSpot.passage.id}
+              />
+            ) : (
+              <Image
+                source={{ uri: currentSpot.passage.source_uri }}
+                style={StyleSheet.absoluteFill}
+                contentFit="contain"
+              />
+            )}
             {ann.canvas}
           </View>
         ) : null}
@@ -623,24 +661,88 @@ export default function InterleavedScreen() {
           pencil={ann.pencil}
           recorderPassageId={currentSpot?.passage.id}
         />
+
+        {/* Phone overlays — float over the score so the practice
+            controls don't steal vertical space. */}
+        {isPhone && (
+          <>
+            <View
+              pointerEvents="none"
+              style={[styles.phoneDotsWrap, { top: insets.top + 10 }]}>
+              <View style={styles.phoneDotsPill}>
+                <View style={styles.phoneDotsRow}>
+                  {Array.from({ length: targetReps }).map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.phoneDot,
+                        i < (currentSpot?.streak ?? 0)
+                          ? styles.phoneDotFilled
+                          : styles.phoneDotEmpty,
+                      ]}
+                    />
+                  ))}
+                </View>
+                <ThemedText style={styles.phoneDotsCount}>
+                  {completedCount}/{spots.length}
+                </ThemedText>
+              </View>
+            </View>
+
+            <Pressable
+              onPress={endSession}
+              hitSlop={6}
+              accessibilityLabel="End session"
+              style={[styles.phoneEndBtn, { top: insets.top + 8 }]}>
+              <ThemedText style={styles.phoneEndGlyph}>✕</ThemedText>
+            </Pressable>
+
+            <Pressable
+              onPress={onMiss}
+              hitSlop={6}
+              accessibilityLabel="Mark as miss"
+              style={[
+                styles.phoneRepBtn,
+                styles.phoneMissBtn,
+                { bottom: insets.bottom + 24 },
+              ]}>
+              <ThemedText style={styles.phoneRepGlyph}>✗</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={onClean}
+              hitSlop={6}
+              accessibilityLabel="Mark as clean"
+              style={[
+                styles.phoneRepBtn,
+                styles.phoneCleanBtn,
+                { bottom: insets.bottom + 24 },
+              ]}>
+              <ThemedText style={styles.phoneRepGlyph}>✓</ThemedText>
+            </Pressable>
+          </>
+        )}
       </View>
 
-      <View style={[styles.repBar, { borderTopColor: C.icon + '44' }]}>
-        <Pressable
-          onPress={onClean}
-          style={[styles.repBtn, styles.cleanBtn]}>
-          <ThemedText style={styles.repText}>Clean ✓</ThemedText>
-        </Pressable>
-        <Pressable
-          onPress={onMiss}
-          style={[styles.repBtn, styles.missBtn]}>
-          <ThemedText style={styles.repText}>Miss ✗</ThemedText>
-        </Pressable>
-      </View>
+      {!isPhone && (
+        <>
+          <View style={[styles.repBar, { borderTopColor: C.icon + '44' }]}>
+            <Pressable
+              onPress={onClean}
+              style={[styles.repBtn, styles.cleanBtn]}>
+              <ThemedText style={styles.repText}>Clean ✓</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={onMiss}
+              style={[styles.repBtn, styles.missBtn]}>
+              <ThemedText style={styles.repText}>Miss ✗</ThemedText>
+            </Pressable>
+          </View>
 
-      <ThemedText style={[styles.tempoHint, { color: C.icon }]}>
-        Your tempo is saved for each passage.
-      </ThemedText>
+          <ThemedText style={[styles.tempoHint, { color: C.icon }]}>
+            Your tempo is saved for each passage.
+          </ThemedText>
+        </>
+      )}
 
       <PracticeLogNotePrompt
         visible={celebrating || notePromptVisible}
@@ -682,6 +784,8 @@ function TimerActive({
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   const [selfLedOpen, setSelfLedOpen] = useState(false);
 
@@ -810,13 +914,20 @@ function TimerActive({
         </Pressable>
       </View>
 
-      {cur?.passage.source_uri && (
-        <Image
-          source={{ uri: cur.passage.source_uri }}
-          style={styles.scoreFill}
-          contentFit="contain"
-        />
-      )}
+      {cur?.passage.source_uri &&
+        (isPhone ? (
+          <ZoomableImage
+            uri={cur.passage.source_uri}
+            style={styles.scoreFill}
+            persistKey={cur.passage.id}
+          />
+        ) : (
+          <Image
+            source={{ uri: cur.passage.source_uri }}
+            style={styles.scoreFill}
+            contentFit="contain"
+          />
+        ))}
 
       <SelfLedSheet
         visible={selfLedOpen}
@@ -824,17 +935,13 @@ function TimerActive({
         onPick={(key) => {
           setSelfLedOpen(false);
           if (!cur) return;
-          if (key === 'recording') {
-            router.push({
-              pathname: '/passage/[id]/self-led/recording',
-              params: { id: cur.passage.id },
-            });
-          } else {
-            router.push({
-              pathname: '/passage/[id]/self-led/[key]',
-              params: { id: cur.passage.id, key },
-            });
-          }
+          // Recording is no longer a self-led strategy — covered by
+          // the Recorder practice tool — so every key routes to the
+          // generic /self-led/[key] page.
+          router.push({
+            pathname: '/passage/[id]/self-led/[key]',
+            params: { id: cur.passage.id, key },
+          });
         }}
       />
 
@@ -1058,5 +1165,77 @@ const styles = StyleSheet.create({
     fontSize: Type.size.md,
     lineHeight: 20,
     maxWidth: 480,
+  },
+
+  // Phone overlays. Same vocabulary as the Tempo Ladder phone layout so
+  // the two practice screens feel consistent. Z-indexed above the score
+  // but below modals.
+  phoneDotsWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  phoneDotsPill: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: '#000000aa',
+  },
+  phoneDotsRow: { flexDirection: 'row', gap: 8 },
+  phoneDotsCount: {
+    color: '#ffffffcc',
+    fontSize: 11,
+    fontWeight: Type.weight.bold,
+  },
+  phoneDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+  },
+  phoneDotEmpty: { borderColor: '#ffffff77', backgroundColor: 'transparent' },
+  phoneDotFilled: { borderColor: '#2ecc71', backgroundColor: '#2ecc71' },
+  phoneEndBtn: {
+    position: 'absolute',
+    left: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#000000aa',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  phoneEndGlyph: {
+    color: '#fff',
+    fontSize: 18,
+    lineHeight: 20,
+    fontWeight: Type.weight.heavy,
+  },
+  phoneRepBtn: {
+    position: 'absolute',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    zIndex: 5,
+  },
+  phoneMissBtn: { left: 16, backgroundColor: '#c0392b' },
+  phoneCleanBtn: { right: 16, backgroundColor: '#2ecc71' },
+  phoneRepGlyph: {
+    color: '#fff',
+    fontSize: 28,
+    lineHeight: 30,
+    fontWeight: Type.weight.heavy,
   },
 });

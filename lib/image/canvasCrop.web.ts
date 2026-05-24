@@ -42,17 +42,69 @@ export async function cropImageToBlob(img: HTMLImageElement, area: Rect): Promis
   return canvasToJpegBlob(canvas);
 }
 
-// Stitch N JPEG blobs vertically into one composite. Each input is scaled to
-// the same target width, preserving aspect; heights add up. Used to combine
-// multiple cropped page regions into a single passage image.
+// Stitch N JPEG blobs vertically into one composite.
+//
+// Two modes:
+//
+// - **Relative-scale mode** (when `srcWidths` is supplied): each input is
+//   rendered at the same "pixels per source page" — `pageScale / srcWidths[i]`
+//   — so a half-page crop is literally half the width of a full-page crop,
+//   even if the two source images were captured at totally different
+//   resolutions (phone photo vs. PDF screenshot). Narrower crops are centered
+//   on a white background. This is what the multi-page passage flow uses to
+//   keep music at the same scale across the two pages a user combines.
+//
+// - **Uniform mode** (default): every input is stretched to `fixedWidth`,
+//   preserving aspect, heights stacked. Used by `stitchVerticallyUris` for
+//   multi-page passages on a PDF — those crops already share a coordinate
+//   system, so forcing the same canvas width matches.
 export async function stitchVertically(
   blobs: Blob[],
-  fixedWidth: number = STITCH_DEFAULT_WIDTH,
+  opts: {
+    /** Natural pixel widths of the source page each input was cropped from.
+     *  Length must match `blobs.length` to opt into relative-scale mode. */
+    srcWidths?: number[];
+    /** Pixels representing a "100%-wide source page" in relative-scale mode. */
+    pageScale?: number;
+    /** Composite width in uniform mode. */
+    fixedWidth?: number;
+  } = {},
 ): Promise<Blob> {
   if (blobs.length === 0) throw new Error('stitchVertically: empty input');
   if (blobs.length === 1) return blobs[0];
 
   const bitmaps = await Promise.all(blobs.map((b) => createImageBitmap(b)));
+
+  const srcWidths = opts.srcWidths;
+  if (srcWidths && srcWidths.length === blobs.length) {
+    const pageScale = opts.pageScale ?? STITCH_DEFAULT_WIDTH;
+    const destWidths = bitmaps.map((bm, i) =>
+      Math.round(bm.width * (pageScale / Math.max(1, srcWidths[i]))),
+    );
+    const destHeights = bitmaps.map((bm, i) =>
+      Math.round(bm.height * (pageScale / Math.max(1, srcWidths[i]))),
+    );
+    const canvasW = Math.max(...destWidths);
+    const totalH = destHeights.reduce((a, b) => a + b, 0);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasW;
+    canvas.height = totalH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D context not available');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvasW, totalH);
+
+    let y = 0;
+    for (let i = 0; i < bitmaps.length; i++) {
+      const x = Math.round((canvasW - destWidths[i]) / 2);
+      ctx.drawImage(bitmaps[i], x, y, destWidths[i], destHeights[i]);
+      y += destHeights[i];
+    }
+    return canvasToJpegBlob(canvas);
+  }
+
+  const fixedWidth = opts.fixedWidth ?? STITCH_DEFAULT_WIDTH;
   const heights = bitmaps.map((bm) => Math.round((fixedWidth * bm.height) / bm.width));
   const totalH = heights.reduce((a, b) => a + b, 0);
 

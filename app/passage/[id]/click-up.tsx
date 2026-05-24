@@ -10,12 +10,14 @@ import {
   View,
 } from 'react-native';
 
+import { ActionSheet } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
 import { CollapsibleHelp } from '@/components/CollapsibleHelp';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ScoreWithMarkers } from '@/components/ScoreWithMarkers';
+import { ZoomableImage } from '@/components/ZoomableImage';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { TempoConfigFields } from '@/components/TempoConfigFields';
 import { ThemedText } from '@/components/themed-text';
@@ -37,9 +39,11 @@ export default function ClickUpScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
-  const { width: winWidth } = useWindowDimensions();
+  const { width: winWidth, height: winHeight } = useWindowDimensions();
+  const isPhone = Math.min(winWidth, winHeight) < 600;
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
+  const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
   const [pedalMode, setPedalMode] = useState(false);
   const session = useClickUpSession(id);
 
@@ -76,11 +80,12 @@ export default function ClickUpScreen() {
     commitMarkersAndConfigure,
     startPlaying,
     onNext,
-    onPrev,
     exitSession,
     doneSession,
     dismissCelebration,
     goBackToMarking,
+    goBackToConfig,
+    resumePlaying,
   } = session;
 
   const ann = useScoreAnnotation(passage);
@@ -213,7 +218,13 @@ export default function ClickUpScreen() {
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <ScrollView contentContainerStyle={[styles.configContainer, { paddingTop: 10 }]}>
-          <ThemedText type="title">Set the tempo range</ThemedText>
+          {/* Phone: drop the H1 (the user already sees "Set the tempo range"
+              context from getting here via Start Practicing) and the long
+              explanatory paragraph below — both eat half the screen on
+              iPhone. Keep the unit count, which is actionable info. */}
+          {!isPhone && (
+            <ThemedText type="title">Set the tempo range</ThemedText>
+          )}
           <ThemedText style={{ opacity: 0.7 }}>
             {derivedN} units defined from your {markers.length} marks.
           </ThemedText>
@@ -228,20 +239,46 @@ export default function ClickUpScreen() {
             onIncrement={setIncrement}
             metronome={metronome}
           />
-          <View style={{ marginTop: 10 }}>
-            <ThemedText style={styles.blurbText}>
-              Set your <ThemedText style={styles.blurbBold}>Start Tempo</ThemedText> to
-              a speed where you can play the passage comfortably and accurately — a
-              good rule of thumb is to start at half the performance tempo. Set the{' '}
-              <ThemedText style={styles.blurbBold}>Performance Tempo</ThemedText> to
-              the speed you ultimately need to perform at. The app will walk through
-              every tempo in between, climbing by the increment you choose above.
-            </ThemedText>
-          </View>
+          {!isPhone && (
+            <View style={{ marginTop: 10 }}>
+              <ThemedText style={styles.blurbText}>
+                Set your <ThemedText style={styles.blurbBold}>Start Tempo</ThemedText> to
+                a speed where you can play the passage comfortably and accurately — a
+                good rule of thumb is to start at half the performance tempo. Set the{' '}
+                <ThemedText style={styles.blurbBold}>Performance Tempo</ThemedText> to
+                the speed you ultimately need to perform at. The app will walk through
+                every tempo in between, climbing by the increment you choose above.
+              </ThemedText>
+            </View>
+          )}
         </ScrollView>
 
         <View style={{ padding: 20, gap: 10 }}>
-          <Button label="Start practicing" onPress={startPlaying} fullWidth />
+          {/* "Resume" appears only when the user has mid-session progress
+              (they tapped ← Setup partway through a practice run). Tapping
+              it drops them back into the same step at the same tempo
+              without regenerating the step sequence — useful if they
+              opened Setup just to glance at their config and didn't
+              actually want to restart. "Start practicing" stays available
+              for when they DID want to reset (e.g., after adjusting
+              tempos). */}
+          {storedConfig && currentIndex > 0 && (
+            <Button
+              label={`Resume — Step ${currentIndex + 1} of ${storedConfig.steps.length}`}
+              onPress={resumePlaying}
+              fullWidth
+            />
+          )}
+          <Button
+            label={
+              storedConfig && currentIndex > 0
+                ? 'Start over from Step 1'
+                : 'Start practicing'
+            }
+            variant={storedConfig && currentIndex > 0 ? 'outline' : 'primary'}
+            onPress={startPlaying}
+            fullWidth
+          />
           <Button label="← Back to marking" variant="ghost" onPress={goBackToMarking} fullWidth />
         </View>
       </ThemedView>
@@ -263,39 +300,69 @@ export default function ClickUpScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <SessionTopBar
         onExit={exitSession}
+        exitLabel={isPhone ? '←' : 'EXIT'}
         center={
           <ThemedText style={styles.topCenter} numberOfLines={1}>
-            {unitLabel} · Step {currentIndex + 1}/{storedConfig.steps.length}
+            {unitLabel} · {currentIndex + 1}/{storedConfig.steps.length}
           </ThemedText>
         }
         right={
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Pressable
-              onPress={() => setPedalMode((v) => !v)}
-              hitSlop={6}
-              style={[styles.topBtn, pedalMode && { backgroundColor: C.tint }]}>
-              <ThemedText
-                style={[
-                  styles.topBtnText,
-                  { color: pedalMode ? '#fff' : C.tint },
-                ]}>
-                PEDAL
-              </ThemedText>
-            </Pressable>
-            <Pressable onPress={onPrev} hitSlop={6} style={styles.topBtn}>
-              <ThemedText style={[styles.topBtnText, { color: C.tint }]}>
-                ← Prev
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={() => setNotePromptVisible(true)}
-              hitSlop={6}
-              style={[styles.topBtn, styles.doneBtn]}>
-              <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>
-                DONE
-              </ThemedText>
-            </Pressable>
-          </View>
+          isPhone ? (
+            // Phone: DONE stays as the primary save action; PEDAL toggle
+            // and Setup move into a ⋯ menu so the header fits in one
+            // row alongside the title.
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Pressable
+                onPress={() => setNotePromptVisible(true)}
+                hitSlop={6}
+                style={[styles.topBtn, styles.doneBtn]}>
+                <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>
+                  DONE
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => setPhoneMenuOpen(true)}
+                hitSlop={6}
+                accessibilityLabel="More actions"
+                style={styles.topBtn}>
+                <ThemedText style={[styles.topBtnText, { color: C.tint }]}>
+                  ⋯
+                </ThemedText>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Pressable
+                onPress={() => setPedalMode((v) => !v)}
+                hitSlop={6}
+                style={[styles.topBtn, pedalMode && { backgroundColor: C.tint }]}>
+                <ThemedText
+                  style={[
+                    styles.topBtnText,
+                    { color: pedalMode ? '#fff' : C.tint },
+                  ]}>
+                  PEDAL
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={goBackToConfig}
+                hitSlop={6}
+                accessibilityLabel="Back to tempo setup"
+                style={styles.topBtn}>
+                <ThemedText style={[styles.topBtnText, { color: C.tint }]}>
+                  ← Setup
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => setNotePromptVisible(true)}
+                hitSlop={6}
+                style={[styles.topBtn, styles.doneBtn]}>
+                <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>
+                  DONE
+                </ThemedText>
+              </Pressable>
+            </View>
+          )
         }
       />
 
@@ -311,12 +378,30 @@ export default function ClickUpScreen() {
       />
 
       <View style={styles.contentArea}>
-        <ScoreWithMarkers
-          uri={passage.source_uri}
-          markers={activeMarkers}
-          mode="play"
-          activePair={activePair}
-        />
+        {isPhone ? (
+          // Phone: wrap the score in a pinch+pan container so notes
+          // are readable on a small screen. ScoreWithMarkers's ▼
+          // arrow markers live inside the same transform, so they
+          // zoom and pan in lockstep with the underlying image and
+          // stay pinned to their correct positions on the staff.
+          <ZoomableImage
+            style={StyleSheet.absoluteFill}
+            persistKey={passage.id}>
+            <ScoreWithMarkers
+              uri={passage.source_uri}
+              markers={activeMarkers}
+              mode="play"
+              activePair={activePair}
+            />
+          </ZoomableImage>
+        ) : (
+          <ScoreWithMarkers
+            uri={passage.source_uri}
+            markers={activeMarkers}
+            mode="play"
+            activePair={activePair}
+          />
+        )}
         {ann.canvas}
         <PracticeToolsLayer
           metronome={metronome}
@@ -327,9 +412,14 @@ export default function ClickUpScreen() {
       </View>
 
       <View style={styles.bottomBar}>
-        <ThemedText style={styles.pedalNote}>
-          Tap PEDAL (top-right) to advance with an optional foot pedal.
-        </ThemedText>
+        {/* Phone hides the pedal hint — the affordance lives behind the
+            ⋯ menu now, not top-right, and the line eats two rows of
+            vertical space we'd rather give back to the score. */}
+        {!isPhone && (
+          <ThemedText style={styles.pedalNote}>
+            Tap PEDAL (top-right) to advance with an optional foot pedal.
+          </ThemedText>
+        )}
         <Pressable onPress={onNext} style={styles.nextBtn}>
           <ThemedText style={styles.nextBtnText}>NEXT →</ThemedText>
         </Pressable>
@@ -356,6 +446,27 @@ export default function ClickUpScreen() {
           dismissCelebration();
           doneSession();
         }}
+      />
+
+      <ActionSheet
+        visible={phoneMenuOpen}
+        items={[
+          {
+            label: pedalMode ? 'Foot pedal: on' : 'Foot pedal: off',
+            onPress: () => {
+              setPedalMode((v) => !v);
+              setPhoneMenuOpen(false);
+            },
+          },
+          {
+            label: '← Back to tempo setup',
+            onPress: () => {
+              setPhoneMenuOpen(false);
+              goBackToConfig();
+            },
+          },
+        ]}
+        onCancel={() => setPhoneMenuOpen(false)}
       />
     </ThemedView>
   );

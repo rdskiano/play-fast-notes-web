@@ -12,6 +12,35 @@ import { TOKEN_QUARTER_FRACTIONS, type RhythmToken } from '@/lib/strategies/rhyt
  */
 export type Subdivision = 1 | 2 | 3 | 4;
 
+// Persist the user's preferred metronome volume across sessions and across
+// every screen that mounts its own `useMetronome` instance. The metronome
+// device looks identical on every passage, document, and practice screen —
+// the volume the user set on one should carry over to the next.
+const VOLUME_STORAGE_KEY = 'pfn:metronome-volume';
+const DEFAULT_VOLUME = 0.7;
+
+function readSavedVolume(): number {
+  if (typeof window === 'undefined') return DEFAULT_VOLUME;
+  try {
+    const raw = window.localStorage.getItem(VOLUME_STORAGE_KEY);
+    if (raw === null) return DEFAULT_VOLUME;
+    const n = parseFloat(raw);
+    if (!Number.isFinite(n)) return DEFAULT_VOLUME;
+    return Math.max(0, Math.min(1, n));
+  } catch {
+    return DEFAULT_VOLUME;
+  }
+}
+
+function writeSavedVolume(v: number): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(VOLUME_STORAGE_KEY, String(v));
+  } catch {
+    // localStorage can throw in private mode — keep volume session-only.
+  }
+}
+
 // One entry per beat of the measure: 'accent' (loud), 'normal' (mid), or
 // 'mute' (skipped). Mirrors lib/audio/metronomeEngine.ts.
 export type BeatState = 'accent' | 'normal' | 'mute';
@@ -25,7 +54,7 @@ export function useMetronome(initialBpm = 60) {
   const [running, setRunning] = useState(false);
   const [bpm, setBpmState] = useState(initialBpm);
   const [subdivision, setSubdivisionState] = useState<Subdivision>(1);
-  const [volume, setVolumeState] = useState(0.4);
+  const [volume, setVolumeState] = useState<number>(readSavedVolume);
   const [rhythmLooping, setRhythmLooping] = useState(false);
   const [droneEnabled, setDroneEnabledState] = useState(false);
   const [droneMidi, setDroneMidiState] = useState(69); // A4
@@ -63,6 +92,7 @@ export function useMetronome(initialBpm = 60) {
   }, [subdivision]);
   useEffect(() => {
     volRef.current = volume;
+    writeSavedVolume(volume);
   }, [volume]);
   useEffect(() => {
     droneEnabledRef.current = droneEnabled;
@@ -165,25 +195,32 @@ export function useMetronome(initialBpm = 60) {
             osc.start(t);
             osc.stop(t + toneLen + 0.02);
           } else {
+            // Click synth — higher frequencies + square wave (more
+            // harmonics) for a sharper "tick" that cuts through; 2× gain
+            // headroom so the user's saved volume actually moves the
+            // perceived loudness across its full slider range (matches the
+            // native engine's `_volume * 2` headroom). Faster decay (30ms)
+            // keeps the click crisp instead of "boopy".
             const osc = c.createOscillator();
             const gain = c.createGain();
+            osc.type = 'square';
             osc.frequency.value = isBeatStart
               ? beatState === 'accent'
-                ? 1200
-                : 1000
-              : 800;
+                ? 2200
+                : 1800
+              : 1400;
             const level = isBeatStart
               ? beatState === 'accent'
                 ? 1.0
-                : 0.65
-              : 0.45;
-            const peak = level * volRef.current;
+                : 0.7
+              : 0.5;
+            const peak = Math.min(2, level * volRef.current * 2);
             gain.gain.setValueAtTime(0.0001, t);
             gain.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + 0.001);
-            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
             osc.connect(gain).connect(c.destination);
             osc.start(t);
-            osc.stop(t + 0.05);
+            osc.stop(t + 0.04);
           }
         }
         subStepRef.current = (subStepRef.current + 1) % ticksPerMeasure;

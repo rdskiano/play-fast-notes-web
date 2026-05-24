@@ -208,6 +208,26 @@ export function useClickUpSession(id: string | undefined) {
     setPhase('marking');
   }
 
+  // Return to the tempo-setup screen from inside a practice session. Stops
+  // the metronome so the user isn't ticking against silence while they
+  // adjust BPMs. `storedConfig` and `currentIndex` are preserved, so the
+  // config screen can offer a Resume button that drops the user back into
+  // the same step they left from.
+  function goBackToConfig() {
+    metronome.stop();
+    setPhase('config');
+  }
+
+  // Resume practice from the step the user was last on, without
+  // regenerating the step sequence. Used by the Resume button that appears
+  // on the config screen when there's mid-session progress.
+  function resumePlaying() {
+    if (!storedConfig) return;
+    const step = storedConfig.steps[currentIndex];
+    if (step) metronome.setBpm(step.tempo);
+    setPhase('playing');
+  }
+
   return {
     phase,
     passage,
@@ -234,5 +254,7 @@ export function useClickUpSession(id: string | undefined) {
     doneSession,
     dismissCelebration,
     goBackToMarking,
+    goBackToConfig,
+    resumePlaying,
   };
 }

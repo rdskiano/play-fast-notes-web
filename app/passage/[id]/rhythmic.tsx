@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
@@ -12,6 +12,7 @@ import { ScoreWithMarkers } from '@/components/ScoreWithMarkers';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -49,6 +50,9 @@ export default function RhythmicScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  // Phone density flag — drives the scrollable score below.
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   const rawGrouping = Array.isArray(params.grouping)
     ? params.grouping[0]
@@ -227,13 +231,30 @@ export default function RhythmicScreen() {
       )}
 
       <View style={styles.contentArea}>
-        <ScoreWithMarkers
-          uri={passage.source_uri}
-          markers={[]}
-          mode="play"
-          activePair={null}
-        />
-        {ann.canvas}
+        {isPhone ? (
+          // Phone: show the full passage by default, let the user pinch
+          // in (and one-finger pan) to read notes up close. Replaces the
+          // earlier horizontal-scroll-only approach so the user can
+          // also zoom vertically when a passage has tall barlines or
+          // multi-line systems.
+          <ZoomableImage
+            uri={passage.source_uri}
+            style={StyleSheet.absoluteFill}
+            persistKey={passage.id}
+          />
+        ) : (
+          <ScoreWithMarkers
+            uri={passage.source_uri}
+            markers={[]}
+            mode="play"
+            activePair={null}
+          />
+        )}
+        {/* Annotation canvas stays mounted on tablet/desktop. On phone
+            it's hidden during rhythmic — the canvas would have to scroll
+            with the score to stay aligned, and the user's ask was about
+            seeing notes clearly, not annotating in this flow. */}
+        {!isPhone && ann.canvas}
         {phase === 'playing' && (
           <PracticeToolsLayer
             metronome={metronome}

@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
@@ -158,6 +158,8 @@ export default function FolderLogScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { colors: STRATEGY_COLORS } = useStrategyColors();
+  const { width, height } = useWindowDimensions();
+  const isPhone = Math.min(width, height) < 600;
 
   const [days, setDays] = useState<DayGroup[]>([]);
   const [editing, setEditing] = useState<PracticeLogWithTitle | null>(null);
@@ -293,7 +295,11 @@ export default function FolderLogScreen() {
             const renderPassage = (pg: PassageGroup, pi: number) => (
               <View
                 key={pi}
-                style={[styles.passageCard, { borderColor: C.icon + '33' }]}>
+                style={[
+                  styles.passageCard,
+                  isPhone && styles.passageCardPhone,
+                  { borderColor: C.icon + '33' },
+                ]}>
                 <ThemedText style={styles.passageName} numberOfLines={1}>
                   {pg.passageTitle}
                 </ThemedText>
@@ -431,6 +437,10 @@ const styles = StyleSheet.create({
     borderRadius: Radii.md,
     padding: 10,
     gap: 6,
+    overflow: 'hidden',
+  },
+  passageCardPhone: {
+    flexBasis: '100%',
   },
   passageName: {
     fontWeight: Type.weight.bold,
@@ -445,6 +455,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
     borderRadius: Radii.sm,
+    maxWidth: '100%',
   },
   pillText: {
     color: '#fff',

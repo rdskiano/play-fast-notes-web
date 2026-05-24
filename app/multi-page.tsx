@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -19,9 +19,19 @@ import { insertPassage, renamePassage, updatePassageAssets } from '@/lib/db/repo
 import { stitchVertically } from '@/lib/image/canvasCrop';
 import { uploadPassageImage } from '@/lib/supabase/storage';
 
-type Step = 'pick_1' | 'crop_1' | 'pick_2' | 'crop_2' | 'preview';
+type Step = 'pick' | 'crop_1' | 'crop_2' | 'preview';
 type PageNum = 1 | 2;
-type CroppedPage = { url: string; w: number; h: number; blob: Blob };
+type CroppedPage = {
+  url: string;
+  w: number;
+  h: number;
+  blob: Blob;
+  /** Natural pixel width of the *source page* this crop came from. The
+   *  stitcher uses this to scale each crop by `pageScale / srcW` so a
+   *  narrow crop from page 2 doesn't get blown up to match a wide crop
+   *  from page 1. */
+  srcW: number;
+};
 
 function newPassageId(): string {
   return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -34,7 +44,7 @@ export default function MultiPageScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
 
-  const [step, setStep] = useState<Step>('pick_1');
+  const [step, setStep] = useState<Step>('pick');
   const [rawUrl1, setRawUrl1] = useState<string | null>(null);
   const [rawUrl2, setRawUrl2] = useState<string | null>(null);
   const [cropped1, setCropped1] = useState<CroppedPage | null>(null);
@@ -46,25 +56,82 @@ export default function MultiPageScreen() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingPageRef = useRef<PageNum>(1);
+  const dropZoneRef = useRef<View | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  // Mirror the latest rawUrl* into refs so the drop listener (bound once per
+  // step in useEffect) revokes the *current* preview URL rather than a stale
+  // closure capture from when the effect first ran.
+  const rawUrl1Ref = useRef<string | null>(null);
+  const rawUrl2Ref = useRef<string | null>(null);
+  useEffect(() => {
+    rawUrl1Ref.current = rawUrl1;
+  }, [rawUrl1]);
+  useEffect(() => {
+    rawUrl2Ref.current = rawUrl2;
+  }, [rawUrl2]);
 
   function openFilePicker(page: PageNum) {
     pendingPageRef.current = page;
     fileInputRef.current?.click();
   }
 
+  function ingest(file: File) {
+    if (!file.type.startsWith('image/')) {
+      setError('That file isn’t an image. Drop a PNG, JPG, or HEIC.');
+      return;
+    }
+    setError(null);
+    const url = URL.createObjectURL(file);
+    if (pendingPageRef.current === 1) {
+      if (rawUrl1Ref.current) URL.revokeObjectURL(rawUrl1Ref.current);
+      setRawUrl1(url);
+    } else {
+      if (rawUrl2Ref.current) URL.revokeObjectURL(rawUrl2Ref.current);
+      setRawUrl2(url);
+    }
+  }
+
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    if (pendingPageRef.current === 1) {
-      if (rawUrl1) URL.revokeObjectURL(rawUrl1);
-      setRawUrl1(url);
-    } else {
-      if (rawUrl2) URL.revokeObjectURL(rawUrl2);
-      setRawUrl2(url);
-    }
+    ingest(file);
     e.target.value = '';
   }
+
+  // RN-Web's Pressable doesn't forward HTML drag events, so we wire them on
+  // the underlying DOM node. Rebound whenever the missing page changes so a
+  // drop without a prior click still routes to the right slot.
+  useEffect(() => {
+    if (step !== 'pick') return;
+    const missing: PageNum | null = !rawUrl1 ? 1 : !rawUrl2 ? 2 : null;
+    if (!missing) return;
+    pendingPageRef.current = missing;
+    const node = dropZoneRef.current as unknown as HTMLDivElement | null;
+    if (!node) return;
+    function handleDrop(e: DragEvent) {
+      e.preventDefault();
+      setDragOver(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (file) ingest(file);
+    }
+    function handleOver(e: DragEvent) {
+      e.preventDefault();
+      setDragOver(true);
+    }
+    function handleLeave(e: DragEvent) {
+      e.preventDefault();
+      setDragOver(false);
+    }
+    node.addEventListener('drop', handleDrop);
+    node.addEventListener('dragover', handleOver);
+    node.addEventListener('dragleave', handleLeave);
+    return () => {
+      node.removeEventListener('drop', handleDrop);
+      node.removeEventListener('dragover', handleOver);
+      node.removeEventListener('dragleave', handleLeave);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, rawUrl1, rawUrl2]);
 
   function clearPicked(page: PageNum) {
     if (page === 1) {
@@ -76,17 +143,24 @@ export default function MultiPageScreen() {
     }
   }
 
-  function goToCrop(page: PageNum) {
-    setStep(page === 1 ? 'crop_1' : 'crop_2');
-  }
-
-  async function handleCropDone(blob: Blob, dims: { w: number; h: number }, page: PageNum) {
+  async function handleCropDone(
+    blob: Blob,
+    dims: { w: number; h: number },
+    srcDims: { w: number; h: number },
+    page: PageNum,
+  ) {
     const url = URL.createObjectURL(blob);
-    const cropped: CroppedPage = { url, w: dims.w, h: dims.h, blob };
+    const cropped: CroppedPage = {
+      url,
+      w: dims.w,
+      h: dims.h,
+      blob,
+      srcW: srcDims.w,
+    };
     if (page === 1) {
       if (cropped1?.url) URL.revokeObjectURL(cropped1.url);
       setCropped1(cropped);
-      setStep('pick_2');
+      setStep('crop_2');
     } else {
       if (cropped2?.url) URL.revokeObjectURL(cropped2.url);
       setCropped2(cropped);
@@ -94,16 +168,10 @@ export default function MultiPageScreen() {
     }
   }
 
-  function handleCropCancel(page: PageNum) {
-    if (page === 1) {
-      if (rawUrl1) URL.revokeObjectURL(rawUrl1);
-      setRawUrl1(null);
-      setStep('pick_1');
-    } else {
-      if (rawUrl2) URL.revokeObjectURL(rawUrl2);
-      setRawUrl2(null);
-      setStep('pick_2');
-    }
+  // Back out of crop → return to the unified pick step. Keep both raw URLs so
+  // the user doesn't have to re-drop the pages they already chose.
+  function handleCropCancel(_page: PageNum) {
+    setStep('pick');
   }
 
   function swapOrder() {
@@ -119,14 +187,13 @@ export default function MultiPageScreen() {
       if (rawUrl1) URL.revokeObjectURL(rawUrl1);
       setCropped1(null);
       setRawUrl1(null);
-      setStep('pick_1');
     } else {
       if (cropped2?.url) URL.revokeObjectURL(cropped2.url);
       if (rawUrl2) URL.revokeObjectURL(rawUrl2);
       setCropped2(null);
       setRawUrl2(null);
-      setStep('pick_2');
     }
+    setStep('pick');
   }
 
   async function saveComposite() {
@@ -135,7 +202,10 @@ export default function MultiPageScreen() {
     setError(null);
     const id = newPassageId();
     try {
-      const compositeBlob = await stitchVertically([cropped1.blob, cropped2.blob]);
+      const compositeBlob = await stitchVertically(
+        [cropped1.blob, cropped2.blob],
+        { srcWidths: [cropped1.srcW, cropped2.srcW] },
+      );
       await insertPassage({
         id,
         title: 'Untitled',
@@ -174,68 +244,71 @@ export default function MultiPageScreen() {
     router.push(`/passage/${savedPassageId}`);
   }
 
-  function renderPickStep(page: PageNum) {
-    const picked = page === 1 ? rawUrl1 : rawUrl2;
+  function renderPickStep() {
+    // Drop zone targets whichever page is still missing. Once both are
+    // dropped it disappears and the previews + Next button take over.
+    const missing: PageNum | null = !rawUrl1 ? 1 : !rawUrl2 ? 2 : null;
+    const bothDropped = !!rawUrl1 && !!rawUrl2;
     return (
       <View style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.pickContent}>
           <ThemedText type="title" style={{ textAlign: 'center' }}>
-            {page === 1 ? 'Page 1 of 2' : 'Page 2 of 2'}
+            Two-page passage
           </ThemedText>
           <ThemedText style={{ opacity: 0.55, fontSize: 13, textAlign: 'center' }}>
-            {page === 1
-              ? 'Start with the first page of the passage.'
-              : 'Now get the second page.'}
+            {bothDropped
+              ? 'Both pages in. Tap Next to crop each one.'
+              : missing === 1
+                ? 'Drop the first page of the passage.'
+                : 'Now drop the second page.'}
           </ThemedText>
-          <View style={styles.sourceRow}>
+
+          {missing && (
             <Pressable
-              style={[styles.sourceBtn, { backgroundColor: C.tint }]}
-              onPress={() => openFilePicker(page)}>
-              <ThemedText style={styles.sourceBtnText}>Scan music</ThemedText>
-            </Pressable>
-            <Pressable
-              style={[styles.sourceBtnOutline, { borderColor: C.tint }]}
-              onPress={() => openFilePicker(page)}>
-              <ThemedText style={{ color: C.tint, fontWeight: '600' }}>
-                Pick from photos
+              ref={dropZoneRef}
+              onPress={() => openFilePicker(missing)}
+              style={[
+                styles.dropZone,
+                {
+                  borderColor: dragOver ? C.tint : C.icon,
+                  backgroundColor: dragOver ? C.tint + '14' : 'transparent',
+                },
+              ]}>
+              <ThemedText style={styles.dropTitle}>
+                Drop page {missing} here
+              </ThemedText>
+              <ThemedText style={[styles.dropSub, { color: C.icon }]}>
+                or click to choose a file
               </ThemedText>
             </Pressable>
-          </View>
-          {picked ? (
-            <>
-              <ThemedText style={{ opacity: 0.7, fontSize: 13 }}>
-                Image selected — tap &quot;Next: Crop&quot; below.
-              </ThemedText>
-              <View style={[styles.previewWrap, { borderColor: C.icon }]}>
-                <Image
-                  source={{ uri: picked }}
-                  style={{ width: '100%', height: 200, borderRadius: 8 }}
-                  contentFit="contain"
-                />
-                <Pressable
-                  style={[styles.removeBtn, { backgroundColor: '#c0392b' }]}
-                  onPress={() => clearPicked(page)}
-                  hitSlop={8}>
-                  <ThemedText style={styles.removeText}>✕</ThemedText>
-                </Pressable>
-              </View>
-            </>
-          ) : (
-            <ThemedText style={{ opacity: 0.4, fontSize: 12, textAlign: 'center' }}>
-              No image selected yet.
-            </ThemedText>
           )}
-          {page === 1 && (
-            <Pressable onPress={() => router.back()} style={styles.cancelLink}>
-              <ThemedText style={{ color: C.tint }}>Cancel</ThemedText>
-            </Pressable>
+
+          {rawUrl1 && (
+            <PickedPreview
+              label="Page 1"
+              uri={rawUrl1}
+              borderColor={C.icon}
+              onRemove={() => clearPicked(1)}
+            />
           )}
+          {rawUrl2 && (
+            <PickedPreview
+              label="Page 2"
+              uri={rawUrl2}
+              borderColor={C.icon}
+              onRemove={() => clearPicked(2)}
+            />
+          )}
+
+          <Pressable onPress={() => router.back()} style={styles.cancelLink}>
+            <ThemedText style={{ color: C.tint }}>Cancel</ThemedText>
+          </Pressable>
         </ScrollView>
-        {picked && (
+        {bothDropped && (
           <Pressable
             style={[styles.saveBtn, { backgroundColor: C.tint }]}
-            onPress={() => goToCrop(page)}>
-            <ThemedText style={styles.saveBtnText}>Next: Crop</ThemedText>
+            onPress={() => setStep('crop_1')}>
+            <ThemedText style={styles.saveBtnText}>Next: Crop pages</ThemedText>
           </Pressable>
         )}
       </View>
@@ -253,19 +326,40 @@ export default function MultiPageScreen() {
           <ThemedText style={{ opacity: 0.55, fontSize: 13, textAlign: 'center' }}>
             This is how the two pages will look combined.
           </ThemedText>
-          <View style={[styles.previewWrap, { borderColor: C.icon }]}>
-            <Image
-              source={{ uri: cropped1.url }}
-              style={{ width: '100%', aspectRatio: cropped1.w / cropped1.h }}
-              contentFit="contain"
-            />
-            <View style={[styles.divider, { backgroundColor: C.icon }]} />
-            <Image
-              source={{ uri: cropped2.url }}
-              style={{ width: '100%', aspectRatio: cropped2.w / cropped2.h }}
-              contentFit="contain"
-            />
-          </View>
+          {/* Mirror the relative-scale stitch the save step will produce: each
+              crop occupies (cropW / srcW) of the preview width, so the user
+              sees the final layout (narrow page 2 → narrow band centered with
+              white margins) before they commit. */}
+          {(() => {
+            const f1 = cropped1.w / Math.max(1, cropped1.srcW);
+            const f2 = cropped2.w / Math.max(1, cropped2.srcW);
+            const fMax = Math.max(f1, f2);
+            return (
+              <View style={[styles.previewWrap, { borderColor: C.icon }]}>
+                <View style={{ alignItems: 'center' }}>
+                  <Image
+                    source={{ uri: cropped1.url }}
+                    style={{
+                      width: `${(f1 / fMax) * 100}%`,
+                      aspectRatio: cropped1.w / cropped1.h,
+                    }}
+                    contentFit="contain"
+                  />
+                </View>
+                <View style={[styles.divider, { backgroundColor: C.icon }]} />
+                <View style={{ alignItems: 'center' }}>
+                  <Image
+                    source={{ uri: cropped2.url }}
+                    style={{
+                      width: `${(f2 / fMax) * 100}%`,
+                      aspectRatio: cropped2.w / cropped2.h,
+                    }}
+                    contentFit="contain"
+                  />
+                </View>
+              </View>
+            );
+          })()}
           <View style={styles.previewActions}>
             <Pressable
               style={[styles.actionBtn, { borderColor: C.icon }]}
@@ -325,15 +419,14 @@ export default function MultiPageScreen() {
         style={{ display: 'none' }}
       />
 
-      {step === 'pick_1' && renderPickStep(1)}
-      {step === 'pick_2' && renderPickStep(2)}
+      {step === 'pick' && renderPickStep()}
       {step === 'preview' && renderPreview()}
       {step === 'crop_1' && rawUrl1 && (
         <InlineCropper
           imageUrl={rawUrl1}
           hint="Crop to just the passage on this page"
           saveLabel="Next"
-          onCrop={(blob, dims) => handleCropDone(blob, dims, 1)}
+          onCrop={(blob, dims, srcDims) => handleCropDone(blob, dims, srcDims, 1)}
           onCancel={() => handleCropCancel(1)}
         />
       )}
@@ -342,7 +435,7 @@ export default function MultiPageScreen() {
           imageUrl={rawUrl2}
           hint="Crop to just the passage on this page"
           saveLabel="Done"
-          onCrop={(blob, dims) => handleCropDone(blob, dims, 2)}
+          onCrop={(blob, dims, srcDims) => handleCropDone(blob, dims, srcDims, 2)}
           onCancel={() => handleCropCancel(2)}
         />
       )}
@@ -350,23 +443,53 @@ export default function MultiPageScreen() {
   );
 }
 
+function PickedPreview({
+  label,
+  uri,
+  borderColor,
+  onRemove,
+}: {
+  label: string;
+  uri: string;
+  borderColor: string;
+  onRemove: () => void;
+}) {
+  return (
+    <View style={styles.previewCard}>
+      <ThemedText style={styles.previewLabel}>{label}</ThemedText>
+      <View style={[styles.previewWrap, { borderColor }]}>
+        <Image
+          source={{ uri }}
+          style={{ width: '100%', height: 160, borderRadius: 8 }}
+          contentFit="contain"
+        />
+        <Pressable
+          style={[styles.removeBtn, { backgroundColor: '#c0392b' }]}
+          onPress={onRemove}
+          hitSlop={8}>
+          <ThemedText style={styles.removeText}>✕</ThemedText>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   pickContent: { flexGrow: 1, padding: 24, gap: 16, justifyContent: 'center' },
-  sourceRow: { flexDirection: 'row', gap: 10 },
-  sourceBtn: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  sourceBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  sourceBtnOutline: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
+  dropZone: {
     borderWidth: 2,
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    paddingVertical: 48,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
+  dropTitle: { fontSize: 18, fontWeight: '700' },
+  dropSub: { fontSize: 14 },
+  previewCard: { gap: 4 },
+  previewLabel: { fontSize: 12, fontWeight: '700', opacity: 0.7 },
   cancelLink: { alignSelf: 'center', paddingVertical: 8 },
   removeBtn: {
     position: 'absolute',

@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,7 +9,6 @@ import {
   View,
 } from 'react-native';
 
-import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
@@ -48,23 +47,77 @@ export default function UploadScreen() {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const dropZoneRef = useRef<View | null>(null);
+  // Keep the latest preview URL in a ref so the drop-zone listeners (which
+  // are bound once in useEffect) revoke the *current* URL on re-pick rather
+  // than a stale closure capture.
+  const pickedPreviewRef = useRef<string | null>(null);
+  useEffect(() => {
+    pickedPreviewRef.current = picked?.previewUrl ?? null;
+  }, [picked]);
 
   function openFilePicker() {
     fileInputRef.current?.click();
   }
 
-  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (picked?.previewUrl) URL.revokeObjectURL(picked.previewUrl);
+  function openCamera() {
+    cameraInputRef.current?.click();
+  }
+
+  async function ingest(file: File) {
+    if (!file.type.startsWith('image/')) {
+      setError('That file isn’t an image. Drop a PNG, JPG, or HEIC.');
+      return;
+    }
+    if (pickedPreviewRef.current) URL.revokeObjectURL(pickedPreviewRef.current);
     const previewUrl = URL.createObjectURL(file);
     const aspectRatio = await readImageAspectRatio(previewUrl);
     setPicked({ file, previewUrl, aspectRatio });
+    setError(null);
+  }
+
+  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await ingest(file);
     // Reset so re-picking the same file re-fires onChange.
     e.target.value = '';
   }
+
+  // RN-Web's Pressable doesn't forward HTML drag events, so we wire them on
+  // the underlying DOM node directly. The ref is typed as View for the JSX
+  // contract but resolves to an HTMLDivElement at runtime on web.
+  useEffect(() => {
+    const node = dropZoneRef.current as unknown as HTMLDivElement | null;
+    if (!node) return;
+    function handleDrop(e: DragEvent) {
+      e.preventDefault();
+      setDragOver(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (file) void ingest(file);
+    }
+    function handleOver(e: DragEvent) {
+      e.preventDefault();
+      setDragOver(true);
+    }
+    function handleLeave(e: DragEvent) {
+      e.preventDefault();
+      setDragOver(false);
+    }
+    node.addEventListener('drop', handleDrop);
+    node.addEventListener('dragover', handleOver);
+    node.addEventListener('dragleave', handleLeave);
+    return () => {
+      node.removeEventListener('drop', handleDrop);
+      node.removeEventListener('dragover', handleOver);
+      node.removeEventListener('dragleave', handleLeave);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function clearPicked() {
     if (picked?.previewUrl) URL.revokeObjectURL(picked.previewUrl);
@@ -104,20 +157,46 @@ export default function UploadScreen() {
         <ThemedView style={{ gap: 14 }}>
           <ThemedText type="title">Add a passage</ThemedText>
 
-          <View style={styles.sourceRow}>
-            <Button
-              label="Pick from photos"
-              onPress={openFilePicker}
-              style={{ flex: 1 }}
-            />
-            <Button
-              label="Scan music"
-              onPress={openFilePicker}
-              style={{ flex: 1 }}
-            />
-          </View>
+          {/* The drop zone IS the picker — click it to open the OS file
+              picker, or drag a file from Finder/Explorer onto it. Drag-and-
+              drop handlers are web-only (HTMLDivElement events) — fine here
+              because this whole screen is web-shaped; native imports go
+              through a different path. */}
+          <Pressable
+            ref={dropZoneRef}
+            onPress={openFilePicker}
+            style={[
+              styles.dropZone,
+              {
+                borderColor: dragOver ? C.tint : C.icon,
+                backgroundColor: dragOver ? C.tint + '14' : 'transparent',
+              },
+            ]}>
+            <ThemedText style={styles.dropTitle}>
+              Drop an image here
+            </ThemedText>
+            <ThemedText style={[styles.dropSub, { color: C.icon }]}>
+              or click to choose a file
+            </ThemedText>
+          </Pressable>
+
+          {/* On phones the camera button is the in-lesson shortcut: snap
+              the page on the music stand and crop. Tapping it invokes the
+              hidden `<input capture="environment">` below, which iOS/
+              Android Safari/Chrome route to the rear camera. On desktop
+              browsers the `capture` attribute is ignored and the user
+              gets a regular file picker — so the button stays harmless
+              there too, just less useful. */}
+          <Pressable
+            onPress={openCamera}
+            style={[styles.cameraBtn, { borderColor: C.tint }]}>
+            <ThemedText style={[styles.cameraBtnText, { color: C.tint }]}>
+              📷  Take a photo
+            </ThemedText>
+          </Pressable>
+
           <ThemedText style={{ opacity: 0.55, fontSize: 12, textAlign: 'center' }}>
-            Take a photo or screenshot of your sheet music — you&apos;ll crop it to
+            A photo or screenshot of your sheet music — you&apos;ll crop it to
             just the passage you want to practice next.
           </ThemedText>
 
@@ -161,6 +240,18 @@ export default function UploadScreen() {
         onChange={onFileChange}
         style={{ display: 'none' }}
       />
+      {/* `capture="environment"` asks the OS to open the rear camera
+          directly on mobile browsers. Desktop browsers ignore it and
+          fall through to the standard file picker — same behavior as
+          the regular input, just an extra entry point. */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={onFileChange}
+        style={{ display: 'none' }}
+      />
 
       <Pressable
         style={[styles.saveBtn, { backgroundColor: canSave ? C.tint : C.icon }]}
@@ -179,7 +270,35 @@ export default function UploadScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { padding: 20, gap: 14 },
-  sourceRow: { flexDirection: 'row', gap: 10 },
+  dropZone: {
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderRadius: Radii.lg,
+    paddingVertical: 48,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  dropTitle: {
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.bold,
+  },
+  dropSub: {
+    fontSize: Type.size.sm,
+  },
+  cameraBtn: {
+    borderWidth: 2,
+    borderRadius: Radii.lg,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraBtnText: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.bold,
+  },
   multiPageBtn: {
     borderWidth: Borders.thin,
     borderRadius: Radii.md,

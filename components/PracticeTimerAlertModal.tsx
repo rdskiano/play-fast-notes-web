@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import {
+  useBodyMoveTimer,
   useMicrobreakTimer,
   useMoveOnTimer,
   usePlayItColdTimer,
@@ -23,11 +24,13 @@ export function PracticeTimerAlertModal() {
   const moveOn = useMoveOnTimer();
   const microbreak = useMicrobreakTimer();
   const playItCold = usePlayItColdTimer();
+  const bodyMove = useBodyMoveTimer();
 
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
 
-  const anyFiring = moveOn.firing || microbreak.firing || playItCold.firing;
+  const anyFiring =
+    moveOn.firing || microbreak.firing || playItCold.firing || bodyMove.firing;
 
   const pulse = useSharedValue(1);
   useEffect(() => {
@@ -55,15 +58,16 @@ export function PracticeTimerAlertModal() {
       onRequestClose={() => {
         if (moveOn.firing) moveOn.dismiss();
         else if (playItCold.firing) playItCold.dismiss();
+        else if (bodyMove.firing) bodyMove.dismiss();
       }}>
       {moveOn.firing && (
         <View style={styles.standardBackdrop}>
           <View style={[styles.card, { backgroundColor: C.background }]}>
             <ThemedText type="title" style={styles.centered}>
-              Time to move on
+              Rotate
             </ThemedText>
             <ThemedText style={[styles.body, { color: C.text }]}>
-              Rotate to a different spot. When you come back, try to remember
+              Switch to a different spot. When you come back, try to remember
               exactly what you were working on — that recall is what cements
               the work.
             </ThemedText>
@@ -71,6 +75,27 @@ export function PracticeTimerAlertModal() {
               style={[styles.primaryBtn, { backgroundColor: C.tint }]}
               onPress={moveOn.dismiss}>
               <ThemedText style={styles.primaryText}>Got it</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {bodyMove.firing && (
+        <View style={styles.standardBackdrop}>
+          <View style={[styles.card, { backgroundColor: C.background }]}>
+            <ThemedText style={styles.bodyMoveEmoji}>🚶</ThemedText>
+            <ThemedText type="title" style={styles.centered}>
+              Break
+            </ThemedText>
+            <ThemedText style={[styles.body, { color: C.text }]}>
+              Step away from the instrument for a minute. Stretch, walk around,
+              shake out your hands. Your body — and your focus — will thank you
+              when you come back.
+            </ThemedText>
+            <Pressable
+              style={[styles.primaryBtn, { backgroundColor: C.tint }]}
+              onPress={bodyMove.dismiss}>
+              <ThemedText style={styles.primaryText}>On it</ThemedText>
             </Pressable>
           </View>
         </View>
@@ -100,7 +125,7 @@ export function PracticeTimerAlertModal() {
           )}
           <View style={styles.coldBannerTop} pointerEvents="none">
             <ThemedText style={styles.coldBannerTitle}>
-              Play it cold — {playItCold.passage.title}
+              Cold — {playItCold.passage.title}
             </ThemedText>
             <ThemedText style={styles.coldBannerBody}>
               Stop what you&apos;re doing. Play this once, on stage. No restarts.
@@ -136,6 +161,7 @@ const styles = StyleSheet.create({
   },
   centered: { textAlign: 'center' },
   body: { fontSize: 15, lineHeight: 21, textAlign: 'center', opacity: 0.8 },
+  bodyMoveEmoji: { fontSize: 56, textAlign: 'center' },
   primaryBtn: {
     marginTop: 6,
     paddingVertical: 14,

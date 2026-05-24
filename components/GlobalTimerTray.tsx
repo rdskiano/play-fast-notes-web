@@ -5,6 +5,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { PassagePickerModal } from '@/components/PassagePickerModal';
 import {
+  useBodyMoveTimer,
   useMicrobreakTimer,
   useMoveOnTimer,
   usePlayItColdTimer,
@@ -23,21 +24,27 @@ import {
 const TIMER_INFO: { icon: string; title: string; body: string }[] = [
   {
     icon: '⏱',
-    title: 'Move On Timer',
+    title: 'Rotate Timer',
     body:
       'Prevents mindless, repetitive practice. When the timer fires, switch to a completely different section — being forced to rotate sharpens focus and trains your memory to recall exactly what you were working on when you return. Use it when you tend to zone out or over-drill one spot.',
   },
   {
     icon: '🧠',
-    title: 'Microbreak Timer',
+    title: 'Micro Timer',
     body:
-      "New motor skills consolidate during short rests, not during playing. When you pause, your brain replays the passage up to 20× faster and actually locks in the improvement. In Tempo Ladder, breaks fire every 3 clean reps. In Interleaved Click-Up, every 10 reps.",
+      "New motor skills consolidate during short rests, not during playing. When you pause, your brain replays the passage up to 20× faster and actually locks in the improvement. In Tempo Ladder, micro-rests fire every 3 clean reps. In Interleaved Click-Up, every 10 reps.",
   },
   {
     icon: '❄️',
-    title: 'Play It Cold Timer',
+    title: 'Cold Timer',
     body:
       "Performances and auditions only give you one take. This timer interrupts whatever you're doing to make you perform your chosen spot once, no restarts — building the skill of nailing it on the first try under pressure. Use it in the weeks leading up to a performance.",
+  },
+  {
+    icon: '🚶',
+    title: 'Break Timer',
+    body:
+      'A gentle nudge to step away from the instrument, stretch, and walk around every so often. Long, motionless practice sessions hurt your back and your concentration; brief movement breaks reset both. Different from Rotate — that one swaps passages without you leaving the chair.',
   },
 ];
 
@@ -110,10 +117,12 @@ export function PracticeTimersPill({
   const pathname = usePathname();
   const [infoOpen, setInfoOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const moveOn = useMoveOnTimer();
   const microbreak = useMicrobreakTimer();
   const playItCold = usePlayItColdTimer();
+  const bodyMove = useBodyMoveTimer();
 
   // Subscribe to the Serial Practice singleton so the pill auto-hides the
   // Move On dot while a session is active — including on the strategy
@@ -183,10 +192,16 @@ export function PracticeTimersPill({
             </ThemedText>
           </Pressable>
         )}
+        {/* Final user-facing names: Rotate (swap passages), Micro (short
+            mental rest after reps), Cold (surprise performance), Break
+            (stand up and physically move). The internal config keys
+            (moveOn / microbreak / playItCold / bodyMove) keep their old
+            engineering names so persisted user prefs survive the
+            rename. */}
         {!moveOnHidden && (
           <TimerDot
             icon="⏱"
-            label="Move"
+            label="Rotate"
             enabled={moveOn.config.enabled}
             device={dev}
             onPress={() =>
@@ -196,7 +211,7 @@ export function PracticeTimersPill({
         )}
         <TimerDot
           icon="🧠"
-          label="Break"
+          label="Micro"
           enabled={microbreak.config.enabled}
           device={dev}
           onPress={() =>
@@ -210,14 +225,32 @@ export function PracticeTimersPill({
           device={dev}
           onPress={toggleCold}
         />
-        <Pressable onPress={() => setInfoOpen(true)} hitSlop={6} style={styles.helpBtn}>
-          <View
-            style={[
-              styles.helpCircle,
-              { borderColor: dev.help + '55', backgroundColor: dev.keyOff },
-            ]}>
-            <ThemedText style={[styles.helpText, { color: dev.help }]}>?</ThemedText>
-          </View>
+        <TimerDot
+          icon="🚶"
+          label="Break"
+          enabled={bodyMove.config.enabled}
+          device={dev}
+          onPress={() =>
+            bodyMove.setConfig({ enabled: !bodyMove.config.enabled })
+          }
+        />
+        {/* Settings + Help look like dimmer siblings of the timer keys
+            so the whole row reads as one uniform strip of controls
+            (matching height + radius), instead of mixing tall keys with
+            tiny circles like before. */}
+        <Pressable
+          onPress={() => setSettingsOpen(true)}
+          hitSlop={6}
+          accessibilityLabel="Timer settings"
+          style={[styles.utilityKey, { backgroundColor: dev.keyOff }]}>
+          <ThemedText style={[styles.utilityKeyText, { color: dev.help }]}>⚙</ThemedText>
+        </Pressable>
+        <Pressable
+          onPress={() => setInfoOpen(true)}
+          hitSlop={6}
+          accessibilityLabel="Timer help"
+          style={[styles.utilityKey, { backgroundColor: dev.keyOff }]}>
+          <ThemedText style={[styles.utilityKeyText, { color: dev.help }]}>?</ThemedText>
         </Pressable>
       </View>
 
@@ -225,6 +258,12 @@ export function PracticeTimersPill({
         visible={infoOpen}
         hideMoveOn={moveOnHidden}
         onClose={() => setInfoOpen(false)}
+      />
+
+      <TimerSettingsModal
+        visible={settingsOpen}
+        hideMoveOn={moveOnHidden}
+        onClose={() => setSettingsOpen(false)}
       />
 
       <PassagePickerModal
@@ -241,6 +280,212 @@ export function PracticeTimersPill({
   );
 }
 
+// ── Timer settings (in-tool, no need to leave practice) ────────────────────
+//
+// A compact modal that mirrors the timer dots: each timer gets a row
+// with an enable toggle and a chip-row picker for its primary numeric
+// (interval-min for the rotation/movement timers; break-seconds for the
+// microbreak). Lets the user tune timer behaviour without leaving the
+// practice screen for the global /settings page.
+
+const MOVE_ON_INTERVAL_OPTS = [1, 2, 3, 5, 10] as const;
+const BODY_MOVE_INTERVAL_OPTS = [15, 20, 30, 45, 60] as const;
+const MICROBREAK_SECONDS_OPTS = [8, 12, 20, 30] as const;
+
+function ChipRow<T extends number>({
+  options,
+  value,
+  onChange,
+  unit,
+  disabled,
+}: {
+  options: readonly T[];
+  value: T;
+  onChange: (next: T) => void;
+  unit: string;
+  disabled?: boolean;
+}) {
+  const scheme = useColorScheme() ?? 'light';
+  const C = Colors[scheme];
+  return (
+    <View style={[styles.chipRow, disabled && { opacity: 0.4 }]}>
+      {options.map((opt) => {
+        const active = opt === value;
+        return (
+          <Pressable
+            key={opt}
+            onPress={() => onChange(opt)}
+            disabled={disabled}
+            style={[
+              styles.chip,
+              { borderColor: C.icon + '55' },
+              active && { backgroundColor: C.tint, borderColor: C.tint },
+            ]}>
+            <ThemedText
+              style={[
+                styles.chipText,
+                { color: active ? '#fff' : C.text },
+              ]}>
+              {opt}
+              {unit}
+            </ThemedText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function ToggleRow({
+  icon,
+  title,
+  subtitle,
+  enabled,
+  onToggle,
+}: {
+  icon: string;
+  title: string;
+  subtitle?: string;
+  enabled: boolean;
+  onToggle: () => void;
+}) {
+  const scheme = useColorScheme() ?? 'light';
+  const C = Colors[scheme];
+  return (
+    <Pressable onPress={onToggle} style={styles.toggleRow}>
+      <ThemedText style={styles.toggleIcon}>{icon}</ThemedText>
+      <View style={{ flex: 1 }}>
+        <ThemedText style={styles.toggleTitle}>{title}</ThemedText>
+        {subtitle ? (
+          <ThemedText style={[styles.toggleSub, { color: C.icon }]}>
+            {subtitle}
+          </ThemedText>
+        ) : null}
+      </View>
+      <View
+        style={[
+          styles.toggleSwitch,
+          {
+            backgroundColor: enabled ? C.tint : C.icon + '44',
+          },
+        ]}>
+        <View
+          style={[
+            styles.toggleKnob,
+            { transform: [{ translateX: enabled ? 18 : 2 }] },
+          ]}
+        />
+      </View>
+    </Pressable>
+  );
+}
+
+function TimerSettingsModal({
+  visible,
+  hideMoveOn = false,
+  onClose,
+}: {
+  visible: boolean;
+  hideMoveOn?: boolean;
+  onClose: () => void;
+}) {
+  const scheme = useColorScheme() ?? 'light';
+  const C = Colors[scheme];
+  const moveOn = useMoveOnTimer();
+  const microbreak = useMicrobreakTimer();
+  const bodyMove = useBodyMoveTimer();
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.infoBackdrop}>
+        <View style={[styles.infoCard, { backgroundColor: C.background }]}>
+          <ThemedText type="title" style={{ textAlign: 'center' }}>
+            Timer settings
+          </ThemedText>
+          <ScrollView contentContainerStyle={{ gap: 18 }}>
+            {!hideMoveOn && (
+              <View style={styles.settingsBlock}>
+                <ToggleRow
+                  icon="⏱"
+                  title="Rotate"
+                  subtitle="Switch passages on a schedule"
+                  enabled={moveOn.config.enabled}
+                  onToggle={() =>
+                    moveOn.setConfig({ enabled: !moveOn.config.enabled })
+                  }
+                />
+                <ChipRow
+                  options={MOVE_ON_INTERVAL_OPTS}
+                  value={
+                    (MOVE_ON_INTERVAL_OPTS.find(
+                      (v) => v === moveOn.config.intervalMin,
+                    ) ?? MOVE_ON_INTERVAL_OPTS[2]) as (typeof MOVE_ON_INTERVAL_OPTS)[number]
+                  }
+                  onChange={(v) => moveOn.setConfig({ intervalMin: v })}
+                  unit=" min"
+                  disabled={!moveOn.config.enabled}
+                />
+              </View>
+            )}
+
+            <View style={styles.settingsBlock}>
+              <ToggleRow
+                icon="🧠"
+                title="Micro"
+                subtitle="Short rest after sets of clean reps"
+                enabled={microbreak.config.enabled}
+                onToggle={() =>
+                  microbreak.setConfig({ enabled: !microbreak.config.enabled })
+                }
+              />
+              <ChipRow
+                options={MICROBREAK_SECONDS_OPTS}
+                value={
+                  (MICROBREAK_SECONDS_OPTS.find(
+                    (v) => v === microbreak.config.breakSeconds,
+                  ) ?? MICROBREAK_SECONDS_OPTS[1]) as (typeof MICROBREAK_SECONDS_OPTS)[number]
+                }
+                onChange={(v) => microbreak.setConfig({ breakSeconds: v })}
+                unit=" s"
+                disabled={!microbreak.config.enabled}
+              />
+            </View>
+
+            <View style={styles.settingsBlock}>
+              <ToggleRow
+                icon="🚶"
+                title="Break"
+                subtitle="Get up, stretch, walk around"
+                enabled={bodyMove.config.enabled}
+                onToggle={() =>
+                  bodyMove.setConfig({ enabled: !bodyMove.config.enabled })
+                }
+              />
+              <ChipRow
+                options={BODY_MOVE_INTERVAL_OPTS}
+                value={
+                  (BODY_MOVE_INTERVAL_OPTS.find(
+                    (v) => v === bodyMove.config.intervalMin,
+                  ) ?? BODY_MOVE_INTERVAL_OPTS[1]) as (typeof BODY_MOVE_INTERVAL_OPTS)[number]
+                }
+                onChange={(v) => bodyMove.setConfig({ intervalMin: v })}
+                unit=" min"
+                disabled={!bodyMove.config.enabled}
+              />
+            </View>
+
+            <ThemedText style={[styles.infoFooter, { color: C.icon }]}>
+              Cold config (interval range + passage) still lives under
+              ⚙ Settings in the library — that one needs the full passage picker.
+            </ThemedText>
+          </ScrollView>
+          <Button label="Close" onPress={onClose} />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function TimerInfoModal({
   visible,
   hideMoveOn = false,
@@ -252,11 +497,11 @@ function TimerInfoModal({
 }) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
-  // When the parent screen suppresses Move On (Serial Practice modes), do
+  // When the parent screen suppresses Rotate (Serial Practice modes), do
   // not advertise it in the help modal — it would confuse the user about
   // why the dot is missing.
   const entries = hideMoveOn
-    ? TIMER_INFO.filter((t) => t.title !== 'Move On Timer')
+    ? TIMER_INFO.filter((t) => t.title !== 'Rotate Timer')
     : TIMER_INFO;
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -277,10 +522,6 @@ function TimerInfoModal({
                 </View>
               </View>
             ))}
-            <ThemedText style={[styles.infoFooter, { color: C.icon }]}>
-              Configure interval, break length, and the Play-It-Cold passage
-              under ⚙ Settings in the library.
-            </ThemedText>
           </ScrollView>
           <Button label="Close" onPress={onClose} />
         </View>
@@ -307,24 +548,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
+    // Stay on ONE row across every device — the parent card is sized
+    // to fit all six items (4 toggles + ⚙ + ?). Wrapping made the row
+    // split into an asymmetric 3 + 3 that looked broken.
+    flexWrap: 'nowrap',
+    gap: 6,
   },
   timerKey: {
-    width: 64,
-    paddingVertical: 9,
+    width: 54,
+    paddingVertical: 8,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 2,
     shadowColor: '#000',
     shadowOpacity: 0.32,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
   },
-  timerKeyIcon: { fontSize: 17 },
-  timerKeyLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },
+  // Larger emoji so the icon is recognisable at a glance — the old 17px
+  // was hard to read on retina displays from arm's length.
+  timerKeyIcon: { fontSize: 24, lineHeight: 28 },
+  timerKeyLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
   dot: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -342,6 +588,21 @@ const styles = StyleSheet.create({
   },
   dotLabel: { fontSize: Type.size.xs, fontWeight: Type.weight.bold },
   helpBtn: { paddingHorizontal: Spacing.xs, paddingVertical: 2 },
+  // Utility key (⚙ / ?) — same height + radius as a timer key so the
+  // row reads as one uniform strip, narrower because there's no label.
+  utilityKey: {
+    width: 38,
+    height: 46,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.32,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  utilityKeyText: { fontSize: 20, fontWeight: Type.weight.heavy, lineHeight: 22 },
   serialChip: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
@@ -390,4 +651,40 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: Spacing.xs,
   },
+
+  // Timer settings sheet
+  settingsBlock: { gap: 8 },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  toggleIcon: { fontSize: 22, width: 28, textAlign: 'center' },
+  toggleTitle: { fontWeight: Type.weight.heavy, fontSize: 15 },
+  toggleSub: { fontSize: 12, lineHeight: 16 },
+  toggleSwitch: {
+    width: 38,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+  },
+  toggleKnob: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#fff',
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingLeft: 36,
+    flexWrap: 'wrap',
+  },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radii.md,
+    borderWidth: Borders.thin,
+  },
+  chipText: { fontSize: Type.size.sm, fontWeight: Type.weight.bold },
 });

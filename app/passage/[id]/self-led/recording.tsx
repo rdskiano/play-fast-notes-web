@@ -9,7 +9,14 @@
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { Button } from '@/components/Button';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
@@ -17,6 +24,7 @@ import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -39,6 +47,8 @@ export default function SelfLedRecordingScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   const [passage, setPassage] = useState<Passage | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -231,11 +241,19 @@ export default function SelfLedRecordingScreen() {
 
       <View style={styles.contentArea}>
         {passage?.source_uri ? (
-          <Image
-            source={{ uri: passage.source_uri }}
-            style={styles.scoreFill}
-            contentFit="contain"
-          />
+          isPhone ? (
+            <ZoomableImage
+              uri={passage.source_uri}
+              style={styles.scoreFill}
+              persistKey={passage.id}
+            />
+          ) : (
+            <Image
+              source={{ uri: passage.source_uri }}
+              style={styles.scoreFill}
+              contentFit="contain"
+            />
+          )
         ) : (
           <View style={styles.empty}>
             <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>

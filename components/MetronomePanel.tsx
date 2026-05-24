@@ -16,7 +16,7 @@
 // metronome is a free-standing practice aid, not driven by a strategy.
 
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { ActionSheet } from '@/components/ActionSheet';
 import { NoteValueGlyph, type NoteValue } from '@/components/NoteValueGlyph';
@@ -223,10 +223,17 @@ export function MetronomePanel({
   );
 
   const subOptions = subsFor(meterKind(meter));
+  // On phone the metronome card eats roughly half the visible score
+  // when popped out. Hiding the long instructional `note` strip
+  // recovers the vertical space — the controls below are
+  // self-explanatory and the user can collapse the card to read the
+  // strategy's hints back at the practice screen if needed.
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   return (
     <View style={styles.root}>
-      {note ? (
+      {note && !isPhone ? (
         <View style={styles.note}>
           <ThemedText style={styles.noteText}>{note}</ThemedText>
         </View>
@@ -295,29 +302,39 @@ export function MetronomePanel({
             <ThemedText style={styles.stepGlyph}>+</ThemedText>
           </Pressable>
         </View>
-        <View style={styles.actionRow}>
-          {onNext ? (
-            <Pressable onPress={onNext} style={[styles.nextBtn, styles.raised]}>
-              <ThemedText style={styles.nextText}>NEXT →</ThemedText>
-            </Pressable>
-          ) : (
-            <Pressable onPress={onTapTempo} style={[styles.tapBtn, styles.raised]}>
-              <ThemedText style={styles.tapText}>TAP TEMPO</ThemedText>
-            </Pressable>
-          )}
-          <Pressable
-            onPress={() => setDroneOpen(true)}
-            style={[
-              styles.tapBtn,
-              styles.raised,
-              m.droneEnabled && { backgroundColor: DEVICE.accent },
-            ]}>
-            <ThemedText
-              style={[styles.tapText, m.droneEnabled && { color: '#fff' }]}>
-              DRONE MET
-            </ThemedText>
-          </Pressable>
-        </View>
+        {/* Phone hides TAP TEMPO and DRONE MET to shrink the card —
+            tap-tempo is rarely used mid-practice (you set BPM via the
+            stepper) and drone setup is too fiddly on a 240px-wide
+            card. NEXT, when supplied by a strategy, stays visible
+            because it IS the advance action. Open the metronome on
+            tablet/desktop to access tap + drone. */}
+        {(!isPhone || onNext) && (
+          <View style={styles.actionRow}>
+            {onNext ? (
+              <Pressable onPress={onNext} style={[styles.nextBtn, styles.raised]}>
+                <ThemedText style={styles.nextText}>NEXT →</ThemedText>
+              </Pressable>
+            ) : (
+              <Pressable onPress={onTapTempo} style={[styles.tapBtn, styles.raised]}>
+                <ThemedText style={styles.tapText}>TAP TEMPO</ThemedText>
+              </Pressable>
+            )}
+            {!isPhone && (
+              <Pressable
+                onPress={() => setDroneOpen(true)}
+                style={[
+                  styles.tapBtn,
+                  styles.raised,
+                  m.droneEnabled && { backgroundColor: DEVICE.accent },
+                ]}>
+                <ThemedText
+                  style={[styles.tapText, m.droneEnabled && { color: '#fff' }]}>
+                  DRONE MET
+                </ThemedText>
+              </Pressable>
+            )}
+          </View>
+        )}
       </View>
 
       <View style={styles.divider} />

@@ -5,6 +5,7 @@ import {
   Pressable,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -23,6 +24,7 @@ export function FeedbackButton() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const session = useSession();
+  const { width, height } = useWindowDimensions();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -33,6 +35,10 @@ export function FeedbackButton() {
   // no web-only UI; this is the user-requested exception that lives only in
   // play-fast-notes-web).
   if (Platform.OS !== 'web') return null;
+  // Phone screens don't have the edge space to spare — every pixel goes to
+  // the score, the practice rep buttons, and the tool tabs. The user can
+  // still hit the Formspree endpoint by widening the window on a laptop.
+  if (Math.min(width, height) < 600) return null;
 
   async function submit() {
     const trimmed = text.trim();
@@ -182,6 +188,13 @@ export function FeedbackButton() {
 }
 
 const styles = StyleSheet.create({
+  // Bottom-right pill on laptop/desktop — the original placement that
+  // sits clear of the tool tabs (which run down the left/right edges
+  // at score level) and the page-nav chevrons (top corners). Phone
+  // hides the whole component above the styles via the
+  // min(width, height) < 600 early return, so this pill never has to
+  // compete with the floating ✗/✓ rep buttons on phone practice
+  // screens.
   fab: {
     position: 'absolute',
     bottom: 20,

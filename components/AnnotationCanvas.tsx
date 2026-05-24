@@ -5,8 +5,8 @@
 // over the score. Used by the useScoreAnnotation / useDocumentAnnotation hooks.
 
 import { Image } from 'expo-image';
-import { type RefObject, useState } from 'react';
-import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
+import { type RefObject, useEffect, useRef, useState } from 'react';
+import { type LayoutChangeEvent, Platform, StyleSheet, View } from 'react-native';
 
 import { PencilCanvas, type PencilCanvasHandle } from '@/components/PencilCanvas';
 
@@ -34,6 +34,31 @@ export function AnnotationCanvas({
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [probedAspect, setProbedAspect] = useState(0);
   const aspect = aspectProp ?? probedAspect;
+  const viewRef = useRef<View | null>(null);
+
+  // Web: RN-Web's `onLayout` doesn't report dimensions for absolute-filled
+  // Views (the DOM node IS sized via top/right/bottom/left:0 in a relative
+  // parent, but the layout callback fires with 0×0). Measure via a
+  // ResizeObserver on the underlying DOM node instead so `box` reflects
+  // reality and `drawn` is computed.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const node = viewRef.current as unknown as HTMLElement | null;
+    if (!node) return;
+    function measure() {
+      const r = node!.getBoundingClientRect();
+      setBox((prev) =>
+        prev.w === r.width && prev.h === r.height
+          ? prev
+          : { w: r.width, h: r.height },
+      );
+    }
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
 
   const drawn =
     box.w > 0 && box.h > 0 && aspect > 0
@@ -42,6 +67,7 @@ export function AnnotationCanvas({
 
   return (
     <View
+      ref={viewRef}
       style={StyleSheet.absoluteFill}
       pointerEvents={editable ? 'auto' : 'none'}
       onLayout={(e: LayoutChangeEvent) => {

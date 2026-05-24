@@ -1,0 +1,16 @@
+{
+  "name": "Play Fast Notes",
+  "short_name": "PlayFast",
+  "description": "Crop the passages you struggle with, pick a practice strategy, and drill them with built-in metronome, recorder, and timer.",
+  "start_url": "/library",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#0a7ea4",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { BpmStepper } from '@/components/BpmStepper';
 import { ThemedText } from '@/components/themed-text';
@@ -39,9 +39,13 @@ export function TempoConfigFields({
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  // Stack the BPM cards on phone — at 2-across they're already tight,
+  // and "Hear this tempo" wraps onto three lines inside each cell.
+  const { width, height } = useWindowDimensions();
+  const isPhone = Math.min(width, height) < 600;
   return (
     <>
-      <View style={styles.row}>
+      <View style={isPhone ? styles.rowPhone : styles.row}>
         <View style={styles.field}>
           <ThemedText style={styles.label}>{startLabel}</ThemedText>
           <BpmStepper value={startValue} onChange={onStart} metronome={metronome} />
@@ -77,6 +81,7 @@ export function TempoConfigFields({
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: Spacing.md },
+  rowPhone: { flexDirection: 'column', gap: Spacing.md },
   field: { flex: 1, gap: 6 },
   label: { opacity: 0.7 },
   chipRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },

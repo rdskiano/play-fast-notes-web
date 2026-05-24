@@ -1,16 +1,19 @@
 import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
+import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
 import type { Grouping } from '@/lib/strategies/rhythmPatterns';
 
@@ -20,6 +23,7 @@ import { SelfLedSheet } from '@/components/SelfLedSheet';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -79,6 +83,10 @@ export default function PassageDetailScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { colors: strategyColors } = useStrategyColors();
+  // Safe-area top inset feeds the hand-rolled top bar below — this
+  // screen doesn't use SessionTopBar so it has to pad manually, else
+  // the back button + ⋯ on iPhone sit under the status bar.
+  const insets = useSafeAreaInsets();
 
   const [passage, setPassage] = useState<Passage | null>(null);
   const [tempoLadder, setTempoLadder] = useState<TempoLadderProgress | null>(null);
@@ -87,6 +95,12 @@ export default function PassageDetailScreen() {
   const [rhythmicStep, setRhythmicStep] = useState<'mode' | 'grouping'>('mode');
   const [selfLedOpen, setSelfLedOpen] = useState(false);
   const [siblings, setSiblings] = useState<Passage[]>([]);
+  // Phone "more actions" menu — collapses the strategy + history + crop
+  // pill row, which doesn't fit alongside the title on a phone, into a
+  // single ⋯ button that opens a labeled ActionSheet.
+  const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
   const ann = useScoreAnnotation(passage);
   const annotating = ann.pencil.active;
 
@@ -261,7 +275,14 @@ export default function PassageDetailScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={[styles.topBar, { borderBottomColor: C.icon + '44' }]}>
+      <View
+        style={[
+          styles.topBar,
+          {
+            borderBottomColor: C.icon + '44',
+            paddingTop: insets.top + 14,
+          },
+        ]}>
         <View style={styles.titleRow}>
           <Pressable onPress={() => router.back()} hitSlop={16} style={styles.backBtn}>
             <ThemedText style={[styles.backArrow, { color: C.tint }]}>‹</ThemedText>
@@ -269,42 +290,66 @@ export default function PassageDetailScreen() {
           <ThemedText style={styles.topTitle} numberOfLines={1}>
             {passage.title}
           </ThemedText>
+          {/* Phone: the whole pillRow becomes a single ⋯ menu so the
+              title isn't squeezed into the corner. Tablet / desktop still
+              see the full pill row below. The "strategies →" hint pairs
+              with the ⋯ button so first-time users know that's where
+              Tempo Ladder / Click-Up / Rhythmic / Self-Led / History /
+              Crop live now — without it the ⋯ alone is unguessable. */}
+          {isPhone && (
+            <Pressable
+              onPress={() => setPhoneMenuOpen(true)}
+              hitSlop={6}
+              accessibilityLabel="Practice strategies and more"
+              style={styles.phoneMenuRow}>
+              <ThemedText style={[styles.phoneMenuHint, { color: C.tint }]}>
+                strategies →
+              </ThemedText>
+              <View style={[styles.phoneMenuBtn, { borderColor: C.icon }]}>
+                <ThemedText style={[styles.phoneMenuGlyph, { color: C.text }]}>
+                  ⋯
+                </ThemedText>
+              </View>
+            </Pressable>
+          )}
         </View>
-        <View style={styles.pillRow}>
-          {STRATEGIES.map(renderPill)}
-          <Pressable
-            onPress={() => setSelfLedOpen(true)}
-            style={[styles.outlinePill, { borderColor: C.tint }]}>
-            <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
-              Self-Led ▾
-            </ThemedText>
-          </Pressable>
-          <View style={{ flex: 1 }} />
-          <Pressable
-            onPress={() =>
-              guardedNav(() => router.push(`/passage/${passage.id}/history`))
-            }
-            style={[styles.outlinePill, { borderColor: C.icon }]}>
-            <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
-              Practice History
-            </ThemedText>
-          </Pressable>
-          <Pressable
-            onPress={() =>
-              guardedNav(() =>
-                passage.document_id
-                  ? router.push(
-                      `/document/${passage.document_id}?resize=${passage.id}`,
-                    )
-                  : router.push(`/passage/${passage.id}/crop`),
-              )
-            }
-            style={[styles.outlinePill, { borderColor: C.icon }]}>
-            <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
-              Crop
-            </ThemedText>
-          </Pressable>
-        </View>
+        {!isPhone && (
+          <View style={styles.pillRow}>
+            {STRATEGIES.map(renderPill)}
+            <Pressable
+              onPress={() => setSelfLedOpen(true)}
+              style={[styles.outlinePill, { borderColor: C.tint }]}>
+              <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
+                Self-Led ▾
+              </ThemedText>
+            </Pressable>
+            <View style={{ flex: 1 }} />
+            <Pressable
+              onPress={() =>
+                guardedNav(() => router.push(`/passage/${passage.id}/history`))
+              }
+              style={[styles.outlinePill, { borderColor: C.icon }]}>
+              <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
+                Practice History
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() =>
+                guardedNav(() =>
+                  passage.document_id
+                    ? router.push(
+                        `/document/${passage.document_id}?resize=${passage.id}`,
+                      )
+                    : router.push(`/passage/${passage.id}/crop`),
+                )
+              }
+              style={[styles.outlinePill, { borderColor: C.icon }]}>
+              <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
+                Crop
+              </ThemedText>
+            </Pressable>
+          </View>
+        )}
         <PassageReminders passageId={passage.id} />
       </View>
 
@@ -331,11 +376,19 @@ export default function PassageDetailScreen() {
         <View style={styles.body}>
           {passage.source_uri ? (
             <View style={styles.scoreFill}>
-              <Image
-                source={{ uri: passage.source_uri }}
-                style={StyleSheet.absoluteFill}
-                contentFit="contain"
-              />
+              {isPhone ? (
+                <ZoomableImage
+                  uri={passage.source_uri}
+                  style={StyleSheet.absoluteFill}
+                  persistKey={passage.id}
+                />
+              ) : (
+                <Image
+                  source={{ uri: passage.source_uri }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="contain"
+                />
+              )}
               {ann.canvas}
             </View>
           ) : (
@@ -480,14 +533,66 @@ export default function PassageDetailScreen() {
         onPick={(key) => {
           setSelfLedOpen(false);
           if (!passage) return;
+          // Recording is no longer a self-led strategy — the Recorder
+          // is its own practice tool, available on every screen — so
+          // every key here routes to the generic /self-led/[key] page.
           guardedNav(() => {
-            if (key === 'recording') {
-              router.push(`/passage/${passage.id}/self-led/recording` as never);
-            } else {
-              router.push(`/passage/${passage.id}/self-led/${key}` as never);
-            }
+            router.push(`/passage/${passage.id}/self-led/${key}` as never);
           });
         }}
+      />
+
+      {/* Phone ⋯ menu — every strategy and side-action that was in the
+          pillRow lives here as a labeled row. Self-Led opens its existing
+          sub-sheet rather than flattening because it has its own
+          sub-options. */}
+      <ActionSheet
+        visible={phoneMenuOpen}
+        title={passage.title}
+        items={[
+          ...(STRATEGIES.filter((s) => s.enabled).map((s) => {
+            const isTempoLadder = s.key === 'tempo_ladder';
+            const pct =
+              isTempoLadder && tempoLadderProgress !== null
+                ? Math.round(tempoLadderProgress * 100)
+                : null;
+            return {
+              label: pct !== null ? `${s.label} — ${pct}%` : s.label,
+              onPress: () => {
+                setPhoneMenuOpen(false);
+                openStrategy(s.key);
+              },
+            } satisfies ActionSheetItem;
+          })),
+          {
+            label: 'Self-Led…',
+            onPress: () => {
+              setPhoneMenuOpen(false);
+              setSelfLedOpen(true);
+            },
+          },
+          {
+            label: 'Practice History',
+            onPress: () => {
+              setPhoneMenuOpen(false);
+              guardedNav(() => router.push(`/passage/${passage.id}/history`));
+            },
+          },
+          {
+            label: 'Crop',
+            onPress: () => {
+              setPhoneMenuOpen(false);
+              guardedNav(() =>
+                passage.document_id
+                  ? router.push(
+                      `/document/${passage.document_id}?resize=${passage.id}`,
+                    )
+                  : router.push(`/passage/${passage.id}/crop`),
+              );
+            },
+          },
+        ]}
+        onCancel={() => setPhoneMenuOpen(false)}
       />
     </ThemedView>
   );
@@ -559,6 +664,24 @@ const styles = StyleSheet.create({
   backBtn: { paddingHorizontal: Spacing.sm, paddingVertical: 6 },
   backArrow: { fontSize: 30, fontWeight: '400', lineHeight: 32 },
   topTitle: { fontSize: 15, fontWeight: Type.weight.bold, flex: 1 },
+  phoneMenuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  phoneMenuHint: {
+    fontSize: 12,
+    fontWeight: Type.weight.semibold,
+  },
+  phoneMenuBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  phoneMenuGlyph: { fontSize: 20, lineHeight: 22, fontWeight: '700' },
   pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -599,10 +722,9 @@ const styles = StyleSheet.create({
   },
   spotNavBtn: {
     position: 'absolute',
-    top: '50%',
+    top: 8,
     width: 40,
     height: 40,
-    marginTop: -20,
     borderRadius: 20,
     borderWidth: Borders.thin,
     backgroundColor: '#ffffffcc',

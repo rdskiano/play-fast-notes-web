@@ -38,7 +38,9 @@ import { SectionsModal } from '@/components/SectionsModal';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, Type } from '@/constants/tokens';
+import { Borders, Spacing, Type } from '@/constants/tokens';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   getDocument,
   parsePages,
@@ -82,6 +84,10 @@ export default function DocumentScreen() {
     resize?: string;
   }>();
   const { width, height } = useWindowDimensions();
+  const C = Colors[useColorScheme() ?? 'light'];
+  // Phone density: tight icon-only header so the title + tool buttons
+  // don't pile on top of each other in narrow viewports.
+  const isPhone = Math.min(width, height) < 600;
 
   const [doc, setDoc] = useState<DocumentRow | null | undefined>(undefined);
   const [pages, setPages] = useState<DocumentPage[]>([]);
@@ -125,6 +131,9 @@ export default function DocumentScreen() {
   const [savingResize, setSavingResize] = useState(false);
 
   const [sectionsModalOpen, setSectionsModalOpen] = useState(false);
+  // Phone "more actions" menu — replaces a stack of header buttons that
+  // wouldn't fit alongside the title.
+  const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
   const [markingSection, setMarkingSection] = useState(false);
 
   // Save-flow flag — freezes the dimensions used by viewMode derivation so
@@ -646,11 +655,17 @@ export default function DocumentScreen() {
     <ThemedView style={styles.container}>
       <SessionTopBar
         onExit={() => router.back()}
-        exitLabel="LIBRARY"
+        exitLabel={isPhone ? '←' : 'LIBRARY'}
         center={
-          <View style={{ alignItems: 'center' }}>
-            <ThemedText style={styles.title}>{doc.title}</ThemedText>
-            {doc.composer ? (
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <ThemedText
+              numberOfLines={1}
+              style={[styles.title, isPhone && styles.titlePhone]}>
+              {doc.title}
+            </ThemedText>
+            {/* Composer hides on phone — title alone already wraps if it's
+                long, and the next row of icons is fighting for space. */}
+            {doc.composer && !isPhone ? (
               <ThemedText style={styles.subtitle}>{doc.composer}</ThemedText>
             ) : null}
             {currentSection ? (
@@ -658,62 +673,91 @@ export default function DocumentScreen() {
                 onLongPress={() => setSectionsModalOpen(true)}
                 delayLongPress={400}
                 accessibilityLabel="Manage sections (long-press)">
-                <ThemedText style={styles.sectionLabel}>{currentSection.name}</ThemedText>
+                <ThemedText
+                  numberOfLines={1}
+                  style={[styles.sectionLabel, isPhone && { fontSize: 11 }]}>
+                  {currentSection.name}
+                </ThemedText>
               </Pressable>
             ) : null}
           </View>
         }
         right={
           mode === 'idle' && pages.length > 0 ? (
-            <View style={styles.headerRight}>
-              {isLandscape && (
+            isPhone ? (
+              // Phone: keep "+ Mark" visible as the primary action, hide
+              // everything else behind a single ⋯ menu so the title row
+              // has room to breathe. The menu uses the same ActionSheet
+              // we already use elsewhere — labeled rows, no ambiguity
+              // about what each glyph means.
+              <View style={styles.headerRight}>
+                <Pressable
+                  onPress={startDraw}
+                  accessibilityLabel="Mark passage"
+                  style={[
+                    styles.headerIconBtn,
+                    { backgroundColor: C.tint, borderColor: C.tint },
+                  ]}>
+                  <ThemedText style={[styles.headerIconText, { color: '#fff' }]}>+</ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={() => setPhoneMenuOpen(true)}
+                  accessibilityLabel="More actions"
+                  style={[styles.headerIconBtn, { borderColor: C.icon }]}>
+                  <ThemedText style={styles.headerIconText}>⋯</ThemedText>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.headerRight}>
+                {isLandscape && (
+                  <Button
+                    label={viewMode === 'spread' ? 'Single page view' : 'Spread view'}
+                    variant="outline"
+                    size="sm"
+                    onPress={toggleViewMode}
+                  />
+                )}
                 <Button
-                  label={viewMode === 'spread' ? 'Single page view' : 'Spread view'}
+                  label={boxesOn ? 'Hide boxes' : 'Show boxes'}
                   variant="outline"
                   size="sm"
-                  onPress={toggleViewMode}
+                  onPress={() => setBoxesOn(!boxesOn)}
                 />
-              )}
-              <Button
-                label={boxesOn ? 'Hide boxes' : 'Show boxes'}
-                variant="outline"
-                size="sm"
-                onPress={() => setBoxesOn(!boxesOn)}
-              />
-              <Button
-                label={
-                  sections.length === 0
-                    ? 'Sections / Movements'
-                    : `Sections (${sections.length})`
-                }
-                variant="outline"
-                size="sm"
-                onPress={() => setSectionsModalOpen(true)}
-              />
-              <Button
-                label="Practice Log"
-                variant="outline"
-                size="sm"
-                onPress={() => {
-                  if (!doc) return;
-                  guardedNav(() =>
-                    router.push({
-                      pathname: '/document-log',
-                      params: { documentId: doc.id, documentTitle: doc.title },
-                    } as never),
-                  );
-                }}
-              />
-              <Button
-                label="+ Mark passage"
-                variant="primary"
-                size="sm"
-                onPress={startDraw}
-              />
-              <ThemedText style={styles.counter}>
-                {pageCounterLabel(currentIndex, pages.length, viewMode)}
-              </ThemedText>
-            </View>
+                <Button
+                  label={
+                    sections.length === 0
+                      ? 'Sections / Movements'
+                      : `Sections (${sections.length})`
+                  }
+                  variant="outline"
+                  size="sm"
+                  onPress={() => setSectionsModalOpen(true)}
+                />
+                <Button
+                  label="Practice Log"
+                  variant="outline"
+                  size="sm"
+                  onPress={() => {
+                    if (!doc) return;
+                    guardedNav(() =>
+                      router.push({
+                        pathname: '/document-log',
+                        params: { documentId: doc.id, documentTitle: doc.title },
+                      } as never),
+                    );
+                  }}
+                />
+                <Button
+                  label="+ Mark passage"
+                  variant="primary"
+                  size="sm"
+                  onPress={startDraw}
+                />
+                <ThemedText style={styles.counter}>
+                  {pageCounterLabel(currentIndex, pages.length, viewMode)}
+                </ThemedText>
+              </View>
+            )
           ) : pages.length > 0 ? (
             <ThemedText style={styles.counter}>
               {pageCounterLabel(currentIndex, pages.length, viewMode)}
@@ -919,7 +963,10 @@ export default function DocumentScreen() {
 
             {/* Edge tap zones — only active in idle mode so they don't swallow
                 drag gestures during draw/resize, and only active when nothing
-                is selected so the deselect-by-tapping-backdrop still works. */}
+                is selected so the deselect-by-tapping-backdrop still works.
+                The visible chevrons (below) give mouse users an affordance;
+                the wider invisible zones keep the iPad's tap-anywhere-on-the-edge
+                muscle memory intact. */}
             {mode === 'idle' && !selectedPassageId && !docAnn.annotating && (
               <>
                 <Pressable
@@ -932,6 +979,24 @@ export default function DocumentScreen() {
                   onPress={() => goTo(currentIndex + 1)}
                   accessibilityLabel="Next page"
                 />
+                {currentIndex > 0 && (
+                  <Pressable
+                    onPress={() => goTo(currentIndex - 1)}
+                    hitSlop={10}
+                    style={[styles.spotNavBtn, styles.spotNavLeft, { borderColor: C.icon }]}
+                    accessibilityLabel="Previous page">
+                    <ThemedText style={[styles.spotNavGlyph, { color: C.tint }]}>‹</ThemedText>
+                  </Pressable>
+                )}
+                {currentIndex < screenCount - 1 && (
+                  <Pressable
+                    onPress={() => goTo(currentIndex + 1)}
+                    hitSlop={10}
+                    style={[styles.spotNavBtn, styles.spotNavRight, { borderColor: C.icon }]}
+                    accessibilityLabel="Next page">
+                    <ThemedText style={[styles.spotNavGlyph, { color: C.tint }]}>›</ThemedText>
+                  </Pressable>
+                )}
               </>
             )}
           </>
@@ -957,6 +1022,56 @@ export default function DocumentScreen() {
         title={selectedPassage?.title}
         items={selectedPassage ? buildSelectedActions(selectedPassage) : []}
         onCancel={() => setSelectedPassageId(null)}
+      />
+
+      <ActionSheet
+        visible={phoneMenuOpen}
+        title={doc?.title}
+        items={[
+          {
+            label: boxesOn ? 'Hide passage boxes' : 'Show passage boxes',
+            onPress: () => {
+              setBoxesOn(!boxesOn);
+              setPhoneMenuOpen(false);
+            },
+          },
+          {
+            label:
+              sections.length === 0
+                ? 'Sections / Movements'
+                : `Sections (${sections.length})`,
+            onPress: () => {
+              setPhoneMenuOpen(false);
+              setSectionsModalOpen(true);
+            },
+          },
+          {
+            label: 'Practice Log',
+            onPress: () => {
+              setPhoneMenuOpen(false);
+              if (!doc) return;
+              guardedNav(() =>
+                router.push({
+                  pathname: '/document-log',
+                  params: { documentId: doc.id, documentTitle: doc.title },
+                } as never),
+              );
+            },
+          },
+          ...(isLandscape
+            ? [
+                {
+                  label:
+                    viewMode === 'spread' ? 'Single page view' : 'Spread view',
+                  onPress: () => {
+                    toggleViewMode();
+                    setPhoneMenuOpen(false);
+                  },
+                },
+              ]
+            : []),
+        ]}
+        onCancel={() => setPhoneMenuOpen(false)}
       />
 
       <PromptModal
@@ -1137,7 +1252,18 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: Type.size.md, fontWeight: Type.weight.bold },
+  // Phone-density title — shorter font + reserved for one line of text.
+  titlePhone: { fontSize: Type.size.sm },
   subtitle: { fontSize: Type.size.sm, opacity: 0.6 },
+  headerIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerIconText: { fontSize: 18, lineHeight: 20, fontWeight: '600' },
   sectionLabel: {
     fontSize: Type.size.xs,
     fontWeight: Type.weight.semibold,
@@ -1184,6 +1310,20 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
   },
+  spotNavBtn: {
+    position: 'absolute',
+    top: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: Borders.thin,
+    backgroundColor: '#ffffffcc',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spotNavLeft: { left: 8 },
+  spotNavRight: { right: 8 },
+  spotNavGlyph: { fontSize: 28, lineHeight: 30, fontWeight: Type.weight.heavy },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: { opacity: 0.6 },
   markBanner: {

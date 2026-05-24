@@ -29,7 +29,10 @@ export async function cropImageToBlob(
   throw new Error('cropImageToBlob() is web-only. On iOS use cropImage(uri, rect).');
 }
 
-export async function stitchVertically(_blobs: Blob[]): Promise<Blob> {
+export async function stitchVertically(
+  _blobs: Blob[],
+  _opts?: { srcWidths?: number[]; pageScale?: number; fixedWidth?: number },
+): Promise<Blob> {
   throw new Error(
     'stitchVertically(blobs) is web-only. On iOS use stitchVerticallyUris(uris).',
   );

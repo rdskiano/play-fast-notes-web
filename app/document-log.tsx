@@ -6,7 +6,7 @@
 
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
@@ -156,6 +156,11 @@ export default function DocumentLogScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { colors: STRATEGY_COLORS } = useStrategyColors();
+  // Phone: stack passage cards single-column so each pill (e.g.
+  // "Interleaved Click-Up 130/130") gets the full row width instead of
+  // ~half — chips were overflowing the card boundary at 2-column.
+  const { width, height } = useWindowDimensions();
+  const isPhone = Math.min(width, height) < 600;
 
   const [days, setDays] = useState<DayGroup[]>([]);
   const [editing, setEditing] = useState<PracticeLogWithTitle | null>(null);
@@ -242,7 +247,11 @@ export default function DocumentLogScreen() {
   const renderPassage = (pg: PassageGroup, pi: number) => (
     <View
       key={pi}
-      style={[styles.passageCard, { borderColor: C.icon + '33' }]}>
+      style={[
+        styles.passageCard,
+        isPhone && styles.passageCardPhone,
+        { borderColor: C.icon + '33' },
+      ]}>
       <ThemedText style={styles.passageName} numberOfLines={1}>
         {pg.passageTitle}
       </ThemedText>
@@ -428,6 +437,14 @@ const styles = StyleSheet.create({
     borderRadius: Radii.md,
     padding: 10,
     gap: 6,
+    // overflow:hidden clips any pill that's still wider than the card
+    // (rare after `pill.maxWidth: 100%` below, but a belt-and-braces
+    // guard so a long exercise_name can never bleed into a neighbor).
+    overflow: 'hidden',
+  },
+  passageCardPhone: {
+    // Full-row card on phone — at flexBasis 48% the chips overflowed.
+    flexBasis: '100%',
   },
   passageName: {
     fontWeight: Type.weight.bold,
@@ -442,6 +459,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
     borderRadius: Radii.sm,
+    // Stop the pill from exceeding the parent card width. Combined with
+    // `numberOfLines={1}` on the inner Text it ellipsises long labels
+    // like "Interleaved Click-Up 130/130 · my-exercise" instead of
+    // bleeding out of the card.
+    maxWidth: '100%',
   },
   pillText: {
     color: '#fff',

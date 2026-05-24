@@ -22,7 +22,14 @@ type Props = {
   hint?: string;
   saveLabel?: string;
   cancelLabel?: string;
-  onCrop: (blob: Blob, dimensions: { w: number; h: number }) => void;
+  onCrop: (
+    blob: Blob,
+    dimensions: { w: number; h: number },
+    /** Natural pixel dimensions of the *source* image (the full page the user
+     *  cropped from). Lets the stitcher preserve the relative scale of music
+     *  when two crops from differently-sized sources are combined. */
+    sourceDimensions: { w: number; h: number },
+  ) => void;
   onCancel: () => void;
 };
 
@@ -162,7 +169,11 @@ export function InlineCropper({
         h: crop.h * ratio,
       };
       const blob = await cropToBlob(imageUrl, area);
-      onCrop(blob, { w: Math.round(area.w), h: Math.round(area.h) });
+      onCrop(
+        blob,
+        { w: Math.round(area.w), h: Math.round(area.h) },
+        { w: naturalSize.w, h: naturalSize.h },
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setSaving(false);

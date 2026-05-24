@@ -95,28 +95,43 @@ export type RecordingTarget =
  * SQLite log) so a recording made on the iPad shows up in the practice log on
  * the web app too.
  *
- * `fileUri` is a local `file://` URI from expo-audio's recorder.
+ * `source` is either a local `file://` URI from expo-audio's recorder (native)
+ * or a `Blob` from MediaRecorder (web).
  */
 export async function saveRecording(
   target: RecordingTarget,
-  fileUri: string,
+  source: string | Blob,
   durationSec: number,
 ): Promise<void> {
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData.session?.user.id;
   if (!userId) throw new Error('Not signed in');
 
-  // Read the recording's bytes directly. `fetch(fileUri).blob()` yields a
-  // zero-length blob in React Native, which would silently upload an empty
-  // file — the recording would look saved but play back as silence.
-  const bytes = await new File(fileUri).bytes();
-  if (bytes.length === 0) throw new Error('Recording is empty.');
+  let body: Uint8Array | Blob;
+  let contentType: string;
+  let ext: string;
+  if (typeof source === 'string') {
+    // Native: read bytes directly. `fetch(fileUri).blob()` yields a zero-
+    // length blob in React Native, which would silently upload an empty file
+    // — the recording would look saved but play back as silence.
+    const bytes = await new File(source).bytes();
+    if (bytes.length === 0) throw new Error('Recording is empty.');
+    body = bytes;
+    // expo-audio's HIGH_QUALITY preset on iOS records to .m4a (audio/mp4).
+    contentType = 'audio/mp4';
+    ext = 'm4a';
+  } else {
+    if (source.size === 0) throw new Error('Recording is empty.');
+    body = source;
+    contentType = source.type || 'audio/webm';
+    ext = inferExtFromMime(contentType);
+  }
 
   const recordingId = newRecordingId();
-  const path = `${userId}/${recordingId}.m4a`;
+  const path = `${userId}/${recordingId}.${ext}`;
   const { error: uploadError } = await supabase.storage
     .from(BUCKET)
-    .upload(path, bytes, { contentType: 'audio/mp4', upsert: false });
+    .upload(path, body, { contentType, upsert: false });
   if (uploadError) throw uploadError;
   const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
 
