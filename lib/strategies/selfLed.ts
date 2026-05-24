@@ -1,25 +1,23 @@
 // Self-Led practice strategies — the broader umbrella that covers methods
 // the app teaches and logs but does NOT drive (no metronome scheduler, no
-// step counter). Includes Learn-Fast-Notes methods (Chunking, Add a Note)
-// and general practice modes that musicians do every day (pitch work,
-// phrasing, freeform).
+// step counter). Scoped to methods that directly help the user learn fast
+// notes — Chunking, Add a Note, and a Freeform catch-all. Pitch /
+// intonation and Phrasing used to live here but were removed 2026-05-24
+// because they're general musicianship topics that don't fit the tool's
+// fast-notes focus. The STRATEGY_LABELS maps in the practice-log views
+// keep entries for 'pitch' and 'phrasing' so old log rows render
+// gracefully if any exist.
 //
-// "Recording" used to be in this list, but the Recorder is now a
-// cross-cutting practice tool available on every screen — there's no
-// reason to make it a separate self-led strategy. The 'recording' key
-// is still tolerated by `getSelfLedStrategy` to keep old practice-log
-// rows readable.
+// "Recording" was also removed earlier — the Recorder is now a
+// cross-cutting practice tool available on every screen, so a separate
+// self-led key is redundant. Old 'recording' log rows still render via
+// the STRATEGY_LABELS fallback.
 //
 // Each entry corresponds to one possible value of practice_log.strategy.
 // The data shape is deliberately flat so the catalog can grow without
 // schema churn — new entries are appended here.
 
-export type SelfLedKey =
-  | 'chunking'
-  | 'add_a_note'
-  | 'pitch'
-  | 'phrasing'
-  | 'freeform';
+export type SelfLedKey = 'chunking' | 'add_a_note' | 'freeform';
 
 export type SelfLedStrategy = {
   key: SelfLedKey;
@@ -61,31 +59,6 @@ export const SELF_LED_STRATEGIES: SelfLedStrategy[] = [
       'Play it cleanly.',
       'Add the next note. Replay both. Add the next. Replay all three.',
       'When you stumble, drop one note off the end and rebuild. The goal is lack of confusion or hesitation.',
-    ],
-  },
-  {
-    key: 'pitch',
-    title: 'Pitch / Intonation',
-    shortDescription: 'Drone, tuner, etc.',
-    longDescription:
-      'Anything that anchors pitch: a drone in the key, a tuner watching the needle, slow long bows on a difficult interval, double-stops checking ringing strings. The app does not drive this — log it so it does not disappear when you remember tomorrow that you spent twenty minutes on intonation.',
-    steps: [
-      'Pick a tool: drone, tuner.',
-      'Slow down well below tempo. Listen for the lock-in.',
-      'Repeat the troubled interval / chord until it stops surprising you.',
-    ],
-  },
-  {
-    key: 'phrasing',
-    title: 'Phrasing',
-    shortDescription: 'Shape the line — breath, dynamics, arrival',
-    longDescription:
-      'Step out of the technique loop and ask musical questions. Where does this phrase want to go? Where does it breathe? What is the arrival point, and what gets you there? Often best done at half tempo with the metronome off entirely.',
-    steps: [
-      'Sing the line first if you can — yes really.',
-      'Mark the arrival point with your eyes. Aim everything at it.',
-      'Decide where the breath or bow change will be and rehearse it.',
-      'Vary it: same line three different ways. Pick the one that feels right.',
     ],
   },
   {

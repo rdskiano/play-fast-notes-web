@@ -19,8 +19,6 @@ import {
 const ICONS: Record<SelfLedKey, string> = {
   chunking: '🧩',
   add_a_note: '➕',
-  pitch: '🎯',
-  phrasing: '🎵',
   freeform: '✏️',
 };
 
@@ -55,7 +53,11 @@ export function SelfLedSheet({ visible, onPick, onCancel }: Props) {
               Self-Led practice
             </ThemedText>
             <ThemedText style={[styles.subtitle, { color: C.icon }]}>
-              Pick a way to work this passage
+              Pick a way to work on this passage.
+            </ThemedText>
+            <ThemedText style={[styles.helper, { color: C.icon }]}>
+              The only reason to pick one is to log this in your practice
+              log.
             </ThemedText>
           </View>
           <ScrollView contentContainerStyle={styles.list}>
@@ -196,6 +198,16 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: Type.size.sm,
+  },
+  // Smaller / lighter than subtitle — context for *why* the user is being
+  // asked to pick a label, so they don't read it as "pick the strategy
+  // the app will drive." (The app doesn't drive any of these — they're
+  // just labels for the practice log.)
+  helper: {
+    fontSize: Type.size.xs,
+    fontStyle: 'italic',
+    marginTop: 4,
+    lineHeight: 17,
   },
   list: {
     paddingBottom: Spacing.md,
