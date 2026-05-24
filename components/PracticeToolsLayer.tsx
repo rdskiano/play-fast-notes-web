@@ -202,11 +202,28 @@ export function PracticeToolsLayer({
             tabSpan={span}
             // Phone gets a tighter card — the instructional `note`,
             // TAP TEMPO, and DRONE MET are all hidden inside
-            // MetronomePanel at this width, so we shave another row of
-            // vertical space here. ~220 wide × ~230 tall leaves the
-            // score the lion's share of the phone screen.
-            panelWidth={isPhone ? 220 : 280}
-            panelHeight={isPhone ? 230 : metronomeNote ? 384 : 312}>
+            // MetronomePanel at this width. Width has to fit the
+            // bottom row's pickBtn (64) + playBtn (64) + pickBtn (64)
+            // = 192 plus the root's 18-px horizontal padding × 2,
+            // so 240 minimum. Height accounts for the remaining stack
+            // (volume row + 28-tall dots + 64-tall BPM display row +
+            // 1 divider + 64-tall play/meter/sub row, plus four 14-px
+            // gaps and the root's 18-px padding top and bottom = ~277).
+            // The earlier 220 × 230 was too small and the card was
+            // clipping both the right edge of the play row and the
+            // bottom of the play row. When a strategy supplies a NEXT
+            // button (metronomeNext) the tempo block grows by ~50 px
+            // so we bump height to 330.
+            panelWidth={isPhone ? 240 : 280}
+            panelHeight={
+              isPhone
+                ? metronomeNext
+                  ? 330
+                  : 280
+                : metronomeNote
+                  ? 384
+                  : 312
+            }>
             <MetronomePanel
               metronome={metro}
               note={metronomeNote}

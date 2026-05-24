@@ -407,6 +407,12 @@ export default function LibraryScreen() {
   // phones also get the dense layout.
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  // Phone portrait gets a stacked header — title on its own row above
+  // the action buttons — so a long folder/repertoire name isn't
+  // ellipsized down to a few characters by the 5-button cluster on
+  // the right. Phone landscape still single-rows because vertical
+  // pixels are the scarce axis there.
+  const isPhonePortrait = isPhone && vpH > vpW;
 
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [path, setPath] = useState<Folder[]>([]);
@@ -817,7 +823,11 @@ export default function LibraryScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedView style={styles.header}>
+      <ThemedView
+        style={[
+          styles.header,
+          isPhonePortrait && styles.headerStacked,
+        ]}>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
           {path.length > 0 && (
             <Pressable onPress={goUp} hitSlop={8} style={styles.backBtn}>
@@ -830,7 +840,14 @@ export default function LibraryScreen() {
             </ThemedText>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+        <View
+          style={[
+            { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+            // Stacked layout pushes the button cluster to the right
+            // edge of its own row so the visual right-aligned weight
+            // of the original single-row header is preserved.
+            isPhonePortrait && { justifyContent: 'flex-end' },
+          ]}>
           {editMode ? (
             <>
               {Platform.OS !== 'web' && (
@@ -962,7 +979,11 @@ export default function LibraryScreen() {
         </View>
       )}
 
-      <View style={styles.modeRow}>
+      <View
+        style={[
+          styles.modeRow,
+          isPhonePortrait && styles.modeRowStacked,
+        ]}>
         <View style={styles.modeSegments}>
           <Pressable
             disabled
@@ -986,7 +1007,14 @@ export default function LibraryScreen() {
         <Pressable
           onPress={() => setProgressionOpen(true)}
           hitSlop={6}
-          style={[styles.modeHelpBtn, { borderColor: C.icon }]}>
+          style={[
+            styles.modeHelpBtn,
+            { borderColor: C.icon },
+            // Centered below the segments in portrait so the two
+            // practice mode buttons read as the visual centerpiece of
+            // the row rather than getting offset by the "?" on the right.
+            isPhonePortrait && { alignSelf: 'center' },
+          ]}>
           <ThemedText style={[styles.modeHelpText, { color: C.icon }]}>?</ThemedText>
         </Pressable>
       </View>
@@ -1323,6 +1351,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
+  // Phone portrait override — column stacking with cross-axis stretch
+  // so both the title row and the button row span the full width of
+  // the screen. Reduced cross-row gap because two rows already feel
+  // taller than the original single row.
+  headerStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: Spacing.sm,
+  },
   backBtn: { paddingHorizontal: Spacing.xs },
   backArrow: { fontSize: 32, fontWeight: '400', lineHeight: 34 },
   hintBlock: { gap: Spacing.xs, marginTop: -8 },
@@ -1348,6 +1385,14 @@ const styles = StyleSheet.create({
   editHintSub: { fontSize: Type.size.xs, lineHeight: 15 },
   editHintBold: { fontWeight: Type.weight.heavy },
   modeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  // Phone portrait override — stack so the segments span the full row
+  // (each button gets more horizontal room before wrapping) and the
+  // help "?" sits centered below.
+  modeRowStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: Spacing.sm,
+  },
   modeSegments: {
     flex: 1,
     flexDirection: 'row',
@@ -1363,10 +1408,34 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   modeSegActive: { borderWidth: 0 },
-  modeSegActiveText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
-  modeSegActiveSub: { color: '#fff', opacity: 0.85, fontSize: 11, marginTop: 1 },
-  modeSegText: { fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
-  modeSegSub: { fontSize: 11, marginTop: 1, opacity: 0.8 },
+  // textAlign: 'center' on every label so the lines stay centered when
+  // "Practice a group of passages" wraps to two lines — without it, the
+  // wrapped lines left-align inside their bounding box and the button
+  // reads visually unbalanced next to the single-line sibling.
+  modeSegActiveText: {
+    color: '#fff',
+    fontWeight: Type.weight.heavy,
+    fontSize: Type.size.sm,
+    textAlign: 'center',
+  },
+  modeSegActiveSub: {
+    color: '#fff',
+    opacity: 0.85,
+    fontSize: 11,
+    marginTop: 1,
+    textAlign: 'center',
+  },
+  modeSegText: {
+    fontWeight: Type.weight.heavy,
+    fontSize: Type.size.sm,
+    textAlign: 'center',
+  },
+  modeSegSub: {
+    fontSize: 11,
+    marginTop: 1,
+    opacity: 0.8,
+    textAlign: 'center',
+  },
   modeHelpBtn: {
     width: 36,
     height: 36,

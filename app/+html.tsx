@@ -25,6 +25,24 @@ export default function Root({ children }: PropsWithChildren) {
         />
         <ScrollViewStyleReset />
 
+        {/* Override expo-reset's `height: 100%` with `100dvh` (dynamic
+            viewport height) so the layout tracks the actually-visible
+            area on mobile browsers. Without this, on iOS Safari and
+            Android Chrome the body sizes against the *large* viewport
+            (URL bar retracted), and any content anchored to the bottom
+            of the layout — practice tool tabs, miss/clean buttons,
+            metronome — gets pushed under the browser's bottom toolbar.
+            `dvh` resolves to whichever viewport the chrome is in right
+            now, so the layout adapts as Safari shows/hides its bars.
+            Source-order beats expo-reset; browsers that don't grok dvh
+            (Safari < 15.4 / Chrome < 108) ignore the line and keep the
+            100% fallback. */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html: 'html,body,#root{height:100dvh;}',
+          }}
+        />
+
         {/* PWA manifest — gives Chrome / Edge / Firefox the Install App
             affordance and lets the standalone mode pick the right name,
             icon, and theme color. */}

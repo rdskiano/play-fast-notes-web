@@ -26,6 +26,7 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { FeedbackButton } from '@/components/FeedbackButton';
+import { InstallPrompt } from '@/components/InstallPrompt';
 import {
   InterleavedStatusBar,
   InterleavedTimerProvider,
@@ -79,6 +80,11 @@ export default function RootLayout() {
             <Stack.Screen name="reset-password" />
           </Stack>
           {!isPublic && <Redirect href="/sign-in" />}
+          {/* The friend-link landing page is /sign-in for not-yet-signed-up
+              visitors, so the install prompt has to live in this branch
+              too — otherwise a friend opening the link on their phone
+              would never be coached into Add-to-Home-Screen. */}
+          <InstallPrompt />
           <StatusBar style="dark" />
         </ThemeProvider>
       );
@@ -179,6 +185,11 @@ export default function RootLayout() {
                 <PracticeTimerAlertModal />
                 {!IS_WEB && <StitchHost />}
                 {IS_WEB && <FeedbackButton />}
+                {/* Phone-only Add-to-Home-Screen coach. On the iPad app
+                    the component resolves to a no-op via .tsx / .web.tsx
+                    Metro split, so this line is safe to render on both
+                    platforms. */}
+                <InstallPrompt />
                 <StatusBar style="dark" />
               </ThemeProvider>
             </PracticeTimersProvider>

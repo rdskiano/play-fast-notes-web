@@ -1,7 +1,14 @@
-// A pinch-and-pan zoom container for the rhythm builder's reference
-// score on phone. Wraps a single Image at a fixed aspect-ratio container
-// and lets the user pinch to zoom in (up to 4×) and one-finger pan to
-// move the zoomed view. Double-tap resets to 1×.
+// A pinch-and-pan zoom container for score images. Wraps a single Image
+// at a fixed aspect-ratio container and lets the user pinch to zoom in
+// (up to 4×) OR out (down to 0.4×) and one-finger pan to move the
+// transformed view around inside the wrapper. Double-tap resets to 1×.
+//
+// Why zoom OUT matters: a tightly-cropped passage on phone leaves no
+// margin between the last notes and the floating ✓ / ✗ rep buttons that
+// sit at the bottom corners of practice screens. Shrinking the score to
+// ~0.6× pads empty space around it so the rep buttons no longer overlap
+// the music. The user's per-passage zoom is remembered via persistKey,
+// so they only need to set the breathing-room scale once per passage.
 //
 // Uses react-native-gesture-handler + reanimated, mirroring the
 // composable pinch + pan pattern already used by ToolDock. The whole
@@ -21,8 +28,19 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-const MIN_SCALE = 1;
+// 0.4 leaves the score readable while opening up a real margin of
+// empty space inside the wrap — enough for the rep buttons to sit
+// clear. Anything tighter than that and the score becomes thumbnail-
+// sized; anything looser and pinch-back-to-home requires too much
+// effort. 4 stays as the zoom-in ceiling.
+const MIN_SCALE = 0.4;
 const MAX_SCALE = 4;
+const HOME_SCALE = 1;
+// Window around 1× that counts as "back to home." Pinching out and
+// releasing inside this band snaps the transform cleanly back to
+// identity (scale 1, no pan offset). Outside it, the user stays
+// exactly where they aimed — including below 1×.
+const HOME_SNAP_TOLERANCE = 0.05;
 
 // Per-key zoom/pan cache. When a caller passes `persistKey`, the
 // final transform of the outgoing key is captured and the incoming
@@ -134,10 +152,12 @@ export function ZoomableImage({
     })
     .onEnd(() => {
       'worklet';
-      // Snap fully back when pinch ends at or below 1× so a casual
-      // pinch-out then release resets cleanly.
-      if (scale.value <= MIN_SCALE + 0.02) {
-        scale.value = withTiming(1, { duration: 120 });
+      // Snap fully back when the pinch ends close to 1× so a casual
+      // pinch-out-then-release resets cleanly. Below the window (e.g.
+      // 0.6×) means the user actively wants the smaller scale —
+      // don't yank them back home.
+      if (Math.abs(scale.value - HOME_SCALE) <= HOME_SNAP_TOLERANCE) {
+        scale.value = withTiming(HOME_SCALE, { duration: 120 });
         tx.value = withTiming(0, { duration: 120 });
         ty.value = withTiming(0, { duration: 120 });
       }
@@ -153,9 +173,13 @@ export function ZoomableImage({
     })
     .onUpdate((e) => {
       'worklet';
-      // Only pan when zoomed in — otherwise a swipe would just push the
-      // unscaled image around for no reason.
-      if (scale.value <= MIN_SCALE) return;
+      // Pan whenever the score is not at its home scale — zoomed in,
+      // OR zoomed out so the user can slide the smaller image around
+      // inside the empty space (e.g. shift it up so the bottom-corner
+      // rep buttons sit on background instead of notes). At exactly
+      // 1×, panning would just push the home view sideways for no
+      // reason, so it's gated off.
+      if (Math.abs(scale.value - HOME_SCALE) < 0.02) return;
       tx.value = startTx.value + e.translationX;
       ty.value = startTy.value + e.translationY;
     });

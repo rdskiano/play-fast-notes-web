@@ -11,7 +11,7 @@
 // while collapsed.
 
 import { type ReactNode, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle,
@@ -66,6 +66,13 @@ export function ToolDock({
   children,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
+
+  // Phone gate for the corner ⊖/⊕ sizer. Phones have pinch-resize on
+  // the card itself, so the discrete-step buttons are pure clutter —
+  // they were added for mouse-only laptop users who can't pinch. Same
+  // breakpoint convention used everywhere else in the app.
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   const tabCenterY = tabTop + tabSpan / 2;
 
@@ -189,23 +196,27 @@ export function ToolDock({
               so it shrinks / grows with everything else. `box-none`
               lets taps that miss the buttons fall through to the
               gesture detector (so a stray drag-attempt on the card's
-              top corner still pans the card). */}
-          <View pointerEvents="box-none" style={styles.sizerWrap}>
-            <Pressable
-              onPress={() => bumpSize(-1)}
-              hitSlop={4}
-              accessibilityLabel="Shrink tool"
-              style={styles.sizerBtn}>
-              <ThemedText style={styles.sizerGlyph}>−</ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={() => bumpSize(1)}
-              hitSlop={4}
-              accessibilityLabel="Enlarge tool"
-              style={styles.sizerBtn}>
-              <ThemedText style={styles.sizerGlyph}>+</ThemedText>
-            </Pressable>
-          </View>
+              top corner still pans the card). Hidden on phone — pinch
+              is the native gesture there, and the +/− buttons just
+              steal corner pixels from the tool itself. */}
+          {!isPhone && (
+            <View pointerEvents="box-none" style={styles.sizerWrap}>
+              <Pressable
+                onPress={() => bumpSize(-1)}
+                hitSlop={4}
+                accessibilityLabel="Shrink tool"
+                style={styles.sizerBtn}>
+                <ThemedText style={styles.sizerGlyph}>−</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => bumpSize(1)}
+                hitSlop={4}
+                accessibilityLabel="Enlarge tool"
+                style={styles.sizerBtn}>
+                <ThemedText style={styles.sizerGlyph}>+</ThemedText>
+              </Pressable>
+            </View>
+          )}
         </Animated.View>
       </GestureDetector>
 
