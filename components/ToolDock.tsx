@@ -11,7 +11,7 @@
 // while collapsed.
 
 import { type ReactNode, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle,
@@ -50,6 +50,19 @@ const COLLAPSED_SCALE = 0.25;
 // enough to not feel tedious.
 const SIZER_STEP = 1.15;
 
+// Touch-input detection: hides the corner ⊖/⊕ sizer on phone + iPad +
+// any other primarily-touch device. The discrete-step buttons are
+// pure clutter where pinch works; they exist for mouse-only laptop
+// users who can't pinch. Native is always touch; on web the standard
+// pointer media query catches phones, tablets, and mouse-less devices
+// while correctly leaving laptops with trackpads (even ones with a
+// touchscreen) showing the buttons. Evaluated once at module load —
+// input modality almost never changes mid-session.
+const IS_TOUCH_DEVICE =
+  Platform.OS !== 'web' ||
+  (typeof window !== 'undefined' &&
+    window.matchMedia?.('(hover: none) and (pointer: coarse)').matches === true);
+
 export function ToolDock({
   edge,
   label,
@@ -66,13 +79,6 @@ export function ToolDock({
   children,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
-
-  // Phone gate for the corner ⊖/⊕ sizer. Phones have pinch-resize on
-  // the card itself, so the discrete-step buttons are pure clutter —
-  // they were added for mouse-only laptop users who can't pinch. Same
-  // breakpoint convention used everywhere else in the app.
-  const { width: vpW, height: vpH } = useWindowDimensions();
-  const isPhone = Math.min(vpW, vpH) < 600;
 
   const tabCenterY = tabTop + tabSpan / 2;
 
@@ -196,10 +202,11 @@ export function ToolDock({
               so it shrinks / grows with everything else. `box-none`
               lets taps that miss the buttons fall through to the
               gesture detector (so a stray drag-attempt on the card's
-              top corner still pans the card). Hidden on phone — pinch
-              is the native gesture there, and the +/− buttons just
-              steal corner pixels from the tool itself. */}
-          {!isPhone && (
+              top corner still pans the card). Hidden on any touch
+              device (phone, iPad, etc.) — pinch is the native gesture
+              there, and the +/− buttons just steal corner pixels from
+              the tool itself. Mouse-only laptops still get them. */}
+          {!IS_TOUCH_DEVICE && (
             <View pointerEvents="box-none" style={styles.sizerWrap}>
               <Pressable
                 onPress={() => bumpSize(-1)}
