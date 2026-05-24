@@ -14,6 +14,7 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { FloatingMetronome } from '@/components/FloatingMetronome';
 import { PassagePicker } from '@/components/PassagePicker';
+import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SelfLedSheet } from '@/components/SelfLedSheet';
@@ -580,6 +581,15 @@ export default function InterleavedScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
+      {/* Keyboard shortcuts: Space (or any pedal key) = ✓ Clean,
+          X = ✗ Miss. Suppressed while celebration / log prompt is
+          open so a stray Space can't fire a rep behind the modal. */}
+      <PedalCatcher
+        active={!notePromptVisible && !celebrating}
+        onAdvance={onClean}
+        secondaryKey="x"
+        onSecondary={onMiss}
+      />
       {/* Phone hides the SessionTopBar (replaced by a floating dots
           pill + ✕ button) and the bottom repBar (replaced by floating
           ✗ / ✓ circles), to give the score the full screen the way
@@ -739,7 +749,7 @@ export default function InterleavedScreen() {
           </View>
 
           <ThemedText style={[styles.tempoHint, { color: C.icon }]}>
-            Your tempo is saved for each passage.
+            Your tempo is saved for each passage. Space = Clean ✓ · X = Miss ✗
           </ThemedText>
         </>
       )}

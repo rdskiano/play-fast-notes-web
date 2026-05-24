@@ -44,7 +44,6 @@ export default function ClickUpScreen() {
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
-  const [pedalMode, setPedalMode] = useState(false);
   const session = useClickUpSession(id);
 
   useEffect(() => {
@@ -333,18 +332,6 @@ export default function ClickUpScreen() {
           ) : (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Pressable
-                onPress={() => setPedalMode((v) => !v)}
-                hitSlop={6}
-                style={[styles.topBtn, pedalMode && { backgroundColor: C.tint }]}>
-                <ThemedText
-                  style={[
-                    styles.topBtnText,
-                    { color: pedalMode ? '#fff' : C.tint },
-                  ]}>
-                  PEDAL
-                </ThemedText>
-              </Pressable>
-              <Pressable
                 onPress={goBackToConfig}
                 hitSlop={6}
                 accessibilityLabel="Back to tempo setup"
@@ -367,13 +354,15 @@ export default function ClickUpScreen() {
       />
 
       <ThemedText style={styles.playHelper}>
-        {pedalMode
-          ? 'Foot pedal on — press it to advance.'
-          : 'Play from one green arrow ▼ to the next.'}
+        Play from one green arrow ▼ to the next.
       </ThemedText>
 
+      {/* Keyboard / pedal capture is always live during the playing phase
+          (gated only by note prompts + celebration overlays). Laptop
+          users get Space/Enter, iPad users get the on-screen NEXT, and a
+          BT foot pedal works on any platform without a toggle. */}
       <PedalCatcher
-        active={pedalMode && !notePromptVisible && !celebrating}
+        active={!notePromptVisible && !celebrating}
         onAdvance={onNext}
       />
 
@@ -412,12 +401,14 @@ export default function ClickUpScreen() {
       </View>
 
       <View style={styles.bottomBar}>
-        {/* Phone hides the pedal hint — the affordance lives behind the
-            ⋯ menu now, not top-right, and the line eats two rows of
-            vertical space we'd rather give back to the score. */}
+        {/* Phone hides the input-method hint — phones have no keyboard
+            and no foot pedal in practice, so the line just eats two
+            rows of vertical space we'd rather give back to the score.
+            Laptop / desktop sees a single tidy line listing every way
+            to advance. */}
         {!isPhone && (
           <ThemedText style={styles.pedalNote}>
-            Tap PEDAL (top-right) to advance with an optional foot pedal.
+            Press Space, Enter, or a foot pedal to advance — or tap NEXT.
           </ThemedText>
         )}
         <Pressable onPress={onNext} style={styles.nextBtn}>
@@ -451,13 +442,9 @@ export default function ClickUpScreen() {
       <ActionSheet
         visible={phoneMenuOpen}
         items={[
-          {
-            label: pedalMode ? 'Foot pedal: on' : 'Foot pedal: off',
-            onPress: () => {
-              setPedalMode((v) => !v);
-              setPhoneMenuOpen(false);
-            },
-          },
+          // Pedal toggle removed — PedalCatcher is always live now, so
+          // any BT foot pedal that emits arrow / Space / Enter / PageDn
+          // keys works without a mode switch.
           {
             label: '← Back to tempo setup',
             onPress: () => {

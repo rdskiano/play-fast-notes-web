@@ -30,9 +30,17 @@ const PEDAL_KEYS = new Set([
 export function PedalCatcher({
   active,
   onAdvance,
+  secondaryKey,
+  onSecondary,
 }: {
   active: boolean;
   onAdvance: () => void;
+  // Optional second binding for screens with two rep outcomes
+  // (Tempo Ladder, Interleaved): Space = Clean (advance), X = Miss.
+  // Compared case-insensitively. The advance keys (Space, Enter, arrows,
+  // PageDown/PageUp) are unchanged — a foot pedal still works the same.
+  secondaryKey?: string;
+  onSecondary?: () => void;
 }) {
   const lastAdvanceRef = useRef(0);
 
@@ -51,19 +59,31 @@ export function PedalCatcher({
       // Don't steal keystrokes from real typing (e.g. the practice-log note
       // prompt, sign-in modals, the metronome BPM stepper if focused).
       if (isTypingTarget(e.target)) return;
-      if (!PEDAL_KEYS.has(e.key)) return;
+
+      let action: (() => void) | null = null;
+      if (
+        secondaryKey &&
+        onSecondary &&
+        e.key.toLowerCase() === secondaryKey.toLowerCase()
+      ) {
+        action = onSecondary;
+      } else if (PEDAL_KEYS.has(e.key)) {
+        action = onAdvance;
+      }
+      if (!action) return;
+
       // De-dupe key auto-repeat the same way the native sibling does. A
       // foot pedal held down briefly can otherwise fire dozens of events.
       const now = Date.now();
       if (now - lastAdvanceRef.current < 300) return;
       lastAdvanceRef.current = now;
       e.preventDefault();
-      onAdvance();
+      action();
     }
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [active, onAdvance]);
+  }, [active, onAdvance, secondaryKey, onSecondary]);
 
   return null;
 }

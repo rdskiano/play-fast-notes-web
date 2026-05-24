@@ -1,7 +1,9 @@
 // One edge-docked practice tool. A fixed tab sits on a screen edge; tapping
 // it pops the tool out as a floating card. The whole card is draggable
-// (one finger) and pinch-resizable (two fingers) — there is no header bar.
-// Tapping the tab again collapses the card: it flies back into its tab.
+// (one finger) and pinch-resizable (two fingers) — plus a small ⊖ / ⊕
+// sizer in the top-right corner of the card so a laptop user (mouse, no
+// pinch) can resize without two fingers. Tapping the tab again collapses
+// the card: it flies back into its tab.
 // Tools are independent — several can float at once.
 //
 // The card stays mounted whether open or closed (only its opacity / scale /
@@ -43,6 +45,10 @@ const DURATION = 300;
 const MIN_SCALE = 0.7;
 const MAX_SCALE = 1.6;
 const COLLAPSED_SCALE = 0.25;
+// Per-tap multiplier for the corner ⊖ / ⊕ sizer. 1.15 = ~5 taps from min
+// (0.7) to max (1.6) — granular enough to find the right size, coarse
+// enough to not feel tedious.
+const SIZER_STEP = 1.15;
 
 export function ToolDock({
   edge,
@@ -79,11 +85,15 @@ export function ToolDock({
     Math.max(12, containerH - panelHeight - 12),
   );
 
-  // Drag clamp — keep most of the card on screen.
+  // Drag clamp — keep most of the card on screen. Same 25/75 rule on
+  // every edge so the user can push a card almost out of the way and
+  // still have a handle to grab it. The previous minY of 4 made the
+  // Metronome card un-draggable upward (it opens near the top of its
+  // tab to begin with).
   const minX = -panelWidth * 0.25;
   const maxX = Math.max(minX, containerW - panelWidth * 0.75);
-  const minY = 4;
-  const maxY = Math.max(minY, containerH - 56);
+  const minY = -panelHeight * 0.25;
+  const maxY = Math.max(minY, containerH - panelHeight * 0.25);
 
   const tx = useSharedValue(homeX);
   const ty = useSharedValue(homeY);
@@ -137,6 +147,19 @@ export function ToolDock({
 
   const composed = Gesture.Simultaneous(pan, pinch);
 
+  // Discrete-step resizer for mouse / keyboard users (no pinch). One tap
+  // multiplies scale by SIZER_STEP (or its inverse), clamped to the same
+  // [MIN_SCALE, MAX_SCALE] band the pinch uses, so both interactions
+  // share one source of truth.
+  function bumpSize(direction: 1 | -1) {
+    const factor = direction === 1 ? SIZER_STEP : 1 / SIZER_STEP;
+    const next = Math.max(
+      MIN_SCALE,
+      Math.min(MAX_SCALE, scale.value * factor),
+    );
+    scale.value = withTiming(next, { duration: 160 });
+  }
+
   const cardStyle = useAnimatedStyle(() => ({
     opacity: op.value,
     transform: [
@@ -162,6 +185,27 @@ export function ToolDock({
             cardStyle,
           ]}>
           {children}
+          {/* Top-right resize affordance. Sits inside the scaled card
+              so it shrinks / grows with everything else. `box-none`
+              lets taps that miss the buttons fall through to the
+              gesture detector (so a stray drag-attempt on the card's
+              top corner still pans the card). */}
+          <View pointerEvents="box-none" style={styles.sizerWrap}>
+            <Pressable
+              onPress={() => bumpSize(-1)}
+              hitSlop={4}
+              accessibilityLabel="Shrink tool"
+              style={styles.sizerBtn}>
+              <ThemedText style={styles.sizerGlyph}>−</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => bumpSize(1)}
+              hitSlop={4}
+              accessibilityLabel="Enlarge tool"
+              style={styles.sizerBtn}>
+              <ThemedText style={styles.sizerGlyph}>+</ThemedText>
+            </Pressable>
+          </View>
         </Animated.View>
       </GestureDetector>
 
@@ -245,5 +289,32 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 22,
     textAlign: 'center',
+  },
+
+  // Corner size buttons — small, dim, top-right so they stay out of the
+  // way of the tool's own controls. The wrapper is `box-none` so taps
+  // that miss either button fall through to the underlying pan/pinch
+  // gesture.
+  sizerWrap: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    flexDirection: 'row',
+    gap: 2,
+    zIndex: 10,
+  },
+  sizerBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00000033',
+  },
+  sizerGlyph: {
+    color: '#ffffffcc',
+    fontSize: 14,
+    lineHeight: 16,
+    fontWeight: '700',
   },
 });

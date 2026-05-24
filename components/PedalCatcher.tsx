@@ -16,6 +16,13 @@ export function PedalCatcher({
 }: {
   active: boolean;
   onAdvance: () => void;
+  // The web sibling supports a secondary key binding (e.g. X = Miss in
+  // Tempo Ladder) so the laptop user can mirror what a two-button pedal
+  // would do. iPad only has one foot pedal that emits arrow keys, so
+  // these props are accepted for prop-type parity with the web sibling
+  // and intentionally ignored here.
+  secondaryKey?: string;
+  onSecondary?: () => void;
 }) {
   // null until the native side first reports; then true / false.
   const [connected, setConnected] = useState<boolean | null>(null);

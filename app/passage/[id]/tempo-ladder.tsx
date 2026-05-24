@@ -8,6 +8,7 @@ import { BpmStepper } from '@/components/BpmStepper';
 import { Button } from '@/components/Button';
 import { CelebrationModal } from '@/components/CelebrationModal';
 import { CollapsibleHelp } from '@/components/CollapsibleHelp';
+import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ThemedText } from '@/components/themed-text';
@@ -275,6 +276,17 @@ export default function TempoLadderScreen() {
   return (
     <View style={styles.playRoot}>
       <Stack.Screen options={{ headerShown: false }} />
+      {/* Keyboard shortcuts so laptop users don't have to keep clicking:
+          Space (or any pedal key) = ✓ Clean, X = ✗ Miss. Suppressed while
+          a celebration / log-prompt modal is showing so it can't fire a
+          rep behind the modal. No-op on native (iPad relies on its
+          floating buttons + Apple Pencil + foot pedal). */}
+      <PedalCatcher
+        active={!notePromptVisible && celebrating === null}
+        onAdvance={onClean}
+        secondaryKey="x"
+        onSecondary={onMiss}
+      />
       {!isPhone && (
         <View
           style={[
@@ -311,6 +323,16 @@ export default function TempoLadderScreen() {
             <ThemedText style={styles.repBtnText}>Clean ✓</ThemedText>
           </Pressable>
         </View>
+      )}
+
+      {/* Tiny keyboard hint on laptop / desktop so users discover that
+          they can mark reps without clicking. Hidden on phone — no
+          keyboard there, so the line would just steal vertical space
+          from the score. */}
+      {!isPhone && (
+        <ThemedText style={[styles.kbdHint, { color: C.icon }]}>
+          Space = Clean ✓ · X = Miss ✗
+        </ThemedText>
       )}
 
       <View
@@ -524,6 +546,15 @@ const styles = StyleSheet.create({
   cleanBtn: { backgroundColor: '#2ecc71' },
   missBtn: { backgroundColor: '#c0392b' },
   repBtnText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: 17 },
+
+  // Small one-line keyboard / pedal hint under the top bar (laptop only).
+  kbdHint: {
+    textAlign: 'center',
+    fontSize: 11,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 4,
+    opacity: Opacity.muted,
+  },
 
   // Phone overlays. Z-indexed above the score but below modals.
   phoneDotsWrap: {
