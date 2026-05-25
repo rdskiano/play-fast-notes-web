@@ -45,7 +45,10 @@ export function ActionSheet({
           onPress={(e) => e.stopPropagation()}>
           {title && (
             <ThemedText
-              style={[styles.title, { color: C.icon }]}
+              style={[
+                styles.title,
+                { color: C.icon, borderBottomColor: C.icon + '22' },
+              ]}
               numberOfLines={1}>
               {title}
             </ThemedText>
@@ -127,15 +130,21 @@ const styles = StyleSheet.create({
     borderWidth: Borders.thin,
     borderColor: '#0001',
   },
+  // Title styling reworked 2026-05-25 after user feedback: the previous
+  // uppercase + bold + letter-spaced treatment made the name-of-the-
+  // tapped-thing (e.g. "INTO 1") read as a chip / button, competing for
+  // tap weight with the actual primary action below. Now: normal case,
+  // regular weight, slightly larger, with a hairline divider below so
+  // the eye reads it as a label of what we're acting on, not as a
+  // tappable choice.
   title: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
-    fontSize: Type.size.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    fontWeight: Type.weight.bold,
+    fontSize: Type.size.sm,
     textAlign: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginBottom: Spacing.xs,
   },
   item: {
     paddingHorizontal: Spacing.md,
