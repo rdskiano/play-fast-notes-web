@@ -1017,10 +1017,13 @@ export default function LibraryScreen() {
           feedback (2026-05-24) was that the "?" help button is easy to
           glide past, so the key insight users would otherwise miss
           lives right here in plain sight. The "?" still opens the
-          longer modal for anyone who wants the deeper explanation. */}
+          longer modal for anyone who wants the deeper explanation.
+          Avoid "solo practice" — to musicians that means practicing
+          alone (vs with an ensemble), not one-passage-at-a-time. */}
       <ThemedText style={[styles.modeFooter, { color: C.icon }]}>
-        Solo practice helps most while you're still learning the notes.
-        Rotating a group helps more as a performance gets closer.
+        Working on one passage at a time helps most while you're still
+        learning the notes. Rotating through a group of passages helps
+        more as a performance gets closer.
       </ThemedText>
 
       <View style={[styles.searchWrap, { borderColor: C.icon + '66' }]}>
