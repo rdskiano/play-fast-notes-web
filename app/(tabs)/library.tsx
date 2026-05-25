@@ -979,40 +979,39 @@ export default function LibraryScreen() {
         </View>
       )}
 
+      {/* Practice-mode action row. Used to be a two-segment "Blocked /
+          Serial" toggle, but friend-test feedback (2026-05-24) revealed
+          the left segment — styled like an active filled button but
+          actually disabled — was reading as "click me, why am I broken?",
+          and the "Blocked" subtitle was being misread as a software state
+          ("this button is blocked / disabled"). The default behavior of
+          tapping a passage in the list IS the "practice one passage"
+          mode; surfacing that as a fake button was creating ambiguity.
+          Now: a small caption makes the implicit default explicit, and
+          the only real action ("Practice a group of passages") stands
+          alone as a real button. The "?" help modal still teaches the
+          Blocked-vs-Serial vocabulary in context. */}
+      <ThemedText style={[styles.modeCaption, { color: C.icon }]}>
+        Tap a passage to practice it.
+      </ThemedText>
       <View
         style={[
           styles.modeRow,
           isPhonePortrait && styles.modeRowStacked,
         ]}>
-        <View style={styles.modeSegments}>
-          <Pressable
-            disabled
-            style={[styles.modeSeg, styles.modeSegActive, { backgroundColor: C.tint }]}>
-            <ThemedText style={styles.modeSegActiveText}>
-              Practice one passage
-            </ThemedText>
-            <ThemedText style={styles.modeSegActiveSub}>Blocked</ThemedText>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/interleaved')}
-            style={[styles.modeSeg, { borderColor: C.tint }]}>
-            <ThemedText style={[styles.modeSegText, { color: C.tint }]}>
-              Practice a group of passages
-            </ThemedText>
-            <ThemedText style={[styles.modeSegSub, { color: C.tint }]}>
-              Serial
-            </ThemedText>
-          </Pressable>
-        </View>
+        <Pressable
+          onPress={() => router.push('/interleaved')}
+          style={[styles.groupBtn, { borderColor: C.tint }]}>
+          <ThemedText style={[styles.groupBtnText, { color: C.tint }]}>
+            Practice a group of passages  →
+          </ThemedText>
+        </Pressable>
         <Pressable
           onPress={() => setProgressionOpen(true)}
           hitSlop={6}
           style={[
             styles.modeHelpBtn,
             { borderColor: C.icon },
-            // Centered below the segments in portrait so the two
-            // practice mode buttons read as the visual centerpiece of
-            // the row rather than getting offset by the "?" on the right.
             isPhonePortrait && { alignSelf: 'center' },
           ]}>
           <ThemedText style={[styles.modeHelpText, { color: C.icon }]}>?</ThemedText>
@@ -1385,55 +1384,36 @@ const styles = StyleSheet.create({
   editHintSub: { fontSize: Type.size.xs, lineHeight: 15 },
   editHintBold: { fontWeight: Type.weight.heavy },
   modeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  // Phone portrait override — stack so the segments span the full row
-  // (each button gets more horizontal room before wrapping) and the
-  // help "?" sits centered below.
+  // Phone portrait override — stack so the button spans the full row
+  // and the help "?" sits centered below.
   modeRowStacked: {
     flexDirection: 'column',
     alignItems: 'stretch',
     gap: Spacing.sm,
   },
-  modeSegments: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 6,
+  // Caption above the modeRow that names the implicit default
+  // (clicking a passage in the list = practice it solo). Subtle weight
+  // so it reads as guidance, not as a heading.
+  modeCaption: {
+    fontSize: Type.size.xs,
+    opacity: Opacity.subtle,
+    marginBottom: 2,
   },
-  modeSeg: {
+  // The lone Serial Practice action button. Filled-by-border to match
+  // the "?" help button's outline language. flex:1 so it stretches to
+  // fill the row (the "?" is fixed-width on the right).
+  groupBtn: {
     flex: 1,
     paddingVertical: Spacing.sm,
-    paddingHorizontal: 10,
+    paddingHorizontal: Spacing.lg,
     borderRadius: Radii.md,
     borderWidth: Borders.medium,
     alignItems: 'center',
     backgroundColor: 'transparent',
   },
-  modeSegActive: { borderWidth: 0 },
-  // textAlign: 'center' on every label so the lines stay centered when
-  // "Practice a group of passages" wraps to two lines — without it, the
-  // wrapped lines left-align inside their bounding box and the button
-  // reads visually unbalanced next to the single-line sibling.
-  modeSegActiveText: {
-    color: '#fff',
+  groupBtnText: {
     fontWeight: Type.weight.heavy,
     fontSize: Type.size.sm,
-    textAlign: 'center',
-  },
-  modeSegActiveSub: {
-    color: '#fff',
-    opacity: 0.85,
-    fontSize: 11,
-    marginTop: 1,
-    textAlign: 'center',
-  },
-  modeSegText: {
-    fontWeight: Type.weight.heavy,
-    fontSize: Type.size.sm,
-    textAlign: 'center',
-  },
-  modeSegSub: {
-    fontSize: 11,
-    marginTop: 1,
-    opacity: 0.8,
     textAlign: 'center',
   },
   modeHelpBtn: {
