@@ -1294,14 +1294,21 @@ function PracticeProgressionModal({
 }) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  // Modal copy rewritten 2026-05-24 after friend-test feedback that the
+  // music-pedagogy terms "Blocked" / "Serial" were confusing as primary
+  // labels (one user thought "Blocked" meant the button was disabled).
+  // We now lead with plain English — "Practice one passage at a time" /
+  // "Practice a group of passages" — and introduce the pedagogy terms
+  // parenthetically inside the body, where the user is already reading
+  // an explanation.
   const steps = [
     {
-      title: 'Blocked',
+      title: 'Practice one passage at a time',
       body:
-        'What most people do all the time: one passage at a time, over and over. Great for starting out. The key is making sure the passage stays PLAYABLE — slow the tempo enough or shrink the chunk enough that you can play it cleanly.',
+        'What most people do all the time: one passage at a time, over and over. (In music pedagogy, this is called blocked practice.) Great for starting out. The key is making sure the passage stays PLAYABLE — slow the tempo enough or shrink the chunk enough that you can play it cleanly.',
     },
     {
-      title: 'Serial Practice',
+      title: 'Practice a group of passages',
       body:
         'Drill several passages in a single session — a fixed number of clean repetitions on each, then move on. Inside, you pick an order: Serial (same rotation each time, predictable) or Interleaved (random rotation across selected passages — tests whether you can perform on the first try, like an audition).',
     },
@@ -1314,9 +1321,11 @@ function PracticeProgressionModal({
             Practice progression
           </ThemedText>
           <ThemedText style={[styles.progressionIntro, { color: C.icon }]}>
-            Blocked practice is generally more beneficial early in the learning
-            process; Serial Practice — especially in interleaved order — becomes
-            more helpful closer to performance.
+            Both approaches have their place. Working on one passage at a time
+            tends to help most early on, while you're still learning the notes.
+            Rotating through a group of passages becomes more useful as a
+            performance gets closer — especially when the rotation order is
+            random.
           </ThemedText>
           {steps.map((s, i) => (
             <View key={s.title} style={styles.progressionStep}>
