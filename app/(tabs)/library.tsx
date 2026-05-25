@@ -948,21 +948,17 @@ export default function LibraryScreen() {
         </View>
       </ThemedView>
 
-      {/* Phone hides the marketing/teaching copy — returning users
-          don't need a re-pitch every launch, and three paragraphs eat
-          half the iPhone viewport before any actual content shows. */}
-      {isAtRoot && !editMode && !isPhone && (
-        <View style={styles.hintBlock}>
-          <ThemedText style={styles.tagline}>
-            Crop difficult passages from your music and practice them with guided strategies.
-          </ThemedText>
-          <ThemedText style={styles.hint}>
-            Organize by repertoire title, concert, lesson, audition list — whatever helps you practice.
-          </ThemedText>
-          <ThemedText style={styles.hint}>
-            Name passages specifically and keep it positive — a measure range, section name, or a fun label.
-          </ThemedText>
-        </View>
+      {/* One-line getting-started prompt at the library root. Replaces
+          a previous three-line tagline + organizing-advice block that
+          was making the page feel busy and burying the inline
+          practice-progression guidance below the mode row. The line
+          mirrors the two options inside the "+ Add" menu — uploading
+          a PDF, or taking a photo of a passage — so a first-time
+          user sees the obvious next action without scanning options. */}
+      {isAtRoot && !editMode && (
+        <ThemedText style={[styles.addHint, { color: C.icon }]}>
+          Add full parts, or take a photo of a difficult passage.
+        </ThemedText>
       )}
 
       {editMode && (
@@ -1379,16 +1375,14 @@ const styles = StyleSheet.create({
   },
   backBtn: { paddingHorizontal: Spacing.xs },
   backArrow: { fontSize: 32, fontWeight: '400', lineHeight: 34 },
-  hintBlock: { gap: Spacing.xs, marginTop: -8 },
-  tagline: {
-    opacity: Opacity.subtle,
-    fontSize: Type.size.md,
-    lineHeight: 20,
-  },
-  hint: {
-    opacity: Opacity.faint,
+  // One-line add-content prompt at the library root. Subtle weight so
+  // it reads as guidance, not as a heading; lines up visually with
+  // modeCaption / modeFooter below it.
+  addHint: {
     fontSize: Type.size.xs,
-    lineHeight: 16,
+    opacity: Opacity.subtle,
+    marginTop: -8,
+    marginBottom: 2,
   },
   editHintBanner: {
     borderWidth: Borders.thin,
