@@ -983,13 +983,12 @@ export default function LibraryScreen() {
           ("this button is blocked / disabled"). The default behavior of
           tapping a passage in the list IS the "practice one passage"
           mode; surfacing that as a fake button was creating ambiguity.
-          Now: a small caption makes the implicit default explicit, and
-          the only real action ("Practice a group of passages") stands
-          alone as a real button. The "?" help modal still teaches the
-          Blocked-vs-Serial vocabulary in context. */}
-      <ThemedText style={[styles.modeCaption, { color: C.icon }]}>
-        Tap a passage to practice it.
-      </ThemedText>
+          Now: the only real action ("Practice a group of passages")
+          stands alone as a real button. The "?" help modal still
+          teaches the Blocked-vs-Serial vocabulary in context. The
+          previous "Tap a passage to practice it." caption was dropped
+          on a second pass — the library list itself is the obvious
+          affordance, the caption just added noise. */}
       <View
         style={[
           styles.modeRow,
@@ -1378,14 +1377,16 @@ const styles = StyleSheet.create({
   },
   backBtn: { paddingHorizontal: Spacing.xs },
   backArrow: { fontSize: 32, fontWeight: '400', lineHeight: 34 },
-  // One-line add-content prompt at the library root. Subtle weight so
-  // it reads as guidance, not as a heading; lines up visually with
-  // modeCaption / modeFooter below it.
+  // One-line add-content prompt at the library root. Sized like a
+  // tagline (Type.size.md) rather than a hint so first-time users
+  // see it as the natural next action, not as small print. Subtle
+  // opacity keeps it from competing with the page title.
   addHint: {
-    fontSize: Type.size.xs,
+    fontSize: Type.size.md,
+    lineHeight: 22,
     opacity: Opacity.subtle,
     marginTop: -8,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   editHintBanner: {
     borderWidth: Borders.thin,
@@ -1405,14 +1406,6 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'stretch',
     gap: Spacing.sm,
-  },
-  // Caption above the modeRow that names the implicit default
-  // (clicking a passage in the list = practice it solo). Subtle weight
-  // so it reads as guidance, not as a heading.
-  modeCaption: {
-    fontSize: Type.size.xs,
-    opacity: Opacity.subtle,
-    marginBottom: 2,
   },
   // Footer line below the modeRow that inlines the gist of the
   // "Practice progression" help modal — so users who never tap "?"
