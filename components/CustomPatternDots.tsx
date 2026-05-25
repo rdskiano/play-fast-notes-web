@@ -64,15 +64,19 @@ export function CustomPatternDots({
   const preset = SIZE_PRESETS[size];
 
   // Pre-compute each rep's size so the row is laid out coherently.
+  // Two states only — filled (done) or hollow (upcoming) — to match
+  // Step Clickup and Randomized cluster's dot strip. The rep the user
+  // is about to play is just the first hollow dot in the line; no
+  // special ring treatment, because that turned out to read as a
+  // different visual language from the other two modes.
   const dots = reps.map((rep, i) => {
     const offset = Math.max(0, rep.tempoBpm - base);
     const t = Math.min(1, offset / BPM_PER_SCALE_UNIT);
     const scale = MIN_DOT_SCALE + (MAX_DOT_SCALE - MIN_DOT_SCALE) * t;
     const diameter = Math.round(preset.base * scale);
-    const isCurrent = position === i;
     const isPast = position !== null && i < position;
     const filled = isPast || state === 'complete';
-    return { i, diameter, isCurrent, filled };
+    return { i, diameter, filled };
   });
 
   return (
@@ -80,7 +84,7 @@ export function CustomPatternDots({
       style={[styles.row, { gap: preset.gap }]}
       pointerEvents="none"
       accessibilityRole="progressbar">
-      {dots.map(({ i, diameter, isCurrent, filled }) => {
+      {dots.map(({ i, diameter, filled }) => {
         const baseStyle = {
           width: diameter,
           height: diameter,
@@ -92,32 +96,9 @@ export function CustomPatternDots({
               key={i}
               style={[
                 baseStyle,
-                { backgroundColor: accent, borderWidth: 0 },
+                { backgroundColor: accent, borderColor: accent, borderWidth: 2 },
               ]}
             />
-          );
-        }
-        if (isCurrent) {
-          // Current rep: hollow with an accent ring + a small inner pulse-y
-          // dot. Distinguishes it from "upcoming" (just hollow) and "done"
-          // (solid filled).
-          return (
-            <View
-              key={i}
-              style={[
-                baseStyle,
-                styles.currentRing,
-                { borderColor: accent },
-              ]}>
-              <View
-                style={{
-                  width: diameter * 0.45,
-                  height: diameter * 0.45,
-                  borderRadius: diameter * 0.225,
-                  backgroundColor: accent,
-                }}
-              />
-            </View>
           );
         }
         return (
@@ -145,10 +126,5 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#ffffff99',
     backgroundColor: 'transparent',
-  },
-  currentRing: {
-    borderWidth: 2.5,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
