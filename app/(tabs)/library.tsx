@@ -1017,6 +1017,15 @@ export default function LibraryScreen() {
           <ThemedText style={[styles.modeHelpText, { color: C.icon }]}>?</ThemedText>
         </Pressable>
       </View>
+      {/* Inline gist of the practice-progression modal. Friend-test
+          feedback (2026-05-24) was that the "?" help button is easy to
+          glide past, so the key insight users would otherwise miss
+          lives right here in plain sight. The "?" still opens the
+          longer modal for anyone who wants the deeper explanation. */}
+      <ThemedText style={[styles.modeFooter, { color: C.icon }]}>
+        Solo practice helps most while you're still learning the notes.
+        Rotating a group helps more as a performance gets closer.
+      </ThemedText>
 
       <View style={[styles.searchWrap, { borderColor: C.icon + '66' }]}>
         <ThemedText style={[styles.searchIcon, { color: C.icon }]}>⌕</ThemedText>
@@ -1407,6 +1416,15 @@ const styles = StyleSheet.create({
     fontSize: Type.size.xs,
     opacity: Opacity.subtle,
     marginBottom: 2,
+  },
+  // Footer line below the modeRow that inlines the gist of the
+  // "Practice progression" help modal — so users who never tap "?"
+  // still get the practical when-to-use-each guidance.
+  modeFooter: {
+    fontSize: Type.size.xs,
+    opacity: Opacity.subtle,
+    marginTop: 4,
+    lineHeight: 17,
   },
   // The lone Serial Practice action button. Filled-by-border to match
   // the "?" help button's outline language. flex:1 so it stretches to
