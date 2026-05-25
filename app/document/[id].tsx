@@ -110,6 +110,12 @@ export default function DocumentScreen() {
   const [viewModeOverride, setViewModeOverride] = useState<ViewMode | null>(null);
   const dimensionsBaselineRef = useRef({ w: width, h: height });
   const [selectedPassageId, setSelectedPassageId] = useState<string | null>(null);
+  // Sub-sheet for the secondary "Edit" actions (Rename / Resize / Delete).
+  // Splitting them off the main passage-box sheet keeps the primary
+  // "Practice this passage" action visually obvious — the edit options
+  // are demoted to a single small "Edit" entry on the main sheet that
+  // opens this sub-sheet on tap.
+  const [editPassage, setEditPassage] = useState<Passage | null>(null);
   const [renamePromptFor, setRenamePromptFor] = useState<Passage | null>(null);
   const [deleteConfirmFor, setDeleteConfirmFor] = useState<Passage | null>(null);
   const [pagerSize, setPagerSize] = useState({ width: 0, height: 0 });
@@ -510,6 +516,10 @@ export default function DocumentScreen() {
     }
   }
 
+  // Two-tier menu on the passage-box tap: the main sheet shows just
+  // "Practice this passage" (the obvious common case) and a small
+  // "Edit…" entry. Tapping Edit hands off to `buildEditActions` below,
+  // which renders Rename / Resize / Delete as its own focused sheet.
   function buildSelectedActions(passage: Passage): ActionSheetItem[] {
     return [
       {
@@ -521,16 +531,28 @@ export default function DocumentScreen() {
         },
       },
       {
-        label: 'Rename',
+        label: 'Edit…',
         onPress: () => {
           setSelectedPassageId(null);
+          setEditPassage(passage);
+        },
+      },
+    ];
+  }
+
+  function buildEditActions(passage: Passage): ActionSheetItem[] {
+    return [
+      {
+        label: 'Rename',
+        onPress: () => {
+          setEditPassage(null);
           setRenamePromptFor(passage);
         },
       },
       {
         label: 'Resize',
         onPress: () => {
-          setSelectedPassageId(null);
+          setEditPassage(null);
           startResize(passage);
         },
       },
@@ -541,7 +563,7 @@ export default function DocumentScreen() {
           // Open the confirm modal instead of window.confirm — iPad Safari
           // suppresses native dialogs, and this also looks cohesive with the
           // rest of the app's modals.
-          setSelectedPassageId(null);
+          setEditPassage(null);
           setDeleteConfirmFor(passage);
         },
       },
@@ -1022,6 +1044,13 @@ export default function DocumentScreen() {
         title={selectedPassage?.title}
         items={selectedPassage ? buildSelectedActions(selectedPassage) : []}
         onCancel={() => setSelectedPassageId(null)}
+      />
+
+      <ActionSheet
+        visible={editPassage !== null}
+        title={editPassage ? `Edit "${editPassage.title}"` : undefined}
+        items={editPassage ? buildEditActions(editPassage) : []}
+        onCancel={() => setEditPassage(null)}
       />
 
       <ActionSheet
