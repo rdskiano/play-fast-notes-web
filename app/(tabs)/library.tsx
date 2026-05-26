@@ -57,7 +57,18 @@ import {
   updateDocumentSortOrder,
   type DocumentRow,
 } from '@/lib/db/repos/documents';
+import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
+import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { getTempoLadderProgressForPassages } from '@/lib/db/repos/tempoLadder';
+
+// The Serial Practice button stays hidden until the user has logged this
+// many practice sessions — without it, new users see "Practice a group of
+// passages" as a top-level CTA, click it before they've learned what a
+// passage is, and end up in a bare rep loop with no strategy launchers.
+const SERIAL_REVEAL_THRESHOLD = 5;
+// Persisted "I've seen the explainer" flag. After dismissal the button
+// goes straight to the picker on subsequent clicks.
+const SERIAL_COACHED_KEY = 'serialPractice.coached';
 import { bmacUrl } from '@/lib/links';
 
 type ListRow =
@@ -426,6 +437,13 @@ export default function LibraryScreen() {
   const [prompt, setPrompt] = useState<Prompt>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [progressionOpen, setProgressionOpen] = useState(false);
+  // Serial Practice gate. `practiceCount === null` = still loading; render
+  // nothing rather than flashing the button on then off.
+  const [practiceCount, setPracticeCount] = useState<number | null>(null);
+  const [serialCoached, setSerialCoached] = useState(false);
+  const [serialExplainerOpen, setSerialExplainerOpen] = useState(false);
+  const serialEligible =
+    practiceCount !== null && practiceCount >= SERIAL_REVEAL_THRESHOLD;
   const [moveTarget, setMoveTarget] = useState<MoveTarget>(null);
   const [actionTarget, setActionTarget] = useState<ActionTarget>(null);
   const [undoMove, setUndoMove] = useState<UndoMove | null>(null);
@@ -435,13 +453,20 @@ export default function LibraryScreen() {
   const refresh = useCallback(async () => {
     try {
       await rehomeOrphans();
-      const [f, p, d, all, pathF] = await Promise.all([
+      const [f, p, d, all, pathF, sessions, coachedRaw] = await Promise.all([
         listFoldersInParent(currentFolderId),
         listPassagesInFolder(currentFolderId),
         listDocumentsInFolder(currentFolderId),
         listAllFolders(),
         getFolderPath(currentFolderId),
+        // Practice-session count + the explainer-dismissed flag drive
+        // whether the Serial Practice button is hidden, shown with the
+        // "Try serial practicing?" coach label, or shown plainly.
+        countPracticeLogEntries(),
+        getSetting(SERIAL_COACHED_KEY),
       ]);
+      setPracticeCount(sessions);
+      setSerialCoached(coachedRaw === '1');
       setFolders(f);
       setPassages(p);
       setDocuments(d);
@@ -989,29 +1014,45 @@ export default function LibraryScreen() {
           previous "Tap a passage to practice it." caption was dropped
           on a second pass — the library list itself is the obvious
           affordance, the caption just added noise. */}
-      <View
-        style={[
-          styles.modeRow,
-          isPhonePortrait && styles.modeRowStacked,
-        ]}>
-        <Pressable
-          onPress={() => router.push('/interleaved')}
-          style={[styles.groupBtn, { borderColor: C.tint }]}>
-          <ThemedText style={[styles.groupBtnText, { color: C.tint }]}>
-            Practice a group of passages  →
-          </ThemedText>
-        </Pressable>
-        <Pressable
-          onPress={() => setProgressionOpen(true)}
-          hitSlop={6}
+      {/* Serial Practice CTA — hidden for new users (< SERIAL_REVEAL_THRESHOLD
+          logged sessions) so they don't get lured into a flow that doesn't
+          expose strategy launchers before they've discovered passages and
+          per-passage practice. Once eligible: label is a soft "Try serial
+          practicing?" until they dismiss the explainer once, then reverts
+          to the plain "Practice a group of passages" CTA. */}
+      {serialEligible && (
+        <View
           style={[
-            styles.modeHelpBtn,
-            { borderColor: C.icon },
-            isPhonePortrait && { alignSelf: 'center' },
+            styles.modeRow,
+            isPhonePortrait && styles.modeRowStacked,
           ]}>
-          <ThemedText style={[styles.modeHelpText, { color: C.icon }]}>?</ThemedText>
-        </Pressable>
-      </View>
+          <Pressable
+            onPress={() => {
+              if (!serialCoached) {
+                setSerialExplainerOpen(true);
+              } else {
+                router.push('/interleaved');
+              }
+            }}
+            style={[styles.groupBtn, { borderColor: C.tint }]}>
+            <ThemedText style={[styles.groupBtnText, { color: C.tint }]}>
+              {serialCoached
+                ? 'Practice a group of passages  →'
+                : 'Try serial practicing?  →'}
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={() => setProgressionOpen(true)}
+            hitSlop={6}
+            style={[
+              styles.modeHelpBtn,
+              { borderColor: C.icon },
+              isPhonePortrait && { alignSelf: 'center' },
+            ]}>
+            <ThemedText style={[styles.modeHelpText, { color: C.icon }]}>?</ThemedText>
+          </Pressable>
+        </View>
+      )}
       {/* Inline gist of the practice-progression modal. Friend-test
           feedback (2026-05-24) was that the "?" help button is easy to
           glide past, so the key insight users would otherwise miss
@@ -1209,6 +1250,25 @@ export default function LibraryScreen() {
         onClose={() => setProgressionOpen(false)}
       />
 
+      <SerialPracticeExplainerModal
+        visible={serialExplainerOpen}
+        onTryNow={async () => {
+          // Mark coached BEFORE navigating so coming back doesn't re-prompt.
+          await setSetting(SERIAL_COACHED_KEY, '1').catch(() => {});
+          setSerialCoached(true);
+          setSerialExplainerOpen(false);
+          router.push('/interleaved');
+        }}
+        onLater={async () => {
+          // "Maybe later" also counts as dismissal — the button reverts to
+          // the plain CTA on next render so the user can decide on their
+          // own time without being nagged again.
+          await setSetting(SERIAL_COACHED_KEY, '1').catch(() => {});
+          setSerialCoached(true);
+          setSerialExplainerOpen(false);
+        }}
+      />
+
       <MoveToPicker
         visible={moveTarget !== null}
         title={
@@ -1348,6 +1408,55 @@ function PracticeProgressionModal({
             </View>
           ))}
           <Button label="Close" onPress={onClose} fullWidth />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// One-time explainer shown the first time an eligible user (≥5 practice
+// sessions) taps the Serial Practice CTA. Both "Try it now" and "Maybe
+// later" mark the user as coached so the modal never reappears — the next
+// click goes straight to the passage picker.
+function SerialPracticeExplainerModal({
+  visible,
+  onTryNow,
+  onLater,
+}: {
+  visible: boolean;
+  onTryNow: () => void;
+  onLater: () => void;
+}) {
+  const scheme = useColorScheme() ?? 'light';
+  const C = Colors[scheme];
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onLater}>
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.progressionCard, { backgroundColor: C.background }]}>
+          <ThemedText type="title" style={{ textAlign: 'center' }}>
+            Try serial practicing?
+          </ThemedText>
+          <ThemedText style={[styles.progressionIntro, { color: C.icon }]}>
+            You&apos;ve been practicing one passage at a time — great for
+            learning the notes. Once a few passages are starting to feel
+            solid, rotating through a small group of them in a single
+            session is what builds reliability.
+          </ThemedText>
+          <ThemedText style={[styles.progressionIntro, { color: C.icon }]}>
+            You pick a handful of passages, set a target number of clean
+            reps, and either drill them in a fixed order (Serial) or shuffle
+            the rotation (Interleaved — the audition-style version). It
+            keeps any single passage from going stale and exposes the spots
+            that only break under pressure.
+          </ThemedText>
+          <View style={{ gap: Spacing.sm, marginTop: Spacing.sm }}>
+            <Button label="Try it now" onPress={onTryNow} fullWidth />
+            <Button label="Maybe later" variant="ghost" onPress={onLater} fullWidth />
+          </View>
         </View>
       </View>
     </Modal>

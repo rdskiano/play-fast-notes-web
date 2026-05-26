@@ -48,6 +48,18 @@ export async function logPractice(
   return (inserted as { id: number }).id;
 }
 
+// Total number of practice-log entries for the signed-in user. Mirrors the
+// native sibling — used by the library to gate the Serial Practice button.
+// `head: true` + `count: 'exact'` returns ONLY the count, no row payload.
+// RLS already scopes practice_log to the signed-in user.
+export async function countPracticeLogEntries(): Promise<number> {
+  const { count, error } = await supabase
+    .from('practice_log')
+    .select('id', { count: 'exact', head: true });
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function getPracticeLogForPassage(
   piece_id: string,
 ): Promise<PracticeLogEntry[]> {

@@ -39,6 +39,17 @@ export async function logPractice(
   return result.lastInsertRowId;
 }
 
+// Total number of practice-log entries for this user. Used by the library
+// to gate the Serial Practice button on having ≥N sessions under their
+// belt. Cheap COUNT(*) — no need to fetch rows.
+export async function countPracticeLogEntries(): Promise<number> {
+  const db = getDb();
+  const row = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM practice_log;`,
+  );
+  return row?.n ?? 0;
+}
+
 export async function getPracticeLogForPassage(
   piece_id: string,
 ): Promise<PracticeLogEntry[]> {
