@@ -62,19 +62,16 @@ import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { getTempoLadderProgressForPassages } from '@/lib/db/repos/tempoLadder';
 
 // The Serial Practice button stays hidden until the user has logged this
-// many practice sessions — without it, new users see "Practice a group of
-// passages" as a top-level CTA, click it before they've learned what a
-// passage is, and end up in a bare rep loop with no strategy launchers.
+// many practice sessions — without it, new users see the CTA as a
+// top-level action, click it before they've learned what a passage is,
+// and end up in a bare rep loop with no strategy launchers.
 const SERIAL_REVEAL_THRESHOLD = 5;
-// Two persisted flags drive the CTA. They're independent on purpose:
-// - coached: the explainer modal has been dismissed at least once. Gates
-//   whether clicking the CTA re-opens the modal.
-// - tried: the user actually used serial practice (clicked Try it now or
-//   navigated through after seeing the explainer). Gates the LABEL — until
-//   they've genuinely tried it, the CTA keeps its soft "Try serial
-//   practicing?" wording so "Maybe later" doesn't quietly bury the
-//   invitation under a generic CTA.
-const SERIAL_COACHED_KEY = 'serialPractice.coached';
+// Single persisted flag: has the user actually used serial practice?
+// Until they have, every click on the CTA opens the explainer modal
+// (whether or not they've seen it before — "Maybe later" is not a
+// permanent dismissal). Once they click "Try it now" the flag flips to
+// '1' and the button thereafter goes straight to /interleaved with a
+// plain "Serial practicing →" label.
 const SERIAL_TRIED_KEY = 'serialPractice.tried';
 import { bmacUrl } from '@/lib/links';
 
@@ -447,7 +444,6 @@ export default function LibraryScreen() {
   // Serial Practice gate. `practiceCount === null` = still loading; render
   // nothing rather than flashing the button on then off.
   const [practiceCount, setPracticeCount] = useState<number | null>(null);
-  const [serialCoached, setSerialCoached] = useState(false);
   const [serialTried, setSerialTried] = useState(false);
   const [serialExplainerOpen, setSerialExplainerOpen] = useState(false);
   const serialEligible =
@@ -461,23 +457,19 @@ export default function LibraryScreen() {
   const refresh = useCallback(async () => {
     try {
       await rehomeOrphans();
-      const [f, p, d, all, pathF, sessions, coachedRaw, triedRaw] =
-        await Promise.all([
-          listFoldersInParent(currentFolderId),
-          listPassagesInFolder(currentFolderId),
-          listDocumentsInFolder(currentFolderId),
-          listAllFolders(),
-          getFolderPath(currentFolderId),
-          // Practice-session count + the two serial-practice flags drive
-          // whether the button is hidden, shown with the "Try serial
-          // practicing?" coach label, or shown plainly. See the constant
-          // comments above for the difference between coached and tried.
-          countPracticeLogEntries(),
-          getSetting(SERIAL_COACHED_KEY),
-          getSetting(SERIAL_TRIED_KEY),
-        ]);
+      const [f, p, d, all, pathF, sessions, triedRaw] = await Promise.all([
+        listFoldersInParent(currentFolderId),
+        listPassagesInFolder(currentFolderId),
+        listDocumentsInFolder(currentFolderId),
+        listAllFolders(),
+        getFolderPath(currentFolderId),
+        // Practice-session count gates whether the CTA is visible at all;
+        // the tried flag gates the label (and whether the explainer keeps
+        // re-prompting).
+        countPracticeLogEntries(),
+        getSetting(SERIAL_TRIED_KEY),
+      ]);
       setPracticeCount(sessions);
-      setSerialCoached(coachedRaw === '1');
       setSerialTried(triedRaw === '1');
       setFolders(f);
       setPassages(p);
@@ -1029,11 +1021,13 @@ export default function LibraryScreen() {
       {/* Serial Practice CTA — hidden for new users (< SERIAL_REVEAL_THRESHOLD
           logged sessions) so they don't get lured into a flow that doesn't
           expose strategy launchers before they've discovered passages and
-          per-passage practice. Once eligible: label stays as the soft
-          "Try serial practicing?" question until the user has actually
-          USED serial practice — "Maybe later" preserves the invitation,
-          only "Try it now" (or a subsequent click-through) flips the
-          label to the plain CTA. */}
+          per-passage practice. Once eligible:
+          - Until the user has actually tried it, every click opens the
+            explainer modal. "Maybe later" closes the modal but doesn't
+            permanently dismiss — next visit, they get the offer again.
+          - After "Try it now" the flag is set and the button goes
+            straight to /interleaved with the plain "Serial practicing →"
+            label. We've taught them the phrase by then, so we use it. */}
       {serialEligible && (
         <View
           style={[
@@ -1041,24 +1035,17 @@ export default function LibraryScreen() {
             isPhonePortrait && styles.modeRowStacked,
           ]}>
           <Pressable
-            onPress={async () => {
-              if (!serialCoached) {
-                // First touch ever — show the explainer.
+            onPress={() => {
+              if (serialTried) {
+                router.push('/interleaved');
+              } else {
                 setSerialExplainerOpen(true);
-                return;
               }
-              // Explainer already dismissed; navigating now counts as
-              // actually trying it, so flip the label permanently.
-              if (!serialTried) {
-                await setSetting(SERIAL_TRIED_KEY, '1').catch(() => {});
-                setSerialTried(true);
-              }
-              router.push('/interleaved');
             }}
             style={[styles.groupBtn, { borderColor: C.tint }]}>
             <ThemedText style={[styles.groupBtnText, { color: C.tint }]}>
               {serialTried
-                ? 'Practice a group of passages  →'
+                ? 'Serial practicing  →'
                 : 'Try serial practicing?  →'}
             </ThemedText>
           </Pressable>
@@ -1274,24 +1261,18 @@ export default function LibraryScreen() {
       <SerialPracticeExplainerModal
         visible={serialExplainerOpen}
         onTryNow={async () => {
-          // Try it now → actually used the feature, so flip BOTH flags.
-          // Persist before navigating so coming back doesn't re-prompt
-          // and the label stays plain.
-          await Promise.all([
-            setSetting(SERIAL_COACHED_KEY, '1').catch(() => {}),
-            setSetting(SERIAL_TRIED_KEY, '1').catch(() => {}),
-          ]);
-          setSerialCoached(true);
+          // Try it now → flag tried, dismiss, navigate. The flag
+          // persists so future visits skip the modal and the label
+          // flips to plain "Serial practicing →".
+          await setSetting(SERIAL_TRIED_KEY, '1').catch(() => {});
           setSerialTried(true);
           setSerialExplainerOpen(false);
           router.push('/interleaved');
         }}
-        onLater={async () => {
-          // "Maybe later" suppresses the modal (no nagging) but leaves
-          // the soft "Try serial practicing?" label on the button so the
-          // invitation isn't quietly buried under a generic CTA.
-          await setSetting(SERIAL_COACHED_KEY, '1').catch(() => {});
-          setSerialCoached(true);
+        onLater={() => {
+          // "Maybe later" just closes the modal for this click — no
+          // persistence. Next time they tap the CTA they get the offer
+          // again, because we want them to actually try it eventually.
           setSerialExplainerOpen(false);
         }}
       />
