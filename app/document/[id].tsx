@@ -38,7 +38,14 @@ import { SectionsModal } from '@/components/SectionsModal';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Borders, Spacing, Type } from '@/constants/tokens';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { getSetting, setSetting } from '@/lib/db/repos/settings';
+
+// One-time coach toast key. Shown on the first PDF visit where the
+// user already has marked passages — teaches that the gray boxes are
+// tappable to launch practice. After dismissal (tap or auto-timeout)
+// the flag persists so the toast never appears again, on any PDF.
+const PDF_BOX_COACHED_KEY = 'pdfBox.coached';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
@@ -98,6 +105,10 @@ export default function DocumentScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [boxesOn, setBoxesOn] = useState(true);
   const [mode, setMode] = useState<Mode>('idle');
+  // One-time "tap a box to practice" coach. `null` until we've checked
+  // the persisted flag so we don't flash the toast and then immediately
+  // hide it on a returning user.
+  const [pdfBoxCoachVisible, setPdfBoxCoachVisible] = useState<boolean | null>(null);
 
   // View mode is derived from orientation: landscape = spread, portrait = single.
   // The user can override (e.g. force single in landscape for tall staves).
@@ -330,6 +341,40 @@ export default function DocumentScreen() {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, passages, pages]),
   );
+
+  // One-time "tap a box to practice" coach toast. Triggered the first
+  // time a user opens any PDF that already has marked passages — the
+  // common case where a returning user has gray boxes on the page but
+  // doesn't know they're tappable. Auto-dismisses after 6 s; tap also
+  // dismisses. The persisted flag is global (one toast, one PDF, ever).
+  useEffect(() => {
+    if (passages.length === 0) return;
+    if (pdfBoxCoachVisible !== null) return; // already loaded
+    let cancelled = false;
+    getSetting(PDF_BOX_COACHED_KEY).then((raw) => {
+      if (cancelled) return;
+      setPdfBoxCoachVisible(raw !== '1');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [passages.length, pdfBoxCoachVisible]);
+
+  // Auto-dismiss the coach after a few seconds — long enough to read the
+  // single line of copy, short enough that it gets out of the way.
+  useEffect(() => {
+    if (pdfBoxCoachVisible !== true) return;
+    const timer = setTimeout(() => {
+      setPdfBoxCoachVisible(false);
+      setSetting(PDF_BOX_COACHED_KEY, '1').catch(() => {});
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [pdfBoxCoachVisible]);
+
+  function dismissPdfBoxCoach() {
+    setPdfBoxCoachVisible(false);
+    setSetting(PDF_BOX_COACHED_KEY, '1').catch(() => {});
+  }
 
   // Pull per-passage practice status (last date, Tempo Ladder %) on every
   // focus so the box badges reflect what happened during the just-finished
@@ -1039,6 +1084,29 @@ export default function DocumentScreen() {
         </View>
       )}
 
+      {/* First-visit coach toast — only renders when the user has marked
+          passages on this (or any) PDF before, hasn't dismissed the toast
+          yet, and isn't in the middle of section-marking or draw mode
+          (those have their own banners that would compete). Auto-dismisses
+          after 6 s or on tap. */}
+      {pdfBoxCoachVisible === true &&
+        boxesOn &&
+        mode === 'idle' &&
+        !markingSection &&
+        passages.length > 0 && (
+          <Pressable
+            onPress={dismissPdfBoxCoach}
+            accessibilityLabel="Dismiss tip"
+            style={styles.coachToast}>
+            <View style={styles.coachToastInner}>
+              <ThemedText style={styles.coachToastText}>
+                ▶ Tap a box to practice that passage
+              </ThemedText>
+              <ThemedText style={styles.coachToastDismiss}>✕</ThemedText>
+            </View>
+          </Pressable>
+        )}
+
       <ActionSheet
         visible={selectedPassage !== null}
         title={selectedPassage?.title}
@@ -1375,5 +1443,36 @@ const styles = StyleSheet.create({
   markBannerText: {
     color: '#fff',
     fontWeight: Type.weight.semibold,
+  },
+  // First-visit coach toast — sits at the top so it's not confused with
+  // the section-marking banner (which sits at the bottom). Slightly
+  // smaller and lighter so it reads as informational, not blocking.
+  coachToast: {
+    position: 'absolute',
+    top: Spacing.lg,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  coachToastInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radii.lg,
+    backgroundColor: '#000d',
+    maxWidth: '92%',
+  },
+  coachToastText: {
+    color: '#fff',
+    fontWeight: Type.weight.semibold,
+    fontSize: Type.size.sm,
+  },
+  coachToastDismiss: {
+    color: '#ffffffaa',
+    fontSize: 14,
+    fontWeight: Type.weight.bold,
   },
 });

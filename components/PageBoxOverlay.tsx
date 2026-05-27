@@ -132,6 +132,21 @@ export function PageBoxOverlay({
                   </ThemedText>
                 </View>
               )}
+              {/* Play-triangle in the top-right corner so the box reads as
+                  "tappable to practice" instead of just a frame. Hidden
+                  while the box is selected — the action sheet already has
+                  "Practice this passage" front-and-center at that point.
+                  Uses the same translucent-white pill as the title/badge
+                  so it stays legible over any score color. */}
+              {!selected && (
+                <View
+                  pointerEvents="none"
+                  style={[styles.playGlyph, { backgroundColor: '#ffffffd9' }]}>
+                  <ThemedText style={[styles.playGlyphText, { color: C.tint }]}>
+                    ▶
+                  </ThemedText>
+                </View>
+              )}
             </Pressable>
           );
         })}
@@ -229,5 +244,22 @@ const styles = StyleSheet.create({
     fontSize: Type.size.xs,
     fontWeight: Type.weight.medium,
     color: '#444',
+  },
+  // Top-right ▶ play affordance. Square so it stays balanced with the
+  // rectangular title pill on the opposite corner.
+  playGlyph: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 22,
+    height: 22,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playGlyphText: {
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: Type.weight.heavy,
   },
 });
