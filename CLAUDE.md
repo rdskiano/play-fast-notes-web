@@ -236,17 +236,43 @@ alter table tempo_ladder_progress add column if not exists custom_rep_in_block i
 - **Block tempos can exceed Performance.** That's overshoot training, intentional. No validation against this.
 - **Variable-size dots.** Each rep's dot is sized by its tempo offset from base. The user sees the difficulty curve of their pattern at a glance before they play it.
 
+## ✅ 2026-05-28 — ICU back step, branded PDF, rhythm-builder polish, metronome sync (commit `9baf27c`)
+
+Live on `playfastnotes.com`. Memory write-ups at `[[project_icu_back_step]]`, `[[project_rhythm_builder_session]]`, `[[project_metronome_exercise_sync]]`. Highlights only — full per-feature notes in ROADMAP.md.
+
+**ICU back step.** Interleaved Click-Up now supports stepping backward: left foot pedal / `←` / Backspace / ArrowUp / PageUp, plus an on-screen `← BACK` button beside `NEXT →`. Wires up the pre-existing `onPrev` on `useClickUpSession`. `PedalCatcher.{tsx,web.tsx}` gained an opt-in `onBack` prop — other strategies are unchanged because they don't pass it. How-it-works panel + first-run coach modal updated to describe NEXT/BACK and the auto-/manual-log behavior (session logs on finish; DONE for early log).
+
+**Rhythm Builder PDF — marketing-quality.** `lib/export/buildExerciseHtml.ts` redesigned: centered "Play Fast Notes" brand title + science-backed tagline + teal divider, user PDF title as a smaller subhead, numbered exercises (`1.` `2.` `3.` …) with heavier between-exercise rules, matching footer. URLs pinned to `playfastnotes.com` so giveaway PDFs always route there. PDF button now opens a title-prompt modal (pre-filled with the exercise name; includes a tip to disable Chrome's "Headers and footers"). Dev helper `scripts/preview-pdf.ts` writes `public/_pdf-preview.html` so you can iterate on the template without going through the UI — run via `npx tsx scripts/preview-pdf.ts`.
+
+**Rhythm Builder Generate phase.** Top bar now `<passage> — <exercise name>`; dropped the duplicate body title, the patterns × measures summary, and the "Exercises" sub-line. Each card shows `▶ N.` + the staff (no `#pattern.id`, no time signature, no rhythm-token row).
+
+**Floating rhythm card (Rhythmic Variation).** Removed the redundant `1/45 · Time 3/4 · Beam …` meta row — the page header already carries that info.
+
+**Pattern library.** Removed `#94` (6-note grouping, 3/8) per request. IDs are catalog positions, not sequential — neighbors keep their numbers; the printed `1.` `2.` numbering renumbers from list position.
+
+**Metronome ↔ exercise playback overhaul** (the big one). Three coupled fixes in `useMetronome.web.ts` + `metronomeEngine.ts`:
+
+1. **Conventional BPM math.** `secondsPerQuarter = (60/bpm) * (denom/4)`. An `"8"` token at 120 BPM in 3/8 now lasts 0.5 s (one beat) — matches what musicians expect. The previous "treat BPM as quarter-note BPM regardless of denominator" comment is gone.
+2. **Live tempo.** `playPitchRhythm` rewritten as a lookahead scheduler (~250 ms ahead) on the same `AudioContext` clock as the metronome. Reads BPM each tick, so bumping the dial during playback retempos the remaining notes in place. **API change**: `playPitchRhythm(freqs, tokens, beatDenominator, onEnd?)`; native bridge threads `onEnd` to drive `playingSequence` state.
+3. **Downbeat sync.** When the metronome is already clicking at ▶ press time, the first pitch is scheduled at the AudioContext time of the next downbeat — computed from `subStepRef` / `nextNoteTimeRef` / subdivision / beatPattern.length. Both streams share the same clock, so they stay in lockstep without drift.
+
+Also caught a **latent bug** in the existing rhythm-loop scheduler (the "▶ Loop rhythm" button on the rhythm card): `secondsPerQuarter` was inverted for non-quarter denominators (3/8 patterns played 4× too fast). Web `rhythmTick` was wrong; native `scheduleCycle` had it right. Both formulas now consistent.
+
+**What was deliberately not done**: pushing the exercise's time signature onto the metronome panel's displayed meter. The meter stays under user control. Natural next step if this divergence ever feels confusing.
+
 ## Where to pick up next
 
 In rough priority order:
 
-1. **Friend-test the live web build** at playfastnotes.com on a laptop, on a phone (PWA install), and on a tablet. The whole 2026-05-24 push is on master now; real-user smoke test is the only thing that catches the bugs Vercel/CI didn't.
+1. **Friend-test the live web build** at playfastnotes.com on a laptop, on a phone (PWA install), and on a tablet. The 2026-05-24 + 2026-05-28 pushes are all on master; real-user smoke test is what catches the bugs Vercel/CI didn't. Pay particular attention to the metronome-↔-exercise playback in 3/8 / 6/8 / 12/8 patterns since the BPM math changed.
 2. **iPad cutover.** `playpreview` from this repo, install over the existing learn-fast-notes build, verify on the physical iPad. Then archive `../learn-fast-notes/`.
 3. **Pre-existing TS errors in self-led routes** (`app/passage/[id]/self-led/[key].tsx`, `recording.tsx`) — `SelfLedKey` vs `Strategy` mismatch. Cheap cleanup next time we touch those files.
 4. **Document viewer pinch-zoom** (intentionally deferred). The page image shares its coordinate space with `PageBoxOverlay` + draw/resize/draft surfaces, so wrapping in `ZoomableImage` would break the box-drawing math. Would need overlays scaled inside the transform too.
 5. **Stripe + paid tier** (Phase 4.4.2 — the original cutover-then-monetize plan).
 6. **Microbreak timer trigger wiring** — verify whether `microbreak.trigger()` is actually called by any practice flow (Tempo Ladder used to call it every N clean reps; check it survived the recent rework).
 7. **Tuner placeholder removal** — `PracticeToolsLayer` no longer mounts a Tuner tool; verify no orphan references remain.
+8. **Optional: push exercise time-sig to the metronome panel.** Today (2026-05-28) the rhythm-builder ▶ playback uses the exercise's denominator for its own duration math, but the user-facing metronome panel still shows whatever meter the user set. If a 3/8 exercise plays while the metronome panel shows 4/4, the first note still aligns to the panel's downbeat but the two streams unfold in their own meters thereafter. Pushing the exercise's `pattern.timeSig` onto the panel on ▶ press would make the experience feel fully linked. Skipped today because the user didn't ask for it — revisit if confusion shows up in friend-testing.
+9. **Optional: shorten the downbeat sync wait.** At slow tempos in 4/4 it can take up to one measure (~4 s at 60 BPM) for an exercise's first note to fire after pressing ▶ because we wait for the next downbeat. Could switch to "next beat" (any click) for responsiveness, or add a small "Sync" toggle. Wait and see whether users actually find the lag bothersome.
 
 ## Debugging the merged repo
 

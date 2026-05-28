@@ -1,12 +1,32 @@
 # Play Fast Notes — Roadmap (unified)
 
-_Last updated: 2026-05-24_
+_Last updated: 2026-05-28_
 
 This roadmap covers **both surfaces** (iOS/iPad + web) of the unified Play Fast Notes app, which lives in this directory (`play-fast-notes/`). The two older repos (`../learn-fast-notes/` for iPad and `../play-fast-notes-web/` for web) are read-only archives and their roadmaps are historical only.
 
 > **🚀 2026-05-24 — WEB CUTOVER COMPLETE.** `playfastnotes.com` now ships from THIS repo via `git push web-origin-archive master` (the remote alias still has the "archive" word, but it points at `rdskiano/play-fast-notes-web` and Vercel auto-deploys from there). The 2026-05-23/24 push (`3d031c2` + `17767f6`) shipped: web Recorder + web Pencil (stylus-gated) + PWA + camera capture + phone density pass + per-passage pinch-zoom + timer overhaul (4 timers Rotate/Micro/Cold/Break + ⚙ settings sheet) + Space/X keyboard advance + ToolDock −/+ resize. **iPad cutover is the remaining plumbing milestone** — the physical iPad still runs Xcode-built dev clients from `learn-fast-notes/`.
 
 The old web-only context note (2026-05-17 Mac upgrade) is now folded into history. iPad still uses local Xcode builds for the user's working device; web now ships from this repo via Vercel.
+
+## ✅ 2026-05-28 — ICU back step, branded PDF, rhythm-builder polish, metronome sync (commit `9baf27c`)
+
+Single-session push covering four themes. All shipped to `playfastnotes.com` via `git push web-origin-archive master`. Full per-feature notes in `[[project_icu_back_step]]`, `[[project_rhythm_builder_session]]`, `[[project_metronome_exercise_sync]]`.
+
+**Interleaved Click-Up — backward step.** Symmetric back action across all three input surfaces: left foot pedal / `←` / Backspace / ArrowUp / PageUp, plus a `← BACK` button beside `NEXT →` (disabled at step 1). Wires up the pre-existing `onPrev` in `useClickUpSession` (decrement index, reset metronome BPM, persist). `PedalCatcher.{tsx,web.tsx}` gained an opt-in `onBack` prop so Tempo Ladder / Interleaved are unaffected. "How it works" panel and the first-run coach modal updated to describe the new navigation and the auto-/manual-log behavior (session logs on finish; DONE button for early logging).
+
+**Rhythm Builder PDF — marketing-quality giveaway.** `lib/export/buildExerciseHtml.ts` rewritten: centered "Play Fast Notes" brand title block (logo + wordmark + science-backed tagline + teal divider), user-entered PDF title as a smaller subhead, sequentially numbered exercises (`1.` `2.` `3.` …) with heavier between-exercise rules, marketing footer (tagline + `playfastnotes.com`). Brand URL pinned to production so locally-generated PDFs still route recipients to the live site. PDF button now opens a title-prompt modal pre-filled with the exercise name; modal includes a tip about disabling Chrome's "Headers and footers" print option. New dev helper `scripts/preview-pdf.ts` writes a sample HTML to `public/_pdf-preview.html` for iterating on the template without going through the UI.
+
+**Rhythm Builder Generate phase + Floating rhythm card.** Top bar now reads `<passage title> — <exercise name>`. Dropped the duplicate body `<h1>`, the `"21 patterns × N measures"` summary, and the `"Exercises"` subtitle on the Generate phase. Each exercise card collapses to `▶ N.` (sequence number) — removed the `#pattern.id · timeSig` line and the rhythm-token row. The Floating rhythm card (Rhythmic Variation flow) lost its `1/45 · Time 3/4 · Beam …` meta row since the page header already carries that info. Pattern `#94` (6-note grouping, 3/8) removed per request.
+
+**Metronome ↔ exercise playback overhaul.** Three coupled fixes in `useMetronome.web.ts` and `metronomeEngine.ts`:
+
+1. **Conventional BPM math.** Treats the metronome's BPM as denominator-units per minute (`secondsPerQuarter = (60/bpm) * (denom/4)`). An `"8"` token at 120 BPM in 3/8 now lasts 0.5 s (one beat), not 0.25 s — matches what musicians expect.
+2. **Live tempo.** `playPitchRhythm` rewritten as a lookahead scheduler (~250 ms ahead) on the same `AudioContext` clock as the metronome. Reads BPM each tick, so bumping the dial during playback retempos the remaining notes in place. Engine API changed: `playPitchRhythm(freqs, tokens, beatDenominator, onEnd?)`; native bridge threads `onEnd` to drive `playingSequence` state.
+3. **Downbeat sync.** When the metronome is already clicking at ▶ press time, the first pitch is scheduled at the AudioContext time of the next downbeat (computed from `subStepRef` / `nextNoteTimeRef` / `subdivision` / `beatPattern.length`). Both audio streams share the same clock, so they stay in lockstep — no `setInterval` drift. Worst-case wait at slow tempos in 4/4 is one measure (~4 s at 60 BPM); if that ever feels too long, switch to "next beat" or add a sync toggle.
+
+Also caught a **latent bug** in the existing rhythm-loop scheduler (the standalone "▶ Loop rhythm" button on the rhythm card): `secondsPerQuarter` formula was inverted for non-quarter denominators, so 3/8 patterns played 4× too fast. The native engine's `scheduleCycle` already had it right; web `rhythmTick` was wrong. Both now use `(60/bpm) * (denom/4)` consistently.
+
+**What's NOT done.** Did *not* push the exercise's time signature onto the metronome panel's displayed meter — the meter stays under user control. If a 3/8 exercise plays while the metronome is set to 4/4, the first note aligns to the metronome's downbeat but the two streams unfold in their own meters thereafter. Natural next step if this divergence ever feels confusing.
 
 ## Unified-codebase migration (active 2026-05-19)
 
