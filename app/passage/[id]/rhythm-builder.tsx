@@ -708,7 +708,11 @@ export default function RhythmBuilderScreen() {
           />
           <PracticeToolsLayer
             metronome={metronome}
-            tools={{ left: [], right: ['metronome', 'timer', 'pencil'] }}
+            // No `pencil` here: the rhythm-builder Generate phase doesn't
+            // wire a PencilCanvas to its abcjs-rendered staves, so the
+            // pencil tab would be a dead "coming soon" placeholder. Drop
+            // it from the tool list entirely.
+            tools={{ left: [], right: ['metronome', 'timer'] }}
           />
           <TutorialStep
             id="rhythm-builder-generate"

@@ -8,7 +8,12 @@
 // reload. `?pencil=1` / `?pencil=0` are manual overrides.
 import { useEffect, useState } from 'react';
 
-const STORAGE_KEY = 'pfn:pen-detected';
+// v2: the v1 key was sometimes set from the tablet auto-detect path and
+// then persisted forever, which left laptop users (or anyone who'd once
+// tripped the check) seeing the pencil tab they hadn't earned. v2 only
+// writes on a real pointerType==='pen' event, so any stale v1 flags are
+// effectively reset by ignoring the old key.
+const STORAGE_KEY = 'pfn:pen-detected-v2';
 
 function isTabletDefault(): boolean {
   // Tablet = touch-primary device with a tablet-sized screen. iPad Safari,
@@ -39,16 +44,9 @@ function readInitial(): boolean {
     }
     if (window.localStorage.getItem(STORAGE_KEY) === 'true') return true;
     // Tablet default — show the tab without waiting for a pen event.
-    // Persist it so the answer survives orientation flips that briefly
-    // drop the short side below 600 (e.g. iPad Mini landscape edge cases).
-    if (isTabletDefault()) {
-      try {
-        window.localStorage.setItem(STORAGE_KEY, 'true');
-      } catch {
-        // localStorage unavailable — return true anyway for this session.
-      }
-      return true;
-    }
+    // Computed FRESH each visit (not persisted) so a laptop user can't
+    // inherit a stuck "true" from a single tablet-shaped session.
+    if (isTabletDefault()) return true;
     return false;
   } catch {
     return false;
