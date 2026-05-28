@@ -9,6 +9,7 @@ import { SessionTopBar } from '@/components/SessionTopBar';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -780,6 +781,16 @@ export default function LibraryLogScreen() {
         destructive
         onConfirm={performDelete}
         onCancel={() => setDeleteConfirmFor(null)}
+      />
+
+      <TutorialStep
+        id="library-log"
+        visible={false}
+        title="Your practice log"
+        body={
+          "Every session you've ever run, newest first. Tap any entry to expand its notes, add a mood, or replay a recording you made during the session.\n\n" +
+          "Filter by passage or strategy using the controls at the top to spot patterns — what you've been drilling, what you've been ignoring."
+        }
       />
     </ThemedView>
   );

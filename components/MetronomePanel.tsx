@@ -16,7 +16,7 @@
 // metronome is a free-standing practice aid, not driven by a strategy.
 
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Animated, Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { ActionSheet } from '@/components/ActionSheet';
 import { NoteValueGlyph, type NoteValue } from '@/components/NoteValueGlyph';
@@ -172,6 +172,39 @@ export function MetronomePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [beatPattern]);
 
+  // BPM-bump indicator — when a practice strategy (Click-Up, Tempo
+  // Ladder) climbs the tempo on NEXT, a "+5" floats above the BPM
+  // readout so the user sees that something happened. Only fires on
+  // positive deltas; the ± buttons and tap-tempo are filtered out by
+  // requiring a delta of at least the strategy increment range.
+  const prevBpmRef = useRef(m.bpm);
+  const bumpAnim = useRef(new Animated.Value(0)).current;
+  const [bumpDelta, setBumpDelta] = useState(0);
+  useEffect(() => {
+    const prev = prevBpmRef.current;
+    prevBpmRef.current = m.bpm;
+    const delta = m.bpm - prev;
+    // ±1/±5 button presses also change the BPM, but a strategy bump is
+    // typically 2/5/10. Treat any positive jump ≥ 2 as a strategy bump
+    // so single-step manual tweaks don't flash the indicator.
+    if (delta < 2) return;
+    setBumpDelta(delta);
+    bumpAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(bumpAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.delay(600),
+      Animated.timing(bumpAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [m.bpm, bumpAnim]);
+
   // Tap-for-tempo: average the gaps between recent taps.
   const tapsRef = useRef<number[]>([]);
   function onTapTempo() {
@@ -294,6 +327,24 @@ export function MetronomePanel({
           </Pressable>
           <View style={styles.display}>
             <ThemedText style={styles.bpmNum}>{m.bpm}</ThemedText>
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.bumpOverlay,
+                {
+                  opacity: bumpAnim,
+                  transform: [
+                    {
+                      scale: bumpAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1.3, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}>
+              <ThemedText style={styles.bumpText}>+{bumpDelta}</ThemedText>
+            </Animated.View>
           </View>
           <Pressable
             onPress={() => m.setBpm(Math.min(BPM_MAX, m.bpm + 1))}
@@ -597,6 +648,25 @@ const styles = StyleSheet.create({
     borderColor: DEVICE.rim,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  bumpOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 12,
+    backgroundColor: DEVICE.display,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bumpText: {
+    color: DEVICE.text,
+    fontSize: 46,
+    lineHeight: 50,
+    fontWeight: Type.weight.black,
+    fontVariant: ['tabular-nums'],
   },
   bpmNum: {
     fontSize: 46,

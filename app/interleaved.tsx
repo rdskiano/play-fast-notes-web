@@ -21,6 +21,7 @@ import { SelfLedSheet } from '@/components/SelfLedSheet';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -514,6 +515,15 @@ export default function InterleavedScreen() {
         <View style={{ padding: 20 }}>
           <Button label="Continue →" onPress={onContinue} fullWidth />
         </View>
+        <TutorialStep
+          id="serial-practice-setup"
+          visible={false}
+          title="Serial practicing"
+          body={
+            "Rotate through several passages in a single sitting instead of camping on one. Each passage gets its turn, you tap when you're done, and the app moves you to the next.\n\n" +
+            "Best closer to performance, when you need to recover any passage cold under pressure. Pick the passages above, then Continue."
+          }
+        />
       </ThemedView>
     );
   }
@@ -554,6 +564,15 @@ export default function InterleavedScreen() {
             fullWidth
           />
         </View>
+        <TutorialStep
+          id="serial-practice-select"
+          visible={false}
+          title="Pick your passages"
+          body={
+            "Tap the passages you want to rotate through this session. The app will cycle you through them in order, one at a time.\n\n" +
+            "Best to keep the list to a handful — long sets dilute the focused-passage work. Tap Start when you're ready."
+          }
+        />
       </ThemedView>
     );
   }
@@ -771,6 +790,18 @@ export default function InterleavedScreen() {
         cancelLabel="Skip"
         onSubmit={({ mood, note, remindNext }) => finishLog(mood, note, remindNext)}
         onSkip={() => finishLog(null, null)}
+      />
+
+      <TutorialStep
+        id="serial-practice-play"
+        visible={false}
+        title="Running a serial session"
+        body={
+          "The score on screen is the passage you're currently drilling. Play it, mark each rep, then tap to move on to the next passage in your rotation.\n\n" +
+          "✓ Clean — counts the rep; the app will move you forward when you've hit your target.\n\n" +
+          "✗ Miss — logs the miss but keeps you on the same passage.\n\n" +
+          "Keyboard / pedal: Space = Clean ✓, X = Miss ✗. Tap ← at the top-left to end the session and log it."
+        }
       />
     </ThemedView>
   );

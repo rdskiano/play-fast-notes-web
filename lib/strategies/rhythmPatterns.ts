@@ -135,7 +135,6 @@ export const RHYTHM_PATTERNS: RhythmPattern[] = [
   { id: 91, grouping: 6, timeSig: "2/4", beaming: "2+2", notes: ["32t", "32t", "32t", "8.", "16", "8."] },
   { id: 92, grouping: 6, timeSig: "3/8", beaming: null, notes: ["8", "8", "32", "32", "32", "32"] },
   { id: 93, grouping: 6, timeSig: "3/8", beaming: null, notes: ["32", "32", "32", "32", "8", "8"] },
-  { id: 94, grouping: 6, timeSig: "3/8", beaming: "3", notes: ["32", "32", "8", "8", "32", "32"] },
   { id: 95, grouping: 6, timeSig: "3/8", beaming: null, notes: ["8", "16", "16", "16t", "16t", "16t"] },
   { id: 96, grouping: 6, timeSig: "3/8", beaming: null, notes: ["16t", "16t", "16t", "16", "16", "8"] },
   { id: 97, grouping: 6, timeSig: "3/8", beaming: null, notes: ["16t", "16t", "16t", "8.", "32", "32"] },

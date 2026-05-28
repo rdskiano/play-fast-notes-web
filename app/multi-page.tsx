@@ -13,6 +13,7 @@ import { InlineCropper } from '@/components/InlineCropper';
 import { PromptModal } from '@/components/PromptModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { insertPassage, renamePassage, updatePassageAssets } from '@/lib/db/repos/passages';
@@ -439,6 +440,16 @@ export default function MultiPageScreen() {
           onCancel={() => handleCropCancel(2)}
         />
       )}
+
+      <TutorialStep
+        id="upload-multipage"
+        visible={false}
+        title="Two-page passage"
+        body={
+          "When a passage spans the end of one page and the start of the next, snap each half separately and the app stitches them into one continuous score.\n\n" +
+          "Crop each photo to just the passage portion of that page — the stitched result is what you'll drill."
+        }
+      />
     </ThemedView>
   );
 }

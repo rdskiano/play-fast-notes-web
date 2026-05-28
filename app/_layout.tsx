@@ -14,7 +14,11 @@
 //     no-op on web via Metro's .web.ts resolution (lib/startup/migrate.web.ts).
 //   - Native mounts InterleavedTimerProvider; web doesn't need it (no
 //     background-audio timer there). Rendered conditionally below.
-//   - Web mounts FeedbackButton; native doesn't (no Formspree on iPad).
+//   - Web mounts the in-app help system (HelpProvider / HelpModal /
+//     HelpButton); native mounts no-op siblings. First-time visitors
+//     land on the live web build, and native has no persistent KV
+//     store wired up for the per-step session-dedupe — see
+//     components/HelpContext for the design rationale.
 
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Redirect, Stack, usePathname } from 'expo-router';
@@ -25,7 +29,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { FeedbackButton } from '@/components/FeedbackButton';
+import { HelpButton } from '@/components/HelpButton';
+import { HelpModal } from '@/components/HelpModal';
+import { HelpProvider } from '@/components/HelpContext';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import {
   InterleavedStatusBar,
@@ -105,6 +111,7 @@ export default function RootLayout() {
         <StrategyColorsProvider>
           <NativeWrapper>
             <PracticeTimersProvider>
+              <HelpProvider>
               <ThemeProvider value={DefaultTheme}>
               <Stack>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -184,7 +191,13 @@ export default function RootLayout() {
                 {!IS_WEB && <InterleavedStatusBar />}
                 <PracticeTimerAlertModal />
                 {!IS_WEB && <StitchHost />}
-                {IS_WEB && <FeedbackButton />}
+                {/* Help system: HelpModal is the single global modal
+                    that both auto-fires (from <TutorialStep>) and
+                    manual opens (from <HelpButton>) share. The button
+                    is fixed bottom-right on every screen. Both are
+                    no-ops on native — see components/HelpContext. */}
+                <HelpModal />
+                <HelpButton />
                 {/* Phone-only Add-to-Home-Screen coach. On the iPad app
                     the component resolves to a no-op via .tsx / .web.tsx
                     Metro split, so this line is safe to render on both
@@ -192,6 +205,7 @@ export default function RootLayout() {
                 <InstallPrompt />
                 <StatusBar style="dark" />
               </ThemeProvider>
+              </HelpProvider>
             </PracticeTimersProvider>
           </NativeWrapper>
         </StrategyColorsProvider>

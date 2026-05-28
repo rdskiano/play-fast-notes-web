@@ -8,6 +8,7 @@ import { RecordingPlayer } from '@/components/RecordingPlayer';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Opacity, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -313,6 +314,16 @@ export default function HistoryScreen() {
         destructive
         onConfirm={performDelete}
         onCancel={() => setDeleteConfirmFor(null)}
+      />
+
+      <TutorialStep
+        id="passage-history"
+        visible={false}
+        title="Passage history"
+        body={
+          "Every session you've run on this passage, newest first. Tap an entry to expand notes, mood, and any recording you made.\n\n" +
+          "Use this to track how a single passage is developing — what tempos you've hit, what's still rough, when you last worked on it."
+        }
       />
     </ThemedView>
   );

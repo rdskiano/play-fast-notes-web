@@ -24,6 +24,7 @@ import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
@@ -169,6 +170,16 @@ export default function SelfLedSessionScreen() {
         cancelLabel="Skip"
         onSubmit={({ mood, note, remindNext }) => finishLog(mood, note, remindNext)}
         onSkip={() => finishLog(null, null)}
+      />
+
+      <TutorialStep
+        id="self-led-play"
+        visible={false}
+        title="Self-led practice"
+        body={
+          "A loose-structure session for the strategies that don't need the app driving every rep. You play, the app logs the time and lets you save a note + mood + recording at the end.\n\n" +
+          "Use this when you want the practice log entry without the auto-tempo / auto-advance plumbing."
+        }
       />
     </ThemedView>
   );

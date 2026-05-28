@@ -10,12 +10,21 @@ import { StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { KeyCaptureView } from '@/modules/hardware-keys';
 
+// Keys the native module reports for the left pedal on a two-pedal foot
+// switch. The right pedal advances; these go back.
+const BACK_KEYS = new Set(['up', 'left', 'pageup']);
+
 export function PedalCatcher({
   active,
   onAdvance,
+  onBack,
 }: {
   active: boolean;
   onAdvance: () => void;
+  // Optional "go back a step" binding (Click-Up). When provided, the left
+  // pedal (up / left / pageup) fires `onBack`; without it, every pedal key
+  // advances (the historical behavior).
+  onBack?: () => void;
   // The web sibling supports a secondary key binding (e.g. X = Miss in
   // Tempo Ladder) so the laptop user can mirror what a two-button pedal
   // would do. iPad only has one foot pedal that emits arrow keys, so
@@ -39,11 +48,14 @@ export function PedalCatcher({
     );
   }
 
-  function advance() {
+  function fire(key: string) {
     const now = Date.now();
     // De-dupe key auto-repeat and the multiple native capture paths.
-    if (now - lastAdvanceRef.current > 300) {
-      lastAdvanceRef.current = now;
+    if (now - lastAdvanceRef.current <= 300) return;
+    lastAdvanceRef.current = now;
+    if (onBack && BACK_KEYS.has(key)) {
+      onBack();
+    } else {
       onAdvance();
     }
   }
@@ -52,7 +64,7 @@ export function PedalCatcher({
     <View>
       <Capture
         style={styles.capture}
-        onArrowKey={() => advance()}
+        onArrowKey={(e) => fire(e.nativeEvent.key)}
         onStatus={(e) => setConnected(e.nativeEvent.keyboard)}
       />
       {connected === false && (

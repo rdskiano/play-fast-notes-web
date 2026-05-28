@@ -5,7 +5,7 @@ import Animated from 'react-native-reanimated';
 import { RhythmNotation } from '@/components/RhythmNotation';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDraggableCard } from '@/hooks/useDraggableCard';
 import { useResponsiveCardWidth } from '@/hooks/useResponsiveCardWidth';
@@ -75,22 +75,6 @@ export function FloatingRhythmCard({
               {collapsed ? '▾' : '▴'}
             </ThemedText>
           </Pressable>
-        </View>
-
-        <View style={styles.metaRow}>
-          <ThemedText style={[styles.metaValue, { color: C.icon }]}>
-            {patternIndex + 1}/{patternCount}
-          </ThemedText>
-          <View style={styles.metaDot} />
-          <ThemedText style={styles.metaLabel}>Time</ThemedText>
-          <ThemedText style={styles.metaValue}>{pattern.timeSig}</ThemedText>
-          {pattern.beaming && pattern.beaming !== '0' && (
-            <>
-              <View style={styles.metaDot} />
-              <ThemedText style={styles.metaLabel}>Beam</ThemedText>
-              <ThemedText style={styles.metaValue}>{pattern.beaming}</ThemedText>
-            </>
-          )}
         </View>
 
         {collapsed ? (
@@ -195,10 +179,6 @@ const styles = StyleSheet.create({
   },
   collapseText: { fontSize: Type.size.lg, fontWeight: Type.weight.heavy, lineHeight: 18 },
 
-  metaRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, justifyContent: 'center' },
-  metaLabel: { opacity: 0.5, fontSize: Type.size.xs, fontWeight: Type.weight.semibold },
-  metaValue: { fontSize: Type.size.sm, fontWeight: Type.weight.bold },
-  metaDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: '#88888888', marginHorizontal: 2 },
 
   collapsedRow: {
     flexDirection: 'row',

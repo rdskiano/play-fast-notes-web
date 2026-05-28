@@ -4,7 +4,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { buildRhythmAbc } from '@/lib/notation/buildAbc';
 import type { RhythmPattern } from '@/lib/strategies/rhythmPatterns';
@@ -201,22 +201,6 @@ function FloatingRhythmCardWeb({
           </Pressable>
         </div>
 
-        <View style={styles.metaRow}>
-          <ThemedText style={[styles.metaValue, { color: C.icon }]}>
-            {patternIndex + 1}/{patternCount}
-          </ThemedText>
-          <View style={[styles.metaDot, { backgroundColor: C.icon }]} />
-          <ThemedText style={styles.metaLabel}>Time</ThemedText>
-          <ThemedText style={styles.metaValue}>{pattern.timeSig}</ThemedText>
-          {pattern.beaming && pattern.beaming !== '0' && (
-            <>
-              <View style={[styles.metaDot, { backgroundColor: C.icon }]} />
-              <ThemedText style={styles.metaLabel}>Beam</ThemedText>
-              <ThemedText style={styles.metaValue}>{pattern.beaming}</ThemedText>
-            </>
-          )}
-        </View>
-
         {collapsed ? (
           <View style={styles.collapsedRow}>
             <Pressable
@@ -306,16 +290,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   collapseText: { fontSize: Type.size.lg, fontWeight: Type.weight.heavy, lineHeight: 18 },
-
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  metaLabel: { fontSize: Type.size.xs, opacity: Opacity.muted },
-  metaValue: { fontSize: Type.size.sm, fontWeight: Type.weight.bold },
-  metaDot: { width: 4, height: 4, borderRadius: 2, opacity: 0.5 },
 
   rhythmBox: {
     borderRadius: Radii.md,

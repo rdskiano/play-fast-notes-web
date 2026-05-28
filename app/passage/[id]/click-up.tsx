@@ -12,6 +12,7 @@ import {
 
 import { ActionSheet } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
+import { ClickUpCoach } from '@/components/ClickUpCoach';
 import { CollapsibleHelp } from '@/components/CollapsibleHelp';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
@@ -27,6 +28,8 @@ import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/toke
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { MIN_MARKERS, useClickUpSession } from '@/hooks/useClickUpSession';
+import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
+import { TutorialStep } from '@/components/TutorialStep';
 import { activePairMarkers } from '@/lib/strategies/clickUp';
 
 function formatActiveUnits(activeUnits: number[]): string {
@@ -44,6 +47,23 @@ export default function ClickUpScreen() {
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
+  // Practice-log count for the first-time tutorial gate. Hoisted above
+  // the phase-based early returns so the hook count stays stable.
+  // null = still loading; 0 = first-timer.
+  const [practiceLogCount, setPracticeLogCount] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    countPracticeLogEntries()
+      .then((n) => {
+        if (!cancelled) setPracticeLogCount(n);
+      })
+      .catch(() => {
+        // count failing just suppresses the tutorial — not fatal
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const session = useClickUpSession(id);
 
   useEffect(() => {
@@ -79,6 +99,7 @@ export default function ClickUpScreen() {
     commitMarkersAndConfigure,
     startPlaying,
     onNext,
+    onPrev,
     exitSession,
     doneSession,
     dismissCelebration,
@@ -173,6 +194,20 @@ export default function ClickUpScreen() {
               sections, producing deeper learning and more reliable performances under
               pressure.
             </ThemedText>
+            <ThemedText style={styles.blurbText}>
+              During practice, tap{' '}
+              <ThemedText style={styles.blurbBold}>NEXT →</ThemedText> (or press Space,
+              Enter, or the right foot pedal) after each rep. To redo the previous step
+              — say, you advanced too quickly and want to revisit that tempo — tap{' '}
+              <ThemedText style={styles.blurbBold}>← BACK</ThemedText> (or press the
+              left arrow, Backspace, or the left foot pedal). The metronome and the
+              active units rewind with you.
+            </ThemedText>
+            <ThemedText style={styles.blurbText}>
+              The session logs automatically when you reach the last step. To log
+              earlier, tap <ThemedText style={styles.blurbBold}>DONE</ThemedText> at the
+              top right.
+            </ThemedText>
             <Pressable
               onPress={() => Linking.openURL('https://www.mollygebrian.com')}
               style={[styles.linkBtn, { borderColor: C.tint }]}>
@@ -206,6 +241,28 @@ export default function ClickUpScreen() {
             />
           </View>
         </ScrollView>
+
+        {/* Step 4 of the guided first-session flow. Fires on the
+            Interleaved Click-Up marking screen while the user has
+            never completed a practice session. The example image
+            shows numbered markers above a scale — most novel UX
+            in the app and the hardest to grok from copy alone. */}
+        <TutorialStep
+          id="click-up-marking"
+          visible={practiceLogCount === 0}
+          title="Mark your units"
+          body={
+            "Tap just above the music to mark the start of each unit (a beat, a measure — whatever feels like the smallest chunk you want to drill). Drop one extra mark at the end of the last unit so the app knows where it stops. You need at least " +
+            String(MIN_MARKERS) +
+            " marks total. Tap a marker again to remove it.\n\n" +
+            "When you've placed your marks, tap NEXT → at the top right to set your tempo range."
+          }
+          image={{
+            source: require('@/assets/images/tutorial-click-up-marking.png'),
+            aspectRatio: 2727 / 549,
+            caption: 'Example: 8 markers above a C-major scale.',
+          }}
+        />
       </ThemedView>
     );
   }
@@ -280,6 +337,18 @@ export default function ClickUpScreen() {
           />
           <Button label="← Back to marking" variant="ghost" onPress={goBackToMarking} fullWidth />
         </View>
+
+        <TutorialStep
+          id="click-up-config"
+          visible={false}
+          title="Set the tempo range"
+          body={
+            "Start Tempo — well below your target. A good rule of thumb is half your performance tempo.\n\n" +
+            "Performance Tempo — the speed you ultimately need to perform at.\n\n" +
+            "Increment — how big each tempo bump is between stages.\n\n" +
+            "When you start, the app walks you through every tempo in between, interleaving individual units with growing combinations."
+          }
+        />
       </ThemedView>
     );
   }
@@ -364,6 +433,7 @@ export default function ClickUpScreen() {
       <PedalCatcher
         active={!notePromptVisible && !celebrating}
         onAdvance={onNext}
+        onBack={onPrev}
       />
 
       <View style={styles.contentArea}>
@@ -405,15 +475,23 @@ export default function ClickUpScreen() {
             and no foot pedal in practice, so the line just eats two
             rows of vertical space we'd rather give back to the score.
             Laptop / desktop sees a single tidy line listing every way
-            to advance. */}
+            to move between steps. */}
         {!isPhone && (
           <ThemedText style={styles.pedalNote}>
-            Press Space, Enter, or a foot pedal to advance — or tap NEXT.
+            Space / Enter / right pedal = NEXT · ← / Backspace / left pedal = BACK
           </ThemedText>
         )}
-        <Pressable onPress={onNext} style={styles.nextBtn}>
-          <ThemedText style={styles.nextBtnText}>NEXT →</ThemedText>
-        </Pressable>
+        <View style={styles.navRow}>
+          <Pressable
+            onPress={currentIndex === 0 ? undefined : onPrev}
+            disabled={currentIndex === 0}
+            style={[styles.backBtn, { opacity: currentIndex === 0 ? 0.4 : 1 }]}>
+            <ThemedText style={styles.backBtnText}>← BACK</ThemedText>
+          </Pressable>
+          <Pressable onPress={onNext} style={[styles.nextBtn, styles.nextBtnGrow]}>
+            <ThemedText style={styles.nextBtnText}>NEXT →</ThemedText>
+          </Pressable>
+        </View>
       </View>
 
       <PracticeLogNotePrompt
@@ -454,6 +532,19 @@ export default function ClickUpScreen() {
           },
         ]}
         onCancel={() => setPhoneMenuOpen(false)}
+      />
+
+      <ClickUpCoach />
+
+      <TutorialStep
+        id="click-up-play"
+        visible={false}
+        title="Running an Interleaved Click-Up"
+        body={
+          "The score highlights the unit (or pair of units) you're playing right now. Play it at the current tempo, then tap NEXT → to advance.\n\n" +
+          "The sequence interleaves individual units with progressively larger combinations — single units first, then pairs, then triples — climbing through your tempo range. Don't try to remember where you are; the app drives the order.\n\n" +
+          "Keyboard / pedal: Space = NEXT. Tap ← at the top-left to exit and log the session."
+        }
       />
     </ThemedView>
   );
@@ -505,8 +596,24 @@ const styles = StyleSheet.create({
     borderRadius: Radii.md,
     alignItems: 'center',
   },
+  nextBtnGrow: { flex: 1 },
   nextBtnText: {
     color: '#fff',
+    fontWeight: Type.weight.heavy,
+    fontSize: Type.size.lg,
+  },
+  navRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'stretch' },
+  backBtn: {
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: Borders.medium,
+    borderColor: '#bbb',
+    backgroundColor: 'transparent',
+  },
+  backBtnText: {
     fontWeight: Type.weight.heavy,
     fontSize: Type.size.lg,
   },

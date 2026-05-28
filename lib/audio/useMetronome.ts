@@ -166,17 +166,21 @@ export function useMetronome(initialBpm: number = 60) {
       }
       return dur;
     },
-    playPitchRhythm(freqs: number[], durations: number[]): number {
-      const dur = engineRef.current?.playPitchRhythm(freqs, durations) ?? 0;
-      if (dur > 0) {
-        setPlayingSequence(true);
-        if (sequenceTimerRef.current) clearTimeout(sequenceTimerRef.current);
-        sequenceTimerRef.current = setTimeout(
-          () => setPlayingSequence(false),
-          Math.ceil(dur * 1000) + 150,
-        );
+    playPitchRhythm(
+      freqs: number[],
+      tokens: RhythmToken[],
+      beatDenominator: number,
+    ): void {
+      if (sequenceTimerRef.current) {
+        clearTimeout(sequenceTimerRef.current);
+        sequenceTimerRef.current = null;
       }
-      return dur;
+      const engine = engineRef.current;
+      if (!engine || freqs.length === 0 || tokens.length === 0) return;
+      setPlayingSequence(true);
+      engine.playPitchRhythm(freqs, tokens, beatDenominator, () => {
+        setPlayingSequence(false);
+      });
     },
     stopPitchSequence() {
       engineRef.current?.stopPitchSequence();

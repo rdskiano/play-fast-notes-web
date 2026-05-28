@@ -38,6 +38,7 @@ import { SectionsModal } from '@/components/SectionsModal';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 
@@ -72,6 +73,7 @@ import {
   getDocumentPassageStatus,
   type PassageStatus,
 } from '@/lib/db/repos/passageStatus';
+import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import { cropImage, stitchVerticallyUris, type Rect } from '@/lib/image/canvasCrop';
 import { persistPassageImage } from '@/lib/image/persistPassageImage';
 import { consumeLastPassageInDoc } from '@/lib/sessions/lastPassageInDoc';
@@ -109,6 +111,24 @@ export default function DocumentScreen() {
   // the persisted flag so we don't flash the toast and then immediately
   // hide it on a returning user.
   const [pdfBoxCoachVisible, setPdfBoxCoachVisible] = useState<boolean | null>(null);
+  // Global practice-log count for the PDF-overview tutorial gate.
+  // null = still loading; 0 = first-timer. Combined with
+  // passages.length === 0 below so the modal only fires on an empty
+  // PDF AND only for users who've never run a practice session.
+  const [practiceLogCount, setPracticeLogCount] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    countPracticeLogEntries()
+      .then((n) => {
+        if (!cancelled) setPracticeLogCount(n);
+      })
+      .catch(() => {
+        // count failing just suppresses the tutorial — not fatal
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // View mode is derived from orientation: landscape = spread, portrait = single.
   // The user can override (e.g. force single in landscape for tall staves).
@@ -1106,6 +1126,26 @@ export default function DocumentScreen() {
             </View>
           </Pressable>
         )}
+
+      {/* Step 5 of the guided first-session flow. Fires on an empty PDF
+          for a true first-timer (no practice log entries yet) — orients
+          them to the marking + sections + hide-boxes + practice-log
+          workflow before they touch anything. Complements the existing
+          `pdfBoxCoachVisible` toast, which only fires on PDFs that
+          ALREADY have passages. */}
+      <TutorialStep
+        id="pdf-viewer-overview"
+        visible={passages.length === 0 && practiceLogCount === 0}
+        title="Working with a PDF"
+        body={
+          'Each page can hold as many "passages" as you want to drill independently.\n\n' +
+          '+ Mark passage — drag a box around the music you want to drill. After you name it, it shows up in your library.\n\n' +
+          'Tap any box to start practicing that passage.\n\n' +
+          'Sections — tap the page to mark movement divisions or sections in the music. Use this to make the practice log easier to read.\n\n' +
+          'Hide boxes — clean read of the score without the gray rectangles.\n\n' +
+          'Practice Log — every session you\'ve done on this PDF, across all passages.'
+        }
+      />
 
       <ActionSheet
         visible={selectedPassage !== null}

@@ -2,10 +2,12 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -21,6 +23,7 @@ import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
+import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
@@ -51,10 +54,11 @@ import {
 import { buildExerciseHtml } from '@/lib/export/buildExerciseHtml';
 import { buildExerciseAbc } from '@/lib/notation/buildExerciseAbc';
 import {
+  parseBeatDenominator,
   patternsByGrouping,
-  TOKEN_QUARTER_FRACTIONS,
   type Grouping,
   type RhythmPattern,
+  type RhythmToken,
 } from '@/lib/strategies/rhythmPatterns';
 
 type Phase = 'setup' | 'entry' | 'generate';
@@ -106,6 +110,11 @@ export default function RhythmBuilderScreen() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
+  // PDF export title prompt. The site's organization (folder / passage title)
+  // gave the exercise its in-app name; for a printable/shareable PDF the user
+  // often wants something more descriptive (e.g. "Daily warm-up — C major").
+  const [pdfTitleModalOpen, setPdfTitleModalOpen] = useState(false);
+  const [pdfTitleDraft, setPdfTitleDraft] = useState('');
 
   const metronome = useMetronome(80);
   const historyRef = useRef<Pitch[][]>([]);
@@ -364,9 +373,11 @@ export default function RhythmBuilderScreen() {
   // document, opens it in a new window, lets abcjs render at the page's
   // print staffwidth (so wrapping is correct), then triggers window.print()
   // in the popup. Browser print dialog has "Save as PDF" as a destination.
-  function exportPdf() {
-    if (typeof window === 'undefined' || !passage) return;
-    const patterns = patternsByGrouping(grouping);
+  // Entry point: prompt the user for a PDF title before opening the print
+  // popup. The in-app exercise name is just a default — for a shareable PDF
+  // the user may want something more descriptive.
+  function openPdfTitlePrompt() {
+    if (!passage) return;
     if (Platform.OS !== 'web') {
       Alert.alert(
         'Not available on iPad',
@@ -374,10 +385,21 @@ export default function RhythmBuilderScreen() {
       );
       return;
     }
-    const html = buildExerciseHtml(
+    const defaultTitle =
       exercise?.name && exercise.name.trim().length > 0
         ? exercise.name
-        : (passage.title ?? 'Exercises'),
+        : (passage.title ?? 'Exercises');
+    setPdfTitleDraft(defaultTitle);
+    setPdfTitleModalOpen(true);
+  }
+
+  // Actually generate the PDF popup once we have a title.
+  function runPdfExport(title: string) {
+    if (typeof window === 'undefined' || !passage) return;
+    const patterns = patternsByGrouping(grouping);
+    const finalTitle = title.trim().length > 0 ? title.trim() : 'Exercises';
+    const html = buildExerciseHtml(
+      finalTitle,
       pitches,
       keySignature,
       clef,
@@ -415,6 +437,12 @@ export default function RhythmBuilderScreen() {
     exercise?.name && exercise.name.trim().length > 0
       ? exercise.name
       : 'Rhythmic exercise';
+  // Format the top bar title as "<passage> - <exercise name>" so the user
+  // sees both pieces of context in one line. If there's no passage title
+  // (rare; pre-Phase-0 data), fall back to just the exercise name.
+  const topTitle = passage.title
+    ? `${passage.title} — ${exerciseName}`
+    : exerciseName;
 
   return (
     <ThemedView style={{ flex: 1 }}>
@@ -425,22 +453,20 @@ export default function RhythmBuilderScreen() {
           center={
             <View style={{ alignItems: 'center', maxWidth: '100%' }}>
               <ThemedText style={styles.topCenter} numberOfLines={1}>
-                {exerciseName}
+                {topTitle}
               </ThemedText>
-              <ThemedText style={styles.topSubCenter} numberOfLines={1}>
-                {phase === 'setup'
-                  ? 'Setup'
-                  : phase === 'entry'
-                    ? 'Enter pitches'
-                    : 'Exercises'}
-              </ThemedText>
+              {phase !== 'generate' && (
+                <ThemedText style={styles.topSubCenter} numberOfLines={1}>
+                  {phase === 'setup' ? 'Setup' : 'Enter pitches'}
+                </ThemedText>
+              )}
             </View>
           }
           right={
             phase === 'generate' ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Pressable
-                  onPress={exportPdf}
+                  onPress={openPdfTitlePrompt}
                   hitSlop={6}
                   style={[styles.pdfBtn, { borderColor: '#2980b9' }]}>
                   <ThemedText style={[styles.pdfBtnText, { color: '#2980b9' }]}>
@@ -530,6 +556,15 @@ export default function RhythmBuilderScreen() {
               </ThemedText>
             </Pressable>
           </View>
+          <TutorialStep
+            id="rhythm-builder-setup"
+            visible={false}
+            title="Exercise Builder — setup"
+            body={
+              "Pick your Instrument, Key, Clef, and Note grouping. These shape how the generated notation looks: the right clef for your transposition, accidentals that match your key, and how notes are beamed together.\n\n" +
+              "Tap Continue when you're ready to enter the pitches."
+            }
+          />
         </ScrollView>
       )}
 
@@ -642,13 +677,26 @@ export default function RhythmBuilderScreen() {
               onPress={() => setPhase('setup')}
             />
           </View>
+          <TutorialStep
+            id="rhythm-builder-entry"
+            visible={false}
+            title="Exercise Builder — enter pitches"
+            body={
+              "Tap the piano keys to enter the pitches of your passage one note at a time. The notation builds up on screen as you go.\n\n" +
+              "Click a note on the staff to respell it (e.g. B♭ → A♯), force an accidental to display, or insert a new note before or after it.\n\n" +
+              "▶ Play — play back the pitches you've entered with the metronome, so you can hear and check before generating.\n\n" +
+              "Switch to sharps / Switch to flats — toggles the default enharmonic spelling for new notes.\n\n" +
+              "↶ Undo — remove the last pitch you entered.\n\n" +
+              "Clear — wipe everything and start over.\n\n" +
+              "When the sequence is right, tap Generate → to render fully-notated rhythm-variation exercises."
+            }
+          />
         </ScrollView>
       )}
 
       {phase === 'generate' && (
         <View style={styles.generateArea}>
           <ExercisesPhase
-            passageTitle={passage.title ?? 'Exercises'}
             pitches={pitches}
             grouping={grouping}
             keySignature={keySignature}
@@ -661,6 +709,17 @@ export default function RhythmBuilderScreen() {
           <PracticeToolsLayer
             metronome={metronome}
             tools={{ left: [], right: ['metronome', 'timer', 'pencil'] }}
+          />
+          <TutorialStep
+            id="rhythm-builder-generate"
+            visible={false}
+            title="Exercise Builder — generated exercises"
+            body={
+              "Every rhythm pattern the app generated for your pitches, listed below. Tap ▶ next to a pattern to hear it with the metronome.\n\n" +
+              "PDF — export the full set as printable sheet music you can read off the stand.\n\n" +
+              "EDIT — go back and tweak the pitches, key, or grouping.\n\n" +
+              "DONE — save the session and exit."
+            }
           />
         </View>
       )}
@@ -693,6 +752,70 @@ export default function RhythmBuilderScreen() {
           setEditingIndex(null);
         }}
       />
+
+      <Modal
+        visible={pdfTitleModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPdfTitleModalOpen(false)}>
+        <View style={styles.pdfModalBackdrop}>
+          <View
+            style={[
+              styles.pdfModalCard,
+              { backgroundColor: C.background, borderColor: C.icon + '55' },
+            ]}>
+            <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
+              Title this PDF
+            </ThemedText>
+            <ThemedText style={[styles.pdfModalHint, { color: C.icon }]}>
+              This title prints at the top of the exported PDF. Be descriptive
+              — recipients won&apos;t see your folder or passage names.
+            </ThemedText>
+            <ThemedText style={[styles.pdfModalTip, { color: C.icon }]}>
+              Tip: in the print dialog that opens next, uncheck{' '}
+              <ThemedText style={styles.pdfModalTipBold}>
+                Headers and footers
+              </ThemedText>{' '}
+              to hide the browser&apos;s date / URL strip at the top and
+              bottom of each page.
+            </ThemedText>
+            <TextInput
+              value={pdfTitleDraft}
+              onChangeText={setPdfTitleDraft}
+              autoFocus
+              selectTextOnFocus
+              placeholder="e.g. Daily warm-up — C major"
+              placeholderTextColor={C.icon}
+              style={[
+                styles.pdfModalInput,
+                { color: C.text, borderColor: C.icon + '55' },
+              ]}
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                setPdfTitleModalOpen(false);
+                runPdfExport(pdfTitleDraft);
+              }}
+            />
+            <View style={styles.pdfModalRow}>
+              <Button
+                label="Cancel"
+                variant="ghost"
+                size="sm"
+                onPress={() => setPdfTitleModalOpen(false)}
+              />
+              <Button
+                label="Export PDF"
+                size="sm"
+                onPress={() => {
+                  setPdfTitleModalOpen(false);
+                  runPdfExport(pdfTitleDraft);
+                }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </ThemedView>
   );
 }
@@ -705,7 +828,6 @@ const _useHistoryVersion = (v: number) => v;
 // ── Exercises (Generate) phase ────────────────────────────────────────────
 
 function ExercisesPhase({
-  passageTitle,
   pitches,
   grouping,
   keySignature,
@@ -715,7 +837,6 @@ function ExercisesPhase({
   viewportWidth,
   onBack,
 }: {
-  passageTitle: string;
   pitches: Pitch[];
   grouping: Grouping;
   keySignature: KeySignature;
@@ -728,9 +849,6 @@ function ExercisesPhase({
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const patterns = patternsByGrouping(grouping);
-  const numFullChunks = Math.floor(pitches.length / grouping);
-  const totalChunks =
-    numFullChunks + (pitches.length - numFullChunks * grouping > 0 ? 1 : 0);
   const [playingId, setPlayingId] = useState<number | null>(null);
 
   // Clear the active card when playback finishes naturally.
@@ -747,44 +865,44 @@ function ExercisesPhase({
       return;
     }
     metronome.stopPitchSequence();
-    // Treat the metronome BPM as quarter-note BPM so every pattern ticks at
-    // the same perceived pace regardless of its time-signature denominator.
-    const quarterSec = 60 / metronome.bpm;
+    // Build a parallel list of pitch frequencies and rhythm tokens, then
+    // hand them to the metronome's lookahead scheduler. The engine reads
+    // BPM each tick and uses the pattern's time-signature denominator,
+    // so playback is conventional (BPM = denominator units per minute)
+    // and changing BPM mid-playback retempos the remaining notes live.
     const freqs: number[] = [];
-    const durations: number[] = [];
+    const tokens: RhythmToken[] = [];
     const G = pattern.grouping;
     let idx = 0;
     while (idx < pitches.length) {
       const chunkEnd = Math.min(idx + G, pitches.length);
       for (let k = 0; k < chunkEnd - idx; k++) {
-        const token = pattern.notes[k];
         const p = pitches[idx + k];
         const concert = writtenToConcert(p.midi, instrument);
         freqs.push(midiToFrequency(concert));
-        durations.push(TOKEN_QUARTER_FRACTIONS[token] * quarterSec);
+        tokens.push(pattern.notes[k]);
       }
       idx = chunkEnd;
     }
     if (freqs.length === 0) return;
-    metronome.playPitchRhythm(freqs, durations);
+    const beatDenom = parseBeatDenominator(pattern.timeSig);
+    metronome.playPitchRhythm(freqs, tokens, beatDenom);
     setPlayingId(pattern.id);
   }
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={exerciseStyles.wrap}>
-      <ThemedText type="subtitle" style={{ textAlign: 'center' }} numberOfLines={1}>
-        {passageTitle}
-      </ThemedText>
-      <ThemedText style={exerciseStyles.summary}>
-        {pitches.length > 0
-          ? `${patterns.length} patterns × ${totalChunks} measure${totalChunks === 1 ? '' : 's'}`
-          : 'Enter some notes to generate exercises.'}
-      </ThemedText>
+      {pitches.length === 0 && (
+        <ThemedText style={exerciseStyles.summary}>
+          Enter some notes to generate exercises.
+        </ThemedText>
+      )}
 
       {pitches.length > 0 &&
-        patterns.map((pattern) => (
+        patterns.map((pattern, i) => (
           <ExerciseCard
             key={pattern.id}
+            num={i + 1}
             pattern={pattern}
             pitches={pitches}
             keySignature={keySignature}
@@ -808,6 +926,7 @@ function ExercisesPhase({
 }
 
 function ExerciseCard({
+  num,
   pattern,
   pitches,
   keySignature,
@@ -816,6 +935,7 @@ function ExerciseCard({
   isPlaying,
   onPlayToggle,
 }: {
+  num: number;
   pattern: RhythmPattern;
   pitches: Pitch[];
   keySignature: KeySignature;
@@ -852,10 +972,7 @@ function ExerciseCard({
           </ThemedText>
         </Pressable>
         <ThemedText style={[exerciseStyles.title, { flex: 1 }]} numberOfLines={1}>
-          #{pattern.id} · {pattern.timeSig}
-        </ThemedText>
-        <ThemedText style={exerciseStyles.tokens}>
-          {pattern.notes.join(' ')}
+          {num}.
         </ThemedText>
       </View>
       <AbcStaffView
@@ -904,11 +1021,6 @@ const exerciseStyles = StyleSheet.create({
   },
   playText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.md },
   title: { fontSize: Type.size.sm, fontWeight: Type.weight.bold },
-  tokens: {
-    fontSize: 11,
-    opacity: Opacity.muted,
-    fontFamily: 'monospace',
-  },
   backBtn: {
     marginTop: Spacing.lg,
     borderWidth: Borders.thin,
@@ -1052,5 +1164,47 @@ const styles = StyleSheet.create({
   pdfBtnText: {
     fontWeight: Type.weight.semibold,
     fontSize: Type.size.sm,
+  },
+  pdfModalBackdrop: {
+    flex: 1,
+    backgroundColor: '#00000099',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  pdfModalCard: {
+    width: '100%',
+    maxWidth: 460,
+    borderRadius: Radii.xl,
+    borderWidth: Borders.thin,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  pdfModalHint: {
+    fontSize: Type.size.sm,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  pdfModalTip: {
+    fontSize: Type.size.xs,
+    lineHeight: 17,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  pdfModalTipBold: {
+    fontWeight: Type.weight.bold,
+    fontStyle: 'normal',
+  },
+  pdfModalInput: {
+    borderWidth: Borders.thin,
+    borderRadius: Radii.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: Type.size.md,
+  },
+  pdfModalRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.sm,
   },
 });

@@ -11,6 +11,7 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -263,6 +264,16 @@ export default function UploadScreen() {
           <ThemedText style={styles.saveText}>Next: Crop</ThemedText>
         )}
       </Pressable>
+
+      <TutorialStep
+        id="upload-passage"
+        visible={false}
+        title="Add a passage photo"
+        body={
+          "Snap or upload a photo of one passage you want to drill. On phone, the camera opens directly — point at the music and shoot.\n\n" +
+          "Don't worry about getting the crop perfect here; you'll trim it on the next screen."
+        }
+      />
     </ThemedView>
   );
 }

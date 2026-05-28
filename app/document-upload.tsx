@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View }
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -145,6 +146,16 @@ export default function DocumentUploadScreen() {
           <ThemedText style={styles.saveText}>Upload + render</ThemedText>
         )}
       </Pressable>
+
+      <TutorialStep
+        id="upload-document"
+        visible={false}
+        title="Add a full part (PDF)"
+        body={
+          "Upload a multi-page PDF of an entire piece or part. Each page gets rendered into the app so you can mark individual passages on top of it later.\n\n" +
+          "Once it's uploaded you'll land on the PDF viewer, where you can chop the part into the passages you actually want to drill."
+        }
+      />
     </ThemedView>
   );
 }

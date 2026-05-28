@@ -15,6 +15,7 @@ import { SessionTopBar } from '@/components/SessionTopBar';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -374,6 +375,16 @@ export default function DocumentLogScreen() {
         destructive
         onConfirm={performDelete}
         onCancel={() => setDeleteConfirmFor(null)}
+      />
+
+      <TutorialStep
+        id="document-log"
+        visible={false}
+        title="This PDF's practice log"
+        body={
+          "Every session you've run on any passage in this PDF, grouped by section (if you've marked them).\n\n" +
+          "Sections you marked on the PDF show up here as headers, making it easy to see at a glance which movements you've been drilling and which ones you've been skipping."
+        }
       />
     </ThemedView>
   );

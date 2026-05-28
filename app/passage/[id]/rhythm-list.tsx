@@ -14,6 +14,7 @@ import { PromptModal } from '@/components/PromptModal';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -301,6 +302,15 @@ export default function RhythmListScreen() {
         submitLabel="Save"
         onSubmit={onRenameSubmit}
         onCancel={() => setPrompt(null)}
+      />
+
+      <TutorialStep
+        id="rhythm-list"
+        visible={false}
+        title="Saved exercises"
+        body={
+          "All the rhythm-variation exercises you've built for this passage. Tap one to open it for practice, or tap + New to build another."
+        }
       />
     </ThemedView>
   );

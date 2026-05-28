@@ -23,12 +23,14 @@ import { SelfLedSheet } from '@/components/SelfLedSheet';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getOrCreateExercise } from '@/lib/db/repos/exercises';
+import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import {
   getPassage,
   listPassagesInDocument,
@@ -91,6 +93,9 @@ export default function PassageDetailScreen() {
   const [passage, setPassage] = useState<Passage | null>(null);
   const [tempoLadder, setTempoLadder] = useState<TempoLadderProgress | null>(null);
   const [loading, setLoading] = useState(true);
+  // null = still loading; 0 means the user has added pieces but never
+  // practiced, which is the trigger for the "pick a strategy" tutorial.
+  const [practiceLogCount, setPracticeLogCount] = useState<number | null>(null);
   const [rhythmicSheetOpen, setRhythmicSheetOpen] = useState(false);
   const [rhythmicStep, setRhythmicStep] = useState<'mode' | 'grouping'>('mode');
   const [selfLedOpen, setSelfLedOpen] = useState(false);
@@ -141,6 +146,12 @@ export default function PassageDetailScreen() {
             if (!cancelled) setTempoLadder(tl);
           } catch {
             // exercise may not exist yet — that's fine
+          }
+          try {
+            const n = await countPracticeLogEntries();
+            if (!cancelled) setPracticeLogCount(n);
+          } catch {
+            // count failing just suppresses the tutorial — not fatal
           }
         } finally {
           if (!cancelled) setLoading(false);
@@ -593,6 +604,25 @@ export default function PassageDetailScreen() {
           },
         ]}
         onCancel={() => setPhoneMenuOpen(false)}
+      />
+
+      {/* Step 2 of the guided first-session flow. Fires on any passage
+          detail visit while the global practice log is empty — auto-
+          resolves the first time the user finishes a practice session.
+          Body adapts to phone (pills collapsed into "strategies →"
+          menu) vs tablet/desktop (pills inline below the title). */}
+      <TutorialStep
+        id="first-strategy"
+        visible={practiceLogCount === 0}
+        title="Now pick a practice strategy"
+        body={
+          (isPhone
+            ? 'Tap "strategies →" in the top right to open the strategy menu. Three are built in:\n\n'
+            : 'Each strategy above is a different way to drill this passage:\n\n') +
+          "Tempo Ladder — clicking up the metronome slowly over time.\n\n" +
+          "Interleaved Click-Up — practice each measure or beat in isolation and in ever-changing contexts and tempos. A favorite!\n\n" +
+          "Rhythmic Variation — play the passage with different rhythm patterns to expose weak spots and even out your technique."
+        }
       />
     </ThemedView>
   );

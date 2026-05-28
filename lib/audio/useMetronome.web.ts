@@ -84,6 +84,25 @@ export function useMetronome(initialBpm = 60) {
   const rhythmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rhythmGateRef = useRef<GainNode | null>(null);
 
+  // Pitch-rhythm playback state. Lookahead-scheduled (~250 ms ahead) so
+  // changes to BPM during playback retempo the remaining notes live, and
+  // the BPM is interpreted against the exercise's time-signature
+  // denominator (an "8" token in 3/8 lasts one beat at the current BPM).
+  const pitchFreqsRef = useRef<number[] | null>(null);
+  const pitchTokensRef = useRef<RhythmToken[] | null>(null);
+  const pitchBeatDenomRef = useRef<number>(4);
+  const pitchIdxRef = useRef<number>(0);
+  const pitchNextStartRef = useRef<number>(0);
+  const pitchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pitchGateRef = useRef<GainNode | null>(null);
+  const pitchEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Ref-mirror of `running` so non-render code (the pitch-rhythm
+  // start-time computation) can see live state without going stale.
+  const runningRef = useRef(false);
+  useEffect(() => {
+    runningRef.current = running;
+  }, [running]);
   useEffect(() => {
     bpmRef.current = bpm;
   }, [bpm]);
@@ -349,7 +368,10 @@ export function useMetronome(initialBpm = 60) {
       rhythmTokenIdxRef.current = 0;
     }
     const beatDenom = rhythmBeatDenomRef.current;
-    const secondsPerQuarter = (4 / beatDenom) * (60 / bpmRef.current);
+    // BPM means "denominator-units per minute" (conventional musical
+    // interpretation). secondsPerEighth = (60/bpm) when denom=8, etc.
+    // → secondsPerQuarter = secondsPerDenom * (denom/4).
+    const secondsPerQuarter = (60 / bpmRef.current) * (beatDenom / 4);
     // Schedule notes whose start time is within the next ~250 ms.
     while (rhythmNextStartRef.current < ctx.currentTime + 0.25) {
       const idx = rhythmTokenIdxRef.current;
@@ -481,14 +503,36 @@ export function useMetronome(initialBpm = 60) {
     return totalSec;
   }
 
-  function playPitchRhythm(freqs: number[], durations: number[]): number {
-    const ctx = ensureContext();
-    if (!ctx || freqs.length === 0) return 0;
-    if (ctx.state === 'suspended') ctx.resume().catch(() => undefined);
-    let cursor = ctx.currentTime + 0.05;
-    for (let i = 0; i < freqs.length; i++) {
-      const dur = durations[i] ?? 0.3;
-      const t = cursor;
+  // Lookahead tick for the pitch-rhythm scheduler. Reads bpm + denominator
+  // from refs each iteration, so a BPM change during playback retempos the
+  // remaining notes live (same pattern the metronome's rhythmTick uses).
+  function pitchTick() {
+    const ctx = ctxRef.current;
+    const freqs = pitchFreqsRef.current;
+    const tokens = pitchTokensRef.current;
+    const gate = pitchGateRef.current;
+    if (!ctx || !freqs || !tokens || !gate) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => undefined);
+    }
+    // If the audio clock fell far behind (laptop sleep, tab throttled),
+    // bail rather than spam-scheduling old notes.
+    if (pitchNextStartRef.current < ctx.currentTime - 0.5) {
+      pitchNextStartRef.current = ctx.currentTime + 0.05;
+    }
+    const beatDenom = pitchBeatDenomRef.current;
+    // See rhythmTick: BPM = denominator-units per minute (conventional).
+    const secondsPerQuarter = (60 / bpmRef.current) * (beatDenom / 4);
+    // Schedule notes whose start time falls within the next ~250 ms.
+    while (
+      pitchIdxRef.current < freqs.length &&
+      pitchNextStartRef.current < ctx.currentTime + 0.25
+    ) {
+      const i = pitchIdxRef.current;
+      // Tokens repeat as we wrap across chunks (same pattern, next pitches).
+      const token = tokens[i % tokens.length];
+      const dur = TOKEN_QUARTER_FRACTIONS[token] * secondsPerQuarter;
+      const t = pitchNextStartRef.current;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
@@ -497,32 +541,113 @@ export function useMetronome(initialBpm = 60) {
       gain.gain.setValueAtTime(0.0001, t);
       gain.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.85);
-      osc.connect(gain).connect(ctx.destination);
+      osc.connect(gain).connect(gate);
       osc.start(t);
       osc.stop(t + dur);
-      cursor += dur;
+      pitchNextStartRef.current += dur;
+      pitchIdxRef.current = i + 1;
     }
-    const totalSec = cursor - (ctx.currentTime + 0.05);
+    // All notes scheduled — clear playingSequence shortly after the last
+    // one is due to finish ringing out.
+    if (pitchIdxRef.current >= freqs.length) {
+      const remainingSec = pitchNextStartRef.current - ctx.currentTime;
+      if (pitchEndTimerRef.current) clearTimeout(pitchEndTimerRef.current);
+      pitchEndTimerRef.current = setTimeout(
+        () => setPlayingSequence(false),
+        Math.max(0, Math.ceil(remainingSec * 1000)) + 120,
+      );
+      return;
+    }
+    pitchTimerRef.current = setTimeout(pitchTick, 50);
+  }
+
+  // Start a pitch-rhythm sequence. `tokens` is the rhythm pattern (one
+  // chunk, e.g. ["8","16","16","8"]); the scheduler walks `freqs`
+  // beat-by-beat, wrapping the tokens modulo their length. Duration of
+  // each token is computed against the metronome's live BPM and the
+  // passed `beatDenominator` (so the BPM means "denominator-units per
+  // minute" — conventional musical interpretation).
+  function playPitchRhythm(
+    freqs: number[],
+    tokens: RhythmToken[],
+    beatDenominator: number,
+  ): void {
+    if (freqs.length === 0 || tokens.length === 0) return;
+    const ctx = ensureContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume().catch(() => undefined);
+    stopPitchSequence();
+    const gate = ctx.createGain();
+    gate.gain.value = 1;
+    gate.connect(ctx.destination);
+    pitchGateRef.current = gate;
+    pitchFreqsRef.current = freqs.slice();
+    pitchTokensRef.current = tokens.slice();
+    pitchBeatDenomRef.current = beatDenominator;
+    pitchIdxRef.current = 0;
+    pitchNextStartRef.current = computePitchStartTime(ctx);
     setPlayingSequence(true);
-    if (sequenceTimerRef.current) clearTimeout(sequenceTimerRef.current);
-    sequenceTimerRef.current = setTimeout(
-      () => setPlayingSequence(false),
-      Math.ceil(totalSec * 1000) + 150,
-    );
-    return totalSec;
+    pitchTick();
+  }
+
+  // If the metronome is currently clicking, align the first pitch with
+  // the next downbeat (beat 1 of the next measure) so the exercise lines
+  // up with the click track audibly. Otherwise, start ~80 ms ahead so
+  // the audio thread has time to commit the first note.
+  function computePitchStartTime(ctx: AudioContext): number {
+    const defaultStart = ctx.currentTime + 0.08;
+    if (!runningRef.current) return defaultStart;
+    const sub = subRef.current;
+    const beats = beatPatternRef.current.length;
+    if (sub <= 0 || beats <= 0) return defaultStart;
+    const ticksPerMeasure = beats * sub;
+    const tickSec = 60 / bpmRef.current / sub;
+    // subStepRef.current is the index of the NEXT tick to be scheduled,
+    // and nextNoteTimeRef.current is when that tick will fire. Walk
+    // forward to the next tick whose index is a multiple of
+    // ticksPerMeasure (a downbeat).
+    const idx = ((subStepRef.current % ticksPerMeasure) + ticksPerMeasure) %
+      ticksPerMeasure;
+    const ticksTilDownbeat = idx === 0 ? 0 : ticksPerMeasure - idx;
+    let downbeat = nextNoteTimeRef.current + ticksTilDownbeat * tickSec;
+    // Need at least ~50 ms of lead time to schedule reliably. If the
+    // computed downbeat is too close (or already past), skip to the
+    // following measure.
+    while (downbeat < ctx.currentTime + 0.05) {
+      downbeat += ticksPerMeasure * tickSec;
+    }
+    return downbeat;
   }
 
   function stopPitchSequence() {
+    if (pitchTimerRef.current) {
+      clearTimeout(pitchTimerRef.current);
+      pitchTimerRef.current = null;
+    }
+    if (pitchEndTimerRef.current) {
+      clearTimeout(pitchEndTimerRef.current);
+      pitchEndTimerRef.current = null;
+    }
     if (sequenceTimerRef.current) {
       clearTimeout(sequenceTimerRef.current);
       sequenceTimerRef.current = null;
     }
+    pitchFreqsRef.current = null;
+    pitchTokensRef.current = null;
+    pitchIdxRef.current = 0;
     setPlayingSequence(false);
-    // Re-create the AudioContext to silence any in-flight oscillators.
-    const ctx = ctxRef.current;
-    if (ctx) {
-      ctx.close().catch(() => undefined);
-      ctxRef.current = null;
+    // Mute the per-sequence gate so any in-flight oscillators silence
+    // immediately, then disconnect it. The shared AudioContext stays
+    // alive so the metronome can keep playing.
+    const gate = pitchGateRef.current;
+    if (gate) {
+      try {
+        gate.gain.value = 0;
+        gate.disconnect();
+      } catch {
+        // ignore
+      }
+      pitchGateRef.current = null;
     }
   }
 

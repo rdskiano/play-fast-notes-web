@@ -172,6 +172,16 @@ export class MetronomeEngine {
   /** Same pattern for pitch-sequence playback so Play can toggle to Stop. */
   private pitchGate: RnGainNode | null = null;
 
+  // Pitch-rhythm playback state. Lookahead-scheduled like the rhythm
+  // loop so BPM changes during playback retempo the remaining notes live.
+  private pitchFreqs: number[] | null = null;
+  private pitchTokens: RhythmToken[] | null = null;
+  private pitchBeatDenom = 4;
+  private pitchIdx = 0;
+  private pitchNextStart = 0;
+  private pitchTimer: ReturnType<typeof setTimeout> | null = null;
+  private pitchOnEnd: (() => void) | null = null;
+
   private _bpm = 80;
   private _subdivision: Subdivision = 1;
   // Matches the useMetronome hook's default (middle of the 5-step control).
@@ -316,37 +326,104 @@ export class MetronomeEngine {
   }
 
   /**
-   * Pitch sequence with per-note durations. Routed through a master gate
-   * so stopPitchSequence can mute anything still scheduled in the
-   * lookahead window. Returns total scheduled seconds.
+   * Lookahead-scheduled pitch sequence — walks `freqs` beat-by-beat,
+   * wrapping `tokens` modulo their length. Each token's duration is
+   * computed from the current BPM against `beatDenominator`
+   * (conventional "BPM = denominator-units per minute" interpretation).
+   * Re-reading BPM each tick means a BPM change during playback retempos
+   * the remaining notes live. `onEnd` fires once the last note rings out
+   * (or when stopPitchSequence cuts it short).
    */
-  playPitchRhythm(freqs: number[], durations: number[]): number {
-    if (this.unavailable || freqs.length === 0) return 0;
+  playPitchRhythm(
+    freqs: number[],
+    tokens: RhythmToken[],
+    beatDenominator: number,
+    onEnd?: () => void,
+  ): void {
+    if (this.unavailable || freqs.length === 0 || tokens.length === 0) {
+      onEnd?.();
+      return;
+    }
     this.stopPitchSequence();
     this.ensureCtx();
-    if (!this.ctx) return 0;
-    let base: number;
+    if (!this.ctx) {
+      onEnd?.();
+      return;
+    }
     try {
-      base = this.ctx.currentTime + 0.05;
       const gate = this.ctx.createGain();
       gate.gain.value = 1;
       gate.connect(this.ctx.destination);
       this.pitchGate = gate;
+      this.pitchNextStart = this.ctx.currentTime + 0.08;
     } catch {
       this.unavailable = true;
       this.ctx = null;
-      return 0;
+      onEnd?.();
+      return;
     }
-    const dest = this.pitchGate;
-    let offset = 0;
-    for (let i = 0; i < freqs.length; i++) {
-      const dur = durations[i] ?? 0.3;
+    this.pitchFreqs = freqs.slice();
+    this.pitchTokens = tokens.slice();
+    this.pitchBeatDenom = beatDenominator;
+    this.pitchIdx = 0;
+    this.pitchOnEnd = onEnd ?? null;
+    // Align first pitch with the next metronome downbeat if it's running,
+    // so the exercise lines up with the click track audibly.
+    this.pitchNextStart = this.computePitchStartTime();
+    this.pitchTick();
+  }
+
+  private computePitchStartTime(): number {
+    if (!this.ctx) return 0;
+    const defaultStart = this.ctx.currentTime + 0.08;
+    if (!this.running) return defaultStart;
+    const sub = this._subdivision;
+    const beats = this._beatPattern.length;
+    if (sub <= 0 || beats <= 0) return defaultStart;
+    const ticksPerMeasure = beats * sub;
+    const tickSec = 60 / this._bpm / sub;
+    // subCount is the count of ticks already scheduled, i.e. the index of
+    // the next tick is subCount % ticksPerMeasure.
+    const idx = ((this.subCount % ticksPerMeasure) + ticksPerMeasure) %
+      ticksPerMeasure;
+    const ticksTilDownbeat = idx === 0 ? 0 : ticksPerMeasure - idx;
+    let downbeat = this.nextNoteTime + ticksTilDownbeat * tickSec;
+    while (downbeat < this.ctx.currentTime + 0.05) {
+      downbeat += ticksPerMeasure * tickSec;
+    }
+    return downbeat;
+  }
+
+  private pitchTick = () => {
+    const freqs = this.pitchFreqs;
+    const tokens = this.pitchTokens;
+    const gate = this.pitchGate;
+    if (!this.ctx || !freqs || !tokens || !gate) return;
+    let now: number;
+    try {
+      now = this.ctx.currentTime;
+    } catch {
+      this.ctx = null;
+      return;
+    }
+    if (this.pitchNextStart < now - 0.5) {
+      this.pitchNextStart = now + 0.05;
+    }
+    // BPM = denominator-units per minute (conventional). Same formula as
+    // scheduleCycle below; mirror it so the rhythm-loop and pitch-loop
+    // tempos line up across all time signatures.
+    const secondsPerQuarter = (60 / this._bpm) * (this.pitchBeatDenom / 4);
+    const horizon = now + SCHEDULE_AHEAD_S;
+    while (this.pitchIdx < freqs.length && this.pitchNextStart < horizon) {
+      const i = this.pitchIdx;
+      const token = tokens[i % tokens.length];
+      const dur = TOKEN_QUARTER_FRACTIONS[token] * secondsPerQuarter;
+      const when = this.pitchNextStart;
       try {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.frequency.value = freqs[i];
         osc.type = 'triangle';
-        const when = base + offset;
         const peak = 0.3;
         const audibleDur = Math.min(dur * 0.95, Math.max(0.08, dur - 0.03));
         gain.gain.setValueAtTime(0.0001, when);
@@ -357,17 +434,32 @@ export class MetronomeEngine {
         );
         gain.gain.linearRampToValueAtTime(0, when + audibleDur);
         osc.connect(gain);
-        gain.connect(dest ?? this.ctx.destination);
+        gain.connect(gate);
         osc.start(when);
         osc.stop(when + audibleDur + 0.01);
       } catch {
         this.ctx = null;
-        return offset;
+        return;
       }
-      offset += dur;
+      this.pitchNextStart += dur;
+      this.pitchIdx = i + 1;
     }
-    return offset;
-  }
+    if (this.pitchIdx >= freqs.length) {
+      // All notes scheduled — fire onEnd once the last one rings out.
+      const remainingSec = Math.max(0, this.pitchNextStart - now);
+      const onEnd = this.pitchOnEnd;
+      this.pitchTimer = setTimeout(
+        () => {
+          if (onEnd) onEnd();
+          // Clear refs only after firing so a fast restart doesn't race.
+          if (this.pitchOnEnd === onEnd) this.pitchOnEnd = null;
+        },
+        Math.ceil(remainingSec * 1000) + 120,
+      );
+      return;
+    }
+    this.pitchTimer = setTimeout(this.pitchTick, LOOKAHEAD_MS);
+  };
 
   /** Even-spaced pitch sequence. Returns total scheduled seconds. */
   playPitchSequence(freqs: number[], secondsPerNote: number): number {
@@ -522,8 +614,18 @@ export class MetronomeEngine {
   }
 
   stopPitchSequence() {
+    if (this.pitchTimer) {
+      clearTimeout(this.pitchTimer);
+      this.pitchTimer = null;
+    }
+    this.pitchFreqs = null;
+    this.pitchTokens = null;
+    this.pitchIdx = 0;
+    const onEnd = this.pitchOnEnd;
+    this.pitchOnEnd = null;
     const gate = this.pitchGate;
     this.pitchGate = null;
+    if (onEnd) onEnd();
     if (gate && this.ctx) {
       try {
         const now = this.ctx.currentTime;

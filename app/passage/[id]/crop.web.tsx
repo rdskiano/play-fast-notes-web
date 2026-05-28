@@ -7,6 +7,7 @@ import { Button } from '@/components/Button';
 import { PromptModal } from '@/components/PromptModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -439,6 +440,16 @@ export default function CropScreen() {
         submitLabel="Save"
         onSubmit={handleName}
         onCancel={() => handleName('')}
+      />
+
+      <TutorialStep
+        id="passage-crop"
+        visible={false}
+        title="Crop your passage"
+        body={
+          "Drag the corner handles to crop the image down to just the music you want to drill. Trim white margins, page edges, anything that distracts.\n\n" +
+          "Tight crops zoom better on phone and tablet, so the staves are big enough to read while you play."
+        }
       />
     </ThemedView>
   );

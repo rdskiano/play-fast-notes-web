@@ -28,6 +28,7 @@ import {
 } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -465,6 +466,18 @@ export default function SettingsScreen() {
         destructive
         onConfirm={onConfirmWipe}
         onCancel={() => setWipeConfirmOpen(false)}
+      />
+
+      <TutorialStep
+        id="settings"
+        visible={false}
+        title="Settings"
+        body={
+          "Tune the look and behavior of the app to your practice habits.\n\n" +
+          "Strategy colors — pick the tint for each strategy's pill on the passage screen and in the practice log.\n\n" +
+          "Practice timers — Rotate, Micro, Cold, Break. Toggle each on/off and set how often they fire. Configurable from the Timer card on any passage screen too.\n\n" +
+          "Account — sign out or wipe your data. Wiping is permanent."
+        }
       />
     </ThemedView>
   );

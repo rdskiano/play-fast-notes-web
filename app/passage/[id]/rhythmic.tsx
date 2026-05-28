@@ -12,6 +12,7 @@ import { ScoreWithMarkers } from '@/components/ScoreWithMarkers';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
@@ -339,6 +340,28 @@ export default function RhythmicScreen() {
         onSubmit={({ mood, note, remindNext }) => finishLog(mood, note, remindNext)}
         onSkip={() => finishLog(null, null)}
       />
+
+      {phase === 'config' ? (
+        <TutorialStep
+          id="rhythmic-config"
+          visible={false}
+          title="Rhythmic Variation — pick a grouping"
+          body={
+            "How many notes are in each rhythmic unit of your passage? Count the notes in one beat or one measure — whatever feels like a natural repeating chunk — then pick that number.\n\n" +
+            "The app pulls every rhythm pattern matching that grouping from its library. You'll cycle through them on the next screen."
+          }
+        />
+      ) : (
+        <TutorialStep
+          id="rhythmic-play"
+          visible={false}
+          title="Rhythmic Variation"
+          body={
+            "Play the passage with a different rhythm pattern each time — dotted, swung, reversed, anything that breaks your default groove. Strengthens internal pulse and exposes weak spots that playing as written can hide.\n\n" +
+            "Use the controls to cycle patterns. Best when you already know the notes and want to even out your technique."
+          }
+        />
+      )}
     </ThemedView>
   );
 }

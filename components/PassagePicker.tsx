@@ -5,10 +5,12 @@
 // selected ids are owned by the parent screen.
 
 import { Image } from 'expo-image';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -76,6 +78,11 @@ export function PassagePicker({
   const [docPassages, setDocPassages] = useState<Passage[]>([]);
   const [loading, setLoading] = useState(true);
   const [width, setWidth] = useState(0);
+  // Current page index within a PDF (only meaningful when loc.kind === 'document').
+  // Matches the document viewer's nav model: horizontal-paginated, edge taps,
+  // chevrons, and arrow keys.
+  const [pageIndex, setPageIndex] = useState(0);
+  const pagerScrollRef = useRef<ScrollView>(null);
 
   // The whole folder/document tree — loaded once, used only to tally how many
   // selected passages live inside each folder and PDF (the count badges).
@@ -127,6 +134,11 @@ export function PassagePicker({
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    // Reset to the first page whenever we enter (or re-enter) a document so
+    // the user doesn't land mid-PDF on the page they happened to leave from.
+    if (loc.kind === 'document') {
+      setPageIndex(0);
+    }
     (async () => {
       try {
         if (loc.kind === 'document') {
@@ -167,6 +179,40 @@ export function PassagePicker({
 
   const title = loc.kind === 'root' ? 'Library' : loc.title;
   const pageWidth = Math.min(width - Spacing.md * 2, MAX_PAGE_WIDTH);
+
+  // Mirror the document viewer's navigation: clamp + scroll the horizontal
+  // pager to the target index.
+  const goToPage = useCallback(
+    (idx: number) => {
+      if (loc.kind !== 'document') return;
+      const max = pages.length - 1;
+      if (max < 0) return;
+      const clamped = Math.max(0, Math.min(max, idx));
+      setPageIndex(clamped);
+      pagerScrollRef.current?.scrollTo({ x: width * clamped, animated: true });
+    },
+    [loc.kind, pages.length, width],
+  );
+
+  function onPagerScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (loc.kind !== 'document' || width === 0) return;
+    const idx = Math.round(e.nativeEvent.contentOffset.x / width);
+    if (idx !== pageIndex) setPageIndex(idx);
+  }
+
+  // Arrow-key navigation on desktop, mirroring the document viewer. Bails
+  // out when typing into a text input so we don't fight form fields.
+  useEffect(() => {
+    if (loc.kind !== 'document' || typeof window === 'undefined') return;
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.key === 'ArrowRight') goToPage(pageIndex + 1);
+      else if (e.key === 'ArrowLeft') goToPage(pageIndex - 1);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [loc.kind, pageIndex, goToPage]);
 
   function renderPassageRow(p: Passage) {
     const idx = selectedIds.indexOf(p.id);
@@ -312,20 +358,89 @@ export function PassagePicker({
           <ActivityIndicator color={C.tint} />
         </View>
       ) : loc.kind === 'document' ? (
-        <ScrollView contentContainerStyle={styles.pageList}>
+        <View style={styles.pagerWrap}>
           {pages.length === 0 ? (
             <ThemedText style={[styles.empty, { color: C.icon }]}>
               This PDF has no pages.
             </ThemedText>
           ) : (
-            pages.map((page) => renderPage(page))
+            <>
+              <ScrollView
+                ref={pagerScrollRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onScroll={onPagerScroll}
+                scrollEventThrottle={32}>
+                {pages.map((page) => (
+                  <View
+                    key={page.index}
+                    style={[styles.pageSlot, { width }]}>
+                    {/* Per-page vertical scroll: portrait PDFs are usually
+                        taller than the slot, and pages here keep their
+                        explicit width/height (boxes are absolutely-positioned
+                        in source-pixel space, so we can't fall back to
+                        contentFit="contain"). RN's nested scroll handles the
+                        gesture handoff: vertical drags scroll the page,
+                        horizontal swipes flip the page. */}
+                    <ScrollView
+                      contentContainerStyle={styles.pageSlotInner}
+                      showsVerticalScrollIndicator={false}>
+                      {renderPage(page)}
+                    </ScrollView>
+                  </View>
+                ))}
+              </ScrollView>
+
+              {/* Edge tap zones — wide invisible areas matching the document
+                  viewer's tap-anywhere-on-the-edge muscle memory. */}
+              <Pressable
+                style={[styles.pickerTapZone, { left: 0 }]}
+                onPress={() => goToPage(pageIndex - 1)}
+                accessibilityLabel="Previous page"
+              />
+              <Pressable
+                style={[styles.pickerTapZone, { right: 0 }]}
+                onPress={() => goToPage(pageIndex + 1)}
+                accessibilityLabel="Next page"
+              />
+
+              {/* Visible chevrons for mouse users. */}
+              {pageIndex > 0 && (
+                <Pressable
+                  onPress={() => goToPage(pageIndex - 1)}
+                  hitSlop={10}
+                  style={[styles.pickerNavBtn, styles.pickerNavLeft, { borderColor: C.icon }]}
+                  accessibilityLabel="Previous page">
+                  <ThemedText style={[styles.pickerNavGlyph, { color: C.tint }]}>‹</ThemedText>
+                </Pressable>
+              )}
+              {pageIndex < pages.length - 1 && (
+                <Pressable
+                  onPress={() => goToPage(pageIndex + 1)}
+                  hitSlop={10}
+                  style={[styles.pickerNavBtn, styles.pickerNavRight, { borderColor: C.icon }]}
+                  accessibilityLabel="Next page">
+                  <ThemedText style={[styles.pickerNavGlyph, { color: C.tint }]}>›</ThemedText>
+                </Pressable>
+              )}
+
+              {/* Page counter — bottom center. */}
+              <View pointerEvents="none" style={styles.pickerPageCounter}>
+                <ThemedText style={[styles.pickerPageCounterText, { color: C.icon }]}>
+                  {pageIndex + 1} / {pages.length}
+                </ThemedText>
+              </View>
+            </>
           )}
           {pages.length > 0 && docPassages.length === 0 && (
-            <ThemedText style={[styles.empty, { color: C.icon }]}>
-              No passages have been marked in this PDF yet.
-            </ThemedText>
+            <View pointerEvents="none" style={styles.pickerEmptyOverlay}>
+              <ThemedText style={[styles.empty, { color: C.icon }]}>
+                No passages have been marked in this PDF yet.
+              </ThemedText>
+            </View>
           )}
-        </ScrollView>
+        </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
           {folders.length === 0 && docs.length === 0 && loose.length === 0 && (
@@ -458,6 +573,57 @@ const styles = StyleSheet.create({
     fontSize: Type.size.sm,
   },
   pageList: { padding: Spacing.md, gap: Spacing.md, alignItems: 'center' },
+  pagerWrap: { flex: 1 },
+  pageSlot: {
+    height: '100%',
+  },
+  pageSlotInner: {
+    padding: Spacing.md,
+    alignItems: 'center',
+  },
+  pickerTapZone: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 60,
+  },
+  pickerNavBtn: {
+    position: 'absolute',
+    top: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: Borders.thin,
+    backgroundColor: '#ffffffcc',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerNavLeft: { left: 8 },
+  pickerNavRight: { right: 8 },
+  pickerNavGlyph: {
+    fontSize: 28,
+    lineHeight: 30,
+    fontWeight: Type.weight.heavy,
+  },
+  pickerPageCounter: {
+    position: 'absolute',
+    bottom: 8,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  pickerPageCounterText: {
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.semibold,
+  },
+  pickerEmptyOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingTop: Spacing.xl,
+  },
   page: {
     position: 'relative',
     backgroundColor: '#fff',

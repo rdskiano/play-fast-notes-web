@@ -15,6 +15,7 @@ import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Button } from '@/components/Button';
 import { Colors } from '@/constants/theme';
@@ -148,6 +149,16 @@ export default function ChunkingScreen() {
         cancelLabel="Skip"
         onSubmit={({ mood, note, remindNext }) => finishLog(mood, note, remindNext)}
         onSkip={() => finishLog(null, null)}
+      />
+
+      <TutorialStep
+        id="chunking-play"
+        visible={false}
+        title="Chunking"
+        body={
+          "Drill the passage one chunk at a time, growing the chunk as each one locks in. The app walks you through the sequence so you don't have to remember where you stopped.\n\n" +
+          "Good for taming a long passage that feels like one wall of notes — breaks it into bite-sized goals."
+        }
       />
     </ThemedView>
   );

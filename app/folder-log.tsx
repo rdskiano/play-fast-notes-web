@@ -9,6 +9,7 @@ import { SessionTopBar } from '@/components/SessionTopBar';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -405,6 +406,16 @@ export default function FolderLogScreen() {
         destructive
         onConfirm={performDelete}
         onCancel={() => setDeleteConfirmFor(null)}
+      />
+
+      <TutorialStep
+        id="folder-log"
+        visible={false}
+        title="Folder practice log"
+        body={
+          "Every session you've run on any passage inside this folder. Useful for tracking progress on a single work or student.\n\n" +
+          "Tap any entry to expand notes, mood, and recordings."
+        }
       />
     </ThemedView>
   );

@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,6 +15,7 @@ import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
@@ -31,6 +32,7 @@ import {
   totalRepsInPattern,
   type CustomPattern,
 } from '@/lib/strategies/customPatterns';
+import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import {
   createCustomPattern,
   updateCustomPattern,
@@ -54,6 +56,24 @@ export default function TempoLadderScreen() {
   // count stays stable across renders (config → loading → play phases).
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+
+  // Practice-log count for the first-time tutorial gate. Hoisted above
+  // the phase-based early returns for the same hook-count-stability
+  // reason as isPhone. null = still loading; 0 = first-timer.
+  const [practiceLogCount, setPracticeLogCount] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    countPracticeLogEntries()
+      .then((n) => {
+        if (!cancelled) setPracticeLogCount(n);
+      })
+      .catch(() => {
+        // count failing just suppresses the tutorial — not fatal
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const session = useTempoLadderSession(id);
   const {
@@ -339,6 +359,23 @@ export default function TempoLadderScreen() {
             setEditorOpen(false);
           }}
         />
+
+        {/* Step 3 of the guided first-session flow. Fires on the
+            Tempo Ladder setup screen while the user has never
+            completed a practice session — auto-resolves once any
+            strategy logs an entry. */}
+        <TutorialStep
+          id="tempo-ladder-setup"
+          visible={practiceLogCount === 0}
+          title="Set up your Tempo Ladder"
+          body={
+            "Three modes to pick from:\n\n" +
+            "Step click-up — the metronome bumps up after N clean reps in a row. Best place to start.\n\n" +
+            "Randomized cluster — each rep is a random tempo between two tempos you choose. Keeps you sharp because you never know what's coming. Choose how many you have to get in a row to bump up the cluster.\n\n" +
+            "Custom — build your own sequence (like 9 reps at base + 1 rep at base+10). One clean run bumps the tempo; one miss restarts the pattern.\n\n" +
+            "Then set your Start BPM (well below your target), Goal BPM (your performance tempo), and tap Start."
+          }
+        />
       </ThemedView>
     );
   }
@@ -596,6 +633,18 @@ export default function TempoLadderScreen() {
           dismissCelebration();
           endSession();
         }}
+      />
+
+      <TutorialStep
+        id="tempo-ladder-play"
+        visible={false}
+        title="Running a Tempo Ladder"
+        body={
+          "Play a rep at the current tempo, then mark it:\n\n" +
+          "✓ Clean — counts toward your target reps in a row. Once you hit your target, the metronome bumps up by your increment.\n\n" +
+          "✗ Miss — resets your streak (Step / Cluster) or restarts the pattern (Custom).\n\n" +
+          "Keyboard shortcuts on laptop: Space = Clean ✓, X = Miss ✗. Foot pedals work the same. Tap ✕ at the top-left to end the session and log it."
+        }
       />
     </View>
   );

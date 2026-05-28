@@ -14,27 +14,40 @@ import { useEffect, useRef } from 'react';
 
 // Keys a typical Bluetooth foot pedal sends. Letters / numbers are
 // intentionally excluded so the pedal mode doesn't intercept characters
-// the user might type elsewhere on the page.
-const PEDAL_KEYS = new Set([
+// the user might type elsewhere on the page. Two-pedal pedals send a
+// "forward" key on the right pedal (PageDown / right / down / Space) and
+// a "back" key on the left (PageUp / left / up). When `onBack` is wired,
+// we route each set to its own action; when it isn't, every key advances
+// (the historical behavior for Tempo Ladder / Interleaved).
+const FORWARD_KEYS = new Set([
   'ArrowDown',
-  'ArrowUp',
   'ArrowRight',
-  'ArrowLeft',
   'PageDown',
-  'PageUp',
   ' ', // Space
   'Spacebar', // legacy
   'Enter',
+]);
+const BACK_KEYS = new Set([
+  'ArrowUp',
+  'ArrowLeft',
+  'PageUp',
+  'Backspace',
 ]);
 
 export function PedalCatcher({
   active,
   onAdvance,
+  onBack,
   secondaryKey,
   onSecondary,
 }: {
   active: boolean;
   onAdvance: () => void;
+  // Optional "go back a step" binding (Click-Up). When provided, BACK_KEYS
+  // (left/up/pageup/backspace — the left pedal on a two-pedal foot switch)
+  // fire `onBack` instead of `onAdvance`. When omitted, every pedal key
+  // advances, matching the original behavior.
+  onBack?: () => void;
   // Optional second binding for screens with two rep outcomes
   // (Tempo Ladder, Interleaved): Space = Clean (advance), X = Miss.
   // Compared case-insensitively. The advance keys (Space, Enter, arrows,
@@ -67,7 +80,14 @@ export function PedalCatcher({
         e.key.toLowerCase() === secondaryKey.toLowerCase()
       ) {
         action = onSecondary;
-      } else if (PEDAL_KEYS.has(e.key)) {
+      } else if (onBack && BACK_KEYS.has(e.key)) {
+        action = onBack;
+      } else if (FORWARD_KEYS.has(e.key)) {
+        action = onAdvance;
+      } else if (!onBack && BACK_KEYS.has(e.key)) {
+        // Back binding not requested → preserve the historical "any pedal
+        // key advances" behavior so screens that haven't opted in (Tempo
+        // Ladder, Interleaved) keep working with single-action pedals.
         action = onAdvance;
       }
       if (!action) return;
@@ -83,7 +103,7 @@ export function PedalCatcher({
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [active, onAdvance, secondaryKey, onSecondary]);
+  }, [active, onAdvance, onBack, secondaryKey, onSecondary]);
 
   return null;
 }
