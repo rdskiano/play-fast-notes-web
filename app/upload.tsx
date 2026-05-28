@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -22,22 +21,6 @@ function newPassageId(): string {
   return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-type Picked = { file: File; previewUrl: string; aspectRatio: number };
-
-function readImageAspectRatio(url: string): Promise<number> {
-  if (typeof window === 'undefined') return Promise.resolve(1);
-  return new Promise((resolve) => {
-    const img = new window.Image();
-    img.onload = () => {
-      const w = img.naturalWidth || 1;
-      const h = img.naturalHeight || 1;
-      resolve(w / h);
-    };
-    img.onerror = () => resolve(1);
-    img.src = url;
-  });
-}
-
 export default function UploadScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ folder?: string }>();
@@ -45,7 +28,6 @@ export default function UploadScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
 
-  const [picked, setPicked] = useState<Picked | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -53,13 +35,6 @@ export default function UploadScreen() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const dropZoneRef = useRef<View | null>(null);
-  // Keep the latest preview URL in a ref so the drop-zone listeners (which
-  // are bound once in useEffect) revoke the *current* URL on re-pick rather
-  // than a stale closure capture.
-  const pickedPreviewRef = useRef<string | null>(null);
-  useEffect(() => {
-    pickedPreviewRef.current = picked?.previewUrl ?? null;
-  }, [picked]);
 
   function openFilePicker() {
     fileInputRef.current?.click();
@@ -69,22 +44,42 @@ export default function UploadScreen() {
     cameraInputRef.current?.click();
   }
 
-  async function ingest(file: File) {
+  // The previous flow required two taps: pick the file → see a preview →
+  // tap "Next: Crop" to save and navigate. The preview added no value
+  // (the crop screen is the natural next step), so we now save and
+  // navigate as soon as a file is in hand — one tap from camera shutter
+  // to the crop view.
+  async function ingestAndCrop(file: File) {
     if (!file.type.startsWith('image/')) {
       setError('That file isn’t an image. Drop a PNG, JPG, or HEIC.');
       return;
     }
-    if (pickedPreviewRef.current) URL.revokeObjectURL(pickedPreviewRef.current);
-    const previewUrl = URL.createObjectURL(file);
-    const aspectRatio = await readImageAspectRatio(previewUrl);
-    setPicked({ file, previewUrl, aspectRatio });
+    setSaving(true);
     setError(null);
+    const id = newPassageId();
+    try {
+      await insertPassage({
+        id,
+        title: 'Untitled',
+        composer: null,
+        source_kind: 'image',
+        source_uri: '',
+        thumbnail_uri: null,
+        folder_id: targetFolderId,
+      });
+      const publicUrl = await uploadPassageImage(id, file);
+      await updatePassageAssets(id, publicUrl, publicUrl);
+      router.replace(`/passage/${id}/crop`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setSaving(false);
+    }
   }
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    await ingest(file);
+    await ingestAndCrop(file);
     // Reset so re-picking the same file re-fires onChange.
     e.target.value = '';
   }
@@ -99,7 +94,7 @@ export default function UploadScreen() {
       e.preventDefault();
       setDragOver(false);
       const file = e.dataTransfer?.files?.[0];
-      if (file) void ingest(file);
+      if (file) void ingestAndCrop(file);
     }
     function handleOver(e: DragEvent) {
       e.preventDefault();
@@ -120,38 +115,6 @@ export default function UploadScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function clearPicked() {
-    if (picked?.previewUrl) URL.revokeObjectURL(picked.previewUrl);
-    setPicked(null);
-  }
-
-  const canSave = !!picked && !saving;
-
-  async function onSave() {
-    if (!canSave || !picked) return;
-    setSaving(true);
-    setError(null);
-    const id = newPassageId();
-    try {
-      await insertPassage({
-        id,
-        title: 'Untitled',
-        composer: null,
-        source_kind: 'image',
-        source_uri: '',
-        thumbnail_uri: null,
-        folder_id: targetFolderId,
-      });
-      const publicUrl = await uploadPassageImage(id, picked.file);
-      await updatePassageAssets(id, publicUrl, publicUrl);
-      if (picked.previewUrl) URL.revokeObjectURL(picked.previewUrl);
-      router.replace(`/passage/${id}/crop`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setSaving(false);
-    }
-  }
-
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -166,11 +129,13 @@ export default function UploadScreen() {
           <Pressable
             ref={dropZoneRef}
             onPress={openFilePicker}
+            disabled={saving}
             style={[
               styles.dropZone,
               {
                 borderColor: dragOver ? C.tint : C.icon,
                 backgroundColor: dragOver ? C.tint + '14' : 'transparent',
+                opacity: saving ? 0.5 : 1,
               },
             ]}>
             <ThemedText style={styles.dropTitle}>
@@ -190,7 +155,11 @@ export default function UploadScreen() {
               there too, just less useful. */}
           <Pressable
             onPress={openCamera}
-            style={[styles.cameraBtn, { borderColor: C.tint }]}>
+            disabled={saving}
+            style={[
+              styles.cameraBtn,
+              { borderColor: C.tint, opacity: saving ? 0.5 : 1 },
+            ]}>
             <ThemedText style={[styles.cameraBtnText, { color: C.tint }]}>
               📷  Take a photo
             </ThemedText>
@@ -203,6 +172,7 @@ export default function UploadScreen() {
 
           <Pressable
             style={[styles.multiPageBtn, { borderColor: C.icon }]}
+            disabled={saving}
             onPress={() =>
               router.push({
                 pathname: '/multi-page',
@@ -214,19 +184,12 @@ export default function UploadScreen() {
             </ThemedText>
           </Pressable>
 
-          {picked && (
-            <View style={[styles.previewWrap, { borderColor: C.icon }]}>
-              <Image
-                source={{ uri: picked.previewUrl }}
-                style={[styles.preview, { aspectRatio: picked.aspectRatio }]}
-                contentFit="contain"
-              />
-              <Pressable
-                style={styles.removeBtn}
-                onPress={clearPicked}
-                hitSlop={8}>
-                <ThemedText style={styles.removeText}>✕</ThemedText>
-              </Pressable>
+          {saving && (
+            <View style={styles.savingRow}>
+              <ActivityIndicator color={C.tint} />
+              <ThemedText style={[styles.savingText, { color: C.icon }]}>
+                Saving photo — opening crop tool…
+              </ThemedText>
             </View>
           )}
 
@@ -254,24 +217,13 @@ export default function UploadScreen() {
         style={{ display: 'none' }}
       />
 
-      <Pressable
-        style={[styles.saveBtn, { backgroundColor: canSave ? C.tint : C.icon }]}
-        disabled={!canSave}
-        onPress={onSave}>
-        {saving ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <ThemedText style={styles.saveText}>Next: Crop</ThemedText>
-        )}
-      </Pressable>
-
       <TutorialStep
         id="upload-passage"
         visible={false}
         title="Add a passage photo"
         body={
           "Snap or upload a photo of one passage you want to drill. On phone, the camera opens directly — point at the music and shoot.\n\n" +
-          "Don't worry about getting the crop perfect here; you'll trim it on the next screen."
+          "You'll land on the crop screen right away; trim it to just the bars you want to practice."
         }
       />
     </ThemedView>
@@ -316,42 +268,19 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     alignItems: 'center',
   },
-  previewWrap: {
-    borderWidth: Borders.thin,
-    borderRadius: Radii.lg,
-    padding: 6,
-    position: 'relative',
-  },
-  preview: {
-    width: '100%',
-    borderRadius: Radii.sm,
-  },
-  removeBtn: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 28,
-    height: 28,
-    borderRadius: Radii.xl,
-    backgroundColor: '#c0392b',
+  savingRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
   },
-  removeText: {
-    color: '#fff',
-    fontWeight: Type.weight.heavy,
-    fontSize: Type.size.md,
+  savingText: {
+    fontSize: Type.size.sm,
   },
   error: {
     color: '#c0392b',
     textAlign: 'center',
     fontSize: Type.size.sm,
   },
-  saveBtn: {
-    margin: 20,
-    borderRadius: Radii.lg,
-    padding: 18,
-    alignItems: 'center',
-  },
-  saveText: { color: '#fff', fontWeight: Type.weight.bold, fontSize: Type.size.xl },
 });
