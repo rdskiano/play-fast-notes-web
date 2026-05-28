@@ -260,6 +260,12 @@ Also caught a **latent bug** in the existing rhythm-loop scheduler (the "▶ Loo
 
 **What was deliberately not done**: pushing the exercise's time signature onto the metronome panel's displayed meter. The meter stays under user control. Natural next step if this divergence ever feels confusing.
 
+**Follow-up fixes shipped same day:**
+
+- **Pencil tool gating** (commit `62fa056`). The pencil tab was showing on laptops/phones without a stylus event. Two coupled fixes: (1) `app/passage/[id]/rhythm-builder.tsx` dropped `'pencil'` from its hardcoded `tools` list (it was a dead "coming soon" placeholder anyway — no `PencilCanvas` wired up). (2) [`hooks/usePenDetected.web.ts`](hooks/usePenDetected.web.ts) made persistence honest — tablet auto-detect no longer writes to `localStorage` (it's recomputed fresh each visit so device characteristics drive the answer rather than a stuck flag); only a real `pointerType === 'pen'` event persists. Storage key bumped to `pfn:pen-detected-v2` so stale v1 flags users carry from earlier touch-shaped sessions reset to fresh. See `[[project_phone_density_and_zoom]]` for the updated gate behavior.
+
+- **Add Passage — skip preview step** (commit `a0e5b55`). Single-photo upload flow collapsed: pick / snap → save uploads + navigates to crop in one shot. Removed `picked` state, the preview render block, and the bottom "Next: Crop" button from [`app/upload.tsx`](app/upload.tsx). New `ingestAndCrop(file)` runs the Supabase insert + upload + `updatePassageAssets` pipeline inline; while it's in flight the picker buttons disable and an inline "Saving photo — opening crop tool…" spinner row shows. `app/multi-page.tsx` is unchanged because its preview is doing real work (confirming page 1 vs page 2 ordering before commit). See `[[project_upload_skip_preview]]`.
+
 ## Where to pick up next
 
 In rough priority order:

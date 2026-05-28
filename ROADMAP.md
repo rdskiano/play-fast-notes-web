@@ -28,6 +28,12 @@ Also caught a **latent bug** in the existing rhythm-loop scheduler (the standalo
 
 **What's NOT done.** Did *not* push the exercise's time signature onto the metronome panel's displayed meter — the meter stays under user control. If a 3/8 exercise plays while the metronome is set to 4/4, the first note aligns to the metronome's downbeat but the two streams unfold in their own meters thereafter. Natural next step if this divergence ever feels confusing.
 
+**Follow-up fixes shipped same day:**
+
+- **Pencil tool gating** (commit `62fa056`). Pencil tab was showing on laptops/phones without a stylus event. Two coupled fixes: rhythm-builder Generate phase dropped `'pencil'` from its tools list (it was a dead "coming soon" placeholder there); `hooks/usePenDetected.web.ts` stopped persisting the tablet auto-detect result to `localStorage` — only a real `pointerType === 'pen'` event persists now, and the storage key bumped to `pfn:pen-detected-v2` so stuck v1 flags from earlier sessions reset.
+
+- **Add Passage — preview step removed** (commit `a0e5b55`). Single-photo upload flow now goes pick / snap → inline saving spinner → crop, in one shot. Removed the picked-preview render block and the "Next: Crop" save button from `app/upload.tsx` in favor of an `ingestAndCrop(file)` that runs the Supabase insert + upload + asset update pipeline inline. Multi-page flow (`app/multi-page.tsx`) is unchanged because its preview is doing real work (confirming page 1 vs page 2 ordering before commit).
+
 ## Unified-codebase migration (active 2026-05-19)
 
 **Why:** Web and iPad were duplicating effort. Every UI feature implemented twice in different paradigms (DOM events vs RN gestures, browser Canvas vs ImageManipulator, etc.). Drift was constant.
