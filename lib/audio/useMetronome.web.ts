@@ -60,6 +60,14 @@ export function useMetronome(initialBpm = 60) {
   const [droneMidi, setDroneMidiState] = useState(69); // A4
   const [droneSustain, setDroneSustainState] = useState(0.6);
   const [droneA4, setDroneA4State] = useState(440);
+  // Opt-in tempo-bump signal. The MetronomePanel shows a floating "↑ N"
+  // only when a caller passes `{ animateBump: true }` to setBpm (today just
+  // the Interleaved Click-Up advance). `token` changes on each animated
+  // bump; `delta` is the BPM increase to display.
+  const [bump, setBump] = useState<{ token: number; delta: number }>({
+    token: 0,
+    delta: 0,
+  });
 
   const ctxRef = useRef<AudioContext | null>(null);
   const nextNoteTimeRef = useRef(0);
@@ -313,8 +321,13 @@ export function useMetronome(initialBpm = 60) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interrupted]);
 
-  function setBpm(v: number) {
-    setBpmState(Math.max(20, Math.min(300, Math.round(v))));
+  function setBpm(v: number, opts?: { animateBump?: boolean }) {
+    const next = Math.max(20, Math.min(300, Math.round(v)));
+    if (opts?.animateBump) {
+      const delta = next - bpmRef.current;
+      if (delta > 0) setBump((b) => ({ token: b.token + 1, delta }));
+    }
+    setBpmState(next);
   }
   function setSubdivision(s: Subdivision) {
     setSubdivisionState(s);
@@ -662,6 +675,7 @@ export function useMetronome(initialBpm = 60) {
     droneMidi,
     droneSustain,
     droneA4,
+    bump,
     setBpm,
     setSubdivision,
     setBeatPattern,

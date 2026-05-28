@@ -489,8 +489,8 @@ export default function TempoLadderScreen() {
           keyboard there, so the line would just steal vertical space
           from the score. */}
       {!isPhone && (
-        <ThemedText style={[styles.kbdHint, { color: C.icon }]}>
-          Space = Clean ✓ · X = Miss ✗
+        <ThemedText style={[styles.kbdHint, { color: C.text }]}>
+          Space or foot pedal = Clean ✓ · X = Miss ✗
         </ThemedText>
       )}
 
@@ -854,13 +854,16 @@ const styles = StyleSheet.create({
   missBtn: { backgroundColor: '#c0392b' },
   repBtnText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: 17 },
 
-  // Small one-line keyboard / pedal hint under the top bar (laptop only).
+  // Small one-line keyboard / pedal hint under the top bar (laptop +
+  // tablet). Kept high-contrast so it's legible on an iPad screen rather
+  // than fading into the background.
   kbdHint: {
     textAlign: 'center',
-    fontSize: 11,
+    fontSize: 13,
+    fontWeight: Type.weight.semibold,
     paddingHorizontal: Spacing.md,
     paddingVertical: 4,
-    opacity: Opacity.muted,
+    opacity: 0.9,
   },
 
   // Phone overlays. Z-indexed above the score but below modals.

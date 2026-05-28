@@ -156,7 +156,10 @@ export function useClickUpSession(id: string | undefined) {
       microbreak.trigger();
     }
     setCurrentIndex(nextIdx);
-    metronome.setBpm(storedConfig.steps[nextIdx].tempo);
+    // Interleaved Click-Up is the one place we surface the "↑ N" tempo-bump
+    // animation on the metronome — advancing a step is the moment the user
+    // is meant to notice the climb.
+    metronome.setBpm(storedConfig.steps[nextIdx].tempo, { animateBump: true });
     await setClickUpIndex(exerciseId, nextIdx);
   }
 

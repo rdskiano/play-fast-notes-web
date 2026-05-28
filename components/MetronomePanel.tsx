@@ -172,23 +172,19 @@ export function MetronomePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [beatPattern]);
 
-  // BPM-bump indicator — when a practice strategy (Click-Up, Tempo
-  // Ladder) climbs the tempo on NEXT, a "+5" floats above the BPM
-  // readout so the user sees that something happened. Only fires on
-  // positive deltas; the ± buttons and tap-tempo are filtered out by
-  // requiring a delta of at least the strategy increment range.
-  const prevBpmRef = useRef(m.bpm);
+  // BPM-bump indicator — a "↑ N" floats above the BPM readout when a
+  // strategy explicitly opts in by calling setBpm(tempo, { animateBump:
+  // true }). Today that's only the Interleaved Click-Up advance; every
+  // other tempo change (Tempo Ladder, Serial Practice tempo restore,
+  // manual ± / tap-tempo, session start) is deliberately silent. The
+  // metronome exposes a `bump` signal whose `token` changes on each
+  // animated bump, so we key the animation off that rather than guessing
+  // from the BPM delta.
   const bumpAnim = useRef(new Animated.Value(0)).current;
   const [bumpDelta, setBumpDelta] = useState(0);
   useEffect(() => {
-    const prev = prevBpmRef.current;
-    prevBpmRef.current = m.bpm;
-    const delta = m.bpm - prev;
-    // ±1/±5 button presses also change the BPM, but a strategy bump is
-    // typically 2/5/10. Treat any positive jump ≥ 2 as a strategy bump
-    // so single-step manual tweaks don't flash the indicator.
-    if (delta < 2) return;
-    setBumpDelta(delta);
+    if (m.bump.token === 0 || m.bump.delta <= 0) return;
+    setBumpDelta(m.bump.delta);
     bumpAnim.setValue(0);
     Animated.sequence([
       Animated.timing(bumpAnim, {
@@ -203,7 +199,7 @@ export function MetronomePanel({
         useNativeDriver: true,
       }),
     ]).start();
-  }, [m.bpm, bumpAnim]);
+  }, [m.bump.token, m.bump.delta, bumpAnim]);
 
   // Tap-for-tempo: average the gaps between recent taps.
   const tapsRef = useRef<number[]>([]);

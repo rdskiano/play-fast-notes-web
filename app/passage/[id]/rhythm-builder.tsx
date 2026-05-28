@@ -115,6 +115,15 @@ export default function RhythmBuilderScreen() {
   // often wants something more descriptive (e.g. "Daily warm-up — C major").
   const [pdfTitleModalOpen, setPdfTitleModalOpen] = useState(false);
   const [pdfTitleDraft, setPdfTitleDraft] = useState('');
+  const pdfTitleInputRef = useRef<TextInput>(null);
+  // `autoFocus` alone doesn't reliably raise the keyboard on iPad Safari
+  // once the modal's fade has run; nudge focus on the next frame so the
+  // keyboard comes up on open without a second tap.
+  useEffect(() => {
+    if (!pdfTitleModalOpen) return;
+    const t = setTimeout(() => pdfTitleInputRef.current?.focus(), 50);
+    return () => clearTimeout(t);
+  }, [pdfTitleModalOpen]);
 
   const metronome = useMetronome(80);
   const historyRef = useRef<Pitch[][]>([]);
@@ -784,6 +793,7 @@ export default function RhythmBuilderScreen() {
               bottom of each page.
             </ThemedText>
             <TextInput
+              ref={pdfTitleInputRef}
               value={pdfTitleDraft}
               onChangeText={setPdfTitleDraft}
               autoFocus

@@ -39,6 +39,13 @@ export function useMetronome(initialBpm: number = 60) {
   const [droneSustain, setDroneSustainState] = useState(0.6);
   const [droneA4, setDroneA4State] = useState(440);
   const sequenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Opt-in tempo-bump signal. The MetronomePanel shows a floating "↑ N"
+  // only when a caller passes `{ animateBump: true }` to setBpm (today just
+  // the Interleaved Click-Up advance). Mirrors useMetronome.web.ts.
+  const [bump, setBump] = useState<{ token: number; delta: number }>({
+    token: 0,
+    delta: 0,
+  });
 
   // Auto-pause during interruptions (microbreak / Play It Cold). If the
   // metronome was running when the interruption started, resume when it ends.
@@ -82,9 +89,16 @@ export function useMetronome(initialBpm: number = 60) {
     droneMidi,
     droneSustain,
     droneA4,
-    setBpm(v: number) {
+    bump,
+    setBpm(v: number, opts?: { animateBump?: boolean }) {
+      const prev = engineRef.current?.bpm ?? bpm;
       engineRef.current?.setBpm(v);
-      setBpmState(engineRef.current?.bpm ?? v);
+      const next = engineRef.current?.bpm ?? v;
+      if (opts?.animateBump) {
+        const delta = next - prev;
+        if (delta > 0) setBump((b) => ({ token: b.token + 1, delta }));
+      }
+      setBpmState(next);
     },
     setVolume(v: number) {
       engineRef.current?.setVolume(v);

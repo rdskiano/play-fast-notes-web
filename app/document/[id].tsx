@@ -190,7 +190,12 @@ export default function DocumentScreen() {
   const effectiveDims = isSaveActive ? dimensionsBaselineRef.current : { w: width, h: height };
   const isLandscape = effectiveDims.w > effectiveDims.h;
   const autoViewMode: ViewMode = isLandscape ? 'spread' : 'single';
-  const viewMode: ViewMode = viewModeOverride ?? autoViewMode;
+  // Portrait is always single-page — a two-page spread only makes sense in
+  // landscape, where there's room for two pages side by side. The spread/
+  // single toggle (and any saved override) only applies in landscape; in
+  // portrait we ignore the override so a spread set in landscape doesn't
+  // carry over when the iPad is rotated upright.
+  const viewMode: ViewMode = isLandscape ? (viewModeOverride ?? autoViewMode) : 'single';
   function toggleViewMode() {
     const nextMode: ViewMode = viewMode === 'spread' ? 'single' : 'spread';
     setViewModeOverride(nextMode === autoViewMode ? null : nextMode);

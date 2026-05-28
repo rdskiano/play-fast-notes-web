@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -40,9 +40,17 @@ export function PromptModal({
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const [value, setValue] = useState(initialValue);
+  const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    if (visible) setValue(initialValue);
+    if (!visible) return;
+    setValue(initialValue);
+    // `autoFocus` alone doesn't reliably raise the keyboard on iPad Safari
+    // once the modal's fade animation has run — the focus lands before the
+    // input has settled, so the user has to tap the field a second time.
+    // Nudging focus on the next frame brings the keyboard up on open.
+    const t = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(t);
   }, [visible, initialValue]);
 
   return (
@@ -58,6 +66,7 @@ export function PromptModal({
           <ThemedText type="subtitle">{title}</ThemedText>
           {message && <ThemedText style={{ opacity: 0.7 }}>{message}</ThemedText>}
           <TextInput
+            ref={inputRef}
             autoFocus
             value={value}
             onChangeText={setValue}
