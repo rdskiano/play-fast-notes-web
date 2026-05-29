@@ -5,6 +5,7 @@ import {
   usePlayItColdTimer,
 } from '@/components/PracticeTimersContext';
 import { TOKEN_QUARTER_FRACTIONS, type RhythmToken } from '@/lib/strategies/rhythmPatterns';
+import { getGroove, STEPS_PER_QUARTER, type Groove } from '@/lib/audio/grooves';
 
 /**
  * Subdivision = clicks per beat: 1 (quarter), 2 (eighths), 3 (triplet),
@@ -45,6 +46,115 @@ function writeSavedVolume(v: number): void {
 // 'mute' (skipped). Mirrors lib/audio/metronomeEngine.ts.
 export type BeatState = 'accent' | 'normal' | 'mute';
 
+// ── Synthesised drum kit (Web Audio) ──────────────────────────────────────
+// Drum-machine voices built from oscillators + filtered noise — no samples.
+// Each schedules itself at AudioContext time `t` into `dest`, scaled by hit
+// velocity `vel` (0..1) and the metronome's master `vol`.
+
+function makeNoiseBuffer(ctx: AudioContext): AudioBuffer {
+  const len = Math.floor(ctx.sampleRate * 1);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  return buf;
+}
+
+function drumKick(ctx: AudioContext, dest: AudioNode, t: number, vel: number, vol: number) {
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(150, t);
+  osc.frequency.exponentialRampToValueAtTime(50, t + 0.12);
+  const peak = Math.max(0.0002, vel * vol * 1.4);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+  osc.connect(g).connect(dest);
+  osc.start(t);
+  osc.stop(t + 0.2);
+}
+
+function drumSnare(
+  ctx: AudioContext,
+  dest: AudioNode,
+  noise: AudioBuffer,
+  t: number,
+  vel: number,
+  vol: number,
+) {
+  // Noise body
+  const src = ctx.createBufferSource();
+  src.buffer = noise;
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 1500;
+  const ng = ctx.createGain();
+  const npeak = Math.max(0.0002, vel * vol * 0.9);
+  ng.gain.setValueAtTime(npeak, t);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+  src.connect(hp).connect(ng).connect(dest);
+  src.start(t);
+  src.stop(t + 0.2);
+  // Tone body
+  const osc = ctx.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.value = 180;
+  const tg = ctx.createGain();
+  const tpeak = Math.max(0.0002, vel * vol * 0.5);
+  tg.gain.setValueAtTime(tpeak, t);
+  tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+  osc.connect(tg).connect(dest);
+  osc.start(t);
+  osc.stop(t + 0.12);
+}
+
+function drumHat(
+  ctx: AudioContext,
+  dest: AudioNode,
+  noise: AudioBuffer,
+  t: number,
+  vel: number,
+  vol: number,
+  open: boolean,
+) {
+  const src = ctx.createBufferSource();
+  src.buffer = noise;
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 7000;
+  const g = ctx.createGain();
+  const dur = open ? 0.3 : 0.05;
+  const peak = Math.max(0.0002, vel * vol * 0.6);
+  g.gain.setValueAtTime(peak, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(hp).connect(g).connect(dest);
+  src.start(t);
+  src.stop(t + dur + 0.02);
+}
+
+function drumClap(
+  ctx: AudioContext,
+  dest: AudioNode,
+  noise: AudioBuffer,
+  t: number,
+  vel: number,
+  vol: number,
+) {
+  const src = ctx.createBufferSource();
+  src.buffer = noise;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1200;
+  bp.Q.value = 1.2;
+  const g = ctx.createGain();
+  const peak = Math.max(0.0002, vel * vol * 0.8);
+  g.gain.setValueAtTime(peak, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+  src.connect(bp).connect(g).connect(dest);
+  src.start(t);
+  src.stop(t + 0.14);
+}
+
 /**
  * Web Audio API metronome with subdivision support, imperative
  * start / stop / toggle, plus a rhythm-pattern looper used by Rhythmic
@@ -83,6 +193,18 @@ export function useMetronome(initialBpm = 60) {
   const droneEnabledRef = useRef(false);
   const droneFreqRef = useRef(440);
   const droneSustainRef = useRef(0.6);
+
+  // Groove ("Rhythms") state — a drum-machine pattern that replaces the
+  // plain click while active. Scheduled on its own lookahead loop, gated on
+  // `running` so the Play button drives it like the click.
+  const [activeGroove, setActiveGrooveState] = useState<string | null>(null);
+  const grooveRef = useRef<Groove | null>(null);
+  const grooveActiveRef = useRef(false);
+  const grooveStepRef = useRef(0);
+  const grooveNextStartRef = useRef(0);
+  const grooveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const grooveGateRef = useRef<GainNode | null>(null);
+  const noiseBufRef = useRef<AudioBuffer | null>(null);
 
   // Rhythm loop state
   const rhythmTokensRef = useRef<RhythmToken[] | null>(null);
@@ -191,7 +313,11 @@ export function useMetronome(initialBpm = 60) {
         const beatIndex = Math.floor(tim / sub);
         const isBeatStart = tim % sub === 0;
         const beatState = pattern[beatIndex] ?? 'normal';
-        if (beatState !== 'mute') {
+        // When a groove is active it replaces the plain click entirely —
+        // the groove scheduler produces the sound. The click loop keeps
+        // running silently so timing stays continuous if the groove is
+        // toggled off mid-play.
+        if (beatState !== 'mute' && !grooveActiveRef.current) {
           if (droneEnabledRef.current) {
             // Drone-click: a pitched tone with a fast, defined attack that
             // always ends before the next tick so each beat stays
@@ -462,6 +588,117 @@ export function useMetronome(initialBpm = 60) {
     }
   }
 
+  // ── Groove loop ("Rhythms") ────────────────────────────────────────────
+  // Lookahead-schedules a drum pattern at the current BPM. Step duration is
+  // a sixteenth of the current quarter, read live so the groove retempos
+  // with the dial. Loops the bar forever until stopped.
+  function grooveTick() {
+    const ctx = ctxRef.current;
+    const groove = grooveRef.current;
+    const gate = grooveGateRef.current;
+    const noise = noiseBufRef.current;
+    if (!ctx || !groove || !gate || !noise) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => undefined);
+    }
+    if (grooveNextStartRef.current < ctx.currentTime - 0.5) {
+      grooveNextStartRef.current = ctx.currentTime + 0.08;
+      grooveStepRef.current = 0;
+    }
+    while (grooveNextStartRef.current < ctx.currentTime + 0.25) {
+      const stepSec = 60 / bpmRef.current / STEPS_PER_QUARTER;
+      const step = grooveStepRef.current;
+      const t = grooveNextStartRef.current;
+      const v = volRef.current;
+      for (const h of groove.hits) {
+        if (h.step !== step) continue;
+        const vel = h.vel ?? 1;
+        switch (h.voice) {
+          case 'kick':
+            drumKick(ctx, gate, t, vel, v);
+            break;
+          case 'snare':
+            drumSnare(ctx, gate, noise, t, vel, v);
+            break;
+          case 'hat':
+            drumHat(ctx, gate, noise, t, vel, v, false);
+            break;
+          case 'openHat':
+            drumHat(ctx, gate, noise, t, vel, v, true);
+            break;
+          case 'clap':
+            drumClap(ctx, gate, noise, t, vel, v);
+            break;
+        }
+      }
+      grooveStepRef.current = (step + 1) % groove.steps;
+      grooveNextStartRef.current += stepSec;
+    }
+    grooveTimerRef.current = setTimeout(grooveTick, 40);
+  }
+
+  function startGrooveLoop() {
+    stopGrooveLoop();
+    const ctx = ensureContext();
+    if (!ctx || !grooveRef.current) return;
+    if (ctx.state === 'suspended') ctx.resume().catch(() => undefined);
+    if (!noiseBufRef.current) noiseBufRef.current = makeNoiseBuffer(ctx);
+    const gate = ctx.createGain();
+    gate.gain.value = 1;
+    gate.connect(ctx.destination);
+    grooveGateRef.current = gate;
+    grooveStepRef.current = 0;
+    grooveNextStartRef.current = ctx.currentTime + 0.1;
+    grooveTick();
+  }
+
+  function stopGrooveLoop() {
+    if (grooveTimerRef.current !== null) {
+      clearTimeout(grooveTimerRef.current);
+      grooveTimerRef.current = null;
+    }
+    const gate = grooveGateRef.current;
+    grooveGateRef.current = null;
+    if (gate && ctxRef.current) {
+      try {
+        const now = ctxRef.current.currentTime;
+        gate.gain.setValueAtTime(gate.gain.value, now);
+        gate.gain.linearRampToValueAtTime(0, now + 0.02);
+      } catch {
+        // ignore
+      }
+      setTimeout(() => {
+        try {
+          gate.disconnect();
+        } catch {
+          // ignore
+        }
+      }, 80);
+    }
+  }
+
+  // Select (or clear, with null) the active groove. Sets the refs the click
+  // scheduler reads to suppress itself; the lifecycle effect below starts /
+  // stops the actual loop based on `running` + this selection.
+  function setGroove(id: string | null) {
+    const g = getGroove(id);
+    grooveRef.current = g;
+    grooveActiveRef.current = g !== null;
+    setActiveGrooveState(g ? g.id : null);
+  }
+
+  // Drive the groove loop off the Play button + current selection: start
+  // when both running and a groove is chosen, stop otherwise.
+  useEffect(() => {
+    if (running && grooveRef.current) {
+      startGrooveLoop();
+    } else {
+      stopGrooveLoop();
+    }
+    return () => stopGrooveLoop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, activeGroove]);
+
   // ── Pitch playback (Exercise Builder) ──────────────────────────────
   // One-shot or sequence of sine-wave tones. Used by the entry-phase
   // piano keyboard to sound the tapped note, and by the Play button to
@@ -675,10 +912,12 @@ export function useMetronome(initialBpm = 60) {
     droneMidi,
     droneSustain,
     droneA4,
+    activeGroove,
     bump,
     setBpm,
     setSubdivision,
     setBeatPattern,
+    setGroove,
     setDroneEnabled,
     setDroneMidi,
     setDroneSustain,

@@ -211,15 +211,13 @@ export function PracticeToolsLayer({
             // gaps and the root's 18-px padding top and bottom = ~277).
             // The earlier 220 × 230 was too small and the card was
             // clipping both the right edge of the play row and the
-            // bottom of the play row. When a strategy supplies a NEXT
-            // button (metronomeNext) the tempo block grows by ~50 px
-            // so we bump height to 330.
+            // bottom of the play row. Phone now always shows the action
+            // row (the RHYTHMS button — and NEXT when a strategy supplies
+            // it), so it needs the taller 330 in both phone cases.
             panelWidth={isPhone ? 240 : 280}
             panelHeight={
               isPhone
-                ? metronomeNext
-                  ? 330
-                  : 280
+                ? 330
                 : metronomeNote
                   ? 384
                   : 312

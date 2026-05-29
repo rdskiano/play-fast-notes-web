@@ -38,6 +38,12 @@ export function useMetronome(initialBpm: number = 60) {
   const [droneMidi, setDroneMidiState] = useState(69); // A4
   const [droneSustain, setDroneSustainState] = useState(0.6);
   const [droneA4, setDroneA4State] = useState(440);
+  // Groove ("Rhythms") selection. Native drum synthesis is not wired up yet
+  // (the web engine has it); this keeps the selection state + API shape in
+  // sync with the web hook so the shared MetronomePanel compiles and runs.
+  // On native, selecting a groove is currently a no-op for audio — the plain
+  // click keeps playing. TODO: synth drums via react-native-audio-api.
+  const [activeGroove, setActiveGrooveState] = useState<string | null>(null);
   const sequenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Opt-in tempo-bump signal. The MetronomePanel shows a floating "↑ N"
   // only when a caller passes `{ animateBump: true }` to setBpm (today just
@@ -89,6 +95,7 @@ export function useMetronome(initialBpm: number = 60) {
     droneMidi,
     droneSustain,
     droneA4,
+    activeGroove,
     bump,
     setBpm(v: number, opts?: { animateBump?: boolean }) {
       const prev = engineRef.current?.bpm ?? bpm;
@@ -110,6 +117,11 @@ export function useMetronome(initialBpm: number = 60) {
     },
     setBeatPattern(pattern: BeatState[]) {
       engineRef.current?.setBeatPattern(pattern);
+    },
+    setGroove(id: string | null) {
+      // Audio no-op on native for now (see note above); just tracks the
+      // selection so the panel reflects it.
+      setActiveGrooveState(id);
     },
     setDroneEnabled(enabled: boolean) {
       engineRef.current?.setDroneEnabled(enabled);

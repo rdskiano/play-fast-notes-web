@@ -8,6 +8,16 @@ This roadmap covers **both surfaces** (iOS/iPad + web) of the unified Play Fast 
 
 The old web-only context note (2026-05-17 Mac upgrade) is now folded into history. iPad still uses local Xcode builds for the user's working device; web now ships from this repo via Vercel.
 
+## ✅ 2026-05-29 — Metronome Rhythms (groove player); drone retired from the UI
+
+The metronome's secondary button switched from **DRONE MET** to **RHYTHMS**. The pitched drone is **disabled in the UI but kept in code** (state, engine hooks, `DroneOverlay` all intact in `useMetronome.{web,ts}` + `MetronomePanel.tsx`) so it can be revived.
+
+- **What it does.** RHYTHMS replaces the plain click with a drum-machine **groove** at the current tempo, matched to the selected **meter**. The button opens `RhythmsOverlay` — a centred picker listing grooves for that meter plus "Just the click". Selecting one plays it (starts the metronome if stopped), highlights the button, and replaces the click; changing the meter clears it (grooves are meter-specific). Now available on **phone**, not just tablet/desktop (the phone metronome card grew to a flat 330 to fit the always-present action row; TAP TEMPO stays desktop-only).
+- **Synthesised, on purpose.** Drums are oscillator + filtered-noise voices (`drumKick/Snare/Hat/Clap` in `useMetronome.web.ts`), scheduled by a dedicated lookahead `grooveTick` loop gated on `running`; the click loop runs silently underneath (`grooveActiveRef` mutes the click synth) so toggling back is seamless. We **tried real CC0 acoustic samples (Versilian VCSL) and reverted** — for electronic styles the synth is already ~808, and clean-licensed rock/electronic kits don't exist; orchestral concert-percussion samples sounded worse for these grooves. (If revisited: one-shots in `public/drums/`, `fetch`+`decodeAudioData`, `BufferSource` per hit, prefer-sample/synth-fallback. No murky-licensed kits — paid-tier app.)
+- **Grooves shipped** (`lib/audio/grooves.ts`): 4/4 — Rock, Pop, Funk, Four-on-the-floor; 3/4 — Waltz, Jazz waltz, Latin; 6/8 — groove, march. Grid is sixteenth-steps (`STEPS_PER_QUARTER = 4`); meter labels match `MetronomePanel`'s `METERS`.
+- **Native** (`useMetronome.ts`) has `activeGroove` + `setGroove` as a **state-only stub** (no drum audio yet — the click keeps playing). It defines `MetronomeApi` via `ReturnType`, so it must stay in sync with the web hook's return shape. Drum audio for iPad is a follow-up (web is live; iPad isn't cut over).
+- In-app help (`constants/helpCopy.ts`) 🥁 line updated to mention RHYTHMS. **Not yet pushed.**
+
 ## ✅ 2026-05-29 — Serial Practice → Rep Rotator (rename + simplify)
 
 "Serial Practice" became **Rep Rotator** — a rename + simplification, not a feature add. Full notes in `[[project_rep_rotator]]`.

@@ -266,6 +266,23 @@ Also caught a **latent bug** in the existing rhythm-loop scheduler (the "▶ Loo
 
 - **Add Passage — skip preview step** (commit `a0e5b55`). Single-photo upload flow collapsed: pick / snap → save uploads + navigates to crop in one shot. Removed `picked` state, the preview render block, and the bottom "Next: Crop" button from [`app/upload.tsx`](app/upload.tsx). New `ingestAndCrop(file)` runs the Supabase insert + upload + `updatePassageAssets` pipeline inline; while it's in flight the picker buttons disable and an inline "Saving photo — opening crop tool…" spinner row shows. `app/multi-page.tsx` is unchanged because its preview is doing real work (confirming page 1 vs page 2 ordering before commit). See `[[project_upload_skip_preview]]`.
 
+## ✅ 2026-05-29 — Metronome Rhythms (groove player); drone retired from the UI
+
+The metronome's pitched **drone** is **disabled in the UI but not deleted** — all the drone state, engine hooks, and the `DroneOverlay` config modal stay in `useMetronome.{web,ts}` + `MetronomePanel.tsx` so it can be revived. The "DRONE MET" button is repurposed to **RHYTHMS**.
+
+**What RHYTHMS does.** Replaces the plain click with a drum-machine **groove** at the current tempo, matched to the chosen **meter**. Tapping it opens a centred picker (`RhythmsOverlay`) listing grooves for that meter plus "Just the click" (off). Selecting a groove plays it (and starts the metronome if stopped); it glows when active; changing the meter clears it (grooves are meter-specific). Available on **phone too** (unlike the old drone button) — the phone metronome card height went to a flat 330 to fit the always-present action row.
+
+**Sound = synthesised, intentionally.** Drums are built from oscillators + filtered noise in `useMetronome.web.ts` (`drumKick/Snare/Hat/Clap`), scheduled by a dedicated lookahead `grooveTick` loop gated on `running`. The click loop keeps running silently while a groove is active (`grooveActiveRef` suppresses the click synth) so toggling back is seamless. **We tried real CC0 acoustic samples (VCSL) and reverted** — the synth (essentially an 808 for electronic styles) sounded better than orchestral concert-percussion samples, and no clean-licensed rock/electronic kit exists. If samples are revisited, the path is: drop one-shots in `public/drums/`, load via `fetch`+`decodeAudioData`, play a `BufferSource` per hit (prefer-sample / synth-fallback). Don't ship a kit with murky licensing — this is a paid-tier-bound app.
+
+**Key files:**
+- `lib/audio/grooves.ts` — groove data (types + library + `groovesForMeter`/`getGroove`). Grid = `STEPS_PER_QUARTER` (4) sixteenth-steps per quarter; meter labels match `MetronomePanel`'s `METERS`. Shipped grooves: 4/4 (Rock, Pop, Funk, Four-on-the-floor), 3/4 (Waltz, Jazz waltz, Latin), 6/8 (groove, march).
+- `lib/audio/useMetronome.web.ts` — synth voices + `grooveTick`/`startGrooveLoop`/`stopGrooveLoop` + `setGroove`; exposes `activeGroove`.
+- `lib/audio/useMetronome.ts` (native) — `activeGroove` + `setGroove` **state-only stub** (no native drum audio yet; the click keeps playing). It defines `MetronomeApi` (`ReturnType`), so it MUST stay in sync with the web hook's return shape or the shared panel won't type-check.
+- `components/MetronomePanel.tsx` — RHYTHMS button + `RhythmsOverlay`; `DroneOverlay` kept but unrendered.
+- `constants/helpCopy.ts` — the 🥁 line mentions RHYTHMS.
+
+**Open follow-ups:** native (iPad) drum audio is unimplemented (web is live; iPad isn't cut over). 6/8 tempo is read as quarter-note BPM (fine since the groove replaces the click). Tunable: per-voice gain balance, more grooves/meters.
+
 ## Where to pick up next
 
 In rough priority order:

@@ -8,6 +8,7 @@ import { BpmStepper } from '@/components/BpmStepper';
 import { Button } from '@/components/Button';
 import { CelebrationModal } from '@/components/CelebrationModal';
 import { CollapsibleHelp } from '@/components/CollapsibleHelp';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { CustomPatternDots } from '@/components/CustomPatternDots';
 import { CustomPatternEditor } from '@/components/CustomPatternEditor';
 import { PedalCatcher } from '@/components/PedalCatcher';
@@ -18,7 +19,7 @@ import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
@@ -36,6 +37,7 @@ import {
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import {
   createCustomPattern,
+  deleteCustomPattern,
   updateCustomPattern,
 } from '@/lib/supabase/customPatterns';
 import {
@@ -59,6 +61,9 @@ export default function TempoLadderScreen() {
   // mode; null = new-build.
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorInitial, setEditorInitial] = useState<CustomPattern | null>(null);
+  // Saved custom pattern queued for deletion — drives the confirm dialog.
+  const [pendingDelete, setPendingDelete] = useState<CustomPattern | null>(null);
+  const [deleting, setDeleting] = useState(false);
   // Phone density check — hoisted ABOVE all early returns so the hook
   // count stays stable across renders (config → loading → play phases).
   const { width: vpW, height: vpH } = useWindowDimensions();
@@ -200,6 +205,7 @@ export default function TempoLadderScreen() {
                   setEditorInitial(p);
                   setEditorOpen(true);
                 }}
+                onDelete={() => setPendingDelete(p)}
               />
             ))}
             <ModeCard
@@ -367,6 +373,39 @@ export default function TempoLadderScreen() {
             await selectCustomPattern(saved.id);
             setMode('custom');
             setEditorOpen(false);
+          }}
+        />
+
+        <ConfirmModal
+          visible={pendingDelete !== null}
+          title="Delete this pattern?"
+          message={
+            pendingDelete
+              ? `"${pendingDelete.name}" will be removed from your saved patterns. This can't be undone.`
+              : undefined
+          }
+          confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+          cancelLabel="Cancel"
+          destructive
+          onConfirm={async () => {
+            if (!pendingDelete || deleting) return;
+            setDeleting(true);
+            try {
+              const deletedId = pendingDelete.id;
+              await deleteCustomPattern(deletedId);
+              // If the deleted pattern was the active selection, fall back
+              // to Step mode so the form isn't stuck on a missing pattern.
+              if (mode === 'custom' && customPatternId === deletedId) {
+                setMode('step');
+              }
+              await reloadCustomPatterns();
+              setPendingDelete(null);
+            } finally {
+              setDeleting(false);
+            }
+          }}
+          onCancel={() => {
+            if (!deleting) setPendingDelete(null);
           }}
         />
 
@@ -674,6 +713,7 @@ function ModeCard({
   selected,
   onPress,
   onEdit,
+  onDelete,
   dashed = false,
 }: {
   title: string;
@@ -681,6 +721,7 @@ function ModeCard({
   selected: boolean;
   onPress: () => void;
   onEdit?: () => void;
+  onDelete?: () => void;
   dashed?: boolean;
 }) {
   const scheme = useColorScheme() ?? 'light';
@@ -713,16 +754,31 @@ function ModeCard({
         numberOfLines={2}>
         {subtitle}
       </ThemedText>
-      {onEdit && (
-        <Pressable
-          onPress={onEdit}
-          hitSlop={8}
-          style={styles.modeCardEditBtn}
-          accessibilityLabel="Edit pattern">
-          <ThemedText style={[styles.modeCardEditGlyph, { color: C.icon }]}>
-            ✎
-          </ThemedText>
-        </Pressable>
+      {(onEdit || onDelete) && (
+        <View style={styles.modeCardActions}>
+          {onEdit && (
+            <Pressable
+              onPress={onEdit}
+              hitSlop={8}
+              style={styles.modeCardActionBtn}
+              accessibilityLabel="Edit pattern">
+              <ThemedText style={[styles.modeCardEditGlyph, { color: C.icon }]}>
+                ✎
+              </ThemedText>
+            </Pressable>
+          )}
+          {onDelete && (
+            <Pressable
+              onPress={onDelete}
+              hitSlop={8}
+              style={styles.modeCardActionBtn}
+              accessibilityLabel="Delete pattern">
+              <ThemedText style={[styles.modeCardEditGlyph, { color: Status.danger }]}>
+                🗑
+              </ThemedText>
+            </Pressable>
+          )}
+        </View>
       )}
     </Pressable>
   );
@@ -806,10 +862,14 @@ const styles = StyleSheet.create({
     fontSize: Type.size.xs,
     lineHeight: 16,
   },
-  modeCardEditBtn: {
+  modeCardActions: {
     position: 'absolute',
     top: 4,
     right: 6,
+    flexDirection: 'row',
+    gap: 2,
+  },
+  modeCardActionBtn: {
     width: 22,
     height: 22,
     alignItems: 'center',

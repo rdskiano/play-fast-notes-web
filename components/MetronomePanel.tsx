@@ -22,6 +22,7 @@ import { ActionSheet } from '@/components/ActionSheet';
 import { NoteValueGlyph, type NoteValue } from '@/components/NoteValueGlyph';
 import { ThemedText } from '@/components/themed-text';
 import { VolumeSlider } from '@/components/VolumeSlider';
+import { groovesForMeter } from '@/lib/audio/grooves';
 import { Spacing, Type } from '@/constants/tokens';
 import type {
   BeatState,
@@ -164,7 +165,10 @@ export function MetronomePanel({
   ]);
   const [meterOpen, setMeterOpen] = useState(false);
   const [subOpen, setSubOpen] = useState(false);
+  // Drone is retired from the UI (replaced by Rhythms) but kept in code so
+  // it can be revived; `droneOpen` never opens now.
   const [droneOpen, setDroneOpen] = useState(false);
+  const [rhythmsOpen, setRhythmsOpen] = useState(false);
 
   // Push the pattern to the audio engine on mount and whenever it changes.
   useEffect(() => {
@@ -229,6 +233,9 @@ export function MetronomePanel({
     // If the current subdivision isn't valid for the new meter, reset it.
     const subs = subsFor(meterKind(label));
     if (!subs.some((s) => s.value === m.subdivision)) m.setSubdivision(1);
+    // Grooves are meter-specific — drop the active one when the meter changes
+    // so the click comes back rather than a pattern that no longer matches.
+    if (m.activeGroove != null) m.setGroove(null);
   }
 
   function cycleBeat(i: number) {
@@ -349,39 +356,34 @@ export function MetronomePanel({
             <ThemedText style={styles.stepGlyph}>+</ThemedText>
           </Pressable>
         </View>
-        {/* Phone hides TAP TEMPO and DRONE MET to shrink the card —
-            tap-tempo is rarely used mid-practice (you set BPM via the
-            stepper) and drone setup is too fiddly on a 240px-wide
-            card. NEXT, when supplied by a strategy, stays visible
-            because it IS the advance action. Open the metronome on
-            tablet/desktop to access tap + drone. */}
-        {(!isPhone || onNext) && (
-          <View style={styles.actionRow}>
-            {onNext ? (
-              <Pressable onPress={onNext} style={[styles.nextBtn, styles.raised]}>
-                <ThemedText style={styles.nextText}>NEXT →</ThemedText>
-              </Pressable>
-            ) : (
-              <Pressable onPress={onTapTempo} style={[styles.tapBtn, styles.raised]}>
-                <ThemedText style={styles.tapText}>TAP TEMPO</ThemedText>
-              </Pressable>
-            )}
-            {!isPhone && (
-              <Pressable
-                onPress={() => setDroneOpen(true)}
-                style={[
-                  styles.tapBtn,
-                  styles.raised,
-                  m.droneEnabled && { backgroundColor: DEVICE.accent },
-                ]}>
-                <ThemedText
-                  style={[styles.tapText, m.droneEnabled && { color: '#fff' }]}>
-                  DRONE MET
-                </ThemedText>
-              </Pressable>
-            )}
-          </View>
-        )}
+        {/* RHYTHMS is available everywhere (including phone) — it's the
+            most useful secondary control. TAP TEMPO is desktop-only
+            (rarely used mid-practice; you set BPM via the stepper). NEXT,
+            when a strategy supplies it, takes the left slot as the advance
+            action. On phone with no NEXT, RHYTHMS sits alone full-width. */}
+        <View style={styles.actionRow}>
+          {onNext ? (
+            <Pressable onPress={onNext} style={[styles.nextBtn, styles.raised]}>
+              <ThemedText style={styles.nextText}>NEXT →</ThemedText>
+            </Pressable>
+          ) : !isPhone ? (
+            <Pressable onPress={onTapTempo} style={[styles.tapBtn, styles.raised]}>
+              <ThemedText style={styles.tapText}>TAP TEMPO</ThemedText>
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={() => setRhythmsOpen(true)}
+            style={[
+              styles.tapBtn,
+              styles.raised,
+              m.activeGroove != null && { backgroundColor: DEVICE.accent },
+            ]}>
+            <ThemedText
+              style={[styles.tapText, m.activeGroove != null && { color: '#fff' }]}>
+              RHYTHMS
+            </ThemedText>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.divider} />
@@ -439,6 +441,13 @@ export function MetronomePanel({
         visible={droneOpen}
         m={m}
         onClose={() => setDroneOpen(false)}
+      />
+
+      <RhythmsOverlay
+        visible={rhythmsOpen}
+        m={m}
+        meter={meter}
+        onClose={() => setRhythmsOpen(false)}
       />
     </View>
   );
@@ -560,6 +569,89 @@ function DroneOverlay({
               );
             })}
           </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+// Rhythms picker — a centred modal listing drum-machine grooves for the
+// current meter. Selecting one replaces the plain click with that groove at
+// the current tempo (and starts playback if stopped). "Just the click"
+// clears it. Stays open so the user can audition grooves.
+function RhythmsOverlay({
+  visible,
+  m,
+  meter,
+  onClose,
+}: {
+  visible: boolean;
+  m: MetronomeApi;
+  meter: string;
+  onClose: () => void;
+}) {
+  const grooves = groovesForMeter(meter);
+
+  function pick(id: string | null) {
+    m.setGroove(id);
+    if (id != null && !m.running) m.start();
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.droneBackdrop} onPress={onClose}>
+        <Pressable style={styles.droneCard} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.overlayHeader}>
+            <ThemedText style={styles.overlayTitle}>Rhythms · {meter}</ThemedText>
+            <Pressable onPress={onClose} hitSlop={8} style={[styles.doneBtn, styles.raised]}>
+              <ThemedText style={styles.doneText}>Done</ThemedText>
+            </Pressable>
+          </View>
+
+          {grooves.length === 0 ? (
+            <ThemedText style={styles.droneHint}>
+              No rhythms for {meter} yet. Try 4/4, 3/4, or 6/8.
+            </ThemedText>
+          ) : (
+            <>
+              <Pressable
+                onPress={() => pick(null)}
+                style={[
+                  styles.grooveRow,
+                  styles.raised,
+                  { backgroundColor: m.activeGroove == null ? DEVICE.accent : DEVICE.cap },
+                ]}>
+                <ThemedText
+                  style={[
+                    styles.grooveName,
+                    { color: m.activeGroove == null ? '#fff' : DEVICE.text },
+                  ]}>
+                  Just the click
+                </ThemedText>
+              </Pressable>
+              {grooves.map((g) => {
+                const sel = m.activeGroove === g.id;
+                return (
+                  <Pressable
+                    key={g.id}
+                    onPress={() => pick(g.id)}
+                    style={[
+                      styles.grooveRow,
+                      styles.raised,
+                      { backgroundColor: sel ? DEVICE.accent : DEVICE.cap },
+                    ]}>
+                    <ThemedText
+                      style={[styles.grooveName, { color: sel ? '#fff' : DEVICE.text }]}>
+                      {g.name}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+              <ThemedText style={styles.droneHint}>
+                Plays at your current tempo. Change the meter for other styles.
+              </ThemedText>
+            </>
+          )}
         </Pressable>
       </Pressable>
     </Modal>
@@ -759,6 +851,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  grooveRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DEVICE.rim,
+  },
+  grooveName: {
+    fontSize: 15,
+    fontWeight: Type.weight.bold,
+    textAlign: 'center',
   },
   overlayTitle: {
     fontSize: 17,
