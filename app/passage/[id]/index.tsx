@@ -26,6 +26,7 @@ import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
+import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
@@ -40,7 +41,7 @@ import {
 import { getTempoLadder, type TempoLadderProgress } from '@/lib/db/repos/tempoLadder';
 import { rememberPassageInDoc } from '@/lib/sessions/lastPassageInDoc';
 
-type StrategyKey = 'tempo_ladder' | 'click_up' | 'rhythmic';
+type StrategyKey = 'tempo_ladder' | 'click_up' | 'rhythmic' | 'rep_rotator';
 
 type StrategyDef = {
   key: StrategyKey;
@@ -52,6 +53,7 @@ const STRATEGIES: StrategyDef[] = [
   { key: 'tempo_ladder', label: 'Tempo Ladder', enabled: true },
   { key: 'click_up', label: 'Interleaved Click-Up', enabled: true },
   { key: 'rhythmic', label: 'Rhythmic Variation', enabled: true },
+  { key: 'rep_rotator', label: 'Rep Rotator', enabled: true },
 ];
 
 // Reading order across a document: page first, then top-to-bottom, then
@@ -257,6 +259,13 @@ export default function PassageDetailScreen() {
     } else if (key === 'rhythmic') {
       setRhythmicStep('mode');
       setRhythmicSheetOpen(true);
+    } else if (key === 'rep_rotator') {
+      guardedNav(() =>
+        router.push({
+          pathname: '/interleaved',
+          params: { seedPassageId: passage.id },
+        }),
+      );
     }
   }
 
@@ -617,11 +626,18 @@ export default function PassageDetailScreen() {
         title="Now pick a practice strategy"
         body={
           (isPhone
-            ? 'Tap "strategies →" in the top right to open the strategy menu. Three are built in:\n\n'
+            ? 'Tap "strategies →" in the top right to open the menu. Inside:\n\n'
             : 'Each strategy above is a different way to drill this passage:\n\n') +
           "Tempo Ladder — clicking up the metronome slowly over time.\n\n" +
           "Interleaved Click-Up — practice each measure or beat in isolation and in ever-changing contexts and tempos. A favorite!\n\n" +
-          "Rhythmic Variation — play the passage with different rhythm patterns to expose weak spots and even out your technique."
+          "Rhythmic Variation — play the passage with different rhythm patterns to expose weak spots and even out your technique.\n\n" +
+          "Rep Rotator — 🔀 drill this passage shuffled together with its siblings.\n\n" +
+          "Self-Led — your own structured drills (chunking and more).\n\n" +
+          "Practice History — every session you've logged on this passage.\n\n" +
+          "Crop — re-trim the boxed region of the score.\n\n" +
+          "Move between passages with the ‹ › arrows, by swiping, or with the ← / → keys.\n\n" +
+          "Notes for next time — a reminders banner near the top; tap to expand, or dismiss when done.\n\n" +
+          PRACTICE_TOOLS_HELP
         }
       />
     </ThemedView>

@@ -26,6 +26,7 @@ import { ThemedText } from '@/components/themed-text';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { ThemedView } from '@/components/themed-view';
+import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -697,6 +698,7 @@ export default function RhythmBuilderScreen() {
               "Switch to sharps / Switch to flats — toggles the default enharmonic spelling for new notes.\n\n" +
               "↶ Undo — remove the last pitch you entered.\n\n" +
               "Clear — wipe everything and start over.\n\n" +
+              "‹ Back to setup — return to the instrument, key, clef, and grouping pickers.\n\n" +
               "When the sequence is right, tap Generate → to render fully-notated rhythm-variation exercises."
             }
           />
@@ -731,7 +733,9 @@ export default function RhythmBuilderScreen() {
               "Every rhythm pattern the app generated for your pitches, listed below. Tap ▶ next to a pattern to hear it with the metronome.\n\n" +
               "PDF — export the full set as printable sheet music you can read off the stand.\n\n" +
               "EDIT — go back and tweak the pitches, key, or grouping.\n\n" +
-              "DONE — save the session and exit."
+              "← Back to pitch entry — at the bottom of the list, returns you to the pitch keyboard without leaving the session.\n\n" +
+              "DONE — save the session and exit." +
+              `\n\n${PRACTICE_TOOLS_HELP}`
             }
           />
         </View>

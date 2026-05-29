@@ -152,8 +152,9 @@ export default function DocumentUploadScreen() {
         visible={false}
         title="Add a full part (PDF)"
         body={
-          "Upload a multi-page PDF of an entire piece or part. Each page gets rendered into the app so you can mark individual passages on top of it later.\n\n" +
-          "Once it's uploaded you'll land on the PDF viewer, where you can chop the part into the passages you actually want to drill."
+          "Tap \"Pick PDF\" to choose a multi-page PDF of an entire piece or part. Each page gets rendered into the app so you can mark individual passages on top of it later.\n\n" +
+          "Give it a Title — this is required, and \"Upload + render\" stays greyed out until both a PDF and a title are set. It auto-fills from the file's name once you pick a PDF, but you can edit it. Composer is optional.\n\n" +
+          "Tap \"Upload + render\" to send the PDF up and render its pages. Once it's done you'll land on the PDF viewer, where you can chop the part into the passages you actually want to drill."
         }
       />
     </ThemedView>

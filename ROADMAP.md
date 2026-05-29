@@ -1,12 +1,22 @@
 # Play Fast Notes — Roadmap (unified)
 
-_Last updated: 2026-05-28_
+_Last updated: 2026-05-29_
 
 This roadmap covers **both surfaces** (iOS/iPad + web) of the unified Play Fast Notes app, which lives in this directory (`play-fast-notes/`). The two older repos (`../learn-fast-notes/` for iPad and `../play-fast-notes-web/` for web) are read-only archives and their roadmaps are historical only.
 
 > **🚀 2026-05-24 — WEB CUTOVER COMPLETE.** `playfastnotes.com` now ships from THIS repo via `git push web-origin-archive master` (the remote alias still has the "archive" word, but it points at `rdskiano/play-fast-notes-web` and Vercel auto-deploys from there). The 2026-05-23/24 push (`3d031c2` + `17767f6`) shipped: web Recorder + web Pencil (stylus-gated) + PWA + camera capture + phone density pass + per-passage pinch-zoom + timer overhaul (4 timers Rotate/Micro/Cold/Break + ⚙ settings sheet) + Space/X keyboard advance + ToolDock −/+ resize. **iPad cutover is the remaining plumbing milestone** — the physical iPad still runs Xcode-built dev clients from `learn-fast-notes/`.
 
 The old web-only context note (2026-05-17 Mac upgrade) is now folded into history. iPad still uses local Xcode builds for the user's working device; web now ships from this repo via Vercel.
+
+## ✅ 2026-05-29 — Serial Practice → Rep Rotator (rename + simplify)
+
+"Serial Practice" became **Rep Rotator** — a rename + simplification, not a feature add. Full notes in `[[project_rep_rotator]]`.
+
+- **Random-order only.** The Order chips (Serial / Interleaved) are hidden; `order` state is permanently `'random'`. The lap algorithm (`buildLapOrder` / `nextRandomLap`, missed-from-previous-lap-to-front) is untouched — just no longer user-selectable. A caption "Passages will appear in random order." sits where the chips were.
+- **Two entry points.** A 🔀 button in the library header (icon-only on phone, "🔀 Rep Rotator" outline button on tablet/desktop, between Practice Log and ⚙) → `/interleaved`. And a "Rep Rotator" pill on the passage-detail screen that passes `seedPassageId` so the picker opens with that passage pre-selected. The old loud "Try serial practicing?" CTA + its eligibility gate + the one-time explainer modal are gone.
+- **Help.** A floating "?" on both the config and select phases opens a new `RepRotatorExplainerModal`; the select phase also mounts a `rep-rotator-first-run` TutorialStep. Library's PracticeProgressionModal step 2 + a minimal "?" opener retained.
+- **Storage unchanged.** Practice-log rows still write `strategy: 'interleaved'` — no migration. Only user-facing labels changed (`PassageReminders` + `settings` now show "Rep Rotator"). New `rep_rotator` StrategyKey + teal `#0d7377` default color; `interleaved` label also relabeled to "Rep Rotator".
+- **Verified locally:** web bundle + `tsc` clean (the two pre-existing self-led `Strategy` TS errors are untouched). Authenticated click-through still pending a logged-in `playweb`/live smoke test. **Not yet pushed** — `git push web-origin-archive master` is the deploy.
 
 ## ✅ 2026-05-28 — ICU back step, branded PDF, rhythm-builder polish, metronome sync (commit `9baf27c`)
 
@@ -564,6 +574,18 @@ auth, practice log, and (later) subscription state.
   iPad-shaped).
 - **Audio recording / pitch detection** — defer; browser audio recording is
   feasible but not prioritized for the testing surface.
+- **Share-a-passage (teacher → student)** — packaged practice handoff.
+  Teacher hits "share" on a passage; student opens the link and the passage
+  clones into their library with image, strategy config (e.g. Click-Up
+  settings), Pencil annotations as a flattened PNG, and any metronome/timer
+  defaults all set, ready to practice. Sketch: `shared_passages` table +
+  share-token route + clone action + "Shared with me" entry surface.
+  Doesn't touch practice loops, strategies engine, score viewer, recorder,
+  metronome, or the existing repos. Could ship free pre-Stripe (every share
+  is a signup invite from a trusted teacher) or hold as a Pro hook later.
+  Idea captured 2026-05-28 from an in-lesson use case: teacher sets up a
+  passage on their iPad during the lesson; student can't replicate the
+  setup at home.
 
 ### 🛑 Deferred (rationale)
 

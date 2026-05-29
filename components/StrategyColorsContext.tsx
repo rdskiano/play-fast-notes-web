@@ -13,13 +13,15 @@ export type StrategyKey =
   | 'tempo_ladder'
   | 'click_up'
   | 'rhythmic'
-  | 'interleaved';
+  | 'interleaved'
+  | 'rep_rotator';
 
 export const DEFAULT_STRATEGY_COLORS: Record<StrategyKey, string> = {
   tempo_ladder: '#2ecc71',
   click_up: '#154360',
   rhythmic: '#4a235a',
   interleaved: '#7b2d00',
+  rep_rotator: '#0d7377',
 };
 
 const SETTINGS_KEY = 'strategy_colors';

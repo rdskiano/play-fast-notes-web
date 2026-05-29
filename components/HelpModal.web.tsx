@@ -14,7 +14,7 @@
 // is intentional: forcing every screen to either have help OR show
 // "coming soon" makes blank-help screens visible as a to-do list.
 
-import { Image, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { useHelpContext, type HelpContent } from '@/components/HelpContext';
@@ -46,41 +46,47 @@ export function HelpModal() {
             styles.card,
             { backgroundColor: C.background, borderColor: C.icon },
           ]}>
-          <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
-            {content.title}
-          </ThemedText>
-          <ThemedText style={[styles.body, { color: C.text }]}>
-            {content.body}
-          </ThemedText>
+          {/* Scrolls when the body is taller than the capped card so the
+              Close button below always stays reachable. */}
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}>
+            <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
+              {content.title}
+            </ThemedText>
+            <ThemedText style={[styles.body, { color: C.text }]}>
+              {content.body}
+            </ThemedText>
 
-          {content.image && (
-            <View style={styles.imageWrap}>
-              {/* aspectRatio on RN-Web Image is unreliable — it gets
-                  overridden by the asset's natural dimensions. Wrap a
-                  View with the aspectRatio and let the Image fill it. */}
-              <View
-                style={[
-                  styles.imageFrame,
-                  {
-                    aspectRatio: content.image.aspectRatio,
-                    borderColor: C.icon + '44',
-                  },
-                ]}>
-                <Image
-                  source={content.image.source}
-                  resizeMode="contain"
-                  style={styles.imageFill}
-                  accessibilityLabel={content.image.caption ?? 'Help example image'}
-                />
+            {content.image && (
+              <View style={styles.imageWrap}>
+                {/* aspectRatio on RN-Web Image is unreliable — it gets
+                    overridden by the asset's natural dimensions. Wrap a
+                    View with the aspectRatio and let the Image fill it. */}
+                <View
+                  style={[
+                    styles.imageFrame,
+                    {
+                      aspectRatio: content.image.aspectRatio,
+                      borderColor: C.icon + '44',
+                    },
+                  ]}>
+                  <Image
+                    source={content.image.source}
+                    resizeMode="contain"
+                    style={styles.imageFill}
+                    accessibilityLabel={content.image.caption ?? 'Help example image'}
+                  />
+                </View>
+                {content.image.caption && (
+                  <ThemedText
+                    style={[styles.imageCaption, { color: C.text, opacity: Opacity.muted }]}>
+                    {content.image.caption}
+                  </ThemedText>
+                )}
               </View>
-              {content.image.caption && (
-                <ThemedText
-                  style={[styles.imageCaption, { color: C.text, opacity: Opacity.muted }]}>
-                  {content.image.caption}
-                </ThemedText>
-              )}
-            </View>
-          )}
+            )}
+          </ScrollView>
 
           <View style={styles.buttonRow}>
             <Pressable
@@ -107,9 +113,16 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 420,
+    maxHeight: '85%',
     borderRadius: Radii.xl,
     borderWidth: Borders.thin,
     padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  scroll: {
+    flexShrink: 1,
+  },
+  scrollContent: {
     gap: Spacing.md,
   },
   body: {

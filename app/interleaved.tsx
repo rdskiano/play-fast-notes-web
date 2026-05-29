@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Pressable,
@@ -22,6 +22,7 @@ import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
+import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -54,6 +55,24 @@ const TIMER_OPTIONS: TimerMinutes[] = [3, 5, 10, 15];
 // with the global Move-On timer. Code paths remain so it can be flipped back
 // on once the UX distinction is resolved.
 const TIMER_MODE_ENABLED = false;
+
+// Shared concept blurb. Each phase appends its own "what the buttons on
+// THIS screen do" paragraph so the global "?" always matches what's on
+// screen.
+const REP_ROTATOR_BODY =
+  'Rotate through several passages in random order instead of drilling them one at a time. Pick a handful, set how many clean reps you want from each, and the app shuffles between them as you play.\n\n' +
+  'Think interleaved practicing, or a mock audition round.\n\n' +
+  "Drilling one passage over and over gets it polished. Rotating between several tests whether you're prepared to play it right the first time.";
+
+// Select phase: choosing which passages go in the rotation.
+const REP_ROTATOR_SELECT_BODY =
+  REP_ROTATOR_BODY +
+  '\n\nTap passages to add or remove them from the rotation — pick at least two. For a PDF-backed piece, tap in to choose the page boxes you want. When your set looks right, tap Continue to set up the session, or EXIT to leave.';
+
+// Config phase: setting the rep target before play.
+const REP_ROTATOR_CONFIG_BODY =
+  REP_ROTATOR_BODY +
+  "\n\nChoose how many clean reps in a row each passage needs before it's done — 3, 5, or 10. A miss resets that passage's streak. Tap Start practicing to begin, or BACK to change which passages are in the rotation.";
 
 type Phase = 'config' | 'select' | 'playing';
 
@@ -146,6 +165,9 @@ function advanceForMode(
 
 export default function InterleavedScreen() {
   const router = useRouter();
+  // Optional deep-link seed: the passage-detail Rep Rotator pill passes
+  // the current passage so the picker opens with it pre-selected.
+  const { seedPassageId } = useLocalSearchParams<{ seedPassageId?: string }>();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   // Phone density: shorter side under 600 px (catches landscape too).
@@ -155,9 +177,12 @@ export default function InterleavedScreen() {
   const isPhone = Math.min(vpW, vpH) < 600;
   const insets = useSafeAreaInsets();
 
-  const [phase, setPhase] = useState<Phase>('config');
+  const [phase, setPhase] = useState<Phase>('select');
   const [mode, setMode] = useState<SessionMode>('consistency');
-  const [order, setOrder] = useState<SessionOrder>('serial');
+  // Rep Rotator always runs in random order. The Order chips are hidden
+  // and the type/state are kept only because the lap logic + practice-log
+  // entries still read `order`.
+  const [order, setOrder] = useState<SessionOrder>('random');
   const [targetReps, setTargetReps] = useState<RepTarget>(3);
   const [timerMinutes, setTimerMinutes] = useState<TimerMinutes>(5);
 
@@ -194,6 +219,18 @@ export default function InterleavedScreen() {
       cancelled = true;
     };
   }, []);
+
+  // Pre-select the seed passage once the library has loaded. Guarded by a
+  // ref so re-renders don't re-add it after the user deselects it.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || !seedPassageId || passages.length === 0) return;
+    if (!passages.some((p) => p.id === seedPassageId)) return;
+    seededRef.current = true;
+    setSelectedIds((prev) =>
+      prev.includes(seedPassageId) ? prev : [...prev, seedPassageId],
+    );
+  }, [passages, seedPassageId]);
 
   // If a Timer-mode session is in flight (e.g., the user navigated to
   // Tempo Ladder and came back), drop straight into the active screen.
@@ -245,10 +282,6 @@ export default function InterleavedScreen() {
 
   function exit() {
     router.back();
-  }
-
-  function onContinue() {
-    setPhase('select');
   }
 
   function toggleSelect(id: string) {
@@ -395,10 +428,11 @@ export default function InterleavedScreen() {
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <SessionTopBar
-          onExit={exit}
+          onExit={() => setPhase('select')}
+          exitLabel="BACK"
           center={
             <ThemedText style={styles.topCenter} numberOfLines={1}>
-              Serial Practice
+              Rep Rotator
             </ThemedText>
           }
         />
@@ -427,21 +461,9 @@ export default function InterleavedScreen() {
             </>
           )}
 
-          <ThemedText style={styles.sectionLabel}>Order</ThemedText>
-          <View style={styles.row}>
-            <Chip
-              label="Serial"
-              subtitle="Rotate in same order"
-              selected={order === 'serial'}
-              onPress={() => setOrder('serial')}
-            />
-            <Chip
-              label="Interleaved"
-              subtitle="Rotate in random order"
-              selected={order === 'random'}
-              onPress={() => setOrder('random')}
-            />
-          </View>
+          <ThemedText style={[styles.helper, { color: C.icon }]}>
+            Passages will appear in random order.
+          </ThemedText>
 
           {mode === 'consistency' ? (
             <>
@@ -512,17 +534,18 @@ export default function InterleavedScreen() {
           )}
         </ScrollView>
 
-        <View style={{ padding: 20 }}>
-          <Button label="Continue →" onPress={onContinue} fullWidth />
+        <View style={styles.bottomBar}>
+          <Button
+            label={`Start practicing with ${selectedIds.length} passages →`}
+            onPress={startPlaying}
+            fullWidth
+          />
         </View>
         <TutorialStep
-          id="serial-practice-setup"
+          id="rep-rotator-setup"
           visible={false}
-          title="Serial practicing"
-          body={
-            "Rotate through several passages in a single sitting instead of camping on one. Each passage gets its turn, you tap when you're done, and the app moves you to the next.\n\n" +
-            "Best closer to performance, when you need to recover any passage cold under pressure. Pick the passages above, then Continue."
-          }
+          title="Rep Rotator"
+          body={REP_ROTATOR_CONFIG_BODY}
         />
       </ThemedView>
     );
@@ -536,11 +559,11 @@ export default function InterleavedScreen() {
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <SessionTopBar
-          onExit={() => setPhase('config')}
+          onExit={exit}
           exitLabel="EXIT"
           center={
             <ThemedText style={styles.topCenter} numberOfLines={1}>
-              Select passages
+              Pick passages to rotate through
             </ThemedText>
           }
         />
@@ -552,26 +575,23 @@ export default function InterleavedScreen() {
           onToggle={toggleSelect}
         />
 
-        <View style={{ padding: 16 }}>
+        <View style={styles.bottomBar}>
           <Button
             label={
               canStart
-                ? `Start practicing with ${selectedIds.length} passages →`
+                ? `Continue with ${selectedIds.length} passages →`
                 : `Pick at least ${minSel} passages`
             }
-            onPress={startPlaying}
+            onPress={() => setPhase('config')}
             disabled={!canStart}
             fullWidth
           />
         </View>
         <TutorialStep
-          id="serial-practice-select"
-          visible={false}
-          title="Pick your passages"
-          body={
-            "Tap the passages you want to rotate through this session. The app will cycle you through them in order, one at a time.\n\n" +
-            "Best to keep the list to a handful — long sets dilute the focused-passage work. Tap Start when you're ready."
-          }
+          id="rep-rotator-first-run"
+          visible={true}
+          title="Rep Rotator"
+          body={REP_ROTATOR_SELECT_BODY}
         />
       </ThemedView>
     );
@@ -795,12 +815,14 @@ export default function InterleavedScreen() {
       <TutorialStep
         id="serial-practice-play"
         visible={false}
-        title="Running a serial session"
+        title="Running a Rep Rotator session"
         body={
-          "The score on screen is the passage you're currently drilling. Play it, mark each rep, then tap to move on to the next passage in your rotation.\n\n" +
-          "✓ Clean — counts the rep; the app will move you forward when you've hit your target.\n\n" +
-          "✗ Miss — logs the miss but keeps you on the same passage.\n\n" +
-          "Keyboard / pedal: Space = Clean ✓, X = Miss ✗. Tap ← at the top-left to end the session and log it."
+          "The score on screen is the passage you're currently drilling. Play it, mark the rep, and the app rotates you to the next passage.\n\n" +
+          "✓ Clean — counts the rep; once a passage hits its clean-rep target it's done and drops out of the rotation.\n\n" +
+          "✗ Miss — logs the miss and resets that passage's streak; you stay on it.\n\n" +
+          "Keyboard / pedal: Space = Clean ✓, X = Miss ✗.\n\n" +
+          "END (top-right) finishes the session and saves it to your practice log. On a wide screen, EXIT (top-left) leaves without logging and returns to your passage list.\n\n" +
+          PRACTICE_TOOLS_HELP
         }
       />
     </ThemedView>
@@ -1160,6 +1182,13 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.md,
     paddingBottom: Spacing['2xl'],
+  },
+  // Footer action bar on the select + config phases. Extra right padding
+  // keeps the full-width button clear of the global floating "?" help
+  // button (fixed bottom-right, ~60px) so they don't overlap or blend.
+  bottomBar: {
+    padding: Spacing.lg,
+    paddingRight: 76,
   },
   sectionLabel: {
     fontSize: Type.size.sm,

@@ -30,7 +30,8 @@ const STRATEGY_LABELS: Record<string, string> = {
   phrasing: 'Phrasing',
   recording: 'Recording',
   freeform: 'Freeform',
-  interleaved: 'Serial',
+  interleaved: 'Rep Rotator',
+  rep_rotator: 'Rep Rotator',
 };
 
 type Props = {

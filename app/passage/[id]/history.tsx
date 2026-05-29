@@ -321,7 +321,8 @@ export default function HistoryScreen() {
         visible={false}
         title="Passage history"
         body={
-          "Every session you've run on this passage, newest first. Tap an entry to expand notes, mood, and any recording you made.\n\n" +
+          "Every session you've run on this passage, newest first. Each entry shows the strategy, time, any tempo/step detail, your mood, note, and a player for any recording you captured.\n\n" +
+          "Tap an entry to open it for editing — add or change the mood and note, play back any attached recording, or Delete the entry entirely.\n\n" +
           "Use this to track how a single passage is developing — what tempos you've hit, what's still rough, when you last worked on it."
         }
       />

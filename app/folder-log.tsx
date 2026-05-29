@@ -414,7 +414,7 @@ export default function FolderLogScreen() {
         title="Folder practice log"
         body={
           "Every session you've run on any passage inside this folder. Useful for tracking progress on a single work or student.\n\n" +
-          "Tap any entry to expand notes, mood, and recordings."
+          "Tap any entry to edit its note and mood, play back any recording, or delete it."
         }
       />
     </ThemedView>

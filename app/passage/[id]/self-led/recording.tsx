@@ -24,7 +24,9 @@ import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
+import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -349,6 +351,19 @@ export default function SelfLedRecordingScreen() {
         cancelLabel="Skip note"
         onSubmit={({ mood, note, remindNext }) => finishLog(mood, note, remindNext)}
         onSkip={() => finishLog(null, null)}
+      />
+
+      <TutorialStep
+        id="self-led-recording"
+        visible={false}
+        title="Record a take"
+        body={
+          'Record yourself playing this passage, then keep the take or just log the time.\n\n' +
+          '● Record starts capturing from your mic; ■ Stop ends the take.\n\n' +
+          'After recording you can play it back with the audio controls, then choose: ↻ Record again to re-take, Log session only to save just the duration to your practice log, or Log + keep recording to also upload the audio so you can play it back later.\n\n' +
+          '‹ Back (top-left) leaves without logging.\n\n' +
+          PRACTICE_TOOLS_HELP
+        }
       />
     </ThemedView>
   );

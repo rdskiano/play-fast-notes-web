@@ -26,6 +26,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
+import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -177,8 +178,11 @@ export default function SelfLedSessionScreen() {
         visible={false}
         title="Self-led practice"
         body={
-          "A loose-structure session for the strategies that don't need the app driving every rep. You play, the app logs the time and lets you save a note + mood + recording at the end.\n\n" +
-          "Use this when you want the practice log entry without the auto-tempo / auto-advance plumbing."
+          "A loose-structure session for the strategies that don't need the app driving every rep. You play; the app keeps the score in front of you and logs the session when you're done.\n\n" +
+          "How to — opens step-by-step guidance for this specific technique, including what to focus on and why it works.\n\n" +
+          "DONE — ends the session and logs it. You can attach a mood and a note, or skip and just log the session.\n\n" +
+          "To capture audio, use the 🎤 Recorder practice tool while you play — saved takes attach to your practice log.\n\n" +
+          `${PRACTICE_TOOLS_HELP}`
         }
       />
     </ThemedView>

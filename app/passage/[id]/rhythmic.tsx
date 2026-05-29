@@ -16,6 +16,7 @@ import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
+import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
@@ -358,7 +359,9 @@ export default function RhythmicScreen() {
           title="Rhythmic Variation"
           body={
             "Play the passage with a different rhythm pattern each time — dotted, swung, reversed, anything that breaks your default groove. Strengthens internal pulse and exposes weak spots that playing as written can hide.\n\n" +
-            "Use the controls to cycle patterns. Best when you already know the notes and want to even out your technique."
+            "The floating rhythm card shows the current pattern: tap ▶ Loop to hear it (■ Stop to silence it), and ← Prev / Next → to move through the patterns. Long-press the card to drag it, or pinch to resize.\n\n" +
+            "Use the N-note ▾ chip in the top bar to switch to a different note grouping, and DONE to finish and log the session. Best when you already know the notes and want to even out your technique." +
+            `\n\n${PRACTICE_TOOLS_HELP}`
           }
         />
       )}

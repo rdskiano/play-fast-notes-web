@@ -19,6 +19,7 @@ import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
+import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import {
@@ -372,8 +373,8 @@ export default function TempoLadderScreen() {
             "Three modes to pick from:\n\n" +
             "Step click-up — the metronome bumps up after N clean reps in a row. Best place to start.\n\n" +
             "Randomized cluster — each rep is a random tempo between two tempos you choose. Keeps you sharp because you never know what's coming. Choose how many you have to get in a row to bump up the cluster.\n\n" +
-            "Custom — build your own sequence (like 9 reps at base + 1 rep at base+10). One clean run bumps the tempo; one miss restarts the pattern.\n\n" +
-            "Then set your Start BPM (well below your target), Goal BPM (your performance tempo), and tap Start."
+            "Custom — build your own sequence (like 9 reps at base + 1 rep at base+10). One clean run bumps the tempo; one miss restarts the pattern. Tap + Build a custom pattern to create one, or the ✎ on a saved card to edit it.\n\n" +
+            "Then set your Start BPM (well below your target) and Goal BPM (your performance tempo). The +2 / +5 / +10 chips set how far each advance jumps, and (Step / Cluster only) the number chips set how many clean reps in a row bump you up. Tap Start when you're ready."
           }
         />
       </ThemedView>
@@ -641,9 +642,10 @@ export default function TempoLadderScreen() {
         title="Running a Tempo Ladder"
         body={
           "Play a rep at the current tempo, then mark it:\n\n" +
-          "✓ Clean — counts toward your target reps in a row. Once you hit your target, the metronome bumps up by your increment.\n\n" +
+          "✓ Clean — counts toward your target reps in a row (the dots up top track your streak). Once you hit your target, the metronome bumps up by your increment.\n\n" +
           "✗ Miss — resets your streak (Step / Cluster) or restarts the pattern (Custom).\n\n" +
-          "Keyboard shortcuts on laptop: Space = Clean ✓, X = Miss ✗. Foot pedals work the same. Tap ✕ at the top-left to end the session and log it."
+          "Keyboard shortcuts on laptop: Space = Clean ✓, X = Miss ✗. Foot pedals work the same. Tap ✕ at the top-left to end the session and log it." +
+          `\n\n${PRACTICE_TOOLS_HELP}`
         }
       />
     </View>

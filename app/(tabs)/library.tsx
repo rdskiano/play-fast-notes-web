@@ -59,21 +59,7 @@ import {
   type DocumentRow,
 } from '@/lib/db/repos/documents';
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
-import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { getTempoLadderProgressForPassages } from '@/lib/db/repos/tempoLadder';
-
-// The Serial Practice button stays hidden until the user has logged this
-// many practice sessions — without it, new users see the CTA as a
-// top-level action, click it before they've learned what a passage is,
-// and end up in a bare rep loop with no strategy launchers.
-const SERIAL_REVEAL_THRESHOLD = 5;
-// Single persisted flag: has the user actually used serial practice?
-// Until they have, every click on the CTA opens the explainer modal
-// (whether or not they've seen it before — "Maybe later" is not a
-// permanent dismissal). Once they click "Try it now" the flag flips to
-// '1' and the button thereafter goes straight to /interleaved with a
-// plain "Serial practicing →" label.
-const SERIAL_TRIED_KEY = 'serialPractice.tried';
 import { bmacUrl } from '@/lib/links';
 
 type ListRow =
@@ -441,14 +427,9 @@ export default function LibraryScreen() {
   const [editMode, setEditMode] = useState(false);
   const [prompt, setPrompt] = useState<Prompt>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [progressionOpen, setProgressionOpen] = useState(false);
-  // Serial Practice gate. `practiceCount === null` = still loading; render
-  // nothing rather than flashing the button on then off.
+  // `practiceCount === null` = still loading. Gates the first-run
+  // "Add your first piece" TutorialStep (practiceCount === 0).
   const [practiceCount, setPracticeCount] = useState<number | null>(null);
-  const [serialTried, setSerialTried] = useState(false);
-  const [serialExplainerOpen, setSerialExplainerOpen] = useState(false);
-  const serialEligible =
-    practiceCount !== null && practiceCount >= SERIAL_REVEAL_THRESHOLD;
   const [moveTarget, setMoveTarget] = useState<MoveTarget>(null);
   const [actionTarget, setActionTarget] = useState<ActionTarget>(null);
   const [undoMove, setUndoMove] = useState<UndoMove | null>(null);
@@ -458,20 +439,16 @@ export default function LibraryScreen() {
   const refresh = useCallback(async () => {
     try {
       await rehomeOrphans();
-      const [f, p, d, all, pathF, sessions, triedRaw] = await Promise.all([
+      const [f, p, d, all, pathF, sessions] = await Promise.all([
         listFoldersInParent(currentFolderId),
         listPassagesInFolder(currentFolderId),
         listDocumentsInFolder(currentFolderId),
         listAllFolders(),
         getFolderPath(currentFolderId),
-        // Practice-session count gates whether the CTA is visible at all;
-        // the tried flag gates the label (and whether the explainer keeps
-        // re-prompting).
+        // Practice-session count gates the first-run TutorialStep.
         countPracticeLogEntries(),
-        getSetting(SERIAL_TRIED_KEY),
       ]);
       setPracticeCount(sessions);
-      setSerialTried(triedRaw === '1');
       setFolders(f);
       setPassages(p);
       setDocuments(d);
@@ -921,6 +898,12 @@ export default function LibraryScreen() {
                 <ThemedText style={styles.iconBtnText}>📋</ThemedText>
               </Pressable>
               <Pressable
+                onPress={() => router.push('/interleaved')}
+                accessibilityLabel="Rep Rotator"
+                style={[styles.iconBtn, { borderColor: C.icon }]}>
+                <ThemedText style={styles.iconBtnText}>🔀</ThemedText>
+              </Pressable>
+              <Pressable
                 onPress={() => router.push('/settings')}
                 accessibilityLabel="Settings"
                 style={[styles.iconBtn, { borderColor: C.icon }]}>
@@ -961,6 +944,12 @@ export default function LibraryScreen() {
                 }}
               />
               <Button
+                label="🔀 Rep Rotator"
+                variant="outline"
+                size="sm"
+                onPress={() => router.push('/interleaved')}
+              />
+              <Button
                 label="⚙"
                 variant="outline"
                 size="sm"
@@ -980,11 +969,10 @@ export default function LibraryScreen() {
 
       {/* One-line getting-started prompt at the library root. Replaces
           a previous three-line tagline + organizing-advice block that
-          was making the page feel busy and burying the inline
-          practice-progression guidance below the mode row. The line
-          mirrors the two options inside the "+ Add" menu — uploading
-          a PDF, or taking a photo of a passage — so a first-time
-          user sees the obvious next action without scanning options. */}
+          was making the page feel busy. The line mirrors the two
+          options inside the "+ Add" menu — uploading a PDF, or taking
+          a photo of a passage — so a first-time user sees the obvious
+          next action without scanning options. */}
       {isAtRoot && !editMode && (
         <ThemedText style={[styles.addHint, { color: C.icon }]}>
           Add full parts, or take a photo of a difficult passage.
@@ -1004,76 +992,6 @@ export default function LibraryScreen() {
           </ThemedText>
         </View>
       )}
-
-      {/* Practice-mode action row. Used to be a two-segment "Blocked /
-          Serial" toggle, but friend-test feedback (2026-05-24) revealed
-          the left segment — styled like an active filled button but
-          actually disabled — was reading as "click me, why am I broken?",
-          and the "Blocked" subtitle was being misread as a software state
-          ("this button is blocked / disabled"). The default behavior of
-          tapping a passage in the list IS the "practice one passage"
-          mode; surfacing that as a fake button was creating ambiguity.
-          Now: the only real action ("Practice a group of passages")
-          stands alone as a real button. The "?" help modal still
-          teaches the Blocked-vs-Serial vocabulary in context. The
-          previous "Tap a passage to practice it." caption was dropped
-          on a second pass — the library list itself is the obvious
-          affordance, the caption just added noise. */}
-      {/* Serial Practice CTA — hidden for new users (< SERIAL_REVEAL_THRESHOLD
-          logged sessions) so they don't get lured into a flow that doesn't
-          expose strategy launchers before they've discovered passages and
-          per-passage practice. Once eligible:
-          - Until the user has actually tried it, every click opens the
-            explainer modal. "Maybe later" closes the modal but doesn't
-            permanently dismiss — next visit, they get the offer again.
-          - After "Try it now" the flag is set and the button goes
-            straight to /interleaved with the plain "Serial practicing →"
-            label. We've taught them the phrase by then, so we use it. */}
-      {serialEligible && (
-        <View
-          style={[
-            styles.modeRow,
-            isPhonePortrait && styles.modeRowStacked,
-          ]}>
-          <Pressable
-            onPress={() => {
-              if (serialTried) {
-                router.push('/interleaved');
-              } else {
-                setSerialExplainerOpen(true);
-              }
-            }}
-            style={[styles.groupBtn, { borderColor: C.tint }]}>
-            <ThemedText style={[styles.groupBtnText, { color: C.tint }]}>
-              {serialTried
-                ? 'Serial practicing  →'
-                : 'Try serial practicing?  →'}
-            </ThemedText>
-          </Pressable>
-          <Pressable
-            onPress={() => setProgressionOpen(true)}
-            hitSlop={6}
-            style={[
-              styles.modeHelpBtn,
-              { borderColor: C.icon },
-              isPhonePortrait && { alignSelf: 'center' },
-            ]}>
-            <ThemedText style={[styles.modeHelpText, { color: C.icon }]}>?</ThemedText>
-          </Pressable>
-        </View>
-      )}
-      {/* Inline gist of the practice-progression modal. Friend-test
-          feedback (2026-05-24) was that the "?" help button is easy to
-          glide past, so the key insight users would otherwise miss
-          lives right here in plain sight. The "?" still opens the
-          longer modal for anyone who wants the deeper explanation.
-          Avoid "solo practice" — to musicians that means practicing
-          alone (vs with an ensemble), not one-passage-at-a-time. */}
-      <ThemedText style={[styles.modeFooter, { color: C.icon }]}>
-        Working on one passage at a time helps most while you're still
-        learning the notes. Rotating through a group of passages helps
-        more as a performance gets closer.
-      </ThemedText>
 
       <View style={[styles.searchWrap, { borderColor: C.icon + '66' }]}>
         <ThemedText style={[styles.searchIcon, { color: C.icon }]}>⌕</ThemedText>
@@ -1254,30 +1172,6 @@ export default function LibraryScreen() {
         }}
       />
 
-      <PracticeProgressionModal
-        visible={progressionOpen}
-        onClose={() => setProgressionOpen(false)}
-      />
-
-      <SerialPracticeExplainerModal
-        visible={serialExplainerOpen}
-        onTryNow={async () => {
-          // Try it now → flag tried, dismiss, navigate. The flag
-          // persists so future visits skip the modal and the label
-          // flips to plain "Serial practicing →".
-          await setSetting(SERIAL_TRIED_KEY, '1').catch(() => {});
-          setSerialTried(true);
-          setSerialExplainerOpen(false);
-          router.push('/interleaved');
-        }}
-        onLater={() => {
-          // "Maybe later" just closes the modal for this click — no
-          // persistence. Next time they tap the CTA they get the offer
-          // again, because we want them to actually try it eventually.
-          setSerialExplainerOpen(false);
-        }}
-      />
-
       <MoveToPicker
         visible={moveTarget !== null}
         title={
@@ -1330,7 +1224,17 @@ export default function LibraryScreen() {
           !currentFolderId
         }
         title="Add your first piece"
-        body={'Snap a photo of a tricky measure, or upload a PDF of the full part. Tap "+ Add" in the top right to start.\n\nThe easiest first move: a photo of one passage you want to drill.'}
+        body={
+          '+ Add (top right) — snap a photo of a tricky measure, upload a PDF of the full part, or make a folder. The easiest first move: a photo of one passage you want to drill.\n\n' +
+          'Header buttons:\n' +
+          '☕ — buy me a coffee, if the app helps you.\n' +
+          '📋 Practice Log — every session you\'ve logged, for this folder or the whole library.\n' +
+          '🔀 Rep Rotator — drill several passages in shuffled order.\n' +
+          '⚙ Settings.\n' +
+          '✎ Edit — reorder with ↑ ↓, plus rename, move, or delete each item; tap Done to leave.\n\n' +
+          'Search — filter folders and passages by title or composer.\n\n' +
+          'On any folder, passage, or PDF card: tap to open it, or long-press for quick actions (rename, move, edit/crop, delete).'
+        }
       />
 
       {undoMove && (
@@ -1386,117 +1290,6 @@ function AddChooserModal({
   );
 }
 
-function PracticeProgressionModal({
-  visible,
-  onClose,
-}: {
-  visible: boolean;
-  onClose: () => void;
-}) {
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
-  // Modal copy rewritten 2026-05-24 after friend-test feedback that the
-  // music-pedagogy terms "Blocked" / "Serial" were confusing as primary
-  // labels (one user thought "Blocked" meant the button was disabled).
-  // We now lead with plain English — "Practice one passage at a time" /
-  // "Practice a group of passages" — and introduce the pedagogy terms
-  // parenthetically inside the body, where the user is already reading
-  // an explanation.
-  const steps = [
-    {
-      title: 'Practice one passage at a time',
-      body:
-        'What most people do all the time: one passage at a time, over and over. (In music pedagogy, this is called blocked practice.) Great for starting out. The key is making sure the passage stays PLAYABLE — slow the tempo enough or shrink the chunk enough that you can play it cleanly.',
-    },
-    {
-      title: 'Practice a group of passages',
-      body:
-        'Drill several passages in a single session — a fixed number of clean repetitions on each, then move on. Inside, you pick an order: Serial (same rotation each time, predictable) or Interleaved (random rotation across selected passages — tests whether you can perform on the first try, like an audition).',
-    },
-  ];
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={[styles.progressionCard, { backgroundColor: C.background }]}>
-          <ThemedText type="title" style={{ textAlign: 'center' }}>
-            Practice progression
-          </ThemedText>
-          <ThemedText style={[styles.progressionIntro, { color: C.icon }]}>
-            Both approaches have their place. Working on one passage at a time
-            tends to help most early on, while you're still learning the notes.
-            Rotating through a group of passages becomes more useful as a
-            performance gets closer — especially when the rotation order is
-            random.
-          </ThemedText>
-          {steps.map((s, i) => (
-            <View key={s.title} style={styles.progressionStep}>
-              <View style={[styles.progressionBullet, { backgroundColor: C.tint }]}>
-                <ThemedText style={styles.progressionBulletText}>{i + 1}</ThemedText>
-              </View>
-              <View style={{ flex: 1, gap: 2 }}>
-                <ThemedText style={styles.progressionTitle}>{s.title}</ThemedText>
-                <ThemedText style={[styles.progressionBody, { color: C.icon }]}>
-                  {s.body}
-                </ThemedText>
-              </View>
-            </View>
-          ))}
-          <Button label="Close" onPress={onClose} fullWidth />
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-// One-time explainer shown the first time an eligible user (≥5 practice
-// sessions) taps the Serial Practice CTA. Both "Try it now" and "Maybe
-// later" mark the user as coached so the modal never reappears — the next
-// click goes straight to the passage picker.
-function SerialPracticeExplainerModal({
-  visible,
-  onTryNow,
-  onLater,
-}: {
-  visible: boolean;
-  onTryNow: () => void;
-  onLater: () => void;
-}) {
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onLater}>
-      <View style={styles.modalBackdrop}>
-        <View style={[styles.progressionCard, { backgroundColor: C.background }]}>
-          <ThemedText type="title" style={{ textAlign: 'center' }}>
-            Try serial practicing?
-          </ThemedText>
-          <ThemedText style={[styles.progressionIntro, { color: C.icon }]}>
-            You&apos;ve been practicing one passage at a time — great for
-            learning the notes. Once a few passages are starting to feel
-            solid, rotating through a small group of them in a single
-            session is what builds reliability.
-          </ThemedText>
-          <ThemedText style={[styles.progressionIntro, { color: C.icon }]}>
-            You pick a handful of passages, set a target number of clean
-            reps, and either drill them in a fixed order (Serial) or shuffle
-            the rotation (Interleaved — the audition-style version). It
-            keeps any single passage from going stale and exposes the spots
-            that only break under pressure.
-          </ThemedText>
-          <View style={{ gap: Spacing.sm, marginTop: Spacing.sm }}>
-            <Button label="Try it now" onPress={onTryNow} fullWidth />
-            <Button label="Maybe later" variant="ghost" onPress={onLater} fullWidth />
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1542,49 +1335,6 @@ const styles = StyleSheet.create({
   editHintText: { fontSize: Type.size.sm, lineHeight: 18 },
   editHintSub: { fontSize: Type.size.xs, lineHeight: 15 },
   editHintBold: { fontWeight: Type.weight.heavy },
-  modeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  // Phone portrait override — stack so the button spans the full row
-  // and the help "?" sits centered below.
-  modeRowStacked: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    gap: Spacing.sm,
-  },
-  // Footer line below the modeRow that inlines the gist of the
-  // "Practice progression" help modal — so users who never tap "?"
-  // still get the practical when-to-use-each guidance.
-  modeFooter: {
-    fontSize: Type.size.xs,
-    opacity: Opacity.subtle,
-    marginTop: 4,
-    lineHeight: 17,
-  },
-  // The lone Serial Practice action button. Filled-by-border to match
-  // the "?" help button's outline language. flex:1 so it stretches to
-  // fill the row (the "?" is fixed-width on the right).
-  groupBtn: {
-    flex: 1,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: Radii.md,
-    borderWidth: Borders.medium,
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-  },
-  groupBtnText: {
-    fontWeight: Type.weight.heavy,
-    fontSize: Type.size.sm,
-    textAlign: 'center',
-  },
-  modeHelpBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: Radii['2xl'],
-    borderWidth: Borders.thin,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modeHelpText: { fontWeight: Type.weight.heavy, fontSize: 15 },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1693,31 +1443,6 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
   },
-  progressionCard: {
-    width: '100%',
-    maxWidth: 500,
-    borderRadius: Radii['2xl'],
-    padding: 20,
-    gap: 14,
-  },
-  progressionIntro: {
-    textAlign: 'center',
-    fontSize: Type.size.sm,
-    lineHeight: 18,
-    marginTop: -6,
-  },
-  progressionStep: { flexDirection: 'row', gap: Spacing.md },
-  progressionBullet: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  progressionBulletText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.md },
-  progressionTitle: { fontWeight: Type.weight.heavy, fontSize: 15 },
-  progressionBody: { fontSize: Type.size.sm, lineHeight: 18 },
   toastAnchor: {
     position: 'absolute',
     left: 0,

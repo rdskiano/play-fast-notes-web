@@ -40,13 +40,15 @@ const STRATEGY_LABELS: Record<StrategyKey, string> = {
   tempo_ladder: 'Tempo Ladder',
   click_up: 'Interleaved Click-Up',
   rhythmic: 'Rhythmic Variation',
-  interleaved: 'Serial Practice',
+  interleaved: 'Rep Rotator',
+  rep_rotator: 'Rep Rotator',
 };
 
 const STRATEGY_ORDER: StrategyKey[] = [
   'tempo_ladder',
   'click_up',
   'rhythmic',
+  'rep_rotator',
 ];
 
 const COLOR_PALETTE = [
@@ -474,9 +476,11 @@ export default function SettingsScreen() {
         title="Settings"
         body={
           "Tune the look and behavior of the app to your practice habits.\n\n" +
-          "Strategy colors — pick the tint for each strategy's pill on the passage screen and in the practice log.\n\n" +
+          "Strategy colors — pick the tint for each strategy's pill on the passage screen and in the practice log. Tap a swatch to change a color; the per-row 'default' link (shown when you've changed one) restores just that strategy, and 'Reset' at the top restores every strategy at once.\n\n" +
           "Practice timers — Rotate, Micro, Cold, Break. Toggle each on/off and set how often they fire. Configurable from the Timer card on any passage screen too.\n\n" +
-          "Account — sign out or wipe your data. Wiping is permanent."
+          "Cold timer — it needs a designated passage: switching it on prompts you to pick one (or use the Passage row to change it). It then fires once at a random moment inside the Min–Max interval window you set, so you can't predict the cold take.\n\n" +
+          "Support — ☕ Buy me a coffee opens a tip link; tips keep development going.\n\n" +
+          "Account — sign out or reset all your data. Resetting deletes every passage, exercise, log, recording, and folder you own (your sign-in stays); it's permanent."
         }
       />
     </ThemedView>

@@ -222,8 +222,9 @@ export default function UploadScreen() {
         visible={false}
         title="Add a passage photo"
         body={
-          "Snap or upload a photo of one passage you want to drill. On phone, the camera opens directly — point at the music and shoot.\n\n" +
-          "You'll land on the crop screen right away; trim it to just the bars you want to practice."
+          "Snap or upload a photo of one passage you want to drill. Drop an image onto the box, or tap it to choose a file. On phone, \"Take a photo\" opens the camera directly — point at the music and shoot.\n\n" +
+          "You'll land on the crop screen right away; trim it to just the bars you want to practice.\n\n" +
+          "If the passage runs across the bottom of one page and onto the next, tap \"Passage spans two pages?\" to photograph both halves and stitch them into one continuous score."
         }
       />
     </ThemedView>

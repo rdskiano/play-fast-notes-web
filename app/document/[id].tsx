@@ -40,6 +40,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 
 // One-time coach toast key. Shown on the first PDF visit where the
@@ -1144,11 +1145,14 @@ export default function DocumentScreen() {
         title="Working with a PDF"
         body={
           'Each page can hold as many "passages" as you want to drill independently.\n\n' +
+          'Turn pages — tap the ‹ › chevrons at the edges, swipe sideways, or use the arrow keys.\n\n' +
+          'Single / Spread (landscape only) — toggle between one page and a two-page spread.\n\n' +
           '+ Mark passage — drag a box around the music you want to drill. After you name it, it shows up in your library.\n\n' +
-          'Tap any box to start practicing that passage.\n\n' +
-          'Sections — tap the page to mark movement divisions or sections in the music. Use this to make the practice log easier to read.\n\n' +
+          'Tap any box to practice that passage, or pick Edit to rename, resize, or delete it.\n\n' +
+          'Sections — tap the page to mark movement divisions or sections in the music; this makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
           'Hide boxes — clean read of the score without the gray rectangles.\n\n' +
-          'Practice Log — every session you\'ve done on this PDF, across all passages.'
+          'Practice Log — every session you\'ve done on this PDF, across all passages.\n\n' +
+          PRACTICE_TOOLS_HELP
         }
       />
 

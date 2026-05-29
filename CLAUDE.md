@@ -270,6 +270,7 @@ Also caught a **latent bug** in the existing rhythm-loop scheduler (the "▶ Loo
 
 In rough priority order:
 
+0. **Verify the Rep Rotator rename (shipped 2026-05-29).** "Serial Practice" was renamed + simplified into **Rep Rotator** — random-order only, reachable from the 🔀 button in the library header and a "Rep Rotator" pill on the passage-detail screen (seeds the picker with that passage). The old loud "Try serial practicing?" CTA is gone. Storage still writes `strategy: 'interleaved'` (no row migration); only labels changed. Bundle + typecheck verified locally; the authenticated click-through (library 🔀 → config → select → "?" help modal → first-run TutorialStep, and the passage pill seed) still needs a logged-in smoke test on `playweb`/live.
 1. **Friend-test the live web build** at playfastnotes.com on a laptop, on a phone (PWA install), and on a tablet. The 2026-05-24 + 2026-05-28 pushes are all on master; real-user smoke test is what catches the bugs Vercel/CI didn't. Pay particular attention to the metronome-↔-exercise playback in 3/8 / 6/8 / 12/8 patterns since the BPM math changed.
 2. **iPad cutover.** `playpreview` from this repo, install over the existing learn-fast-notes build, verify on the physical iPad. Then archive `../learn-fast-notes/`.
 3. **Pre-existing TS errors in self-led routes** (`app/passage/[id]/self-led/[key].tsx`, `recording.tsx`) — `SelfLedKey` vs `Strategy` mismatch. Cheap cleanup next time we touch those files.

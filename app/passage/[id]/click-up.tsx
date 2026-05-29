@@ -25,6 +25,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
+import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { MIN_MARKERS, useClickUpSession } from '@/hooks/useClickUpSession';
@@ -254,7 +255,8 @@ export default function ClickUpScreen() {
           body={
             "Tap just above the music to mark the start of each unit (a beat, a measure — whatever feels like the smallest chunk you want to drill). Drop one extra mark at the end of the last unit so the app knows where it stops. You need at least " +
             String(MIN_MARKERS) +
-            " marks total. Tap a marker again to remove it.\n\n" +
+            " marks total.\n\n" +
+            "To fix a mistake: tap a marker again to remove it, tap UNDO to remove just the last one, or tap CLEAR to wipe them all and start over.\n\n" +
             "When you've placed your marks, tap NEXT → at the top right to set your tempo range."
           }
           image={{
@@ -346,7 +348,8 @@ export default function ClickUpScreen() {
             "Start Tempo — well below your target. A good rule of thumb is half your performance tempo.\n\n" +
             "Performance Tempo — the speed you ultimately need to perform at.\n\n" +
             "Increment — how big each tempo bump is between stages.\n\n" +
-            "When you start, the app walks you through every tempo in between, interleaving individual units with growing combinations."
+            "When you start, the app walks you through every tempo in between, interleaving individual units with growing combinations.\n\n" +
+            "Buttons: Resume picks up a prior session where you left off, at the same step and tempo. Start over (or Start practicing the first time) begins fresh from Step 1. ← Back to marking returns to editing your unit marks."
           }
         />
       </ThemedView>
@@ -543,7 +546,9 @@ export default function ClickUpScreen() {
         body={
           "The score highlights the unit (or pair of units) you're playing right now. Play it at the current tempo, then tap NEXT → to advance.\n\n" +
           "The sequence interleaves individual units with progressively larger combinations — single units first, then pairs, then triples — climbing through your tempo range. Don't try to remember where you are; the app drives the order.\n\n" +
-          "Keyboard / pedal: Space = NEXT. Tap ← at the top-left to exit and log the session."
+          "← BACK steps you back one stage (handy if you advanced too soon and want to retake that tempo); the metronome and active units rewind with you.\n\n" +
+          "Keyboard / pedal: Space / Enter / right pedal = NEXT, ← / Backspace / left pedal = BACK. The session logs itself when you reach the last step — tap DONE at the top right to log it early, or EXIT to leave without logging." +
+          `\n\n${PRACTICE_TOOLS_HELP}`
         }
       />
     </ThemedView>

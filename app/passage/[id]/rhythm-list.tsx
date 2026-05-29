@@ -309,7 +309,9 @@ export default function RhythmListScreen() {
         visible={false}
         title="Saved exercises"
         body={
-          "All the rhythm-variation exercises you've built for this passage. Tap one to open it for practice, or tap + New to build another."
+          "All the rhythm-variation exercises you've built for this passage. Tap one to open it for practice, or tap + New to build another.\n\n" +
+          "Edit — toggles edit mode (the button becomes Done). In edit mode each exercise gains controls: ↑ / ↓ to reorder the list, Rename to retitle it, and Delete to remove it. Deleting an exercise leaves its past practice-log entries intact.\n\n" +
+          "Tap Done when you're finished editing to go back to tap-to-open."
         }
       />
     </ThemedView>

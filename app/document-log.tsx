@@ -383,7 +383,8 @@ export default function DocumentLogScreen() {
         title="This PDF's practice log"
         body={
           "Every session you've run on any passage in this PDF, grouped by section (if you've marked them).\n\n" +
-          "Sections you marked on the PDF show up here as headers, making it easy to see at a glance which movements you've been drilling and which ones you've been skipping."
+          "Sections you marked on the PDF show up here as headers, making it easy to see at a glance which movements you've been drilling and which ones you've been skipping.\n\n" +
+          "Tap any entry to edit its note and mood, play back a recording, or delete it — just like the other practice-log screens."
         }
       />
     </ThemedView>

@@ -788,8 +788,9 @@ export default function LibraryLogScreen() {
         visible={false}
         title="Your practice log"
         body={
-          "Every session you've ever run, newest first. Tap any entry to expand its notes, add a mood, or replay a recording you made during the session.\n\n" +
-          "Filter by passage or strategy using the controls at the top to spot patterns — what you've been drilling, what you've been ignoring."
+          "Every session you've ever run, grouped so you can spot patterns — what you've been drilling, what you've been ignoring.\n\n" +
+          'Use the By date / By folder toggle at the top to switch how sessions are grouped: chronologically, or gathered under each folder and piece.\n\n' +
+          'Tap any entry to open it — add or change its mood and note, play back a recording you made during the session, or delete the entry.'
         }
       />
     </ThemedView>

@@ -447,8 +447,9 @@ export default function CropScreen() {
         visible={false}
         title="Crop your passage"
         body={
-          "Drag the corner handles to crop the image down to just the music you want to drill. Trim white margins, page edges, anything that distracts.\n\n" +
-          "Tight crops zoom better on phone and tablet, so the staves are big enough to read while you play."
+          "Drag the corner handles to resize the crop, or drag the whole rectangle to reposition it, until it frames just the music you want to drill. Trim white margins, page edges, anything that distracts.\n\n" +
+          "Tight crops zoom better on phone and tablet, so the staves are big enough to read while you play.\n\n" +
+          "Tap \"Save\" to keep your crop. \"Skip cropping\" (and \"Cancel\" up top) proceed with the full, uncropped image instead. Either way, if the passage doesn't have a name yet you'll be prompted to name it before you land on the passage screen."
         }
       />
     </ThemedView>

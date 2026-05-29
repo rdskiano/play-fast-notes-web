@@ -447,7 +447,9 @@ export default function MultiPageScreen() {
         title="Two-page passage"
         body={
           "When a passage spans the end of one page and the start of the next, snap each half separately and the app stitches them into one continuous score.\n\n" +
-          "Crop each photo to just the passage portion of that page — the stitched result is what you'll drill."
+          "Pick or drop page 1, then page 2 (each preview has a ✕ to remove it and re-pick; Cancel backs out of the whole flow). When both are in, tap \"Next: Crop pages.\"\n\n" +
+          "Crop each photo to just the passage portion of that page — \"Next\" advances from page 1 to page 2, \"Done\" finishes.\n\n" +
+          "On the stacked preview you'll see how the two halves combine. \"Swap order\" flips which page is on top; \"Redo page 1\" / \"Redo page 2\" sends you back to re-pick and re-crop that half. Tap \"Save\" to stitch and store it — you'll be prompted to name the passage."
         }
       />
     </ThemedView>
