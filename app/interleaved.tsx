@@ -28,6 +28,7 @@ import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/toke
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { ZoomableImage } from '@/components/ZoomableImage';
+import { actionButtonStyle, HELP_CLEARANCE } from '@/lib/layout/configForm';
 import { listPassages, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
@@ -538,7 +539,7 @@ export default function InterleavedScreen() {
           <Button
             label={`Start practicing with ${selectedIds.length} passages →`}
             onPress={startPlaying}
-            fullWidth
+            style={actionButtonStyle}
           />
         </View>
         <TutorialStep
@@ -584,7 +585,7 @@ export default function InterleavedScreen() {
             }
             onPress={() => setPhase('config')}
             disabled={!canStart}
-            fullWidth
+            style={actionButtonStyle}
           />
         </View>
         <TutorialStep
@@ -680,9 +681,9 @@ export default function InterleavedScreen() {
         style={[
           styles.contentArea,
           // Reserve a thin band under the score so the floating ✗ / ✓
-          // circles don't overlap the music. Matches the Tempo Ladder
-          // pattern.
-          isPhone && { paddingBottom: insets.bottom + 40 },
+          // circles don't overlap the music. The circles are lifted to
+          // clear the help button; matches the Tempo Ladder pattern.
+          isPhone && { paddingBottom: insets.bottom + HELP_CLEARANCE + 36 },
         ]}>
         {currentSpot?.passage.source_uri ? (
           <View style={styles.scoreFill}>
@@ -753,7 +754,9 @@ export default function InterleavedScreen() {
               style={[
                 styles.phoneRepBtn,
                 styles.phoneMissBtn,
-                { bottom: insets.bottom + 24 },
+                // Lifted to clear the global help button's bottom-right
+                // corner (✓ sits above it; both raised to stay level).
+                { bottom: insets.bottom + HELP_CLEARANCE },
               ]}>
               <ThemedText style={styles.phoneRepGlyph}>✗</ThemedText>
             </Pressable>
@@ -764,7 +767,7 @@ export default function InterleavedScreen() {
               style={[
                 styles.phoneRepBtn,
                 styles.phoneCleanBtn,
-                { bottom: insets.bottom + 24 },
+                { bottom: insets.bottom + HELP_CLEARANCE },
               ]}>
               <ThemedText style={styles.phoneRepGlyph}>✓</ThemedText>
             </Pressable>
@@ -1187,8 +1190,8 @@ const styles = StyleSheet.create({
   // keeps the full-width button clear of the global floating "?" help
   // button (fixed bottom-right, ~60px) so they don't overlap or blend.
   bottomBar: {
-    padding: Spacing.lg,
-    paddingRight: 76,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: HELP_CLEARANCE,
   },
   sectionLabel: {
     fontSize: Type.size.sm,

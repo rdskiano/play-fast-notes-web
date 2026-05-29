@@ -40,3 +40,27 @@ export const configColumnStyle = StyleSheet.create({
     alignSelf: 'center',
   },
 }).cap;
+
+/**
+ * Bottom-right corner reserved by the global floating "?" help button
+ * (HelpButton.web.tsx — fixed bottom:16 / right:16, 44px). Footer action
+ * bars give themselves this much right-padding so their button never sits
+ * under the help button on a narrow viewport. Also the minimum vertical
+ * offset a bottom-corner control (e.g. the phone ✓/✗ rep buttons) needs to
+ * clear the help button's 60px-tall corner.
+ */
+export const HELP_CLEARANCE = 76;
+
+/**
+ * Caps + centres an execute/CTA button so it reads as "an action" rather
+ * than a page-wide banner. Full-bleed on a phone (where width < maxWidth),
+ * centred and bounded on a wide viewport. Spread into a Button's `style`
+ * (drop its `fullWidth` prop) or onto a row of buttons.
+ */
+export const actionButtonStyle = StyleSheet.create({
+  btn: {
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
+  },
+}).btn;

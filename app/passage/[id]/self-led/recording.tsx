@@ -29,6 +29,7 @@ import { ZoomableImage } from '@/components/ZoomableImage';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { actionButtonStyle, HELP_CLEARANCE } from '@/lib/layout/configForm';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
@@ -280,7 +281,7 @@ export default function SelfLedRecordingScreen() {
             label="● Record"
             variant="danger"
             onPress={startRecording}
-            fullWidth
+            style={actionButtonStyle}
           />
         )}
         {phase === 'recording' && (
@@ -312,19 +313,19 @@ export default function SelfLedRecordingScreen() {
                 label="↻ Record again"
                 variant="outline"
                 onPress={reRecord}
-                fullWidth
+                style={actionButtonStyle}
               />
               <Button
                 label="Log session only"
                 variant="primary"
                 onPress={onLogOnlyClick}
-                fullWidth
+                style={actionButtonStyle}
               />
               <Button
                 label="Log + keep recording"
                 variant="outline"
                 onPress={onSaveWithAudioClick}
-                fullWidth
+                style={actionButtonStyle}
               />
               <ThemedText style={[styles.saveHelp, { color: C.icon }]}>
                 Record again to re-take. Log only writes the duration to your
@@ -375,10 +376,11 @@ const styles = StyleSheet.create({
   scoreFill: { flex: 1, width: '100%' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   controls: {
-    padding: Spacing.lg,
-    // Extra right padding so the Save / Re-record buttons clear the floating
-    // Feedback bubble (position: absolute, bottom: 20, right: 20, ~140px wide).
-    paddingRight: 160,
+    paddingVertical: Spacing.lg,
+    // Symmetric side padding (= the help-button corner reserve) keeps the
+    // centred buttons clear of the bottom-right "?" button on a narrow
+    // viewport while staying centred on the window.
+    paddingHorizontal: HELP_CLEARANCE,
     gap: Spacing.md,
     borderTopWidth: Borders.thin,
   },

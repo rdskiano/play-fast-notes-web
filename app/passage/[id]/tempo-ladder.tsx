@@ -38,7 +38,12 @@ import {
   createCustomPattern,
   updateCustomPattern,
 } from '@/lib/supabase/customPatterns';
-import { configColumnStyle, tempoStacks } from '@/lib/layout/configForm';
+import {
+  actionButtonStyle,
+  configColumnStyle,
+  HELP_CLEARANCE,
+  tempoStacks,
+} from '@/lib/layout/configForm';
 
 const INCREMENTS: Increment[] = [2, 5, 10];
 
@@ -339,12 +344,12 @@ export default function TempoLadderScreen() {
 
         </ScrollView>
 
-        <View style={{ margin: 20 }}>
+        <View style={styles.startBar}>
           <Button
             label="Start"
             onPress={startSession}
             disabled={mode === 'custom' && !customPattern}
-            fullWidth
+            style={actionButtonStyle}
           />
         </View>
 
@@ -504,10 +509,10 @@ export default function TempoLadderScreen() {
           styles.contentArea,
           // Trim just enough off the score's bottom so the floating
           // ✗ / ✓ buttons don't sit on top of notes. The buttons are
-          // ~56 tall; this leaves them sitting in a thin band below the
-          // score's letterbox without wasting a big strip of vertical
-          // space the music could be using.
-          isPhone && { paddingBottom: insets.bottom + 40 },
+          // ~56 tall and lifted to clear the help button (see below);
+          // this leaves them sitting in a thin band below the score's
+          // letterbox without wasting a big strip of vertical space.
+          isPhone && { paddingBottom: insets.bottom + HELP_CLEARANCE + 36 },
         ]}>
         {passage?.source_uri &&
           (isPhone ? (
@@ -580,7 +585,10 @@ export default function TempoLadderScreen() {
               style={[
                 styles.phoneRepBtn,
                 styles.phoneMissBtn,
-                { bottom: insets.bottom + 24 },
+                // Lifted to clear the global help button's bottom-right
+                // corner (the ✓ sits directly above it; both raised so
+                // the pair stays level).
+                { bottom: insets.bottom + HELP_CLEARANCE },
               ]}>
               <ThemedText style={styles.phoneRepGlyph}>✗</ThemedText>
             </Pressable>
@@ -591,7 +599,7 @@ export default function TempoLadderScreen() {
               style={[
                 styles.phoneRepBtn,
                 styles.phoneCleanBtn,
-                { bottom: insets.bottom + 24 },
+                { bottom: insets.bottom + HELP_CLEARANCE },
               ]}>
               <ThemedText style={styles.phoneRepGlyph}>✓</ThemedText>
             </Pressable>
@@ -743,6 +751,15 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 14,
     paddingBottom: Spacing['2xl'],
+  },
+  // Fixed footer holding the "Start" button. Symmetric padding keeps the
+  // capped button centred on the window (aligned with the card column
+  // above); the side padding equals the help-button corner reserve, so on
+  // a narrow viewport the button still clears the bottom-right "?" button.
+  startBar: {
+    paddingTop: Spacing.md,
+    paddingBottom: 20,
+    paddingHorizontal: HELP_CLEARANCE,
   },
   divider: { height: 1, marginVertical: Spacing.sm, borderRadius: 1 },
   row: { flexDirection: 'row', gap: Spacing.md },

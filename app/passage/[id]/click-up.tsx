@@ -32,7 +32,7 @@ import { MIN_MARKERS, useClickUpSession } from '@/hooks/useClickUpSession';
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import { TutorialStep } from '@/components/TutorialStep';
 import { activePairMarkers } from '@/lib/strategies/clickUp';
-import { configColumnStyle } from '@/lib/layout/configForm';
+import { actionButtonStyle, configColumnStyle, HELP_CLEARANCE } from '@/lib/layout/configForm';
 
 function formatActiveUnits(activeUnits: number[]): string {
   if (activeUnits.length === 0) return '';
@@ -325,7 +325,7 @@ export default function ClickUpScreen() {
             <Button
               label={`Resume — Step ${currentIndex + 1} of ${storedConfig.steps.length}`}
               onPress={resumePlaying}
-              fullWidth
+              style={actionButtonStyle}
             />
           )}
           <Button
@@ -336,9 +336,14 @@ export default function ClickUpScreen() {
             }
             variant={storedConfig && currentIndex > 0 ? 'outline' : 'primary'}
             onPress={startPlaying}
-            fullWidth
+            style={actionButtonStyle}
           />
-          <Button label="← Back to marking" variant="ghost" onPress={goBackToMarking} fullWidth />
+          <Button
+            label="← Back to marking"
+            variant="ghost"
+            onPress={goBackToMarking}
+            style={actionButtonStyle}
+          />
         </View>
 
         <TutorialStep
@@ -557,7 +562,9 @@ export default function ClickUpScreen() {
 }
 
 const styles = StyleSheet.create({
-  configContainer: { flexGrow: 1, padding: 20, gap: 14, paddingBottom: Spacing['2xl'] },
+  // paddingBottom lifts the last CTA above the global help button's corner
+  // when the form is scrolled all the way down.
+  configContainer: { flexGrow: 1, padding: 20, gap: 14, paddingBottom: HELP_CLEARANCE + 20 },
   configHeader: {
     paddingTop: Spacing.md,
     paddingHorizontal: 10,
@@ -585,8 +592,11 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   doneBtn: { backgroundColor: Status.danger },
+  // Symmetric side padding (= the help-button corner reserve) keeps the
+  // centred NEXT/BACK row clear of the bottom-right "?" button on a narrow
+  // viewport while staying centred on the window.
   bottomBar: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: HELP_CLEARANCE,
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.lg,
     gap: Spacing.sm,
@@ -608,7 +618,14 @@ const styles = StyleSheet.create({
     fontWeight: Type.weight.heavy,
     fontSize: Type.size.lg,
   },
-  navRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'stretch' },
+  navRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    alignItems: 'stretch',
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+  },
   backBtn: {
     paddingVertical: 16,
     paddingHorizontal: 18,
