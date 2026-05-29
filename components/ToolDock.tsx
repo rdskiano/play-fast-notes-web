@@ -2,8 +2,9 @@
 // it pops the tool out as a floating card. The whole card is draggable
 // (one finger) and pinch-resizable (two fingers) — plus a small ⊖ / ⊕
 // sizer in the top-right corner of the card so a laptop user (mouse, no
-// pinch) can resize without two fingers. Tapping the tab again collapses
-// the card: it flies back into its tab.
+// pinch) can resize without two fingers. Two ways to collapse: tapping the
+// tab again, or the × in the card's top-left corner (the obvious "put this
+// away" control — the resize − was being misread as a close button).
 // Tools are independent — several can float at once.
 //
 // The card stays mounted whether open or closed (only its opacity / scale /
@@ -198,6 +199,22 @@ export function ToolDock({
             cardStyle,
           ]}>
           {children}
+          {/* Top-left collapse affordance. A plain × that flies the card
+              back into its tab — the unambiguous "put this away" control.
+              Shown on every device (touch + mouse): the edge tab also
+              toggles, but users reach for an X on the thing itself. Kept
+              clear of the top-right resize ⊖/⊕ so the two don't get
+              confused (the old failure mode was tapping − to "close" and
+              just shrinking the card). */}
+          <View pointerEvents="box-none" style={styles.closeWrap}>
+            <Pressable
+              onPress={() => setOpen(false)}
+              hitSlop={8}
+              accessibilityLabel={`Collapse ${label}`}
+              style={styles.closeBtn}>
+              <ThemedText style={styles.closeGlyph}>×</ThemedText>
+            </Pressable>
+          </View>
           {/* Top-right resize affordance. Sits inside the scaled card
               so it shrinks / grows with everything else. `box-none`
               lets taps that miss the buttons fall through to the
@@ -307,6 +324,30 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 22,
     textAlign: 'center',
+  },
+
+  // Collapse button — top-left, mirror of the resize cluster. Slightly
+  // more present than the dim sizers since it's the primary "put away"
+  // action and needs to read on both light and dark tool palettes.
+  closeWrap: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    zIndex: 10,
+  },
+  closeBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00000040',
+  },
+  closeGlyph: {
+    color: '#ffffffe6',
+    fontSize: 18,
+    lineHeight: 20,
+    fontWeight: '700',
   },
 
   // Corner size buttons — small, dim, top-right so they stay out of the

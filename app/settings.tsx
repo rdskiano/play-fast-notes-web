@@ -1,7 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,7 +18,6 @@ import {
   usePlayItColdTimer,
 } from '@/components/PracticeTimersContext';
 import { SessionTopBar } from '@/components/SessionTopBar';
-import { bmacUrl } from '@/lib/links';
 import { useSubscription } from '@/lib/supabase/subscription';
 import {
   DEFAULT_STRATEGY_COLORS,
@@ -129,6 +127,9 @@ export default function SettingsScreen() {
   const userEmail = session?.user.email ?? null;
   const subscription = useSubscription();
 
+  const [colorsExpanded, setColorsExpanded] = useState(false);
+  const [timersExpanded, setTimersExpanded] = useState(false);
+  const [accountExpanded, setAccountExpanded] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [passages, setPassages] = useState<Passage[]>([]);
   const [wipeConfirmOpen, setWipeConfirmOpen] = useState(false);
@@ -182,19 +183,32 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         {/* ── Strategy colors ────────────────────────────────────────── */}
         <View style={styles.sectionHeader}>
-          <ThemedText style={styles.sectionTitle}>Strategy colors</ThemedText>
-          <Pressable onPress={resetAll} hitSlop={6} style={styles.resetBtn}>
-            <ThemedText style={[styles.resetText, { color: C.tint }]}>
-              Reset
+          <Pressable
+            onPress={() => setColorsExpanded((v) => !v)}
+            hitSlop={6}
+            style={styles.collapseHeader}>
+            <ThemedText style={[styles.chevron, { color: C.icon }]}>
+              {colorsExpanded ? '▾' : '▸'}
             </ThemedText>
+            <ThemedText style={styles.sectionTitle}>Strategy colors</ThemedText>
           </Pressable>
+          {colorsExpanded && (
+            <Pressable onPress={resetAll} hitSlop={6} style={styles.resetBtn}>
+              <ThemedText style={[styles.resetText, { color: C.tint }]}>
+                Reset
+              </ThemedText>
+            </Pressable>
+          )}
         </View>
-        <ThemedText style={styles.sectionHint}>
-          These tint the strategy pills in the practice log and the buttons on
-          each passage page.
-        </ThemedText>
 
-        {STRATEGY_ORDER.map((key) => (
+        {colorsExpanded && (
+          <>
+            <ThemedText style={styles.sectionHint}>
+              These tint the strategy pills in the practice log and the buttons on
+              each passage page.
+            </ThemedText>
+
+            {STRATEGY_ORDER.map((key) => (
           <View key={key} style={styles.row}>
             <View style={styles.rowHeader}>
               <View style={[styles.swatch, { backgroundColor: colors[key] }]} />
@@ -226,20 +240,33 @@ export default function SettingsScreen() {
                   />
                 );
               })}
-            </View>
-          </View>
-        ))}
+                </View>
+              </View>
+            ))}
+          </>
+        )}
 
         {/* ── Practice timers ────────────────────────────────────────── */}
         <View style={[styles.sectionHeader, { marginTop: 18 }]}>
-          <ThemedText style={styles.sectionTitle}>Practice timers</ThemedText>
+          <Pressable
+            onPress={() => setTimersExpanded((v) => !v)}
+            hitSlop={6}
+            style={styles.collapseHeader}>
+            <ThemedText style={[styles.chevron, { color: C.icon }]}>
+              {timersExpanded ? '▾' : '▸'}
+            </ThemedText>
+            <ThemedText style={styles.sectionTitle}>Practice timers</ThemedText>
+          </Pressable>
         </View>
-        <ThemedText style={styles.sectionHint}>
-          Four focus tools. Toggle them on or off from the ⏱🧠❄️🚶 pill on the
-          Timer card in any passage screen; configure them here.
-        </ThemedText>
 
-        {/* Rotate */}
+        {timersExpanded && (
+          <>
+            <ThemedText style={styles.sectionHint}>
+              Four focus tools. Toggle them on or off from the ⏱🧠❄️🚶 pill on the
+              Timer card in any passage screen; configure them here.
+            </ThemedText>
+
+            {/* Rotate */}
         <View style={[styles.timerCard, { borderColor: C.icon + '33' }]}>
           <View style={styles.timerHeader}>
             <ThemedText style={styles.timerTitle}>⏱ Rotate Timer</ThemedText>
@@ -385,66 +412,62 @@ export default function SettingsScreen() {
               unit="min"
               tint={C.tint}
               icon={C.icon}
-              onChange={(n) => bodyMove.setConfig({ intervalMin: n })}
-            />
-          </View>
-        </View>
-
-        {/* ── Support ─────────────────────────────────────────────────── */}
-        <View style={styles.sectionHeader}>
-          <ThemedText style={styles.sectionTitle}>Support</ThemedText>
-        </View>
-        <ThemedText style={styles.sectionHint}>
-          Play Fast Notes is in active development. If it is helping your
-          practice, a tip keeps the work going.
-        </ThemedText>
-        {subscription.isActive && subscription.expiresAt && (
-          <ThemedText style={[styles.sectionHint, { color: C.tint }]}>
-            Thanks — your free access is active through{' '}
-            {formatExpiry(subscription.expiresAt)}.
-          </ThemedText>
+                  onChange={(n) => bodyMove.setConfig({ intervalMin: n })}
+                />
+              </View>
+            </View>
+          </>
         )}
-        <View style={styles.accountRow}>
-          <Button
-            label="☕ Buy me a coffee"
-            variant="outline"
-            onPress={() => Linking.openURL(bmacUrl())}
-            fullWidth
-          />
-        </View>
 
         {/* ── Account ─────────────────────────────────────────────────── */}
-        <View style={styles.sectionHeader}>
-          <ThemedText style={styles.sectionTitle}>Account</ThemedText>
+        <View style={[styles.sectionHeader, { marginTop: 18 }]}>
+          <Pressable
+            onPress={() => setAccountExpanded((v) => !v)}
+            hitSlop={6}
+            style={styles.collapseHeader}>
+            <ThemedText style={[styles.chevron, { color: C.icon }]}>
+              {accountExpanded ? '▾' : '▸'}
+            </ThemedText>
+            <ThemedText style={styles.sectionTitle}>Account</ThemedText>
+          </Pressable>
         </View>
-        {userEmail && (
-          <ThemedText style={styles.sectionHint}>
-            Signed in as {userEmail}.
-          </ThemedText>
+
+        {accountExpanded && (
+          <>
+            {userEmail && (
+              <ThemedText style={styles.sectionHint}>
+                Signed in as {userEmail}.
+              </ThemedText>
+            )}
+            {subscription.isActive && subscription.expiresAt && (
+              <ThemedText style={[styles.sectionHint, { color: C.tint }]}>
+                Free access is active through{' '}
+                {formatExpiry(subscription.expiresAt)}.
+              </ThemedText>
+            )}
+            <View style={styles.accountActions}>
+              <Button
+                label="Sign out"
+                variant="outline"
+                size="sm"
+                onPress={onSignOut}
+              />
+              <Button
+                label={wiping ? 'Resetting…' : 'Reset all my data'}
+                variant="danger"
+                size="sm"
+                onPress={() => setWipeConfirmOpen(true)}
+                disabled={wiping}
+              />
+            </View>
+            <ThemedText style={[styles.sectionHint, { marginTop: Spacing.xs }]}>
+              Reset deletes every passage, exercise, log entry, recording, and
+              folder you own. Sign-in stays so you can start fresh. To fully
+              delete your account (including your email), email
+              rdskiano@gmail.com.
+            </ThemedText>
+          </>
         )}
-        <View style={styles.accountRow}>
-          <Button
-            label="Sign out"
-            variant="outline"
-            onPress={onSignOut}
-            fullWidth
-          />
-        </View>
-        <View style={styles.accountRow}>
-          <Button
-            label={wiping ? 'Resetting…' : 'Reset all my data'}
-            variant="danger"
-            onPress={() => setWipeConfirmOpen(true)}
-            disabled={wiping}
-            fullWidth
-          />
-          <ThemedText style={[styles.sectionHint, { marginTop: Spacing.xs }]}>
-            Deletes every passage, exercise, log entry, recording, and
-            folder you own. Sign-in stays so you can start fresh. To fully
-            delete your account (including your email), email
-            rdskiano@gmail.com.
-          </ThemedText>
-        </View>
 
       </ScrollView>
 
@@ -479,7 +502,6 @@ export default function SettingsScreen() {
           "Strategy colors — pick the tint for each strategy's pill on the passage screen and in the practice log. Tap a swatch to change a color; the per-row 'default' link (shown when you've changed one) restores just that strategy, and 'Reset' at the top restores every strategy at once.\n\n" +
           "Practice timers — Rotate, Micro, Cold, Break. Toggle each on/off and set how often they fire. Configurable from the Timer card on any passage screen too.\n\n" +
           "Cold timer — it needs a designated passage: switching it on prompts you to pick one (or use the Passage row to change it). It then fires once at a random moment inside the Min–Max interval window you set, so you can't predict the cold take.\n\n" +
-          "Support — ☕ Buy me a coffee opens a tip link; tips keep development going.\n\n" +
           "Account — sign out or reset all your data. Resetting deletes every passage, exercise, log, recording, and folder you own (your sign-in stays); it's permanent."
         }
       />
@@ -491,6 +513,7 @@ const styles = StyleSheet.create({
   topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
   content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'], gap: Spacing.lg },
   accountRow: { gap: Spacing.xs },
+  accountActions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -498,6 +521,8 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   sectionTitle: { fontWeight: Type.weight.heavy, fontSize: Type.size.xl },
+  collapseHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
+  chevron: { fontSize: Type.size.md, fontWeight: Type.weight.bold },
   sectionHint: { opacity: Opacity.muted, fontSize: Type.size.sm, lineHeight: 18, marginTop: -10 },
   resetBtn: { paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs },
   resetText: { fontWeight: Type.weight.bold, fontSize: Type.size.sm },

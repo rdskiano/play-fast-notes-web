@@ -79,3 +79,20 @@ export const Status = {
   danger: '#c0392b',
   warning: '#e67e22',
 } as const;
+
+/**
+ * Layout breakpoints for the strategy config screens.
+ *
+ * `configMaxWidth` caps the setup form in a centred column so it never
+ * stretches edge-to-edge on a wide viewport (landscape phone, tablet,
+ * desktop). `tempoStackBelow` decides when paired BPM cards stack into one
+ * column vs sit 2-across — keyed off the *effective* column width
+ * (`min(windowWidth, configMaxWidth)`), NOT `min(width, height)`. The old
+ * orientation-independent `isPhone` flag wrongly forced the narrow-portrait
+ * stack onto wide landscape viewports; this decouples layout width from
+ * device class. See `configColumnWidth` / `tempoStacks` in lib/layout.
+ */
+export const Layout = {
+  configMaxWidth: 600,
+  tempoStackBelow: 520,
+} as const;

@@ -6,6 +6,7 @@ import { Colors } from '@/constants/theme';
 import { Borders, Spacing } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useMetronome } from '@/lib/audio/useMetronome';
+import { tempoStacks } from '@/lib/layout/configForm';
 
 export const INCREMENTS = [2, 5, 10] as const;
 export type Increment = (typeof INCREMENTS)[number];
@@ -39,13 +40,15 @@ export function TempoConfigFields({
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
-  // Stack the BPM cards on phone — at 2-across they're already tight,
-  // and "Hear this tempo" wraps onto three lines inside each cell.
-  const { width, height } = useWindowDimensions();
-  const isPhone = Math.min(width, height) < 600;
+  // Stack the BPM cards only when the column is genuinely narrow (portrait
+  // phone) — at 2-across they're tight and "Hear this tempo" wraps. Keyed
+  // off the effective column width, NOT min(w,h): a landscape phone has
+  // room for 2-across inside the capped config column.
+  const { width } = useWindowDimensions();
+  const stack = tempoStacks(width);
   return (
     <>
-      <View style={isPhone ? styles.rowPhone : styles.row}>
+      <View style={stack ? styles.rowPhone : styles.row}>
         <View style={styles.field}>
           <ThemedText style={styles.label}>{startLabel}</ThemedText>
           <BpmStepper value={startValue} onChange={onStart} metronome={metronome} />

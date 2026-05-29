@@ -32,6 +32,7 @@ import { MIN_MARKERS, useClickUpSession } from '@/hooks/useClickUpSession';
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import { TutorialStep } from '@/components/TutorialStep';
 import { activePairMarkers } from '@/lib/strategies/clickUp';
+import { configColumnStyle } from '@/lib/layout/configForm';
 
 function formatActiveUnits(activeUnits: number[]): string {
   if (activeUnits.length === 0) return '';
@@ -275,7 +276,7 @@ export default function ClickUpScreen() {
     return (
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ScrollView contentContainerStyle={[styles.configContainer, { paddingTop: 10 }]}>
+        <ScrollView contentContainerStyle={[styles.configContainer, configColumnStyle, { paddingTop: 10 }]}>
           {/* Phone: drop the H1 (the user already sees "Set the tempo range"
               context from getting here via Start Practicing) and the long
               explanatory paragraph below — both eat half the screen on

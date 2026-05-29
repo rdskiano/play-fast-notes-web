@@ -38,6 +38,7 @@ import {
   createCustomPattern,
   updateCustomPattern,
 } from '@/lib/supabase/customPatterns';
+import { configColumnStyle, tempoStacks } from '@/lib/layout/configForm';
 
 const INCREMENTS: Increment[] = [2, 5, 10];
 
@@ -134,7 +135,7 @@ export default function TempoLadderScreen() {
           <ThemedText style={styles.topTitle}>Tempo Ladder</ThemedText>
         </View>
 
-        <ScrollView contentContainerStyle={styles.configContainer}>
+        <ScrollView contentContainerStyle={[styles.configContainer, configColumnStyle]}>
           {!isPhone && (
             <>
               <ThemedText type="title">Tempo Ladder</ThemedText>
@@ -210,7 +211,10 @@ export default function TempoLadderScreen() {
           <View style={[styles.divider, { backgroundColor: C.icon + '33' }]} />
 
           {/* ── Shared config: BPM range + increment ─────────────────── */}
-          <View style={isPhone ? styles.rowPhone : styles.row}>
+          {/* Cluster mode shows three BPM cards — they never fit across the
+              capped column, so always stack. Step/Custom have two and go
+              2-across when the column is wide enough (e.g. landscape). */}
+          <View style={mode === 'cluster' || tempoStacks(vpW) ? styles.rowPhone : styles.row}>
             <View style={styles.field}>
               <ThemedText style={styles.label}>
                 {mode === 'cluster' ? 'Low BPM' : mode === 'custom' ? 'Base BPM' : 'Start BPM'}
