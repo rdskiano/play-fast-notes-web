@@ -42,6 +42,7 @@ import { PracticeTimersProvider } from '@/components/PracticeTimersContext';
 import { StitchHost } from '@/components/StitchHost';
 import { StrategyColorsProvider } from '@/components/StrategyColorsContext';
 import { useSession } from '@/lib/supabase/auth';
+import { registerServiceWorker } from '@/lib/sw/registerServiceWorker';
 import { startupMigrate } from '@/lib/startup/migrate';
 
 LogBox.ignoreLogs([/Failed to install react-native-audio-api/]);
@@ -70,6 +71,12 @@ export default function RootLayout() {
     startupMigrate()
       .catch((e) => console.warn('[startup] migrations failed', e))
       .finally(() => setDbReady(true));
+  }, []);
+
+  // Register the Supabase-storage cache service worker once on boot. Native
+  // resolves to a no-op via the .ts/.web.ts split, so this is safe unguarded.
+  useEffect(() => {
+    void registerServiceWorker();
   }, []);
 
   if (!dbReady) return null;
