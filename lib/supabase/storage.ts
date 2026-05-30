@@ -3,6 +3,17 @@ import { supabase } from './client';
 const BUCKET = 'pieces';
 
 /**
+ * SHA-1 hex digest of the given bytes. Used to content-address upload URLs so
+ * stable bytes ⇒ stable URL ⇒ CDN + service-worker cache hits.
+ */
+async function sha1Hex(bytes: Uint8Array): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-1', bytes as BufferSource);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
  * Upload an image file to the pieces bucket under the current user's folder.
  * Returns the public URL of the uploaded file.
  *
@@ -21,6 +32,13 @@ export async function uploadPassageImage(
   const ext = inferExt(file);
   const path = `${userId}/${pieceId}.${ext}`;
 
+  // Hash the bytes before upload so the URL we return is content-addressed.
+  // Stable bytes ⇒ stable URL ⇒ CDN + service-worker cache hits. Re-cropping
+  // to the same rect produces the same hash, so the CDN keeps serving the
+  // cached copy instead of treating every save as a fresh URL.
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const hash = (await sha1Hex(bytes)).slice(0, 12);
+
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
     upsert: true,
     contentType: file.type || undefined,
@@ -28,11 +46,7 @@ export async function uploadPassageImage(
   if (error) throw error;
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  // Cache-bust: when a passage is re-cropped, the path is identical (upsert
-  // overwrites at <userId>/<pieceId>.<ext>) so browsers and the Supabase CDN
-  // would otherwise keep serving the previous bytes. The version query forces
-  // a fresh fetch each time the row is updated.
-  return `${data.publicUrl}?v=${Date.now()}`;
+  return `${data.publicUrl}?v=${hash}`;
 }
 
 /**
@@ -52,18 +66,19 @@ export async function uploadAnnotationImage(
   if (!userId) throw new Error('Not signed in');
 
   const path = `${userId}/${key}-annotation.png`;
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, base64ToBytes(base64Png), {
-      upsert: true,
-      contentType: 'image/png',
-    });
+  const bytes = base64ToBytes(base64Png);
+  // Content-address the URL so redrawing the same overlay reuses the cached
+  // copy; a distinct drawing yields a distinct hash ⇒ fresh fetch.
+  const hash = (await sha1Hex(bytes)).slice(0, 12);
+
+  const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, {
+    upsert: true,
+    contentType: 'image/png',
+  });
   if (error) throw error;
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  // Cache-bust: the path is stable (upsert overwrites), so without a version
-  // query the CDN keeps serving the previous annotation.
-  return `${data.publicUrl}?v=${Date.now()}`;
+  return `${data.publicUrl}?v=${hash}`;
 }
 
 function base64ToBytes(base64: string): Uint8Array {
