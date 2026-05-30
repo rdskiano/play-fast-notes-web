@@ -25,6 +25,13 @@ const BUCKET = 'pieces';
 const SCALE = 2;
 const QUALITY = 85;
 
+// Max pages rendered at once. Each pdf-render-page call spins up a PDFium WASM
+// instance and loads the whole PDF, so firing all N pages in parallel (the old
+// behavior) exhausts the edge function's compute pool on big documents —
+// observed as WORKER_RESOURCE_LIMIT around page ~40 of a 52-page upload. A
+// small fixed pool keeps concurrent load bounded regardless of page count.
+const RENDER_CONCURRENCY = 4;
+
 export type UploadProgress = {
   phase: 'uploading' | 'init' | 'rendering' | 'saving' | 'done';
   pages_done: number;
@@ -80,16 +87,17 @@ export async function uploadPdfDocument(params: UploadPdfDocumentParams): Promis
   });
 
   let pagesDone = 0;
-  const renderTasks = Array.from({ length: pageTotal }, (_, i) => {
-    const page = i + 1;
-    return renderPageWithRetry(docId, page, scale, quality, session.access_token).then((result) => {
+  const pageNumbers = Array.from({ length: pageTotal }, (_, i) => i + 1);
+  const renderResults = await runWithConcurrency(
+    pageNumbers,
+    RENDER_CONCURRENCY,
+    async (page) => {
+      const result = await renderPageWithRetry(docId, page, scale, quality, session.access_token);
       pagesDone += 1;
       onProgress?.({ phase: 'rendering', pages_done: pagesDone, pages_total: pageTotal });
       return result;
-    });
-  });
-
-  const renderResults = await Promise.all(renderTasks);
+    },
+  );
   const pages: DocumentPage[] = renderResults
     .map((r) => ({ index: r.page, image_uri: r.image_uri, w: r.width, h: r.height }))
     .sort((a, b) => a.index - b.index);
@@ -142,11 +150,43 @@ async function renderPageWithRetry(
   quality: number,
   accessToken: string,
 ): Promise<{ image_uri: string; width: number; height: number; page: number }> {
-  try {
-    return await renderPage(docId, page, scale, quality, accessToken);
-  } catch (err) {
-    return await renderPage(docId, page, scale, quality, accessToken);
+  const MAX_ATTEMPTS = 3;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await renderPage(docId, page, scale, quality, accessToken);
+    } catch (err) {
+      lastErr = err;
+      // Back off before retrying so a transient resource blip on the render
+      // function has a moment to clear (0.8s, then 1.6s).
+      if (attempt < MAX_ATTEMPTS) await sleep(attempt * 800);
+    }
   }
+  throw lastErr;
+}
+
+// Run `worker` over `items` with at most `limit` in flight at once, preserving
+// input order in the returned array. Bounds peak load on the render function.
+async function runWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  async function runner(): Promise<void> {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await worker(items[index], index);
+    }
+  }
+  const runners = Array.from({ length: Math.min(limit, items.length) }, () => runner());
+  await Promise.all(runners);
+  return results;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function newDocId(): string {
