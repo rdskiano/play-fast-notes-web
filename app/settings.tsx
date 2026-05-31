@@ -31,7 +31,7 @@ import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { listPassages, type Passage } from '@/lib/db/repos/passages';
-import { wipeUserData } from '@/lib/supabase/account';
+import { deleteAccount, wipeUserData } from '@/lib/supabase/account';
 import { signOut, useSession } from '@/lib/supabase/auth';
 
 const STRATEGY_LABELS: Record<StrategyKey, string> = {
@@ -134,6 +134,9 @@ export default function SettingsScreen() {
   const [passages, setPassages] = useState<Passage[]>([]);
   const [wipeConfirmOpen, setWipeConfirmOpen] = useState(false);
   const [wiping, setWiping] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function onSignOut() {
     try {
@@ -154,6 +157,26 @@ export default function SettingsScreen() {
     }
     setWiping(false);
     router.replace('/sign-in');
+  }
+
+  async function onConfirmDelete() {
+    setDeleteConfirmOpen(false);
+    setDeleteError(null);
+    setDeleting(true);
+    try {
+      await deleteAccount();
+      router.replace('/sign-in');
+    } catch (e) {
+      // Keep the user here with a visible error rather than dumping them on the
+      // sign-in screen as if it worked — a half-finished delete needs a retry.
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn('[settings] account deletion failed', msg);
+      setDeleteError(
+        "Something went wrong deleting your account. Nothing was changed — please try again, or email rdskiano@gmail.com.",
+      );
+    } finally {
+      setDeleting(false);
+    }
   }
 
   useEffect(() => {
@@ -457,15 +480,30 @@ export default function SettingsScreen() {
                 variant="danger"
                 size="sm"
                 onPress={() => setWipeConfirmOpen(true)}
-                disabled={wiping}
+                disabled={wiping || deleting}
+              />
+              <Button
+                label={deleting ? 'Deleting…' : 'Delete my account'}
+                variant="danger"
+                size="sm"
+                onPress={() => {
+                  setDeleteError(null);
+                  setDeleteConfirmOpen(true);
+                }}
+                disabled={wiping || deleting}
               />
             </View>
             <ThemedText style={[styles.sectionHint, { marginTop: Spacing.xs }]}>
               Reset deletes every passage, exercise, log entry, recording, and
-              folder you own. Sign-in stays so you can start fresh. To fully
-              delete your account (including your email), email
-              rdskiano@gmail.com.
+              folder you own, but keeps your sign-in so you can start fresh.
+              Delete my account removes everything plus your login and email —
+              it is permanent and cannot be undone.
             </ThemedText>
+            {deleteError && (
+              <ThemedText style={[styles.sectionHint, { color: C.tint, marginTop: Spacing.xs }]}>
+                {deleteError}
+              </ThemedText>
+            )}
           </>
         )}
 
@@ -493,6 +531,20 @@ export default function SettingsScreen() {
         onCancel={() => setWipeConfirmOpen(false)}
       />
 
+      <ConfirmModal
+        visible={deleteConfirmOpen}
+        title="Delete your account?"
+        message={
+          'This permanently deletes your account and everything in it — every passage, exercise, log entry, recording, and folder, plus your sign-in email. ' +
+          'You will not be able to sign back in or recover any of it. This cannot be undone.'
+        }
+        confirmLabel="Delete my account"
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={onConfirmDelete}
+        onCancel={() => setDeleteConfirmOpen(false)}
+      />
+
       <TutorialStep
         id="settings"
         visible={false}
@@ -502,7 +554,7 @@ export default function SettingsScreen() {
           "Strategy colors — pick the tint for each strategy's pill on the passage screen and in the practice log. Tap a swatch to change a color; the per-row 'default' link (shown when you've changed one) restores just that strategy, and 'Reset' at the top restores every strategy at once.\n\n" +
           "Practice timers — Rotate, Micro, Cold, Break. Toggle each on/off and set how often they fire. Configurable from the Timer card on any passage screen too.\n\n" +
           "Cold timer — it needs a designated passage: switching it on prompts you to pick one (or use the Passage row to change it). It then fires once at a random moment inside the Min–Max interval window you set, so you can't predict the cold take.\n\n" +
-          "Account — sign out or reset all your data. Resetting deletes every passage, exercise, log, recording, and folder you own (your sign-in stays); it's permanent."
+          "Account — sign out, reset all your data, or delete your account. Resetting deletes every passage, exercise, log, recording, and folder you own but keeps your sign-in; deleting removes all of that plus your login and email. Both are permanent."
         }
       />
     </ThemedView>

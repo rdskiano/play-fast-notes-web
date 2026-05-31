@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.pdf-doc-init]
 verify_jwt = false
+
+# Account deletion is destructive and self-scoped: the gateway requires a valid
+# project JWT, and the function re-derives the caller's userId from that token
+# so a user can only ever delete their own account.
+[functions.delete-account]
+verify_jwt = true

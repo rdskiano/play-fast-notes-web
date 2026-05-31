@@ -1,16 +1,16 @@
-// Account utilities for the testing phase.
+// Account utilities.
 //
-// Self-service "wipe my data" for testers who want to start over without
-// asking for help. Removes everything they own that the schema scopes to
-// auth.uid(): rows in user-scoped tables, plus files in the per-user
-// folders of the pieces and recordings storage buckets. The auth.users
-// row itself is left in place — fully removing the email requires a
-// service-role admin call which can only run server-side, so for now
-// "fully delete my account" is a manual step (email rdskiano@gmail.com).
+// Two related operations:
+//   - wipeUserData()   — "start over" without losing your login. Clears every
+//                        user-scoped table row and storage file, but keeps the
+//                        auth.users row so the email still signs in.
+//   - deleteAccount()  — permanently removes the account itself, including the
+//                        login/email. Required by Apple App Store guideline
+//                        5.1.1(v) for any app that offers account creation.
 //
-// The schema FKs all use `references auth.users(id) on delete cascade`,
-// so once a future delete-account Edge Function lands the cascade will
-// take care of every row automatically.
+// The schema FKs all use `references auth.users(id) on delete cascade`, so
+// deleting the auth user (done server-side in the `delete-account` Edge
+// Function, which holds the service-role key) cascades every row automatically.
 
 import { signOut } from './auth';
 import { supabase } from './client';
@@ -62,4 +62,30 @@ export async function wipeUserData(): Promise<void> {
   }
 
   await signOut();
+}
+
+// Permanently delete the signed-in user's account: storage files, every
+// user-scoped row (via the auth.users cascade), and the login itself. The
+// privileged deletes run in the `delete-account` Edge Function — the service
+// role key can't ship in the client. We sign out locally afterward so the now
+// dead session is cleared and the user lands on the sign-in screen.
+export async function deleteAccount(): Promise<void> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) throw new Error('Not signed in');
+
+  const { error } = await supabase.functions.invoke('delete-account', {
+    method: 'POST',
+  });
+  if (error) {
+    throw new Error(`Account deletion failed: ${error.message}`);
+  }
+
+  // The account is gone server-side; clear the local session too. If sign-out
+  // itself errors (e.g. the token is already invalid), that's fine — the
+  // account is deleted regardless, so don't surface it as a failure.
+  try {
+    await signOut();
+  } catch (e) {
+    console.warn('[deleteAccount] post-delete sign-out failed (ignored):', e);
+  }
 }
