@@ -482,7 +482,7 @@ export default function TempoLadderScreen() {
   }
 
   return (
-    <View style={styles.playRoot}>
+    <View style={[styles.playRoot, { backgroundColor: C.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       {/* Keyboard shortcuts so laptop users don't have to keep clicking:
           Space (or any pedal key) = ✓ Clean, X = ✗ Miss. Suppressed while
@@ -928,7 +928,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
 
-  playRoot: { flex: 1, backgroundColor: '#000' },
+  playRoot: { flex: 1 },
   activeTopBar: {
     flexDirection: 'row',
     alignItems: 'center',
