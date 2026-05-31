@@ -401,7 +401,8 @@ export function MetronomePanel({
             styles.playBtn,
             { backgroundColor: m.running ? DEVICE.stop : DEVICE.accent },
           ]}>
-          <ThemedText style={styles.playGlyph}>
+          <ThemedText
+            style={[styles.playGlyph, !m.running && styles.playGlyphTriangle]}>
             {m.running ? '■' : '▶'}
           </ThemedText>
         </Pressable>
@@ -832,6 +833,10 @@ const styles = StyleSheet.create({
     elevation: 7,
   },
   playGlyph: { color: '#fff', fontSize: 26, fontWeight: Type.weight.black },
+  // The ▶ glyph's ink is biased to the left of its character box, so it reads
+  // as off-centre inside the round button. Nudge it right to optically centre
+  // it. The ■ stop glyph is symmetric and needs no offset.
+  playGlyphTriangle: { transform: [{ translateX: 2 }] },
 
   droneBackdrop: {
     flex: 1,

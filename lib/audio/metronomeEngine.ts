@@ -8,6 +8,7 @@
 // thin and the React lifecycle owns disposal.
 
 import { TOKEN_QUARTER_FRACTIONS, type RhythmToken } from '@/lib/strategies/rhythmPatterns';
+import { getGroove, STEPS_PER_QUARTER, type Groove } from './grooves';
 
 // Clicks per beat: 1 (quarter), 2 (eighths), 3 (triplet), 4 (sixteenths).
 export type Subdivision = 1 | 2 | 3 | 4;
@@ -28,13 +29,31 @@ type RnAudioBuffer = {
   getChannelData: (channel: number) => Float32Array;
 };
 
+// An AudioParam — value plus the scheduling methods the synth voices use.
+// react-native-audio-api exposes these on oscillator.frequency, gain.gain,
+// and filter.frequency/Q just like the browser; the older type only declared
+// `value` because the click path never ramped frequency.
+type RnAudioParam = {
+  value: number;
+  setValueAtTime: (v: number, when: number) => void;
+  linearRampToValueAtTime: (v: number, when: number) => void;
+  exponentialRampToValueAtTime: (v: number, when: number) => void;
+};
+
+type RnBufferSource = {
+  buffer: RnAudioBuffer | null;
+  connect: (n: unknown) => void;
+  start: (when?: number) => void;
+  stop?: (when?: number) => void;
+};
+
 type AudioContextCtor = new () => {
   currentTime: number;
   sampleRate: number;
   state: 'running' | 'suspended' | 'closed';
   destination: unknown;
   createOscillator: () => {
-    frequency: { value: number };
+    frequency: RnAudioParam;
     type: string;
     connect: (n: unknown) => void;
     start: (when?: number) => void;
@@ -49,18 +68,14 @@ type AudioContextCtor = new () => {
     };
     connect: (n: unknown) => void;
   };
+  createBiquadFilter: () => {
+    type: string;
+    frequency: RnAudioParam;
+    Q: RnAudioParam;
+    connect: (n: unknown) => void;
+  };
   createBuffer: (channels: number, length: number, sampleRate: number) => RnAudioBuffer;
-  createBufferSource: () =>
-    | {
-        buffer: RnAudioBuffer | null;
-        connect: (n: unknown) => void;
-        start: (when?: number) => void;
-      }
-    | Promise<{
-        buffer: RnAudioBuffer | null;
-        connect: (n: unknown) => void;
-        start: (when?: number) => void;
-      }>;
+  createBufferSource: () => RnBufferSource | Promise<RnBufferSource>;
   resume: () => Promise<void>;
   close: () => Promise<void>;
 };
@@ -172,6 +187,20 @@ export class MetronomeEngine {
   /** Same pattern for pitch-sequence playback so Play can toggle to Stop. */
   private pitchGate: RnGainNode | null = null;
 
+  // Groove ("Rhythms") state — a drum-machine pattern that replaces the plain
+  // click. Lookahead-scheduled on the same clock as the click, so tempo
+  // changes retempo it live. When a groove is active the click is suppressed
+  // (see tick) and these synth voices play instead. Mirrors the web engine in
+  // useMetronome.web.ts. All hits route through grooveGate so stopping mutes
+  // anything already scheduled in the lookahead window.
+  private groove: Groove | null = null;
+  private grooveStep = 0;
+  private grooveNextStart = 0;
+  private grooveTimer: ReturnType<typeof setTimeout> | null = null;
+  private grooveGate: RnGainNode | null = null;
+  // One shared 1-second white-noise buffer feeds the snare/hat/clap voices.
+  private noiseBuffer: RnAudioBuffer | null = null;
+
   // Pitch-rhythm playback state. Lookahead-scheduled like the rhythm
   // loop so BPM changes during playback retempo the remaining notes live.
   private pitchFreqs: number[] | null = null;
@@ -279,6 +308,9 @@ export class MetronomeEngine {
       return;
     }
     this.tick();
+    // If a groove is selected, run it alongside (the click is suppressed in
+    // tick while a groove is active).
+    if (this.groove) this.startGrooveLoop();
   }
 
   stop() {
@@ -287,6 +319,7 @@ export class MetronomeEngine {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    this.stopGrooveLoop();
   }
 
   /** One-shot pitch with a short triangle-wave envelope. */
@@ -644,10 +677,233 @@ export class MetronomeEngine {
     }
   }
 
+  // ── Grooves (Rhythms) ───────────────────────────────────────────────────
+
+  get activeGroove(): string | null {
+    return this.groove?.id ?? null;
+  }
+
+  /**
+   * Select a drum groove (or null for "just the click"). Setting a groove
+   * while running starts the drum loop and suppresses the plain click;
+   * clearing it tears the loop down and the click resumes. Setting one while
+   * stopped just records the choice — the loop starts on the next start().
+   */
+  setGroove(id: string | null) {
+    this.groove = getGroove(id);
+    if (!this.running) return;
+    if (this.groove) this.startGrooveLoop();
+    else this.stopGrooveLoop();
+  }
+
+  private startGrooveLoop() {
+    if (this.unavailable || !this.groove) return;
+    this.ensureCtx();
+    if (!this.ctx) return;
+    // Already looping — the running tick re-reads this.groove each pass, so a
+    // groove swap is picked up without restarting the loop.
+    if (this.grooveTimer) return;
+    try {
+      const gate = this.ctx.createGain();
+      gate.gain.value = 1;
+      gate.connect(this.ctx.destination);
+      this.grooveGate = gate;
+      this.grooveNextStart = this.ctx.currentTime + 0.08;
+      this.grooveStep = 0;
+    } catch {
+      this.unavailable = true;
+      this.ctx = null;
+      return;
+    }
+    this.grooveTick();
+  }
+
+  private stopGrooveLoop() {
+    if (this.grooveTimer) {
+      clearTimeout(this.grooveTimer);
+      this.grooveTimer = null;
+    }
+    const gate = this.grooveGate;
+    this.grooveGate = null;
+    if (gate && this.ctx) {
+      try {
+        const now = this.ctx.currentTime;
+        gate.gain.setValueAtTime(gate.gain.value, now);
+        gate.gain.linearRampToValueAtTime(0, now + 0.02);
+      } catch {
+        // ignore
+      }
+      setTimeout(() => {
+        try {
+          (gate as unknown as { disconnect?: () => void }).disconnect?.();
+        } catch {
+          // ignore
+        }
+      }, 80);
+    }
+  }
+
+  private grooveTick = () => {
+    const ctx = this.ctx;
+    const groove = this.groove;
+    const gate = this.grooveGate;
+    if (!ctx || !groove || !gate) return;
+    let now: number;
+    try {
+      now = ctx.currentTime;
+    } catch {
+      this.ctx = null;
+      return;
+    }
+    // Fell far behind (app backgrounded etc.) — resync rather than burst-fire.
+    if (this.grooveNextStart < now - 0.5) {
+      this.grooveNextStart = now + 0.08;
+      this.grooveStep = 0;
+    }
+    const horizon = now + SCHEDULE_AHEAD_S;
+    while (this.grooveNextStart < horizon) {
+      // Step length read each pass off the live BPM, so the tempo dial
+      // retempos the groove in place. STEPS_PER_QUARTER sixteenth-steps/beat.
+      const stepSec = 60 / this._bpm / STEPS_PER_QUARTER;
+      const step = this.grooveStep;
+      const when = this.grooveNextStart;
+      for (const h of groove.hits) {
+        if (h.step !== step) continue;
+        const vel = h.vel ?? 1;
+        switch (h.voice) {
+          case 'kick':
+            this.drumKick(when, vel);
+            break;
+          case 'snare':
+            this.drumSnare(when, vel);
+            break;
+          case 'hat':
+            this.drumHat(when, vel, false);
+            break;
+          case 'openHat':
+            this.drumHat(when, vel, true);
+            break;
+          case 'clap':
+            this.drumClap(when, vel);
+            break;
+        }
+      }
+      this.grooveStep = (step + 1) % groove.steps;
+      this.grooveNextStart += stepSec;
+    }
+    this.grooveTimer = setTimeout(this.grooveTick, LOOKAHEAD_MS);
+  };
+
+  // Drum synth voices — ported from the web engine (useMetronome.web.ts).
+  // All route through grooveGate so stopGrooveLoop can mute in-flight hits.
+
+  private drumKick(when: number, vel: number) {
+    const ctx = this.ctx;
+    const gate = this.grooveGate;
+    if (!ctx || !gate) return;
+    try {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(150, when);
+      osc.frequency.exponentialRampToValueAtTime(50, when + 0.12);
+      const peak = Math.max(0.0002, vel * this._volume * 1.4);
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.exponentialRampToValueAtTime(peak, when + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + 0.18);
+      osc.connect(g);
+      g.connect(gate);
+      osc.start(when);
+      osc.stop(when + 0.2);
+    } catch {
+      // ignore individual hit failures
+    }
+  }
+
+  private drumSnare(when: number, vel: number) {
+    const vol = this._volume;
+    // Noise body (highpass) + a short pitched tone body.
+    this.playNoiseVoice(when, 'highpass', 1500, 0, Math.max(0.0002, vel * vol * 0.9), 0.18);
+    const ctx = this.ctx;
+    const gate = this.grooveGate;
+    if (!ctx || !gate) return;
+    try {
+      const osc = ctx.createOscillator();
+      const tg = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = 180;
+      const tpeak = Math.max(0.0002, vel * vol * 0.5);
+      tg.gain.setValueAtTime(tpeak, when);
+      tg.gain.exponentialRampToValueAtTime(0.0001, when + 0.1);
+      osc.connect(tg);
+      tg.connect(gate);
+      osc.start(when);
+      osc.stop(when + 0.12);
+    } catch {
+      // ignore
+    }
+  }
+
+  private drumHat(when: number, vel: number, open: boolean) {
+    const dur = open ? 0.3 : 0.05;
+    this.playNoiseVoice(when, 'highpass', 7000, 0, Math.max(0.0002, vel * this._volume * 0.6), dur);
+  }
+
+  private drumClap(when: number, vel: number) {
+    this.playNoiseVoice(when, 'bandpass', 1200, 1.2, Math.max(0.0002, vel * this._volume * 0.8), 0.12);
+  }
+
+  // Filtered burst of the shared noise buffer → grooveGate. Handles
+  // createBufferSource returning either a node or a Promise (same as the
+  // click path — react-native-audio-api can be async on a release build).
+  private playNoiseVoice(
+    when: number,
+    filterType: 'highpass' | 'bandpass',
+    filterFreq: number,
+    q: number,
+    peak: number,
+    dur: number,
+  ) {
+    const ctx = this.ctx;
+    const gate = this.grooveGate;
+    const noise = this.noiseBuffer;
+    if (!ctx || !gate || !noise) return;
+    try {
+      const filter = ctx.createBiquadFilter();
+      filter.type = filterType;
+      filter.frequency.value = filterFreq;
+      if (q > 0) filter.Q.value = q;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(Math.max(0.0002, peak), when);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+      filter.connect(g);
+      g.connect(gate);
+      const srcResult = ctx.createBufferSource();
+      const go = (src: RnBufferSource) => {
+        try {
+          src.buffer = noise;
+          src.connect(filter);
+          src.start(when);
+          src.stop?.(when + dur + 0.02);
+        } catch {
+          // ignore
+        }
+      };
+      if (srcResult && typeof (srcResult as Promise<unknown>).then === 'function') {
+        void (srcResult as Promise<RnBufferSource>).then(go);
+      } else {
+        go(srcResult as RnBufferSource);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   dispose() {
     this.stop();
     this.stopRhythmLoop();
     this.stopPitchSequence();
+    this.stopGrooveLoop();
     try {
       void this.ctx?.close();
     } catch {
@@ -672,6 +928,7 @@ export class MetronomeEngine {
         this.accentBuffer = null;
         this.normalBuffer = null;
         this.subBuffer = null;
+        this.noiseBuffer = null;
       } catch {
         this.unavailable = true;
         this.ctx = null;
@@ -700,6 +957,25 @@ export class MetronomeEngine {
         this.subBuffer = null;
       }
     }
+    if (this.ctx && !this.noiseBuffer) {
+      try {
+        this.noiseBuffer = this.buildNoiseBuffer();
+      } catch {
+        this.noiseBuffer = null;
+      }
+    }
+  }
+
+  // One second of uniform white noise [-1, 1], shared by the snare/hat/clap
+  // voices. Built once per AudioContext alongside the click buffers.
+  private buildNoiseBuffer(): RnAudioBuffer | null {
+    if (!this.ctx) return null;
+    const sampleRate = this.ctx.sampleRate || 44100;
+    const length = Math.max(1, Math.floor(sampleRate));
+    const buffer = this.ctx.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+    return buffer;
   }
 
   private buildClickBuffer(freqHz: number, peak: number): RnAudioBuffer | null {
@@ -747,7 +1023,9 @@ export class MetronomeEngine {
       const beatIndex = Math.floor(tickInMeasure / this._subdivision);
       const isBeatStart = tickInMeasure % this._subdivision === 0;
       const beatState = this._beatPattern[beatIndex] ?? 'normal';
-      if (beatState !== 'mute') {
+      // A groove replaces the click entirely — keep advancing the beat clock
+      // (so pitch playback can still sync to the downbeat) but stay silent.
+      if (beatState !== 'mute' && !this.groove) {
         const kind: ClickKind = isBeatStart
           ? beatState === 'accent'
             ? 'accent'

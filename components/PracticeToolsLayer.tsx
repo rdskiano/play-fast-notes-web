@@ -14,6 +14,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   type LayoutChangeEvent,
+  Platform,
   Pressable,
   StyleSheet,
   useWindowDimensions,
@@ -43,11 +44,14 @@ const PHONE_BREAKPOINT = 600;
 
 export type ToolKey = 'pencil' | 'metronome' | 'timer' | 'recorder';
 
-// Pencil tool is hidden app-wide for now: it has no erase yet, and the ink
-// doesn't follow pinch-zoom (the ink layer isn't inside the score's zoom
-// transform). Flip this back to `true` to restore it behind the usual
-// pen-detection gate — nothing else needs to change.
-const PENCIL_ENABLED = false;
+// Pencil tool. Enabled on native (iPad) only for now: the native canvas pops
+// Apple's PencilKit tool picker, which provides pen/pencil/marker, the full
+// colour palette, and a real eraser. Web stays off because its canvas has no
+// true eraser yet (undo-only) and the same zoom caveat. Known limitation on
+// both: the ink layer isn't inside the score's zoom transform, so marks don't
+// track a pinch-zoom of the score (they stay pinned at 1×) — fine at the
+// default zoom most practice happens at; revisit (incl. web) if it bites.
+const PENCIL_ENABLED = Platform.OS !== 'web';
 
 // Default edge layout. A screen passes `tools` to override either edge —
 // an empty array clears that edge entirely.
