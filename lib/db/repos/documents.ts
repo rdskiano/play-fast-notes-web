@@ -9,10 +9,12 @@ import { listPassagesInDocument, softDeletePassage } from './passages';
 
 export type DocumentSourceKind = 'pdf' | 'images';
 
-// One per page in the document's rendered pages_json. image_uri is the
-// JPG produced by the pdf-render-page Edge Function (or the uploaded
-// image for source_kind='images'). w/h are the rendered pixel dimensions.
-export type DocumentPage = { index: number; image_uri: string; w: number; h: number };
+// One per page in the document's pages_json. w/h are the page's pixel
+// dimensions at the reference render scale. image_uri is OPTIONAL as of
+// "Stage 2" (web): new PDF uploads store no per-page JPEG and render from the
+// PDF on demand. Native imports and source_kind='images' sets still carry it.
+// Resolve to a displayable URI via lib/pdf/pageImage's resolvePageImageUri.
+export type DocumentPage = { index: number; image_uri?: string; w: number; h: number };
 
 // One per named section (e.g. "II. Trio", "IV. Adagio"). start_page is
 // 1-indexed; start_y is in source pixels on that page (0 = top of page).
@@ -58,9 +60,9 @@ export function parsePages(pages_json: string): DocumentPage[] {
       (p) =>
         typeof p === 'object' &&
         typeof p.index === 'number' &&
-        typeof p.image_uri === 'string' &&
         typeof p.w === 'number' &&
         typeof p.h === 'number',
+      // image_uri is optional — Stage 2 pages render from the PDF on demand.
     );
   } catch {
     return [];
@@ -266,6 +268,6 @@ export async function softDeleteDocument(id: string): Promise<void> {
   );
   safeDeleteFile(row.original_uri);
   for (const page of parsePages(row.pages_json)) {
-    safeDeleteFile(page.image_uri);
+    if (page.image_uri) safeDeleteFile(page.image_uri);
   }
 }

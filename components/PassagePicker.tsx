@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 
+import { DocumentPageImage } from '@/components/DocumentPageImage';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
@@ -75,6 +76,9 @@ export function PassagePicker({
   const [docs, setDocs] = useState<DocumentRow[]>([]);
   const [loose, setLoose] = useState<Passage[]>([]);
   const [pages, setPages] = useState<DocumentPage[]>([]);
+  // Identity of the open document, needed to render its pages on demand from
+  // the original PDF when they aren't stored as per-page images (Stage 2).
+  const [docInfo, setDocInfo] = useState<{ id: string; original_uri: string | null } | null>(null);
   const [docPassages, setDocPassages] = useState<Passage[]>([]);
   const [loading, setLoading] = useState(true);
   const [width, setWidth] = useState(0);
@@ -148,6 +152,7 @@ export function PassagePicker({
           ]);
           if (cancelled) return;
           setPages(doc ? parsePages(doc.pages_json) : []);
+          setDocInfo(doc ? { id: doc.id, original_uri: doc.original_uri } : null);
           setDocPassages(ps);
         } else {
           const folderId = loc.kind === 'folder' ? loc.id : null;
@@ -259,7 +264,7 @@ export function PassagePicker({
   }
 
   function renderPage(page: DocumentPage) {
-    if (pageWidth <= 0 || page.w <= 0 || page.h <= 0) return null;
+    if (pageWidth <= 0 || page.w <= 0 || page.h <= 0 || !docInfo) return null;
     const W = pageWidth;
     const H = (W * page.h) / page.w;
     const hits: { passage: Passage; x: number; y: number; w: number; h: number }[] =
@@ -275,10 +280,14 @@ export function PassagePicker({
     hits.sort((a, b) => b.w * b.h - a.w * a.h);
     return (
       <View key={page.index} style={[styles.page, { width: W, height: H }]}>
-        <Image
-          source={{ uri: page.image_uri }}
+        <DocumentPageImage
+          doc={docInfo}
+          page={page}
           style={StyleSheet.absoluteFill}
           contentFit="fill"
+          // Render only the page in view + neighbors; the pager mounts all
+          // pages at once and on-demand renders are heavy.
+          active={Math.abs(page.index - 1 - pageIndex) <= 1}
         />
         {hits.map(({ passage, x, y, w, h }) => {
           const idx = selectedIds.indexOf(passage.id);

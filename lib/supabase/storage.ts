@@ -3,14 +3,40 @@ import { supabase } from './client';
 const BUCKET = 'pieces';
 
 /**
- * SHA-1 hex digest of the given bytes. Used to content-address upload URLs so
+ * Content hash (hex) of the given bytes. Used to content-address upload URLs so
  * stable bytes ⇒ stable URL ⇒ CDN + service-worker cache hits.
+ *
+ * Prefers Web Crypto SHA-1. That API only exists in a SECURE CONTEXT (https://
+ * or localhost), so when the app is opened over plain http:// on a LAN IP —
+ * e.g. testing the dev server from the iPad at http://192.168.x.x:8081 —
+ * `crypto.subtle` is undefined. We fall back to a fast non-cryptographic hash
+ * there. The hash is only a cache-bust token (`?v=`), so collision-resistance
+ * isn't required; we just need it stable per content.
  */
-async function sha1Hex(bytes: Uint8Array): Promise<string> {
-  const buf = await crypto.subtle.digest('SHA-1', bytes as BufferSource);
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+async function contentHashHex(bytes: Uint8Array): Promise<string> {
+  const subtle = globalThis.crypto?.subtle;
+  if (subtle?.digest) {
+    const buf = await subtle.digest('SHA-1', bytes as BufferSource);
+    return Array.from(new Uint8Array(buf))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  return fnv1aHex(bytes);
+}
+
+// FNV-1a over the bytes, run with two seeds and concatenated, so the result is
+// long enough for the 12-char `?v=` token used by callers. Non-cryptographic —
+// fine for cache-busting in insecure-context dev (no Web Crypto).
+function fnv1aHex(bytes: Uint8Array): string {
+  const hashWithSeed = (seed: number): string => {
+    let h = seed >>> 0;
+    for (let i = 0; i < bytes.length; i++) {
+      h ^= bytes[i];
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h.toString(16).padStart(8, '0');
+  };
+  return hashWithSeed(0x811c9dc5) + hashWithSeed(0x9dc50811);
 }
 
 /**
@@ -27,7 +53,7 @@ export async function uploadDocumentPageImage(
 ): Promise<string> {
   const path = `${userId}/documents/${docId}/p${page}.jpg`;
   const bytes = new Uint8Array(await blob.arrayBuffer());
-  const hash = (await sha1Hex(bytes)).slice(0, 12);
+  const hash = (await contentHashHex(bytes)).slice(0, 12);
 
   const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
     upsert: true,
@@ -63,7 +89,7 @@ export async function uploadPassageImage(
   // to the same rect produces the same hash, so the CDN keeps serving the
   // cached copy instead of treating every save as a fresh URL.
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const hash = (await sha1Hex(bytes)).slice(0, 12);
+  const hash = (await contentHashHex(bytes)).slice(0, 12);
 
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
     upsert: true,
@@ -95,7 +121,7 @@ export async function uploadAnnotationImage(
   const bytes = base64ToBytes(base64Png);
   // Content-address the URL so redrawing the same overlay reuses the cached
   // copy; a distinct drawing yields a distinct hash ⇒ fresh fetch.
-  const hash = (await sha1Hex(bytes)).slice(0, 12);
+  const hash = (await contentHashHex(bytes)).slice(0, 12);
 
   const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, {
     upsert: true,

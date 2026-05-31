@@ -16,6 +16,7 @@ import {
 
 import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
+import { DocumentPageImage } from '@/components/DocumentPageImage';
 import { MoveToPicker } from '@/components/MoveToPicker';
 import { PromptModal } from '@/components/PromptModal';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
@@ -330,10 +331,13 @@ function DocumentCard({
   onMove,
   onDelete,
 }: DocumentCardProps) {
-  // Thumbnail = page 1 of the rendered pages_json. Fall back to a tinted block
-  // until the first render lands.
+  // Thumbnail = page 1. Older docs carry a stored page image; Stage-2 PDFs
+  // render it from the original PDF on demand (DocumentPageImage handles both).
+  // The crop is anchored to the top so the title block + tempo / key markings
+  // stay visible — the middle of an orchestral part is mostly notation and
+  // looks like every other middle.
   const pages = parsePages(document.pages_json);
-  const thumbUri = pages.length > 0 ? pages[0].image_uri : null;
+  const firstPage = pages.length > 0 ? pages[0] : null;
   const thumbStyle = isPhone ? styles.thumbPhone : styles.thumb;
   return (
     <Pressable
@@ -341,12 +345,10 @@ function DocumentCard({
       onLongPress={editMode ? undefined : onLongPress}
       delayLongPress={400}
       style={[isPhone ? styles.cardPhone : styles.card, { borderColor }]}>
-      {thumbUri ? (
-        // Anchor the crop to the top so the title block + tempo / key markings
-        // stay visible. The middle of an orchestral part is mostly notation
-        // and looks like every other middle.
-        <Image
-          source={{ uri: thumbUri }}
+      {firstPage ? (
+        <DocumentPageImage
+          doc={document}
+          page={firstPage}
           style={thumbStyle}
           contentFit="cover"
           contentPosition="top"

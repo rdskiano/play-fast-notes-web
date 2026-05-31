@@ -26,6 +26,7 @@ import {
 import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
 import { RegionAnnotationCanvas } from '@/components/RegionAnnotationCanvas';
 import { Button } from '@/components/Button';
+import { DocumentPageImage } from '@/components/DocumentPageImage';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PageBoxOverlay } from '@/components/PageBoxOverlay';
 import { PassageRectDrawer } from '@/components/PassageRectDrawer';
@@ -77,6 +78,7 @@ import {
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import { cropImage, stitchVerticallyUris, type Rect } from '@/lib/image/canvasCrop';
 import { persistPassageImage } from '@/lib/image/persistPassageImage';
+import { resolvePageImageUri } from '@/lib/pdf/pageImage';
 import { consumeLastPassageInDoc } from '@/lib/sessions/lastPassageInDoc';
 import { useDocumentAnnotation } from '@/hooks/useDocumentAnnotation';
 
@@ -555,7 +557,8 @@ export default function DocumentScreen() {
       for (const [pageIndex, rect] of ordered) {
         const page = pages.find((pp) => pp.index === pageIndex);
         if (!page) continue;
-        const uri = await cropImage(page.image_uri, rect);
+        const pageUri = await resolvePageImageUri(doc, page);
+        const uri = await cropImage(pageUri, rect);
         croppedUris.push(uri);
         regions.push({ page: pageIndex, x: rect.x, y: rect.y, w: rect.w, h: rect.h });
       }
@@ -690,7 +693,7 @@ export default function DocumentScreen() {
   }
 
   async function commitResize() {
-    if (!resizingPassage || resizeRegions.length === 0) return;
+    if (!resizingPassage || resizeRegions.length === 0 || !doc) return;
     setSavingResize(true);
     try {
       const ordered = [...resizeRegions].sort((a, b) => a.page - b.page);
@@ -698,7 +701,8 @@ export default function DocumentScreen() {
       for (const r of ordered) {
         const page = pages.find((pp) => pp.index === r.page);
         if (!page) continue;
-        const uri = await cropImage(page.image_uri, { x: r.x, y: r.y, w: r.w, h: r.h });
+        const pageUri = await resolvePageImageUri(doc, page);
+        const uri = await cropImage(pageUri, { x: r.x, y: r.y, w: r.w, h: r.h });
         croppedUris.push(uri);
       }
       const finalUri = await stitchVerticallyUris(croppedUris);
@@ -937,10 +941,15 @@ export default function DocumentScreen() {
                         <View
                           key={p.index}
                           style={[styles.pageHalf, { width: slotW }]}>
-                          <Image
-                            source={{ uri: p.image_uri }}
+                          <DocumentPageImage
+                            doc={doc}
+                            page={p}
                             style={styles.pageImage}
                             contentFit="contain"
+                            // Only render the visible screen + immediate
+                            // neighbors on demand — a big PDF has dozens of
+                            // pages all mounted in this ScrollView at once.
+                            active={Math.abs(screenForPage(p.index) - currentIndex) <= 1}
                           />
                           <PageBoxOverlay
                             passages={

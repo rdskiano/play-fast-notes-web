@@ -8,10 +8,17 @@ import { listPassagesInDocument, softDeletePassage } from './passages';
 
 export type DocumentSourceKind = 'pdf' | 'images';
 
-// One per page in the document's rendered pages_json. image_uri is the
-// JPG produced by the pdf-render-page Edge Function (or the uploaded
-// image for source_kind='images'). w/h are the rendered pixel dimensions.
-export type DocumentPage = { index: number; image_uri: string; w: number; h: number };
+// One per page in the document's pages_json. w/h are the page's pixel
+// dimensions at the reference render scale (maxEdge=2000) — the coordinate
+// space regions_json boxes live in.
+//
+// image_uri is OPTIONAL as of "Stage 2": new PDF uploads store no per-page
+// JPEG (just the original PDF) and the viewer/picker render each page from
+// the PDF on demand. Older documents (and source_kind='images' multi-image
+// sets) still carry image_uri and render from it directly. Resolve a page to
+// a displayable URI via lib/pdf/pageImage's resolvePageImageUri, which handles
+// both cases.
+export type DocumentPage = { index: number; image_uri?: string; w: number; h: number };
 
 // One per named section (e.g. "II. Trio", "IV. Adagio"). start_page is
 // 1-indexed; start_y is in source pixels on that page (0 = top of page).
@@ -58,9 +65,9 @@ export function parsePages(pages_json: string): DocumentPage[] {
       (p) =>
         typeof p === 'object' &&
         typeof p.index === 'number' &&
-        typeof p.image_uri === 'string' &&
         typeof p.w === 'number' &&
         typeof p.h === 'number',
+      // image_uri is optional — Stage 2 pages render from the PDF on demand.
     );
   } catch {
     return [];
