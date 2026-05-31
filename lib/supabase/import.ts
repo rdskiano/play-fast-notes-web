@@ -77,25 +77,26 @@ function extFromUrl(url: string, defaultExt: string): string {
   return name.slice(dot + 1).toLowerCase();
 }
 
-// Fetch a URL and write the bytes to `target`. Returns the file's URI on
-// success. Throws on HTTP errors or write failures.
+// A single file download that stalls would otherwise hang the whole import
+// forever (no native cancel), so we race it against a timeout. On timeout the
+// caller marks the file failed and moves on; an orphaned native download
+// finishing late is harmless.
+const DOWNLOAD_TIMEOUT_MS = 30000;
+
+// Download a URL straight to `target` on disk. Uses the native streaming
+// downloader (File.downloadFileAsync) rather than fetch → arrayBuffer →
+// base64 → write: the old path pulled the whole file into JS memory and
+// base64-encoded it on the main thread, which froze the UI for seconds per
+// large PDF and looked like a hang. Native streaming writes off-thread.
 async function downloadToFile(url: string, target: File): Promise<string> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-  const ab = await res.arrayBuffer();
-  // Base64 round-trip — expo-file-system File.write accepts base64 strings.
-  // For large PDFs this uses ~33% more memory than the raw buffer; acceptable
-  // for a one-time import on modern iPads.
-  const bytes = new Uint8Array(ab);
-  let binary = '';
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk) as unknown as number[]);
-  }
-  const b64 = btoa(binary);
   if (target.exists) target.delete();
-  target.create();
-  target.write(b64, { encoding: 'base64' });
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(
+      () => reject(new Error(`timed out after ${DOWNLOAD_TIMEOUT_MS / 1000}s`)),
+      DOWNLOAD_TIMEOUT_MS,
+    ),
+  );
+  await Promise.race([File.downloadFileAsync(url, target), timeout]);
   return target.uri;
 }
 
@@ -198,16 +199,21 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
     // each image_uri to a local path so the iPad viewer can render them.
     try {
       const pages = JSON.parse(d.pages_json as string) as { index: number; image_uri: string; w: number; h: number }[];
+      // Print progress per page — multi-page PDFs are the slow part, and
+      // without per-page lines the screen looks frozen while they download.
+      let pageNum = 0;
       for (const page of pages) {
+        pageNum++;
         if (!isHttpUrl(page.image_uri)) continue;
         try {
           const ext = extFromUrl(page.image_uri, 'jpg');
           const target = new File(docDir, `page-${page.index}.${ext}`);
           page.image_uri = await downloadToFile(page.image_uri, target);
           filesDownloaded++;
+          onProgress(`    ↓ doc ${d.id} page ${pageNum}/${pages.length}`);
         } catch (e) {
           filesFailed++;
-          onProgress(`    ✗ doc ${d.id} page ${page.index}: ${(e as Error).message}`);
+          onProgress(`    ✗ doc ${d.id} page ${pageNum}/${pages.length}: ${(e as Error).message}`);
         }
       }
       d.pages_json = JSON.stringify(pages);
