@@ -46,10 +46,47 @@ const HOME_SNAP_TOLERANCE = 0.05;
 // final transform of the outgoing key is captured and the incoming
 // key's saved transform (if any) is restored — so Interleaved /
 // Serial Practice can swap between passages and each one remembers
-// the exact zoom + pan the user dialed in. In-memory only: lost on
-// app reload, which is fine for a practice session.
+// the exact zoom + pan the user dialed in.
+//
+// Backed by localStorage (web) so the size you set on a passage STICKS
+// across reloads / new sessions — not just within one session. The
+// in-memory Map is the fast path; localStorage is the durable store.
 type SavedTransform = { scale: number; tx: number; ty: number };
 const transformCache = new Map<string, SavedTransform>();
+const STORE_PREFIX = 'pfn:zoom:';
+
+function loadSaved(key: string): SavedTransform | undefined {
+  const cached = transformCache.get(key);
+  if (cached) return cached;
+  try {
+    if (typeof localStorage === 'undefined') return undefined;
+    const raw = localStorage.getItem(STORE_PREFIX + key);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as SavedTransform;
+    if (
+      typeof parsed?.scale === 'number' &&
+      typeof parsed?.tx === 'number' &&
+      typeof parsed?.ty === 'number'
+    ) {
+      transformCache.set(key, parsed);
+      return parsed;
+    }
+  } catch {
+    // Corrupt / unavailable storage — fall back to no saved transform.
+  }
+  return undefined;
+}
+
+function saveTransform(key: string, t: SavedTransform): void {
+  transformCache.set(key, t);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORE_PREFIX + key, JSON.stringify(t));
+    }
+  } catch {
+    // Storage full / disabled — the in-memory cache still works this session.
+  }
+}
 
 type Props = {
   /** Source image URI. Required unless `children` is provided. */
@@ -83,7 +120,7 @@ export function ZoomableImage({
   // Seed shared values from the cache so the first render already
   // shows the saved zoom — avoids a flicker at 1× before the effect
   // restores it.
-  const initial = persistKey ? transformCache.get(persistKey) : undefined;
+  const initial = persistKey ? loadSaved(persistKey) : undefined;
   const scale = useSharedValue(initial?.scale ?? 1);
   const tx = useSharedValue(initial?.tx ?? 0);
   const ty = useSharedValue(initial?.ty ?? 0);
@@ -97,8 +134,8 @@ export function ZoomableImage({
   useEffect(() => {
     const prev = prevKeyRef.current;
     if (prev && prev !== persistKey) {
-      // Capture the outgoing key's final transform.
-      transformCache.set(prev, {
+      // Capture the outgoing key's final transform (durably).
+      saveTransform(prev, {
         scale: scale.value,
         tx: tx.value,
         ty: ty.value,
@@ -106,7 +143,7 @@ export function ZoomableImage({
     }
     if (persistKey && persistKey !== prev) {
       // Load the incoming key's saved transform (default to identity).
-      const saved = transformCache.get(persistKey);
+      const saved = loadSaved(persistKey);
       scale.value = saved?.scale ?? 1;
       tx.value = saved?.tx ?? 0;
       ty.value = saved?.ty ?? 0;
@@ -121,7 +158,7 @@ export function ZoomableImage({
   useEffect(() => {
     return () => {
       if (prevKeyRef.current) {
-        transformCache.set(prevKeyRef.current, {
+        saveTransform(prevKeyRef.current, {
           scale: scale.value,
           tx: tx.value,
           ty: ty.value,
@@ -226,6 +263,9 @@ export function ZoomableImage({
 const styles = StyleSheet.create({
   wrap: {
     overflow: 'hidden',
-    backgroundColor: '#0001',
+    // Transparent so the score inherits its screen's background (the white
+    // frame on iPad/laptop, the screen behind it on phone) — keeps the
+    // letterbox margin consistent instead of a grey matte.
+    backgroundColor: 'transparent',
   },
 });

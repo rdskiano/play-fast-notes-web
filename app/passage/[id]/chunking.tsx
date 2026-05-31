@@ -22,6 +22,7 @@ import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
@@ -57,6 +58,7 @@ export default function ChunkingScreen() {
   const C = Colors[scheme];
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  const isTouch = useIsTouchDevice();
 
   const [passage, setPassage] = useState<Passage | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
@@ -134,7 +136,7 @@ export default function ChunkingScreen() {
         ]}>
         <View style={{ flex: 1, width: '100%', position: 'relative' }}>
           {passage?.source_uri ? (
-            isPhone ? (
+            isTouch ? (
               <ZoomableImage
                 uri={passage.source_uri}
                 style={styles.scoreFill}

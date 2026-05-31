@@ -18,6 +18,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
+import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
@@ -71,6 +72,7 @@ export default function TempoLadderScreen() {
   // count stays stable across renders (config → loading → play phases).
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  const isTouch = useIsTouchDevice();
   const isLandscape = vpW > vpH;
   // Where the floating ✗ / ✓ rep buttons sit above the bottom. Portrait keeps
   // them lifted clear of the help button; landscape drops them down onto the
@@ -583,7 +585,7 @@ export default function TempoLadderScreen() {
         ]}>
         <View style={{ flex: 1, width: '100%', position: 'relative' }}>
           {passage?.source_uri &&
-            (isPhone ? (
+            (isTouch ? (
               <ZoomableImage
                 uri={passage.source_uri}
                 style={styles.scoreContain}

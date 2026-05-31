@@ -18,6 +18,7 @@ import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
@@ -60,6 +61,7 @@ export default function RhythmicScreen() {
   // Phone density flag — drives the scrollable score below.
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  const isTouch = useIsTouchDevice();
 
   const rawGrouping = Array.isArray(params.grouping)
     ? params.grouping[0]
@@ -252,7 +254,7 @@ export default function RhythmicScreen() {
           },
         ]}>
         <View style={{ flex: 1, width: '100%', position: 'relative' }}>
-          {isPhone ? (
+          {isTouch ? (
             // Phone: show the full passage by default, let the user pinch
             // in (and one-finger pan) to read notes up close. Replaces the
             // earlier horizontal-scroll-only approach so the user can

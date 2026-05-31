@@ -26,6 +26,7 @@ import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import {
@@ -182,6 +183,7 @@ export default function InterleavedScreen() {
   // pinch in to read notes without leaving practice mode.
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  const isTouch = useIsTouchDevice();
   const isLandscape = vpW > vpH;
   const insets = useSafeAreaInsets();
   // Landscape phone: drop the floating ✗ / ✓ buttons onto the help-button
@@ -720,7 +722,7 @@ export default function InterleavedScreen() {
               },
             ]}>
             <View style={styles.scoreInner}>
-              {isPhone ? (
+              {isTouch ? (
                 <ZoomableImage
                   uri={currentSpot.passage.source_uri}
                   style={StyleSheet.absoluteFill}
@@ -889,6 +891,7 @@ function TimerActive({
   const C = Colors[scheme];
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  const isTouch = useIsTouchDevice();
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   const [selfLedOpen, setSelfLedOpen] = useState(false);
 
@@ -1018,7 +1021,7 @@ function TimerActive({
       </View>
 
       {cur?.passage.source_uri &&
-        (isPhone ? (
+        (isTouch ? (
           <ZoomableImage
             uri={cur.passage.source_uri}
             style={styles.scoreFill}

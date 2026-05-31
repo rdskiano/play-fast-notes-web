@@ -29,6 +29,7 @@ import { Colors } from '@/constants/theme';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getOrCreateExercise } from '@/lib/db/repos/exercises';
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
@@ -113,6 +114,7 @@ export default function PassageDetailScreen() {
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  const isTouch = useIsTouchDevice();
   const ann = useScoreAnnotation(passage);
   const annotating = ann.pencil.active;
 
@@ -417,7 +419,7 @@ export default function PassageDetailScreen() {
                 },
               ]}>
               <View style={{ flex: 1, width: '100%', position: 'relative' }}>
-                {isPhone ? (
+                {isTouch ? (
                   <ZoomableImage
                     uri={passage.source_uri}
                     style={StyleSheet.absoluteFill}

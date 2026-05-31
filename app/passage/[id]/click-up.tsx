@@ -27,6 +27,7 @@ import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { MIN_MARKERS, useClickUpSession } from '@/hooks/useClickUpSession';
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
@@ -53,6 +54,7 @@ export default function ClickUpScreen() {
   const C = Colors[scheme];
   const { width: winWidth, height: winHeight } = useWindowDimensions();
   const isPhone = Math.min(winWidth, winHeight) < 600;
+  const isTouch = useIsTouchDevice();
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
@@ -469,7 +471,7 @@ export default function ClickUpScreen() {
           },
         ]}>
         <View style={{ flex: 1, width: '100%', position: 'relative' }}>
-          {isPhone ? (
+          {isTouch ? (
             // Phone: wrap the score in a pinch+pan container so notes
             // are readable on a small screen. ScoreWithMarkers's ▼
             // arrow markers live inside the same transform, so they
