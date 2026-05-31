@@ -1,12 +1,39 @@
 # Play Fast Notes — Roadmap (unified)
 
-_Last updated: 2026-05-29_
+_Last updated: 2026-05-30_
 
 This roadmap covers **both surfaces** (iOS/iPad + web) of the unified Play Fast Notes app, which lives in this directory (`play-fast-notes/`). The two older repos (`../learn-fast-notes/` for iPad and `../play-fast-notes-web/` for web) are read-only archives and their roadmaps are historical only.
 
 > **🚀 2026-05-24 — WEB CUTOVER COMPLETE.** `playfastnotes.com` now ships from THIS repo via `git push web-origin-archive master` (the remote alias still has the "archive" word, but it points at `rdskiano/play-fast-notes-web` and Vercel auto-deploys from there). The 2026-05-23/24 push (`3d031c2` + `17767f6`) shipped: web Recorder + web Pencil (stylus-gated) + PWA + camera capture + phone density pass + per-passage pinch-zoom + timer overhaul (4 timers Rotate/Micro/Cold/Break + ⚙ settings sheet) + Space/X keyboard advance + ToolDock −/+ resize. **iPad cutover is the remaining plumbing milestone** — the physical iPad still runs Xcode-built dev clients from `learn-fast-notes/`.
 
 The old web-only context note (2026-05-17 Mac upgrade) is now folded into history. iPad still uses local Xcode builds for the user's working device; web now ships from this repo via Vercel.
+
+## 2026-05-30 — Egress build (LIVE) + on-device PDF rendering + score framing/pinch (mostly committed, NOT pushed)
+
+Two bodies of work. **The egress build is live; everything else is committed locally but NOT pushed** — remote tip is `6af0ca7`, local `master` is **4 commits ahead** (`50b54c2`, `3378264`, `e0fc02d`, `8820714`). Tomorrow's first move is deciding to push these (and then Stage 2 — see bottom). Memory: `[[project_web_local_first_egress]]`, `[[project_pdf_ondevice_and_score_framing]]`.
+
+### ✅ Shipped to playfastnotes.com (LIVE)
+**WEB_LOCAL_FIRST_BUILD Phases 1 + 2** (`6927a51`, `9a91c7a`; spec `WEB_LOCAL_FIRST_BUILD.md`). Cuts Supabase storage egress (Skiano Studio org tripped the free cached-egress quota 2026-05-29; now on Pro).
+- **Phase 1:** `lib/supabase/storage.ts` uploads return `?v=<12-char SHA-1>` (content hash) instead of `?v=${Date.now()}` → stable bytes = stable URL = CDN cache hits.
+- **Phase 2:** `public/sw.js` cache-first service worker for `*.supabase.co/storage/v1/object/public/{pieces,recordings}/*` (IndexedDB after first fetch). Registered via `lib/sw/registerServiceWorker.{web.ts,ts}` from `_layout.tsx`. Two non-obvious gotchas baked in — **CORS-upgrade** fetch (no-cors `<img>` responses are opaque/unreadable, so re-fetch `mode:'cors'`; Supabase public objects send ACAO `*`) and **Range/206** slicing for `<audio>` seeking. Don't regress these.
+- Also live: a now-superseded bounded-pool concurrency fix for the OLD server PDF render (`6af0ca7`).
+
+### ⏳ Committed locally, NOT pushed
+**1. On-device PDF rendering — "Stage 1"** (`50b54c2`). Big scanned PDFs crashed the `pdf-render-page` edge function: 256 MB limit vs a 52-page / 45 MB scan whose page images run 5700×7500 (~160 MB decoded each) → `WORKER_RESOURCE_LIMIT` on a random heavy page. Now the **device's browser renders pages with pdf.js** — no server, any size works. `lib/pdf/renderPdfClient.web.ts` rasterizes each page sequentially (low peak memory) → JPEG capped at 2000 px long edge → uploaded via `uploadDocumentPageImage` to the same `<userId>/documents/<docId>/pN.jpg` path + Phase-1 hash URL, so viewer/crop/overlay are unchanged. **pdf.js loads from a CDN via `<script>`** (pinned v3.11.174 UMD → `window.pdfjsLib`) because BOTH npm builds use `import.meta`, which Metro's web bundler can't transpile (same pattern AbcStaffView uses for abcjs). `lib/pdf/upload.ts` rewritten; `pdf-doc-init`/`pdf-render-page` calls gone. Verified end-to-end on the real 45 MB / 52-page file (~17 s; draw-box + save lands correctly). Native sibling `renderPdfClient.ts` throws (web-only).
+
+**2. Consistent white score framing** (`3378264` + `e0fc02d`). Laptop/iPad practice screens frame the score the same way (white margin) instead of each showing its own grey/black background. `lib/layout/configForm.ts`: `SCORE_SIDE_BUFFER` (44) / `SCORE_VERT_BUFFER` (24) / `SCORE_FRAME_BG` (`#ffffff`). Each screen pads its score container (non-phone) + wraps the score in an inner flex frame so padding insets it (an absolutely-filled image ignores parent padding on web); the tool layer is a sibling so its edge tabs stay at the true edge. `ScoreWithMarkers` backdrop made transparent. Tempo Ladder playing root switched from hardcoded `#000` to `C.background`.
+
+**3. iPad pinch-to-resize + durable zoom** (`8820714`). iPad (touch tablet) now gets the pinch-zoom score phone already had (was phone-gated). `hooks/useIsTouchDevice.{web.ts,ts}` (matchMedia `hover:none and pointer:coarse`; native always true). Practice screens' **score render gate widened from `isPhone` to `isTouch`** (phone + iPad pinch; laptop keeps the static framed view — can't pinch a mouse). Default size unchanged (contain at 1×). `ZoomableImage` zoom now **persists to localStorage** per passage (`pfn:zoom:<key>`; was in-memory) so size sticks across reloads; backdrop transparent. User constraint: the default iPad display size is good — pinch only adjusts from it.
+
+**4. Phone-landscape practice polish** (in `3378264`). Tempo Ladder + Interleaved: the fixed bottom band reserved for the floating ✗/✓ buttons ate a third of a short landscape screen → landscape now reserves almost nothing (buttons float over the lower corners; pinch to nudge). ✗/✓/End respect the side safe-area inset (clear notch/camera/speaker). In landscape the ✗/✓ sit on the help-button line (✓ shifted left of it via `cleanRightExtra`). Portrait unchanged.
+
+**5. FloatingRhythmCard (Rhythmic Variation)** (in `3378264`). Collapse arrow now works (a press on it was being captured as a drag by the card's drag handle; the handler now ignores presses on the collapse button). Collapsed view shows just the rhythm staff + Next (no Loop/Prev).
+
+### One-off helper (not committed)
+A Swift PDF downsampler (`/tmp/pdfshrink.swift`) shrank the user's giant 45 MB scan to a server-safe size as a stopgap before Stage 1 landed. Reference only.
+
+### ⏳ NEXT — "Stage 2" (the bigger forScore-style data win) — likely tomorrow's "phase 2"
+Stage 1 fixed the crash but **still stores a rendered image per page**. Stage 2: stop storing page images — show the PDF view-window live and define passages purely by their **crop-box coordinates** (already stored in `regions_json`). Practice display already uses each passage's small cropped `source_uri`, not the page images — the page images exist only as (a) the box-drawing backdrop in the document viewer and (b) the crop source. Render those on-demand (or show the PDF directly) and the per-part storage/egress drops dramatically. Bigger change to the document viewer + crop flow; deferred. **Also pending: push the 4 committed commits.**
 
 ## ✅ 2026-05-29 — Metronome Rhythms (groove player); drone retired from the UI
 
