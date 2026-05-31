@@ -449,10 +449,18 @@ export function RecorderPanel({
 }
 
 const styles = StyleSheet.create({
-  panel: { flex: 1, padding: Spacing.md, gap: Spacing.sm },
+  // paddingTop clears the ToolDock collapse × that floats in the card's
+  // top-left corner — the record button is the first row and would sit under it.
+  panel: {
+    flex: 1,
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+    paddingTop: 30,
+    gap: Spacing.sm,
+  },
   // Phone: tighter padding + smaller gap so the trimmed dock isn't
-  // bottlenecked by chrome.
-  panelPhone: { padding: Spacing.sm, gap: 6 },
+  // bottlenecked by chrome (top still cleared for the × button).
+  panelPhone: { paddingHorizontal: Spacing.sm, paddingBottom: Spacing.sm, paddingTop: 28, gap: 6 },
   recordBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -684,7 +684,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
-  volumeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  // paddingLeft keeps the "VOL" label clear of the ToolDock collapse × that
+  // floats in the card's top-left corner — without it the × sits on top of the
+  // label whenever the volume row is the first row (e.g. no note strip above).
+  volumeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingLeft: 22 },
   volLabel: {
     fontSize: 10,
     fontWeight: Type.weight.bold,

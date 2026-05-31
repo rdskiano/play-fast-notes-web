@@ -43,6 +43,12 @@ const PHONE_BREAKPOINT = 600;
 
 export type ToolKey = 'pencil' | 'metronome' | 'timer' | 'recorder';
 
+// Pencil tool is hidden app-wide for now: it has no erase yet, and the ink
+// doesn't follow pinch-zoom (the ink layer isn't inside the score's zoom
+// transform). Flip this back to `true` to restore it behind the usual
+// pen-detection gate — nothing else needs to change.
+const PENCIL_ENABLED = false;
+
 // Default edge layout. A screen passes `tools` to override either edge —
 // an empty array clears that edge entirely.
 const DEFAULT_LAYOUT: Record<DockEdge, ToolKey[]> = {
@@ -301,7 +307,8 @@ export function PracticeToolsLayer({
     // full control when they want it.
     const defaultLayout = isPhone ? PHONE_LAYOUT : DEFAULT_LAYOUT;
     const requested = tools?.[edge] ?? defaultLayout[edge];
-    const keys = penDetected ? requested : requested.filter((k) => k !== 'pencil');
+    const showPencil = PENCIL_ENABLED && penDetected;
+    const keys = showPencil ? requested : requested.filter((k) => k !== 'pencil');
     let top = TOP_INSET;
     return keys.map((key) => {
       const dock = renderTool(key, edge, top);
