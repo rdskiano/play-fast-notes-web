@@ -157,7 +157,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: '100%',
-    backgroundColor: '#0001',
+    // Transparent so the score sits on the practice screen's frame color
+    // (SCORE_FRAME_BG) rather than its own grey matte — keeps the letterbox
+    // bands consistent with the side margins on every screen.
+    backgroundColor: 'transparent',
     position: 'relative',
   },
   marker: {

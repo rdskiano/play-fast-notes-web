@@ -24,6 +24,11 @@ import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import {
+  SCORE_SIDE_BUFFER,
+  SCORE_VERT_BUFFER,
+  SCORE_FRAME_BG,
+} from '@/lib/layout/configForm';
+import {
   parseBeatDenominator,
   patternsByGrouping,
   RHYTHM_PATTERNS,
@@ -232,31 +237,46 @@ export default function RhythmicScreen() {
         </ThemedText>
       )}
 
-      <View style={styles.contentArea}>
-        {isPhone ? (
-          // Phone: show the full passage by default, let the user pinch
-          // in (and one-finger pan) to read notes up close. Replaces the
-          // earlier horizontal-scroll-only approach so the user can
-          // also zoom vertically when a passage has tall barlines or
-          // multi-line systems.
-          <ZoomableImage
-            uri={passage.source_uri}
-            style={StyleSheet.absoluteFill}
-            persistKey={passage.id}
-          />
-        ) : (
-          <ScoreWithMarkers
-            uri={passage.source_uri}
-            markers={[]}
-            mode="play"
-            activePair={null}
-          />
-        )}
-        {/* Annotation canvas stays mounted on tablet/desktop. On phone
-            it's hidden during rhythmic — the canvas would have to scroll
-            with the score to stay aligned, and the user's ask was about
-            seeing notes clearly, not annotating in this flow. */}
-        {!isPhone && ann.canvas}
+      <View
+        style={[
+          styles.contentArea,
+          // Laptop: inset the score from the screen edges so it clears the
+          // edge-docked tool tabs and gets top/bottom breathing room. The
+          // score lives in an inner flex child (an absolutely-filled score
+          // ignores this padding on web); PracticeToolsLayer stays a
+          // sibling at the true screen edge. Phone keeps full-bleed zoom.
+          !isPhone && {
+            paddingHorizontal: SCORE_SIDE_BUFFER,
+            paddingVertical: SCORE_VERT_BUFFER,
+            backgroundColor: SCORE_FRAME_BG,
+          },
+        ]}>
+        <View style={{ flex: 1, width: '100%', position: 'relative' }}>
+          {isPhone ? (
+            // Phone: show the full passage by default, let the user pinch
+            // in (and one-finger pan) to read notes up close. Replaces the
+            // earlier horizontal-scroll-only approach so the user can
+            // also zoom vertically when a passage has tall barlines or
+            // multi-line systems.
+            <ZoomableImage
+              uri={passage.source_uri}
+              style={StyleSheet.absoluteFill}
+              persistKey={passage.id}
+            />
+          ) : (
+            <ScoreWithMarkers
+              uri={passage.source_uri}
+              markers={[]}
+              mode="play"
+              activePair={null}
+            />
+          )}
+          {/* Annotation canvas stays mounted on tablet/desktop. On phone
+              it's hidden during rhythmic — the canvas would have to scroll
+              with the score to stay aligned, and the user's ask was about
+              seeing notes clearly, not annotating in this flow. */}
+          {!isPhone && ann.canvas}
+        </View>
         {phase === 'playing' && (
           <PracticeToolsLayer
             metronome={metronome}

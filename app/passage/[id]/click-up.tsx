@@ -32,7 +32,14 @@ import { MIN_MARKERS, useClickUpSession } from '@/hooks/useClickUpSession';
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import { TutorialStep } from '@/components/TutorialStep';
 import { activePairMarkers } from '@/lib/strategies/clickUp';
-import { actionButtonStyle, configColumnStyle, HELP_CLEARANCE } from '@/lib/layout/configForm';
+import {
+  actionButtonStyle,
+  configColumnStyle,
+  HELP_CLEARANCE,
+  SCORE_SIDE_BUFFER,
+  SCORE_VERT_BUFFER,
+  SCORE_FRAME_BG,
+} from '@/lib/layout/configForm';
 
 function formatActiveUnits(activeUnits: number[]): string {
   if (activeUnits.length === 0) return '';
@@ -445,32 +452,49 @@ export default function ClickUpScreen() {
         onBack={onPrev}
       />
 
-      <View style={styles.contentArea}>
-        {isPhone ? (
-          // Phone: wrap the score in a pinch+pan container so notes
-          // are readable on a small screen. ScoreWithMarkers's ▼
-          // arrow markers live inside the same transform, so they
-          // zoom and pan in lockstep with the underlying image and
-          // stay pinned to their correct positions on the staff.
-          <ZoomableImage
-            style={StyleSheet.absoluteFill}
-            persistKey={passage.id}>
+      <View
+        style={[
+          styles.contentArea,
+          // Laptop: pad the score frame so the music (and its pencil
+          // overlay) is inset from the screen edges — clearing the
+          // edge-docked tool tabs on the sides and giving top/bottom
+          // breathing room. The score lives in an inner flex child
+          // (scoreInner) because an absolutely-filled score ignores this
+          // padding on web; PracticeToolsLayer stays a sibling so its tabs
+          // sit at the true screen edge. Phone keeps its full-bleed zoom.
+          !isPhone && {
+            paddingHorizontal: SCORE_SIDE_BUFFER,
+            paddingVertical: SCORE_VERT_BUFFER,
+            backgroundColor: SCORE_FRAME_BG,
+          },
+        ]}>
+        <View style={{ flex: 1, width: '100%', position: 'relative' }}>
+          {isPhone ? (
+            // Phone: wrap the score in a pinch+pan container so notes
+            // are readable on a small screen. ScoreWithMarkers's ▼
+            // arrow markers live inside the same transform, so they
+            // zoom and pan in lockstep with the underlying image and
+            // stay pinned to their correct positions on the staff.
+            <ZoomableImage
+              style={StyleSheet.absoluteFill}
+              persistKey={passage.id}>
+              <ScoreWithMarkers
+                uri={passage.source_uri}
+                markers={activeMarkers}
+                mode="play"
+                activePair={activePair}
+              />
+            </ZoomableImage>
+          ) : (
             <ScoreWithMarkers
               uri={passage.source_uri}
               markers={activeMarkers}
               mode="play"
               activePair={activePair}
             />
-          </ZoomableImage>
-        ) : (
-          <ScoreWithMarkers
-            uri={passage.source_uri}
-            markers={activeMarkers}
-            mode="play"
-            activePair={activePair}
-          />
-        )}
-        {ann.canvas}
+          )}
+          {ann.canvas}
+        </View>
         <PracticeToolsLayer
           metronome={metronome}
           metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."

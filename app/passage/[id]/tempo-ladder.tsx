@@ -44,6 +44,9 @@ import {
   actionButtonStyle,
   configColumnStyle,
   HELP_CLEARANCE,
+  SCORE_SIDE_BUFFER,
+  SCORE_VERT_BUFFER,
+  SCORE_FRAME_BG,
   tempoStacks,
 } from '@/lib/layout/configForm';
 
@@ -68,6 +71,15 @@ export default function TempoLadderScreen() {
   // count stays stable across renders (config → loading → play phases).
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  const isLandscape = vpW > vpH;
+  // Where the floating ✗ / ✓ rep buttons sit above the bottom. Portrait keeps
+  // them lifted clear of the help button; landscape drops them down onto the
+  // help-button line (the ✓ is shifted left of the help button — see below)
+  // so they don't float high and waste the short screen.
+  const repBottomLift = isPhone && isLandscape ? 16 : HELP_CLEARANCE;
+  // Extra right offset for the ✓ in landscape so it seats just left of the
+  // bottom-right help button instead of on top of it.
+  const cleanRightExtra = isPhone && isLandscape ? 60 : 0;
 
   // Practice-log count for the first-time tutorial gate. Hoisted above
   // the phase-based early returns for the same hook-count-stability
@@ -547,27 +559,45 @@ export default function TempoLadderScreen() {
         style={[
           styles.contentArea,
           // Trim just enough off the score's bottom so the floating
-          // ✗ / ✓ buttons don't sit on top of notes. The buttons are
-          // ~56 tall and lifted to clear the help button (see below);
-          // this leaves them sitting in a thin band below the score's
-          // letterbox without wasting a big strip of vertical space.
-          isPhone && { paddingBottom: insets.bottom + HELP_CLEARANCE + 36 },
+          // ✗ / ✓ buttons don't sit on top of notes. In PORTRAIT there's
+          // plenty of height, so reserve the full band (buttons are ~56
+          // tall and lifted to clear the help button). In LANDSCAPE the
+          // screen is short and that fixed band eats a third of it — so
+          // reserve almost nothing and let the score fill the height; the
+          // ✗ / ✓ buttons float over the lower corners and the user can
+          // pinch to nudge notes clear.
+          isPhone &&
+            (vpW > vpH
+              ? { paddingBottom: insets.bottom + 8 }
+              : { paddingBottom: insets.bottom + HELP_CLEARANCE + 36 }),
+          // Laptop: inset the score from the screen edges so it clears the
+          // edge-docked tool tabs and gets top/bottom breathing room. The
+          // score lives in an inner flex child (an absolutely-filled score
+          // ignores this padding on web); PracticeToolsLayer + the phone
+          // overlays stay siblings at the true screen edge.
+          !isPhone && {
+            paddingHorizontal: SCORE_SIDE_BUFFER,
+            paddingVertical: SCORE_VERT_BUFFER,
+            backgroundColor: SCORE_FRAME_BG,
+          },
         ]}>
-        {passage?.source_uri &&
-          (isPhone ? (
-            <ZoomableImage
-              uri={passage.source_uri}
-              style={styles.scoreContain}
-              persistKey={passage.id}
-            />
-          ) : (
-            <Image
-              source={{ uri: passage.source_uri }}
-              style={styles.scoreContain}
-              contentFit="contain"
-            />
-          ))}
-        {ann.canvas}
+        <View style={{ flex: 1, width: '100%', position: 'relative' }}>
+          {passage?.source_uri &&
+            (isPhone ? (
+              <ZoomableImage
+                uri={passage.source_uri}
+                style={styles.scoreContain}
+                persistKey={passage.id}
+              />
+            ) : (
+              <Image
+                source={{ uri: passage.source_uri }}
+                style={styles.scoreContain}
+                contentFit="contain"
+              />
+            ))}
+          {ann.canvas}
+        </View>
         <PracticeToolsLayer
           metronome={metronome}
           metronomeNote="Tempo Ladder controls the tempo — no need to adjust it. Just press play."
@@ -613,7 +643,7 @@ export default function TempoLadderScreen() {
               onPress={onEndPress}
               hitSlop={6}
               accessibilityLabel="End session"
-              style={[styles.phoneEndBtn, { top: insets.top + 8 }]}>
+              style={[styles.phoneEndBtn, { top: insets.top + 8, left: insets.left + 8 }]}>
               <ThemedText style={styles.phoneEndGlyph}>✕</ThemedText>
             </Pressable>
 
@@ -626,8 +656,9 @@ export default function TempoLadderScreen() {
                 styles.phoneMissBtn,
                 // Lifted to clear the global help button's bottom-right
                 // corner (the ✓ sits directly above it; both raised so
-                // the pair stays level).
-                { bottom: insets.bottom + HELP_CLEARANCE },
+                // the pair stays level). `insets.left` keeps it clear of the
+                // notch / camera / speaker on the side edge in landscape.
+                { bottom: insets.bottom + repBottomLift, left: insets.left + 16 },
               ]}>
               <ThemedText style={styles.phoneRepGlyph}>✗</ThemedText>
             </Pressable>
@@ -638,7 +669,10 @@ export default function TempoLadderScreen() {
               style={[
                 styles.phoneRepBtn,
                 styles.phoneCleanBtn,
-                { bottom: insets.bottom + HELP_CLEARANCE },
+                {
+                  bottom: insets.bottom + repBottomLift,
+                  right: insets.right + 16 + cleanRightExtra,
+                },
               ]}>
               <ThemedText style={styles.phoneRepGlyph}>✓</ThemedText>
             </Pressable>

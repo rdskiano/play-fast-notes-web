@@ -40,6 +40,11 @@ import {
 } from '@/lib/db/repos/passages';
 import { getTempoLadder, type TempoLadderProgress } from '@/lib/db/repos/tempoLadder';
 import { rememberPassageInDoc } from '@/lib/sessions/lastPassageInDoc';
+import {
+  SCORE_SIDE_BUFFER,
+  SCORE_VERT_BUFFER,
+  SCORE_FRAME_BG,
+} from '@/lib/layout/configForm';
 
 type StrategyKey = 'tempo_ladder' | 'click_up' | 'rhythmic' | 'rep_rotator';
 
@@ -395,21 +400,38 @@ export default function PassageDetailScreen() {
         }}>
         <View style={styles.body}>
           {passage.source_uri ? (
-            <View style={styles.scoreFill}>
-              {isPhone ? (
-                <ZoomableImage
-                  uri={passage.source_uri}
-                  style={StyleSheet.absoluteFill}
-                  persistKey={passage.id}
-                />
-              ) : (
-                <Image
-                  source={{ uri: passage.source_uri }}
-                  style={StyleSheet.absoluteFill}
-                  contentFit="contain"
-                />
-              )}
-              {ann.canvas}
+            <View
+              style={[
+                styles.scoreFill,
+                // Laptop: inset the score from the screen edges so it clears
+                // the edge-docked tool tabs and gets top/bottom breathing
+                // room. The image lives in an inner flex child (an
+                // absolutely-filled image ignores this padding on web);
+                // PracticeToolsLayer is a sibling further up the tree so its
+                // tabs stay at the true screen edge. Phone keeps full-bleed
+                // zoom.
+                !isPhone && {
+                  paddingHorizontal: SCORE_SIDE_BUFFER,
+                  paddingVertical: SCORE_VERT_BUFFER,
+                  backgroundColor: SCORE_FRAME_BG,
+                },
+              ]}>
+              <View style={{ flex: 1, width: '100%', position: 'relative' }}>
+                {isPhone ? (
+                  <ZoomableImage
+                    uri={passage.source_uri}
+                    style={StyleSheet.absoluteFill}
+                    persistKey={passage.id}
+                  />
+                ) : (
+                  <Image
+                    source={{ uri: passage.source_uri }}
+                    style={StyleSheet.absoluteFill}
+                    contentFit="contain"
+                  />
+                )}
+                {ann.canvas}
+              </View>
             </View>
           ) : (
             <View style={styles.noScore}>

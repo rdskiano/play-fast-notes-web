@@ -55,6 +55,10 @@ function FloatingRhythmCardWeb({
   const dragBaseRef = useRef<{ x: number; y: number } | null>(null);
   const pinchBaseRef = useRef<{ dist: number; scale: number } | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
+  // The collapse (▴/▾) button lives inside the drag handle. Without this, a
+  // press on it starts a drag (the handle calls setPointerCapture +
+  // preventDefault), so its onPress never fires and the card won't collapse.
+  const collapseRef = useRef<View | null>(null);
 
   const abc = useMemo(() => buildRhythmAbc(pattern), [pattern]);
 
@@ -121,6 +125,11 @@ function FloatingRhythmCardWeb({
   const onHandlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (pointersRef.current.size >= 2) return;
+      // Don't hijack a tap on the collapse button into a drag.
+      const collapseNode = collapseRef.current as unknown as HTMLElement | null;
+      if (collapseNode && e.target instanceof Node && collapseNode.contains(e.target)) {
+        return;
+      }
       e.preventDefault();
       const target = e.currentTarget;
       target.setPointerCapture(e.pointerId);
@@ -192,6 +201,7 @@ function FloatingRhythmCardWeb({
             <View style={[styles.dragBar, { backgroundColor: C.icon }]} />
           </View>
           <Pressable
+            ref={collapseRef}
             onPress={() => setCollapsed((c) => !c)}
             hitSlop={10}
             style={[styles.collapseBtn, { borderColor: C.icon }]}>
@@ -202,33 +212,19 @@ function FloatingRhythmCardWeb({
         </div>
 
         {collapsed ? (
-          <View style={styles.collapsedRow}>
-            <Pressable
-              onPress={onToggleRhythm}
-              style={[
-                styles.hearBtnCompact,
-                { backgroundColor: rhythmLooping ? '#c0392b' : C.tint },
-              ]}>
-              <ThemedText style={styles.hearText}>
-                {rhythmLooping ? '■ Stop' : '▶ Loop'}
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={onPrev}
-              disabled={!canPrev}
-              style={[
-                styles.navBtnCompact,
-                { borderColor: C.tint, opacity: canPrev ? 1 : 0.3 },
-              ]}>
-              <ThemedText style={[styles.navText, { color: C.tint }]}>←</ThemedText>
-            </Pressable>
+          // Collapsed = just the rhythm to read + Next to advance. No Loop,
+          // no Prev — the minimal "see it, move on" view.
+          <>
+            <View style={styles.rhythmBox}>
+              <AbcStaffView abc={abc} width={360} height={78} scale={1.3} />
+            </View>
             <Pressable
               onPress={onNext}
               disabled={!canNext}
-              style={[styles.navBtnCompact, styles.nextBtn, { opacity: canNext ? 1 : 0.4 }]}>
-              <ThemedText style={[styles.navText, { color: '#fff' }]}>→</ThemedText>
+              style={[styles.navBtn, styles.nextBtn, { opacity: canNext ? 1 : 0.4 }]}>
+              <ThemedText style={[styles.navText, { color: '#fff' }]}>Next →</ThemedText>
             </Pressable>
-          </View>
+          </>
         ) : (
           <>
             <View style={styles.rhythmBox}>

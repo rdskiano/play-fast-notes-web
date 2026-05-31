@@ -52,6 +52,29 @@ export const configColumnStyle = StyleSheet.create({
 export const HELP_CLEARANCE = 76;
 
 /**
+ * Breathing room around a practice score on laptop/desktop so the music isn't
+ * enlarged all the way to the screen edges. The horizontal value also clears
+ * the edge-docked tool tabs (METRONOME / TIMER / RECORDER, 34px each — see
+ * components/ToolDock.tsx) so a wide passage's outer music is never hidden
+ * under a tab. Applied as PADDING on the score container, with the actual
+ * image in an inner flex child so the padding insets it (an absolutely-filled
+ * image ignores its parent's padding on web). Phone keeps its own full-bleed
+ * pannable-zoom layout, so these apply only on non-phone score containers.
+ */
+export const SCORE_SIDE_BUFFER = 44;
+export const SCORE_VERT_BUFFER = 24;
+
+/**
+ * Opaque fill painted behind the score in its buffer frame, so the empty space
+ * around the music looks the SAME on every practice screen instead of showing
+ * each screen's own (grey / black / card) background. Opaque (not an rgba
+ * overlay) so it reads identically regardless of the screen behind it. White
+ * so it blends with the white music paper — an invisible, identical margin on
+ * every screen regardless of that screen's own background.
+ */
+export const SCORE_FRAME_BG = '#ffffff';
+
+/**
  * Caps + centres an execute/CTA button so it reads as "an action" rather
  * than a page-wide banner. Full-bleed on a phone (where width < maxWidth),
  * centred and bounded on a wide viewport. Spread into a Button's `style`

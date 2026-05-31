@@ -26,6 +26,11 @@ import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
+import {
+  SCORE_SIDE_BUFFER,
+  SCORE_VERT_BUFFER,
+  SCORE_FRAME_BG,
+} from '@/lib/layout/configForm';
 
 const STEPS = [
   {
@@ -113,29 +118,44 @@ export default function ChunkingScreen() {
         }
       />
 
-      <View style={{ flex: 1 }}>
-        {passage?.source_uri ? (
-          isPhone ? (
-            <ZoomableImage
-              uri={passage.source_uri}
-              style={styles.scoreFill}
-              persistKey={passage.id}
-            />
+      <View
+        style={[
+          { flex: 1 },
+          // Laptop: inset the score from the screen edges so it clears the
+          // edge-docked tool tabs and gets top/bottom breathing room. The
+          // score lives in an inner flex child (an absolutely-filled score
+          // ignores this padding on web); PracticeToolsLayer stays a
+          // sibling at the true screen edge. Phone keeps full-bleed zoom.
+          !isPhone && {
+            paddingHorizontal: SCORE_SIDE_BUFFER,
+            paddingVertical: SCORE_VERT_BUFFER,
+            backgroundColor: SCORE_FRAME_BG,
+          },
+        ]}>
+        <View style={{ flex: 1, width: '100%', position: 'relative' }}>
+          {passage?.source_uri ? (
+            isPhone ? (
+              <ZoomableImage
+                uri={passage.source_uri}
+                style={styles.scoreFill}
+                persistKey={passage.id}
+              />
+            ) : (
+              <Image
+                source={{ uri: passage.source_uri }}
+                style={styles.scoreFill}
+                contentFit="contain"
+              />
+            )
           ) : (
-            <Image
-              source={{ uri: passage.source_uri }}
-              style={styles.scoreFill}
-              contentFit="contain"
-            />
-          )
-        ) : (
-          <View style={styles.empty}>
-            <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>
-              Loading…
-            </ThemedText>
-          </View>
-        )}
-        {ann.canvas}
+            <View style={styles.empty}>
+              <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>
+                Loading…
+              </ThemedText>
+            </View>
+          )}
+          {ann.canvas}
+        </View>
         <PracticeToolsLayer pencil={ann.pencil} recorderPassageId={passage?.id} />
       </View>
 

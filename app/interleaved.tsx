@@ -28,7 +28,13 @@ import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/toke
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { ZoomableImage } from '@/components/ZoomableImage';
-import { actionButtonStyle, HELP_CLEARANCE } from '@/lib/layout/configForm';
+import {
+  actionButtonStyle,
+  HELP_CLEARANCE,
+  SCORE_SIDE_BUFFER,
+  SCORE_VERT_BUFFER,
+  SCORE_FRAME_BG,
+} from '@/lib/layout/configForm';
 import { listPassages, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
@@ -176,7 +182,13 @@ export default function InterleavedScreen() {
   // pinch in to read notes without leaving practice mode.
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  const isLandscape = vpW > vpH;
   const insets = useSafeAreaInsets();
+  // Landscape phone: drop the floating ✗ / ✓ buttons onto the help-button
+  // line (✓ shifted left of the help button) instead of floating them high
+  // on a short screen. Portrait keeps the lifted spacing.
+  const repBottomLift = isPhone && isLandscape ? 16 : HELP_CLEARANCE;
+  const cleanRightExtra = isPhone && isLandscape ? 60 : 0;
 
   const [phase, setPhase] = useState<Phase>('select');
   const [mode, setMode] = useState<SessionMode>('consistency');
@@ -680,30 +692,52 @@ export default function InterleavedScreen() {
       <View
         style={[
           styles.contentArea,
-          // Reserve a thin band under the score so the floating ✗ / ✓
-          // circles don't overlap the music. The circles are lifted to
-          // clear the help button; matches the Tempo Ladder pattern.
-          isPhone && { paddingBottom: insets.bottom + HELP_CLEARANCE + 36 },
+          // Reserve a band under the score so the floating ✗ / ✓ circles
+          // don't overlap the music. Portrait reserves the full lifted band;
+          // landscape is short, so reserve almost nothing and let the buttons
+          // float over the lower corners (matches the Tempo Ladder pattern).
+          isPhone &&
+            (isLandscape
+              ? { paddingBottom: insets.bottom + 8 }
+              : { paddingBottom: insets.bottom + HELP_CLEARANCE + 36 }),
         ]}>
         {currentSpot?.passage.source_uri ? (
-          <View style={styles.scoreFill}>
-            {isPhone ? (
-              <ZoomableImage
-                uri={currentSpot.passage.source_uri}
-                style={StyleSheet.absoluteFill}
-                // Remember the zoom + pan per passage so cycling
-                // between rotated passages doesn't carry over the
-                // previous passage's zoom.
-                persistKey={currentSpot.passage.id}
-              />
-            ) : (
-              <Image
-                source={{ uri: currentSpot.passage.source_uri }}
-                style={StyleSheet.absoluteFill}
-                contentFit="contain"
-              />
-            )}
-            {ann.canvas}
+          <View
+            style={[
+              styles.scoreFill,
+              // Laptop: pad the score frame so the music (and its pencil
+              // overlay) is inset from the screen edges — clearing the
+              // edge-docked tool tabs on the sides and giving top/bottom
+              // breathing room. The image lives in an inner flex child
+              // (styles.scoreInner) because an absolutely-filled image
+              // ignores this padding on web. The tool layer is a sibling,
+              // so its tabs stay at the true screen edge. Phone keeps its
+              // full-bleed pannable zoom.
+              !isPhone && {
+                paddingHorizontal: SCORE_SIDE_BUFFER,
+                paddingVertical: SCORE_VERT_BUFFER,
+                backgroundColor: SCORE_FRAME_BG,
+              },
+            ]}>
+            <View style={styles.scoreInner}>
+              {isPhone ? (
+                <ZoomableImage
+                  uri={currentSpot.passage.source_uri}
+                  style={StyleSheet.absoluteFill}
+                  // Remember the zoom + pan per passage so cycling
+                  // between rotated passages doesn't carry over the
+                  // previous passage's zoom.
+                  persistKey={currentSpot.passage.id}
+                />
+              ) : (
+                <Image
+                  source={{ uri: currentSpot.passage.source_uri }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="contain"
+                />
+              )}
+              {ann.canvas}
+            </View>
           </View>
         ) : null}
         <PracticeToolsLayer
@@ -743,7 +777,7 @@ export default function InterleavedScreen() {
               onPress={endSession}
               hitSlop={6}
               accessibilityLabel="End session"
-              style={[styles.phoneEndBtn, { top: insets.top + 8 }]}>
+              style={[styles.phoneEndBtn, { top: insets.top + 8, left: insets.left + 8 }]}>
               <ThemedText style={styles.phoneEndGlyph}>✕</ThemedText>
             </Pressable>
 
@@ -754,9 +788,9 @@ export default function InterleavedScreen() {
               style={[
                 styles.phoneRepBtn,
                 styles.phoneMissBtn,
-                // Lifted to clear the global help button's bottom-right
-                // corner (✓ sits above it; both raised to stay level).
-                { bottom: insets.bottom + HELP_CLEARANCE },
+                // Portrait lifts to clear the help button; landscape drops to
+                // the help line. `insets.left` clears the landscape notch.
+                { bottom: insets.bottom + repBottomLift, left: insets.left + 16 },
               ]}>
               <ThemedText style={styles.phoneRepGlyph}>✗</ThemedText>
             </Pressable>
@@ -767,7 +801,10 @@ export default function InterleavedScreen() {
               style={[
                 styles.phoneRepBtn,
                 styles.phoneCleanBtn,
-                { bottom: insets.bottom + HELP_CLEARANCE },
+                {
+                  bottom: insets.bottom + repBottomLift,
+                  right: insets.right + 16 + cleanRightExtra,
+                },
               ]}>
               <ThemedText style={styles.phoneRepGlyph}>✓</ThemedText>
             </Pressable>
@@ -1089,6 +1126,10 @@ const styles = StyleSheet.create({
   dotFilled: { backgroundColor: Status.success, borderColor: Status.success },
   contentArea: { flex: 1 },
   scoreFill: { flex: 1, width: '100%' },
+  // Inner frame that actually holds the score image + pencil overlay. A normal
+  // flex child so the parent's padding (the laptop buffer) insets it; the
+  // absoluteFill image then fills this inset frame.
+  scoreInner: { flex: 1, width: '100%', position: 'relative' },
   repBar: {
     flexDirection: 'row',
     gap: Spacing.md,
