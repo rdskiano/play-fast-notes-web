@@ -14,6 +14,32 @@ async function sha1Hex(bytes: Uint8Array): Promise<string> {
 }
 
 /**
+ * Upload one rendered document page (a JPEG blob) to the same path the
+ * pdf-render-page edge function used: `<userId>/documents/<docId>/p<page>.jpg`.
+ * Returns the content-hashed public URL. Used by the on-device PDF renderer so
+ * the document viewer sees the same path scheme regardless of who rendered it.
+ */
+export async function uploadDocumentPageImage(
+  userId: string,
+  docId: string,
+  page: number,
+  blob: Blob,
+): Promise<string> {
+  const path = `${userId}/documents/${docId}/p${page}.jpg`;
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const hash = (await sha1Hex(bytes)).slice(0, 12);
+
+  const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
+    upsert: true,
+    contentType: 'image/jpeg',
+  });
+  if (error) throw error;
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  return `${data.publicUrl}?v=${hash}`;
+}
+
+/**
  * Upload an image file to the pieces bucket under the current user's folder.
  * Returns the public URL of the uploaded file.
  *
