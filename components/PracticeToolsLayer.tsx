@@ -135,10 +135,13 @@ export function PracticeToolsLayer({
   // and chew up the limited vertical space.
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const isPhone = Math.min(viewportWidth, viewportHeight) < PHONE_BREAKPOINT;
-  // Phone held sideways: the metronome card grows to (nearly) the full screen
-  // height so it's a usable panel rather than a small floating card.
-  const isLandscapePhone = isPhone && viewportWidth > viewportHeight;
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // Phone: the metronome becomes a fixed, full-height docked panel — ~1/3 the
+  // screen wide (clamped to a usable minimum so its controls still fit) — that
+  // springs in/out, rather than a loose draggable card. Laptop/iPad keep the
+  // draggable, resizable floating card.
+  const dockedW = Math.round(Math.min(340, Math.max(240, viewportWidth / 3)));
+  const dockedH = size.h > 0 ? size.h : 330;
   // Tool cards collapse when the screen loses focus: bumping this key on blur
   // remounts every dock, so a popped-out tool (e.g. the Recorder) never
   // persists open — or keeps stale takes — across navigation.
@@ -227,21 +230,9 @@ export function PracticeToolsLayer({
             // bottom of the play row. Phone now always shows the action
             // row (the RHYTHMS button — and NEXT when a strategy supplies
             // it), so it needs the taller 330 in both phone cases.
-            panelWidth={isPhone ? 240 : 280}
-            // Landscape phone: fill the MEASURED tools area (size.h), not the
-            // raw window height — the metronome lives below the top bar, so the
-            // window height overshoots. Filling the real container also makes
-            // ToolDock pin the card to the top instead of dropping it low.
-            // size.h is 0 until the first layout pass, so fall back to 330.
-            panelHeight={
-              isLandscapePhone && size.h > 0
-                ? Math.max(330, size.h - 16)
-                : isPhone
-                  ? 330
-                  : metronomeNote
-                    ? 384
-                    : 312
-            }>
+            docked={isPhone}
+            panelWidth={isPhone ? dockedW : 280}
+            panelHeight={isPhone ? dockedH : metronomeNote ? 384 : 312}>
             <MetronomePanel
               metronome={metro}
               note={metronomeNote}

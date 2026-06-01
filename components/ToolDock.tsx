@@ -17,6 +17,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -38,6 +39,12 @@ type Props = {
   containerH: number;
   /** Start with the panel already popped out (used on practice screens). */
   defaultOpen?: boolean;
+  /**
+   * Phone mode: render as a fixed, full-height panel docked to the edge that
+   * springs in/out on tab tap — no dragging, pinching, or resizing. Keeps the
+   * tool from feeling like a loose floating card on a small screen.
+   */
+  docked?: boolean;
   children: ReactNode;
 };
 
@@ -77,6 +84,7 @@ export function ToolDock({
   containerW,
   containerH,
   defaultOpen = false,
+  docked = false,
   children,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
@@ -99,6 +107,14 @@ export function ToolDock({
     Math.max(12, containerH - panelHeight - 12),
   );
 
+  // Docked (phone): a fixed full-height panel flush to its edge that slides in
+  // from off-screen. No tab-centring, no drag.
+  const dockedOpenX =
+    edge === 'left'
+      ? TAB_THICKNESS
+      : Math.max(0, containerW - TAB_THICKNESS - panelWidth);
+  const dockedHiddenX = edge === 'left' ? -panelWidth : containerW;
+
   // Drag clamp — keep most of the card on screen. Same 25/75 rule on
   // every edge so the user can push a card almost out of the way and
   // still have a handle to grab it. The previous minY of 4 made the
@@ -111,13 +127,26 @@ export function ToolDock({
 
   const tx = useSharedValue(homeX);
   const ty = useSharedValue(homeY);
-  const scale = useSharedValue(COLLAPSED_SCALE);
+  // Docked panels never shrink-into-tab — they're full size, sliding only.
+  const scale = useSharedValue(docked ? 1 : COLLAPSED_SCALE);
   const op = useSharedValue(0);
   const startX = useSharedValue(0);
   const startY = useSharedValue(0);
   const startScale = useSharedValue(1);
 
   useEffect(() => {
+    if (docked) {
+      // Slide in from the edge with a little spring "bounce"; slide back out.
+      if (open) {
+        tx.value = withSpring(dockedOpenX, { damping: 18, stiffness: 180, mass: 0.7 });
+        ty.value = withTiming(0, { duration: DURATION });
+        op.value = withTiming(1, { duration: DURATION });
+      } else {
+        tx.value = withTiming(dockedHiddenX, { duration: DURATION });
+        op.value = withTiming(0, { duration: DURATION });
+      }
+      return;
+    }
     if (open) {
       tx.value = withTiming(openX, { duration: DURATION });
       ty.value = withTiming(openY, { duration: DURATION });
@@ -129,7 +158,7 @@ export function ToolDock({
       scale.value = withTiming(COLLAPSED_SCALE, { duration: DURATION });
       op.value = withTiming(0, { duration: DURATION });
     }
-  }, [open, openX, openY, homeX, homeY, tx, ty, scale, op]);
+  }, [open, openX, openY, homeX, homeY, tx, ty, scale, op, docked, dockedOpenX, dockedHiddenX]);
 
   // One finger drags the whole card; two fingers pinch-resize it.
   const pan = Gesture.Pan()
@@ -183,22 +212,29 @@ export function ToolDock({
     ],
   }));
 
-  return (
-    <>
-      <GestureDetector gesture={composed}>
-        <Animated.View
-          pointerEvents={open ? 'auto' : 'none'}
-          style={[
-            styles.card,
-            {
-              width: panelWidth,
-              height: panelHeight,
-              backgroundColor: panelBg,
-              borderColor,
-            },
-            cardStyle,
-          ]}>
-          {children}
+  // Docked panels sit flush to their edge — drop the rounded corners and
+  // border on the edge that meets the screen so it reads as attached.
+  const dockedRadius = !docked
+    ? null
+    : edge === 'right'
+      ? styles.dockedRight
+      : styles.dockedLeft;
+
+  const card = (
+    <Animated.View
+      pointerEvents={open ? 'auto' : 'none'}
+      style={[
+        styles.card,
+        {
+          width: panelWidth,
+          height: panelHeight,
+          backgroundColor: panelBg,
+          borderColor,
+        },
+        dockedRadius,
+        cardStyle,
+      ]}>
+      {children}
           {/* Top-left collapse affordance. A plain × that flies the card
               back into its tab — the unambiguous "put this away" control.
               Shown on every device (touch + mouse): the edge tab also
@@ -223,7 +259,7 @@ export function ToolDock({
               device (phone, iPad, etc.) — pinch is the native gesture
               there, and the +/− buttons just steal corner pixels from
               the tool itself. Mouse-only laptops still get them. */}
-          {!IS_TOUCH_DEVICE && (
+          {!IS_TOUCH_DEVICE && !docked && (
             <View pointerEvents="box-none" style={styles.sizerWrap}>
               <Pressable
                 onPress={() => bumpSize(-1)}
@@ -241,8 +277,13 @@ export function ToolDock({
               </Pressable>
             </View>
           )}
-        </Animated.View>
-      </GestureDetector>
+    </Animated.View>
+  );
+
+  return (
+    <>
+      {/* Docked (phone) panels skip the drag/pinch gesture wrapper entirely. */}
+      {docked ? card : <GestureDetector gesture={composed}>{card}</GestureDetector>}
 
       <Pressable
         onPress={() => setOpen((o) => !o)}
@@ -308,6 +349,18 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 2 },
     elevation: 6,
+  },
+  // Docked-panel edge treatment: square off + drop the border on the side
+  // flush against the screen edge.
+  dockedRight: {
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+    borderRightWidth: 0,
+  },
+  dockedLeft: {
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderLeftWidth: 0,
   },
   tabLeft: { left: 0, borderTopRightRadius: 12, borderBottomRightRadius: 12 },
   tabRight: { right: 0, borderTopLeftRadius: 12, borderBottomLeftRadius: 12 },
