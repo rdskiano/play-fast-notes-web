@@ -476,18 +476,25 @@ export default function DocumentScreen() {
     }
   }, [namePromptOpen, postSaveTitle]);
 
+  // Snap the pager to the exact offset for page `x`. RN-Web's native paging can
+  // land a few px off on the FIRST turn (the swipe mounts a neighbor page
+  // mid-scroll, disrupting the snap), leaving a sliver of the next page
+  // showing. Guarded so it's a no-op on turns that already landed square.
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function snapToExactPage(x: number) {
+    if (suppressScrollEndRef.current || width <= 0) return;
+    const idx = Math.round(x / width);
+    const targetX = width * idx;
+    if (Math.abs(x - targetX) > 1) {
+      scrollRef.current?.scrollTo({ x: targetX, animated: true });
+    }
+  }
+
   function onScrollEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
     if (suppressScrollEndRef.current) return;
     const x = e.nativeEvent.contentOffset.x;
     const idx = Math.round(x / Math.max(width, 1));
-    // RN-Web's native paging can land a few px short on the FIRST turn (the
-    // swipe mounts a neighbor page mid-scroll, disrupting the snap). Ease to
-    // the exact slot offset so the page always settles square. Guarded so it's
-    // a no-op on the turns that already landed right — no fight with paging.
-    const targetX = width * idx;
-    if (width > 0 && Math.abs(x - targetX) > 1) {
-      scrollRef.current?.scrollTo({ x: targetX, animated: true });
-    }
+    snapToExactPage(x);
     if (idx !== currentIndex) setCurrentIndex(idx);
   }
 
@@ -500,6 +507,11 @@ export default function DocumentScreen() {
     const x = e.nativeEvent.contentOffset.x;
     const idx = Math.round(x / Math.max(width, 1));
     if (idx !== currentIndex) setCurrentIndex(idx);
+    // onMomentumScrollEnd is unreliable on iOS Safari (the first turn often
+    // never fires it), so also correct the snap when the scroll stream goes
+    // quiet — the dependable signal that motion has actually stopped.
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = setTimeout(() => snapToExactPage(x), 130);
   }
 
   function startDraw() {
