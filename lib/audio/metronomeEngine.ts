@@ -878,22 +878,25 @@ export class MetronomeEngine {
       try {
         const osc = ctx.createOscillator();
         const g = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(270, when);
-        osc.frequency.exponentialRampToValueAtTime(190, when + 0.07);
-        const peak = Math.max(0.0002, vel * this._volume * 0.9);
+        // Round sine body + a quick pitch SNAP (not a slow slide) + short decay
+        // — an open-tone conga rather than a rubbery "pew."
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(235, when);
+        osc.frequency.exponentialRampToValueAtTime(190, when + 0.02);
+        const peak = Math.max(0.0002, vel * this._volume * 1.0);
         g.gain.setValueAtTime(0.0001, when);
-        g.gain.exponentialRampToValueAtTime(peak, when + 0.005);
-        g.gain.exponentialRampToValueAtTime(0.0001, when + 0.22);
+        g.gain.exponentialRampToValueAtTime(peak, when + 0.004);
+        g.gain.exponentialRampToValueAtTime(0.0001, when + 0.16);
         osc.connect(g);
         g.connect(gate);
         osc.start(when);
-        osc.stop(when + 0.24);
+        osc.stop(when + 0.18);
       } catch {
         // ignore
       }
     }
-    this.playNoiseVoice(when, 'bandpass', 350, 1, Math.max(0.0002, vel * this._volume * 0.2), 0.03);
+    // Crisp high-passed finger slap, not a low thud.
+    this.playNoiseVoice(when, 'highpass', 2500, 0, Math.max(0.0002, vel * this._volume * 0.25), 0.02);
   }
 
   // Woodblock — a sharp pitched tick: a quick triangle at ~1 kHz plus a softer

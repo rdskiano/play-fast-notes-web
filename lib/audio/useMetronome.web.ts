@@ -188,32 +188,33 @@ function drumConga(
   vel: number,
   vol: number,
 ) {
+  // Round sine body + a quick pitch SNAP (not a slow slide) + short decay — an
+  // open-tone conga rather than a rubbery "pew."
   const osc = ctx.createOscillator();
   const g = ctx.createGain();
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime(270, t);
-  osc.frequency.exponentialRampToValueAtTime(190, t + 0.07);
-  const peak = Math.max(0.0002, vel * vol * 0.9);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(235, t);
+  osc.frequency.exponentialRampToValueAtTime(190, t + 0.02);
+  const peak = Math.max(0.0002, vel * vol * 1.0);
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(peak, t + 0.005);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
   osc.connect(g).connect(dest);
   osc.start(t);
-  osc.stop(t + 0.24);
-  // Skin attack
+  osc.stop(t + 0.18);
+  // Crisp high-passed finger slap, not a low thud.
   const src = ctx.createBufferSource();
   src.buffer = noise;
-  const bp = ctx.createBiquadFilter();
-  bp.type = 'bandpass';
-  bp.frequency.value = 350;
-  bp.Q.value = 1;
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 2500;
   const ng = ctx.createGain();
-  const npeak = Math.max(0.0002, vel * vol * 0.2);
+  const npeak = Math.max(0.0002, vel * vol * 0.25);
   ng.gain.setValueAtTime(npeak, t);
-  ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
-  src.connect(bp).connect(ng).connect(dest);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.02);
+  src.connect(hp).connect(ng).connect(dest);
   src.start(t);
-  src.stop(t + 0.05);
+  src.stop(t + 0.04);
 }
 
 // Woodblock — a sharp pitched tick: a quick triangle at ~1 kHz plus a softer
