@@ -135,6 +135,9 @@ export function PracticeToolsLayer({
   // and chew up the limited vertical space.
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const isPhone = Math.min(viewportWidth, viewportHeight) < PHONE_BREAKPOINT;
+  // Phone held sideways: the metronome card grows to (nearly) the full screen
+  // height so it's a usable panel rather than a small floating card.
+  const isLandscapePhone = isPhone && viewportWidth > viewportHeight;
   const [size, setSize] = useState({ w: 0, h: 0 });
   // Tool cards collapse when the screen loses focus: bumping this key on blur
   // remounts every dock, so a popped-out tool (e.g. the Recorder) never
@@ -226,11 +229,13 @@ export function PracticeToolsLayer({
             // it), so it needs the taller 330 in both phone cases.
             panelWidth={isPhone ? 240 : 280}
             panelHeight={
-              isPhone
-                ? 330
-                : metronomeNote
-                  ? 384
-                  : 312
+              isLandscapePhone
+                ? Math.max(330, viewportHeight - 24)
+                : isPhone
+                  ? 330
+                  : metronomeNote
+                    ? 384
+                    : 312
             }>
             <MetronomePanel
               metronome={metro}

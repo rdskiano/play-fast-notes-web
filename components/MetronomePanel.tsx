@@ -16,13 +16,21 @@
 // metronome is a free-standing practice aid, not driven by a strategy.
 
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  Animated,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { ActionSheet } from '@/components/ActionSheet';
 import { NoteValueGlyph, type NoteValue } from '@/components/NoteValueGlyph';
 import { ThemedText } from '@/components/themed-text';
 import { VolumeSlider } from '@/components/VolumeSlider';
-import { groovesForMeter } from '@/lib/audio/grooves';
+import { getGroove, groovesForMeter } from '@/lib/audio/grooves';
 import { Spacing, Type } from '@/constants/tokens';
 import type {
   BeatState,
@@ -356,21 +364,19 @@ export function MetronomePanel({
             <ThemedText style={styles.stepGlyph}>+</ThemedText>
           </Pressable>
         </View>
-        {/* RHYTHMS is available everywhere (including phone) — it's the
-            most useful secondary control. TAP TEMPO is desktop-only
-            (rarely used mid-practice; you set BPM via the stepper). NEXT,
-            when a strategy supplies it, takes the left slot as the advance
-            action. On phone with no NEXT, RHYTHMS sits alone full-width. */}
+        {/* Left slot: NEXT when a strategy supplies it, otherwise TAP TEMPO
+            (now on phone too). Right slot: the RHYTHMS button, which shows
+            the active groove's name once one is selected. */}
         <View style={styles.actionRow}>
           {onNext ? (
             <Pressable onPress={onNext} style={[styles.nextBtn, styles.raised]}>
               <ThemedText style={styles.nextText}>NEXT →</ThemedText>
             </Pressable>
-          ) : !isPhone ? (
+          ) : (
             <Pressable onPress={onTapTempo} style={[styles.tapBtn, styles.raised]}>
               <ThemedText style={styles.tapText}>TAP TEMPO</ThemedText>
             </Pressable>
-          ) : null}
+          )}
           <Pressable
             onPress={() => setRhythmsOpen(true)}
             style={[
@@ -379,8 +385,11 @@ export function MetronomePanel({
               m.activeGroove != null && { backgroundColor: DEVICE.accent },
             ]}>
             <ThemedText
+              numberOfLines={1}
               style={[styles.tapText, m.activeGroove != null && { color: '#fff' }]}>
-              RHYTHMS
+              {m.activeGroove != null
+                ? getGroove(m.activeGroove)?.name ?? 'RHYTHMS'
+                : 'RHYTHMS'}
             </ThemedText>
           </Pressable>
         </View>
@@ -592,6 +601,9 @@ function RhythmsOverlay({
   onClose: () => void;
 }) {
   const grooves = groovesForMeter(meter);
+  // Cap the list height so it never runs off a short screen (phone landscape)
+  // — it scrolls beyond that.
+  const { height: vpH } = useWindowDimensions();
 
   function pick(id: string | null) {
     m.setGroove(id);
@@ -615,39 +627,43 @@ function RhythmsOverlay({
             </ThemedText>
           ) : (
             <>
-              <Pressable
-                onPress={() => pick(null)}
-                style={[
-                  styles.grooveRow,
-                  styles.raised,
-                  { backgroundColor: m.activeGroove == null ? DEVICE.accent : DEVICE.cap },
-                ]}>
-                <ThemedText
+              <ScrollView
+                style={{ maxHeight: Math.max(150, vpH * 0.5) }}
+                contentContainerStyle={styles.grooveList}>
+                <Pressable
+                  onPress={() => pick(null)}
                   style={[
-                    styles.grooveName,
-                    { color: m.activeGroove == null ? '#fff' : DEVICE.text },
+                    styles.grooveRow,
+                    styles.raised,
+                    { backgroundColor: m.activeGroove == null ? DEVICE.accent : DEVICE.cap },
                   ]}>
-                  Just the click
-                </ThemedText>
-              </Pressable>
-              {grooves.map((g) => {
-                const sel = m.activeGroove === g.id;
-                return (
-                  <Pressable
-                    key={g.id}
-                    onPress={() => pick(g.id)}
+                  <ThemedText
                     style={[
-                      styles.grooveRow,
-                      styles.raised,
-                      { backgroundColor: sel ? DEVICE.accent : DEVICE.cap },
+                      styles.grooveName,
+                      { color: m.activeGroove == null ? '#fff' : DEVICE.text },
                     ]}>
-                    <ThemedText
-                      style={[styles.grooveName, { color: sel ? '#fff' : DEVICE.text }]}>
-                      {g.name}
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
+                    Just the click
+                  </ThemedText>
+                </Pressable>
+                {grooves.map((g) => {
+                  const sel = m.activeGroove === g.id;
+                  return (
+                    <Pressable
+                      key={g.id}
+                      onPress={() => pick(g.id)}
+                      style={[
+                        styles.grooveRow,
+                        styles.raised,
+                        { backgroundColor: sel ? DEVICE.accent : DEVICE.cap },
+                      ]}>
+                      <ThemedText
+                        style={[styles.grooveName, { color: sel ? '#fff' : DEVICE.text }]}>
+                        {g.name}
+                      </ThemedText>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
               <ThemedText style={styles.droneHint}>
                 Plays at your current tempo. Change the meter for other styles.
               </ThemedText>
@@ -860,6 +876,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  grooveList: { gap: 10, paddingVertical: 2 },
   grooveRow: {
     paddingHorizontal: 16,
     paddingVertical: 12,
