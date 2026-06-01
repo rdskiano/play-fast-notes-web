@@ -786,6 +786,15 @@ export class MetronomeEngine {
           case 'clap':
             this.drumClap(when, vel);
             break;
+          case 'maracas':
+            this.drumMaracas(when, vel);
+            break;
+          case 'conga':
+            this.drumConga(when, vel);
+            break;
+          case 'block':
+            this.drumBlock(when, vel);
+            break;
         }
       }
       this.grooveStep = (step + 1) % groove.steps;
@@ -851,6 +860,77 @@ export class MetronomeEngine {
 
   private drumClap(when: number, vel: number) {
     this.playNoiseVoice(when, 'bandpass', 1200, 1.2, Math.max(0.0002, vel * this._volume * 0.8), 0.12);
+  }
+
+  // Latin percussion voices.
+
+  // Maracas — a short, bright shaker. Higher and tighter than a hi-hat.
+  private drumMaracas(when: number, vel: number) {
+    this.playNoiseVoice(when, 'highpass', 9000, 0, Math.max(0.0002, vel * this._volume * 0.5), 0.035);
+  }
+
+  // Conga — a pitched membrane hit (triangle with a downward pitch bend) plus a
+  // short band-passed noise transient for the skin slap.
+  private drumConga(when: number, vel: number) {
+    const ctx = this.ctx;
+    const gate = this.grooveGate;
+    if (ctx && gate) {
+      try {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(270, when);
+        osc.frequency.exponentialRampToValueAtTime(190, when + 0.07);
+        const peak = Math.max(0.0002, vel * this._volume * 0.9);
+        g.gain.setValueAtTime(0.0001, when);
+        g.gain.exponentialRampToValueAtTime(peak, when + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001, when + 0.22);
+        osc.connect(g);
+        g.connect(gate);
+        osc.start(when);
+        osc.stop(when + 0.24);
+      } catch {
+        // ignore
+      }
+    }
+    this.playNoiseVoice(when, 'bandpass', 350, 1, Math.max(0.0002, vel * this._volume * 0.2), 0.03);
+  }
+
+  // Woodblock — a sharp pitched tick: a quick triangle at ~1 kHz plus a softer
+  // higher partial for the "tock."
+  private drumBlock(when: number, vel: number) {
+    const ctx = this.ctx;
+    const gate = this.grooveGate;
+    if (!ctx || !gate) return;
+    const peak = Math.max(0.0002, vel * this._volume * 0.9);
+    try {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = 1000;
+      g.gain.setValueAtTime(peak, when);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + 0.045);
+      osc.connect(g);
+      g.connect(gate);
+      osc.start(when);
+      osc.stop(when + 0.06);
+    } catch {
+      // ignore
+    }
+    try {
+      const osc2 = ctx.createOscillator();
+      const g2 = ctx.createGain();
+      osc2.type = 'triangle';
+      osc2.frequency.value = 1600;
+      g2.gain.setValueAtTime(peak * 0.5, when);
+      g2.gain.exponentialRampToValueAtTime(0.0001, when + 0.03);
+      osc2.connect(g2);
+      g2.connect(gate);
+      osc2.start(when);
+      osc2.stop(when + 0.04);
+    } catch {
+      // ignore
+    }
   }
 
   // Filtered burst of the shared noise buffer → grooveGate. Handles

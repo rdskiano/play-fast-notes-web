@@ -15,7 +15,16 @@
 
 export const STEPS_PER_QUARTER = 4;
 
-export type DrumVoice = 'kick' | 'snare' | 'hat' | 'openHat' | 'clap';
+export type DrumVoice =
+  | 'kick'
+  | 'snare'
+  | 'hat'
+  | 'openHat'
+  | 'clap'
+  // Latin percussion — synthesised alongside the kit voices.
+  | 'maracas' // bright shaker / short noise burst
+  | 'conga' // pitched hand drum with a skin-attack
+  | 'block'; // woodblock — sharp pitched tick
 
 /** One drum hit, placed at `step` on the sixteenth grid. */
 export type GrooveHit = {
@@ -51,40 +60,67 @@ function at(voice: DrumVoice, steps: number[], vel?: number): GrooveHit[] {
 }
 
 // ── 4/4 (16 steps) ────────────────────────────────────────────────────────
+// Transcribed from a reference groove (hi-hat / snare / kick), 1-indexed cells
+// 1–16 mapped to 0-indexed steps. Hi-hats accent the beats and soften the
+// off-beats; the snare adds ghost notes on the "a" of 2 and the "e"-ish of 3;
+// the kick pushes the "&" of 4 into the next downbeat.
+const BEAT1: Groove = {
+  id: 'beat1',
+  name: 'Beat 1',
+  meter: '4/4',
+  steps: 16,
+  hits: [
+    ...at('kick', [0, 14]), // beat 1 + push on the "&" of 4
+    ...at('snare', [4, 12]), // backbeat, full
+    ...at('snare', [7, 9], 0.4), // ghost notes
+    ...at('hat', [0, 4, 8, 12], 0.7), // on-beat hats, accented
+    ...at('hat', [2, 6, 10, 14], 0.45), // off-beat hats, softer
+  ],
+};
+
+// Transcribed from the reference "Rock" groove (hi-hat / snare / kick).
 const ROCK: Groove = {
   id: 'rock44',
   name: 'Rock',
   meter: '4/4',
   steps: 16,
   hits: [
-    ...at('kick', [0, 8]),
-    ...at('snare', [4, 12]),
-    ...every('hat', 2, 16, 0, 0.7), // straight eighths
+    ...at('kick', [0, 3, 8, 11]), // beat 1 + "a" of 1, beat 3 + "a" of 3
+    ...at('kick', [6, 14], 0.7), // softer "&" of 2 and "&" of 4
+    ...at('snare', [4, 12]), // backbeat
+    ...at('hat', [0, 4, 8, 12], 0.7), // on-beat hats, accented
+    ...at('hat', [2, 6, 10, 14], 0.45), // off-beat hats, softer
   ],
 };
 
+// Transcribed from the reference "Pop" groove (hi-hat / snare / kick).
 const POP: Groove = {
   id: 'pop44',
   name: 'Pop',
   meter: '4/4',
   steps: 16,
   hits: [
-    ...at('kick', [0, 8, 10]), // extra push on the "and" of 3
-    ...at('snare', [4, 12]),
-    ...every('hat', 2, 16, 0, 0.7),
+    ...at('kick', [0, 6, 10]), // beat 1 + "&" of 2 + "&" of 3
+    ...at('kick', [3], 0.7), // softer "a" of 1
+    ...at('snare', [4, 12]), // backbeat, full
+    ...at('snare', [9], 0.4), // ghost on the "e" of 3
+    ...at('hat', [0, 4, 8, 12], 0.7), // on-beat hats, accented
+    ...at('hat', [2, 6, 10, 14], 0.45), // off-beat hats, softer
   ],
 };
 
+// Transcribed from the reference "Funk" groove (hi-hat / snare / kick).
 const FUNK: Groove = {
   id: 'funk44',
   name: 'Funk',
   meter: '4/4',
   steps: 16,
   hits: [
-    ...at('kick', [0, 3, 6, 10]),
-    ...at('snare', [4, 12]),
-    ...every('hat', 1, 16, 0, 0.45), // sixteenth hats, quiet
-    ...at('hat', [0, 4, 8, 12], 0.8), // accent the beats
+    ...at('kick', [0, 3, 10, 13]), // beat 1, "a" of 1, "&" of 3, "e" of 4
+    ...at('snare', [4, 12]), // backbeat, full
+    ...at('snare', [9, 15], 0.4), // ghosts on "e" of 3 and "a" of 4
+    ...at('hat', [2, 6, 10, 14], 0.75), // off-beat hats, accented
+    ...at('hat', [0, 4, 8, 12], 0.5), // on-beat hats, softer
   ],
 };
 
@@ -97,6 +133,67 @@ const HOUSE: Groove = {
     ...every('kick', 4, 16), // four-on-the-floor
     ...at('clap', [4, 12]),
     ...at('openHat', [2, 6, 10, 14], 0.6), // off-beat open hats
+  ],
+};
+
+// Transcribed from the reference "Latin 1" groove (maracas / conga / block).
+const LATIN1: Groove = {
+  id: 'latin1_44',
+  name: 'Latin 1',
+  meter: '4/4',
+  steps: 16,
+  hits: [
+    // Maracas: steady sixteenths, accented on the "&" of each beat.
+    ...at('maracas', [0, 1, 3, 4, 5, 7, 8, 9, 11, 12, 13, 15], 0.4),
+    ...at('maracas', [2, 6, 10, 14], 0.7),
+    // Conga: the off-beats, plus a push on the "a" of 4.
+    ...at('conga', [2, 6, 10, 14]),
+    ...at('conga', [15], 0.7),
+    // Block: a clave-style line.
+    ...at('block', [0, 3, 7, 10, 12]),
+  ],
+};
+
+// Transcribed from the reference "Cha-cha" groove (hi-hat / conga / kick).
+const CHACHA: Groove = {
+  id: 'chacha_44',
+  name: 'Cha-cha',
+  meter: '4/4',
+  steps: 16,
+  hits: [
+    ...at('hat', [0, 4, 8, 12], 0.7), // on-beat hats, accented
+    ...at('hat', [2, 3, 6, 10, 14], 0.45), // off-beats + the "a" of 1
+    ...at('conga', [12, 14]), // beat 4 + "&" of 4
+    ...at('conga', [4], 0.6), // softer beat 2
+    ...at('kick', [0, 8]), // beats 1 and 3
+    ...at('kick', [6], 0.7), // softer "&" of 2
+  ],
+};
+
+// Authored from the genre (no reference grid). Minimal, driving techno.
+const TECHNO: Groove = {
+  id: 'techno_44',
+  name: 'Techno',
+  meter: '4/4',
+  steps: 16,
+  hits: [
+    ...at('kick', [0, 4, 8, 12]), // four-on-the-floor
+    ...at('clap', [4, 12]), // machine clap on 2 & 4
+    ...at('openHat', [2, 6, 10, 14], 0.6), // offbeat open hats
+  ],
+};
+
+// Authored from the genre (no reference grid). Classic disco hat sizzle.
+const DISCO: Groove = {
+  id: 'disco_44',
+  name: 'Disco',
+  meter: '4/4',
+  steps: 16,
+  hits: [
+    ...at('kick', [0, 4, 8, 12]), // four-on-the-floor
+    ...at('snare', [4, 12]), // backbeat
+    ...at('hat', [0, 4, 8, 12], 0.4), // closed hats on the beats
+    ...at('openHat', [2, 6, 10, 14], 0.7), // open hats on the "and"s
   ],
 };
 
@@ -161,10 +258,15 @@ const MARCH68: Groove = {
 };
 
 export const GROOVES: Groove[] = [
+  BEAT1,
   ROCK,
   POP,
   FUNK,
   HOUSE,
+  LATIN1,
+  CHACHA,
+  TECHNO,
+  DISCO,
   WALTZ,
   JAZZ_WALTZ,
   LATIN3,

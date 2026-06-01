@@ -155,6 +155,91 @@ function drumClap(
   src.stop(t + 0.14);
 }
 
+// Maracas — a short, bright shaker. Higher and tighter than a hi-hat.
+function drumMaracas(
+  ctx: AudioContext,
+  dest: AudioNode,
+  noise: AudioBuffer,
+  t: number,
+  vel: number,
+  vol: number,
+) {
+  const src = ctx.createBufferSource();
+  src.buffer = noise;
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 9000;
+  const g = ctx.createGain();
+  const peak = Math.max(0.0002, vel * vol * 0.5);
+  g.gain.setValueAtTime(peak, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
+  src.connect(hp).connect(g).connect(dest);
+  src.start(t);
+  src.stop(t + 0.06);
+}
+
+// Conga — a pitched membrane hit (triangle with a downward pitch bend) plus a
+// short band-passed noise transient for the skin slap.
+function drumConga(
+  ctx: AudioContext,
+  dest: AudioNode,
+  noise: AudioBuffer,
+  t: number,
+  vel: number,
+  vol: number,
+) {
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(270, t);
+  osc.frequency.exponentialRampToValueAtTime(190, t + 0.07);
+  const peak = Math.max(0.0002, vel * vol * 0.9);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+  osc.connect(g).connect(dest);
+  osc.start(t);
+  osc.stop(t + 0.24);
+  // Skin attack
+  const src = ctx.createBufferSource();
+  src.buffer = noise;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 350;
+  bp.Q.value = 1;
+  const ng = ctx.createGain();
+  const npeak = Math.max(0.0002, vel * vol * 0.2);
+  ng.gain.setValueAtTime(npeak, t);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+  src.connect(bp).connect(ng).connect(dest);
+  src.start(t);
+  src.stop(t + 0.05);
+}
+
+// Woodblock — a sharp pitched tick: a quick triangle at ~1 kHz plus a softer
+// higher partial for the "tock."
+function drumBlock(ctx: AudioContext, dest: AudioNode, t: number, vel: number, vol: number) {
+  const peak = Math.max(0.0002, vel * vol * 0.9);
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = 1000;
+  g.gain.setValueAtTime(peak, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+  osc.connect(g).connect(dest);
+  osc.start(t);
+  osc.stop(t + 0.06);
+  const osc2 = ctx.createOscillator();
+  const g2 = ctx.createGain();
+  osc2.type = 'triangle';
+  osc2.frequency.value = 1600;
+  g2.gain.setValueAtTime(peak * 0.5, t);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+  osc2.connect(g2).connect(dest);
+  osc2.start(t);
+  osc2.stop(t + 0.04);
+}
+
 /**
  * Web Audio API metronome with subdivision support, imperative
  * start / stop / toggle, plus a rhythm-pattern looper used by Rhythmic
@@ -628,6 +713,15 @@ export function useMetronome(initialBpm = 60) {
             break;
           case 'clap':
             drumClap(ctx, gate, noise, t, vel, v);
+            break;
+          case 'maracas':
+            drumMaracas(ctx, gate, noise, t, vel, v);
+            break;
+          case 'conga':
+            drumConga(ctx, gate, noise, t, vel, v);
+            break;
+          case 'block':
+            drumBlock(ctx, gate, t, vel, v);
             break;
         }
       }
