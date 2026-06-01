@@ -136,12 +136,15 @@ export function PracticeToolsLayer({
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const isPhone = Math.min(viewportWidth, viewportHeight) < PHONE_BREAKPOINT;
   const [size, setSize] = useState({ w: 0, h: 0 });
-  // Phone: the metronome becomes a fixed, full-height docked panel — ~1/3 the
-  // screen wide (clamped to a usable minimum so its controls still fit) — that
-  // springs in/out, rather than a loose draggable card. Laptop/iPad keep the
-  // draggable, resizable floating card.
+  // Phone: the metronome becomes a fixed docked panel that springs in/out,
+  // rather than a loose draggable card. ~1/3 the screen wide (clamped to a
+  // usable minimum so its controls still fit). It fills the height ONLY in
+  // landscape — in portrait the screen is tall, so full height would leave the
+  // controls stranded in a huge empty rectangle; portrait uses the content
+  // height instead. Laptop/iPad keep the draggable, resizable floating card.
+  const isLandscape = viewportWidth > viewportHeight;
   const dockedW = Math.round(Math.min(340, Math.max(240, viewportWidth / 3)));
-  const dockedH = size.h > 0 ? size.h : 330;
+  const dockedH = isLandscape && size.h > 0 ? size.h : 330;
   // Tool cards collapse when the screen loses focus: bumping this key on blur
   // remounts every dock, so a popped-out tool (e.g. the Recorder) never
   // persists open — or keeps stale takes — across navigation.
