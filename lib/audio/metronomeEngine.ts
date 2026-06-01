@@ -866,7 +866,8 @@ export class MetronomeEngine {
 
   // Maracas — a short, bright shaker. Higher and tighter than a hi-hat.
   private drumMaracas(when: number, vel: number) {
-    this.playNoiseVoice(when, 'highpass', 9000, 0, Math.max(0.0002, vel * this._volume * 0.5), 0.035);
+    // Soft attack + longer tail = a "shh" shake rather than a sharp tick.
+    this.playNoiseVoice(when, 'highpass', 7000, 0, Math.max(0.0002, vel * this._volume * 0.5), 0.09, 0.006);
   }
 
   // Conga — a pitched membrane hit (triangle with a downward pitch bend) plus a
@@ -946,6 +947,7 @@ export class MetronomeEngine {
     q: number,
     peak: number,
     dur: number,
+    attack = 0,
   ) {
     const ctx = this.ctx;
     const gate = this.grooveGate;
@@ -957,7 +959,14 @@ export class MetronomeEngine {
       filter.frequency.value = filterFreq;
       if (q > 0) filter.Q.value = q;
       const g = ctx.createGain();
-      g.gain.setValueAtTime(Math.max(0.0002, peak), when);
+      const p = Math.max(0.0002, peak);
+      // attack > 0 ramps in (softer onset); otherwise the peak hits instantly.
+      if (attack > 0) {
+        g.gain.setValueAtTime(0.0001, when);
+        g.gain.linearRampToValueAtTime(p, when + attack);
+      } else {
+        g.gain.setValueAtTime(p, when);
+      }
       g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
       filter.connect(g);
       g.connect(gate);

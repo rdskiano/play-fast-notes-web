@@ -168,14 +168,16 @@ function drumMaracas(
   src.buffer = noise;
   const hp = ctx.createBiquadFilter();
   hp.type = 'highpass';
-  hp.frequency.value = 9000;
+  hp.frequency.value = 7000;
   const g = ctx.createGain();
   const peak = Math.max(0.0002, vel * vol * 0.5);
-  g.gain.setValueAtTime(peak, t);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
+  // Soft attack + longer tail = a "shh" shake rather than a sharp tick.
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
   src.connect(hp).connect(g).connect(dest);
   src.start(t);
-  src.stop(t + 0.06);
+  src.stop(t + 0.11);
 }
 
 // Conga — a pitched membrane hit (triangle with a downward pitch bend) plus a
