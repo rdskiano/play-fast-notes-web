@@ -15,7 +15,13 @@
 // Owns its own useMetronome instance — on a score-viewing screen the
 // metronome is a free-standing practice aid, not driven by a strategy.
 
-import { useEffect, useRef, useState } from 'react';
+import {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
   Animated,
   Modal,
@@ -155,22 +161,38 @@ export function MetronomePanel({
   metronome: m,
   note,
   onNext,
+  meter: meterProp,
+  onMeterChange,
+  beatPattern: beatPatternProp,
+  onBeatPatternChange,
 }: {
   metronome: MetronomeApi;
   note?: string;
   // When a practice strategy provides a "next" action, the tap-tempo
   // button is replaced by a green Next button — the in-context advance.
   onNext?: () => void;
+  // Optional controlled meter + beat pattern. The phone docked panel lives in
+  // a Modal that unmounts when collapsed, so its host (PracticeToolsLayer)
+  // lifts this state up so it survives the remount. Falls back to local state
+  // when not supplied (every other usage).
+  meter?: string;
+  onMeterChange?: (meter: string) => void;
+  beatPattern?: BeatState[];
+  onBeatPatternChange?: Dispatch<SetStateAction<BeatState[]>>;
 }) {
-  const [meter, setMeter] = useState('4/4');
   // Default to even beats — no beat-one accent. The user adds accents
   // (or mutes) by tapping the per-beat dots.
-  const [beatPattern, setBeatPattern] = useState<BeatState[]>([
+  const [meterLocal, setMeterLocal] = useState('4/4');
+  const [beatPatternLocal, setBeatPatternLocal] = useState<BeatState[]>([
     'normal',
     'normal',
     'normal',
     'normal',
   ]);
+  const meter = meterProp ?? meterLocal;
+  const setMeter = onMeterChange ?? setMeterLocal;
+  const beatPattern = beatPatternProp ?? beatPatternLocal;
+  const setBeatPattern = onBeatPatternChange ?? setBeatPatternLocal;
   const [meterOpen, setMeterOpen] = useState(false);
   const [subOpen, setSubOpen] = useState(false);
   // Drone is retired from the UI (replaced by Rhythms) but kept in code so

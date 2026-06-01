@@ -12,7 +12,14 @@
 // while collapsed.
 
 import { type ReactNode, useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import {
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle,
@@ -88,6 +95,14 @@ export function ToolDock({
   children,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
+  // Keep the docked Modal mounted through the slide-out before unmounting it.
+  const [modalShown, setModalShown] = useState(defaultOpen && docked);
+
+  const { width: winW, height: winH } = useWindowDimensions();
+  // A docked panel fills the screen height in landscape (so it covers the
+  // header); in portrait it's content-height so it isn't a giant empty strip.
+  const dockedLandscape = winW > winH;
+  const dockedPanelH = docked && dockedLandscape ? winH : panelHeight;
 
   const tabCenterY = tabTop + tabSpan / 2;
 
@@ -107,13 +122,11 @@ export function ToolDock({
     Math.max(12, containerH - panelHeight - 12),
   );
 
-  // Docked (phone): a fixed full-height panel flush to its edge that slides in
-  // from off-screen. No tab-centring, no drag.
-  const dockedOpenX =
-    edge === 'left'
-      ? TAB_THICKNESS
-      : Math.max(0, containerW - TAB_THICKNESS - panelWidth);
-  const dockedHiddenX = edge === 'left' ? -panelWidth : containerW;
+  // Docked (phone): the panel renders in a full-screen Modal, so positions are
+  // in WINDOW coordinates. It sits flush to the screen edge (the Modal is on
+  // top of everything, so no tab gap is needed) and slides in from off-screen.
+  const dockedOpenX = edge === 'left' ? 0 : Math.max(0, winW - panelWidth);
+  const dockedHiddenX = edge === 'left' ? -panelWidth : winW;
 
   // Drag clamp — keep most of the card on screen. Same 25/75 rule on
   // every edge so the user can push a card almost out of the way and
@@ -125,7 +138,7 @@ export function ToolDock({
   const minY = -panelHeight * 0.25;
   const maxY = Math.max(minY, containerH - panelHeight * 0.25);
 
-  const tx = useSharedValue(homeX);
+  const tx = useSharedValue(docked ? dockedHiddenX : homeX);
   const ty = useSharedValue(homeY);
   // Docked panels never shrink-into-tab — they're full size, sliding only.
   const scale = useSharedValue(docked ? 1 : COLLAPSED_SCALE);
@@ -159,6 +172,18 @@ export function ToolDock({
       op.value = withTiming(0, { duration: DURATION });
     }
   }, [open, openX, openY, homeX, homeY, tx, ty, scale, op, docked, dockedOpenX, dockedHiddenX]);
+
+  // Mount the docked Modal on open; keep it mounted through the slide-out
+  // animation, then unmount. (Non-docked ignores this.)
+  useEffect(() => {
+    if (!docked) return;
+    if (open) {
+      setModalShown(true);
+      return;
+    }
+    const t = setTimeout(() => setModalShown(false), DURATION + 60);
+    return () => clearTimeout(t);
+  }, [open, docked]);
 
   // One finger drags the whole card; two fingers pinch-resize it.
   const pan = Gesture.Pan()
@@ -227,7 +252,7 @@ export function ToolDock({
         styles.card,
         {
           width: panelWidth,
-          height: panelHeight,
+          height: docked ? dockedPanelH : panelHeight,
           backgroundColor: panelBg,
           borderColor,
         },
@@ -282,8 +307,24 @@ export function ToolDock({
 
   return (
     <>
-      {/* Docked (phone) panels skip the drag/pinch gesture wrapper entirely. */}
-      {docked ? card : <GestureDetector gesture={composed}>{card}</GestureDetector>}
+      {/* Docked (phone): render the panel in a full-screen Modal so it overlays
+          the header and the global help button — escaping the content box it
+          would otherwise be clipped to. Non-docked stays an in-layer draggable
+          card. The transparent, box-none backdrop leaves the rest of the
+          screen visible and (on web) interactive. */}
+      {docked ? (
+        <Modal
+          visible={modalShown}
+          transparent
+          animationType="none"
+          onRequestClose={() => setOpen(false)}>
+          <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+            {card}
+          </View>
+        </Modal>
+      ) : (
+        <GestureDetector gesture={composed}>{card}</GestureDetector>
+      )}
 
       <Pressable
         onPress={() => setOpen((o) => !o)}

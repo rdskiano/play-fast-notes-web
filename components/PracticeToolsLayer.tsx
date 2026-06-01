@@ -30,7 +30,7 @@ import { Colors } from '@/constants/theme';
 import { Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePenDetected } from '@/hooks/usePenDetected';
-import { useMetronome, type MetronomeApi } from '@/lib/audio/useMetronome';
+import { useMetronome, type BeatState, type MetronomeApi } from '@/lib/audio/useMetronome';
 
 const TOP_INSET = 52;
 const TAB_GAP = 8;
@@ -145,6 +145,16 @@ export function PracticeToolsLayer({
   const isLandscape = viewportWidth > viewportHeight;
   const dockedW = Math.round(Math.min(340, Math.max(240, viewportWidth / 3)));
   const dockedH = isLandscape && size.h > 0 ? size.h : 330;
+  // Lifted metronome state — the phone docked panel renders in a Modal that
+  // unmounts when collapsed, so meter + beat pattern live here to survive the
+  // remount (the audio engine itself is in `metro` below, always mounted).
+  const [metroMeter, setMetroMeter] = useState('4/4');
+  const [metroBeatPattern, setMetroBeatPattern] = useState<BeatState[]>([
+    'normal',
+    'normal',
+    'normal',
+    'normal',
+  ]);
   // Tool cards collapse when the screen loses focus: bumping this key on blur
   // remounts every dock, so a popped-out tool (e.g. the Recorder) never
   // persists open — or keeps stale takes — across navigation.
@@ -240,6 +250,10 @@ export function PracticeToolsLayer({
               metronome={metro}
               note={metronomeNote}
               onNext={metronomeNext}
+              meter={metroMeter}
+              onMeterChange={setMetroMeter}
+              beatPattern={metroBeatPattern}
+              onBeatPatternChange={setMetroBeatPattern}
             />
           </ToolDock>
         );
