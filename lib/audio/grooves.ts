@@ -60,24 +60,6 @@ function at(voice: DrumVoice, steps: number[], vel?: number): GrooveHit[] {
 }
 
 // ── 4/4 (16 steps) ────────────────────────────────────────────────────────
-// Transcribed from a reference groove (hi-hat / snare / kick), 1-indexed cells
-// 1–16 mapped to 0-indexed steps. Hi-hats accent the beats and soften the
-// off-beats; the snare adds ghost notes on the "a" of 2 and the "e"-ish of 3;
-// the kick pushes the "&" of 4 into the next downbeat.
-const BEAT1: Groove = {
-  id: 'beat1',
-  name: 'Beat 1',
-  meter: '4/4',
-  steps: 16,
-  hits: [
-    ...at('kick', [0, 14]), // beat 1 + push on the "&" of 4
-    ...at('snare', [4, 12]), // backbeat, full
-    ...at('snare', [7, 9], 0.4), // ghost notes
-    ...at('hat', [0, 4, 8, 12], 0.7), // on-beat hats, accented
-    ...at('hat', [2, 6, 10, 14], 0.45), // off-beat hats, softer
-  ],
-};
-
 // Transcribed from the reference "Rock" groove (hi-hat / snare / kick).
 const ROCK: Groove = {
   id: 'rock44',
@@ -124,18 +106,6 @@ const FUNK: Groove = {
   ],
 };
 
-const HOUSE: Groove = {
-  id: 'house44',
-  name: 'Four-on-floor',
-  meter: '4/4',
-  steps: 16,
-  hits: [
-    ...every('kick', 4, 16), // four-on-the-floor
-    ...at('clap', [4, 12]),
-    ...at('openHat', [2, 6, 10, 14], 0.6), // off-beat open hats
-  ],
-};
-
 // Transcribed from the reference "Latin 1" groove (maracas / conga / block).
 const LATIN1: Groove = {
   id: 'latin1_44',
@@ -167,19 +137,6 @@ const CHACHA: Groove = {
     ...at('conga', [4], 0.6), // softer beat 2
     ...at('kick', [0, 8]), // beats 1 and 3
     ...at('kick', [6], 0.7), // softer "&" of 2
-  ],
-};
-
-// Authored from the genre (no reference grid). Minimal, driving techno.
-const TECHNO: Groove = {
-  id: 'techno_44',
-  name: 'Techno',
-  meter: '4/4',
-  steps: 16,
-  hits: [
-    ...at('kick', [0, 4, 8, 12]), // four-on-the-floor
-    ...at('clap', [4, 12]), // machine clap on 2 & 4
-    ...at('openHat', [2, 6, 10, 14], 0.6), // offbeat open hats
   ],
 };
 
@@ -258,14 +215,11 @@ const MARCH68: Groove = {
 };
 
 export const GROOVES: Groove[] = [
-  BEAT1,
   ROCK,
   POP,
   FUNK,
-  HOUSE,
   LATIN1,
   CHACHA,
-  TECHNO,
   DISCO,
   WALTZ,
   JAZZ_WALTZ,
