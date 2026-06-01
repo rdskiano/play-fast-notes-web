@@ -228,9 +228,14 @@ export function PracticeToolsLayer({
             // row (the RHYTHMS button — and NEXT when a strategy supplies
             // it), so it needs the taller 330 in both phone cases.
             panelWidth={isPhone ? 240 : 280}
+            // Landscape phone: fill the MEASURED tools area (size.h), not the
+            // raw window height — the metronome lives below the top bar, so the
+            // window height overshoots. Filling the real container also makes
+            // ToolDock pin the card to the top instead of dropping it low.
+            // size.h is 0 until the first layout pass, so fall back to 330.
             panelHeight={
-              isLandscapePhone
-                ? Math.max(330, viewportHeight - 24)
+              isLandscapePhone && size.h > 0
+                ? Math.max(330, size.h - 16)
                 : isPhone
                   ? 330
                   : metronomeNote
