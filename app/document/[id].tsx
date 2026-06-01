@@ -480,6 +480,14 @@ export default function DocumentScreen() {
     if (suppressScrollEndRef.current) return;
     const x = e.nativeEvent.contentOffset.x;
     const idx = Math.round(x / Math.max(width, 1));
+    // RN-Web's native paging can land a few px short on the FIRST turn (the
+    // swipe mounts a neighbor page mid-scroll, disrupting the snap). Ease to
+    // the exact slot offset so the page always settles square. Guarded so it's
+    // a no-op on the turns that already landed right — no fight with paging.
+    const targetX = width * idx;
+    if (width > 0 && Math.abs(x - targetX) > 1) {
+      scrollRef.current?.scrollTo({ x: targetX, animated: true });
+    }
     if (idx !== currentIndex) setCurrentIndex(idx);
   }
 
