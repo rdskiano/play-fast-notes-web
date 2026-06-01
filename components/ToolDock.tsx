@@ -28,6 +28,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { ThemedText } from '@/components/themed-text';
 
 export type DockEdge = 'left' | 'right';
@@ -99,10 +101,14 @@ export function ToolDock({
   const [modalShown, setModalShown] = useState(defaultOpen && docked);
 
   const { width: winW, height: winH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   // A docked panel fills the screen height in landscape (so it covers the
   // header); in portrait it's content-height so it isn't a giant empty strip.
   const dockedLandscape = winW > winH;
   const dockedPanelH = docked && dockedLandscape ? winH : panelHeight;
+  // Portrait: start the panel below the status bar / notch so its × close
+  // button isn't hidden under the phone's speaker. Landscape fills from y=0.
+  const dockedTopY = docked && !dockedLandscape ? insets.top + 6 : 0;
 
   const tabCenterY = tabTop + tabSpan / 2;
 
@@ -152,7 +158,7 @@ export function ToolDock({
       // Slide in from the edge with a little spring "bounce"; slide back out.
       if (open) {
         tx.value = withSpring(dockedOpenX, { damping: 18, stiffness: 180, mass: 0.7 });
-        ty.value = withTiming(0, { duration: DURATION });
+        ty.value = withTiming(dockedTopY, { duration: DURATION });
         op.value = withTiming(1, { duration: DURATION });
       } else {
         tx.value = withTiming(dockedHiddenX, { duration: DURATION });
@@ -171,7 +177,7 @@ export function ToolDock({
       scale.value = withTiming(COLLAPSED_SCALE, { duration: DURATION });
       op.value = withTiming(0, { duration: DURATION });
     }
-  }, [open, openX, openY, homeX, homeY, tx, ty, scale, op, docked, dockedOpenX, dockedHiddenX]);
+  }, [open, openX, openY, homeX, homeY, tx, ty, scale, op, docked, dockedOpenX, dockedHiddenX, dockedTopY]);
 
   // Mount the docked Modal on open; keep it mounted through the slide-out
   // animation, then unmount. (Non-docked ignores this.)
