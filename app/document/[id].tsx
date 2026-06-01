@@ -511,7 +511,7 @@ export default function DocumentScreen() {
     // never fires it), so also correct the snap when the scroll stream goes
     // quiet — the dependable signal that motion has actually stopped.
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
-    settleTimerRef.current = setTimeout(() => snapToExactPage(x), 130);
+    settleTimerRef.current = setTimeout(() => snapToExactPage(x), 70);
   }
 
   function startDraw() {
@@ -969,7 +969,7 @@ export default function DocumentScreen() {
                             // Only render the visible screen + immediate
                             // neighbors on demand — a big PDF has dozens of
                             // pages all mounted in this ScrollView at once.
-                            active={Math.abs(screenForPage(p.index) - currentIndex) <= 1}
+                            active={Math.abs(screenForPage(p.index) - currentIndex) <= 2}
                           />
                           <PageBoxOverlay
                             passages={
