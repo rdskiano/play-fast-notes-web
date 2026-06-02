@@ -291,6 +291,11 @@ export function PracticeTimersPill({
 const MOVE_ON_INTERVAL_OPTS = [1, 2, 3, 5, 10] as const;
 const BODY_MOVE_INTERVAL_OPTS = [15, 20, 30, 45, 60] as const;
 const MICROBREAK_SECONDS_OPTS = [8, 12, 20, 30] as const;
+// Cold's interval range, as compact chip sets. The Library Settings page
+// keeps fine-grained Steppers; these are the quick presets for the in-tool
+// sheet.
+const COLD_MIN_INTERVAL_OPTS = [2, 3, 5, 8, 10] as const;
+const COLD_MAX_INTERVAL_OPTS = [5, 10, 15, 20, 30] as const;
 
 function ChipRow<T extends number>({
   options,
@@ -298,40 +303,51 @@ function ChipRow<T extends number>({
   onChange,
   unit,
   disabled,
+  prefix,
 }: {
   options: readonly T[];
   value: T;
   onChange: (next: T) => void;
   unit: string;
   disabled?: boolean;
+  // A small label rendered above the chips ("Fire every", "Rest for",
+  // "Min interval", …) so the user can tell an interval from a duration.
+  prefix?: string;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   return (
-    <View style={[styles.chipRow, disabled && { opacity: 0.4 }]}>
-      {options.map((opt) => {
-        const active = opt === value;
-        return (
-          <Pressable
-            key={opt}
-            onPress={() => onChange(opt)}
-            disabled={disabled}
-            style={[
-              styles.chip,
-              { borderColor: C.icon + '55' },
-              active && { backgroundColor: C.tint, borderColor: C.tint },
-            ]}>
-            <ThemedText
+    <View style={disabled ? { opacity: 0.4 } : undefined}>
+      {prefix ? (
+        <ThemedText style={[styles.chipPrefix, { color: C.icon }]}>
+          {prefix}
+        </ThemedText>
+      ) : null}
+      <View style={styles.chipRow}>
+        {options.map((opt) => {
+          const active = opt === value;
+          return (
+            <Pressable
+              key={opt}
+              onPress={() => onChange(opt)}
+              disabled={disabled}
               style={[
-                styles.chipText,
-                { color: active ? '#fff' : C.text },
+                styles.chip,
+                { borderColor: C.icon + '55' },
+                active && { backgroundColor: C.tint, borderColor: C.tint },
               ]}>
-              {opt}
-              {unit}
-            </ThemedText>
-          </Pressable>
-        );
-      })}
+              <ThemedText
+                style={[
+                  styles.chipText,
+                  { color: active ? '#fff' : C.text },
+                ]}>
+                {opt}
+                {unit}
+              </ThemedText>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -393,96 +409,168 @@ function TimerSettingsModal({
   const C = Colors[scheme];
   const moveOn = useMoveOnTimer();
   const microbreak = useMicrobreakTimer();
+  const playItCold = usePlayItColdTimer();
   const bodyMove = useBodyMoveTimer();
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.infoBackdrop}>
-        <View style={[styles.infoCard, { backgroundColor: C.background }]}>
-          <ThemedText type="title" style={{ textAlign: 'center' }}>
-            Timer settings
-          </ThemedText>
-          <ScrollView contentContainerStyle={{ gap: 18 }}>
-            {!hideMoveOn && (
+    <>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <View style={styles.infoBackdrop}>
+          <View style={[styles.infoCard, { backgroundColor: C.background }]}>
+            <ThemedText type="title" style={{ textAlign: 'center' }}>
+              Timer settings
+            </ThemedText>
+            <ScrollView contentContainerStyle={{ gap: 18 }}>
+              {!hideMoveOn && (
+                <View style={styles.settingsBlock}>
+                  <ToggleRow
+                    icon="⏱"
+                    title="Rotate"
+                    subtitle="Switch passages on a schedule"
+                    enabled={moveOn.config.enabled}
+                    onToggle={() =>
+                      moveOn.setConfig({ enabled: !moveOn.config.enabled })
+                    }
+                  />
+                  <ChipRow
+                    options={MOVE_ON_INTERVAL_OPTS}
+                    value={
+                      (MOVE_ON_INTERVAL_OPTS.find(
+                        (v) => v === moveOn.config.intervalMin,
+                      ) ?? MOVE_ON_INTERVAL_OPTS[2]) as (typeof MOVE_ON_INTERVAL_OPTS)[number]
+                    }
+                    onChange={(v) => moveOn.setConfig({ intervalMin: v })}
+                    unit=" min"
+                    prefix="Fire every"
+                    disabled={!moveOn.config.enabled}
+                  />
+                </View>
+              )}
+
               <View style={styles.settingsBlock}>
                 <ToggleRow
-                  icon="⏱"
-                  title="Rotate"
-                  subtitle="Switch passages on a schedule"
-                  enabled={moveOn.config.enabled}
+                  icon="🧠"
+                  title="Micro"
+                  subtitle="Short rest after sets of clean reps"
+                  enabled={microbreak.config.enabled}
                   onToggle={() =>
-                    moveOn.setConfig({ enabled: !moveOn.config.enabled })
+                    microbreak.setConfig({ enabled: !microbreak.config.enabled })
                   }
                 />
                 <ChipRow
-                  options={MOVE_ON_INTERVAL_OPTS}
+                  options={MICROBREAK_SECONDS_OPTS}
                   value={
-                    (MOVE_ON_INTERVAL_OPTS.find(
-                      (v) => v === moveOn.config.intervalMin,
-                    ) ?? MOVE_ON_INTERVAL_OPTS[2]) as (typeof MOVE_ON_INTERVAL_OPTS)[number]
+                    (MICROBREAK_SECONDS_OPTS.find(
+                      (v) => v === microbreak.config.breakSeconds,
+                    ) ?? MICROBREAK_SECONDS_OPTS[1]) as (typeof MICROBREAK_SECONDS_OPTS)[number]
                   }
-                  onChange={(v) => moveOn.setConfig({ intervalMin: v })}
-                  unit=" min"
-                  disabled={!moveOn.config.enabled}
+                  onChange={(v) => microbreak.setConfig({ breakSeconds: v })}
+                  unit=" s"
+                  prefix="Rest for"
+                  disabled={!microbreak.config.enabled}
                 />
               </View>
-            )}
 
-            <View style={styles.settingsBlock}>
-              <ToggleRow
-                icon="🧠"
-                title="Micro"
-                subtitle="Short rest after sets of clean reps"
-                enabled={microbreak.config.enabled}
-                onToggle={() =>
-                  microbreak.setConfig({ enabled: !microbreak.config.enabled })
-                }
-              />
-              <ChipRow
-                options={MICROBREAK_SECONDS_OPTS}
-                value={
-                  (MICROBREAK_SECONDS_OPTS.find(
-                    (v) => v === microbreak.config.breakSeconds,
-                  ) ?? MICROBREAK_SECONDS_OPTS[1]) as (typeof MICROBREAK_SECONDS_OPTS)[number]
-                }
-                onChange={(v) => microbreak.setConfig({ breakSeconds: v })}
-                unit=" s"
-                disabled={!microbreak.config.enabled}
-              />
-            </View>
+              {/* Cold now lives in-tool too — no more round-trip to the
+                  Library Settings page. Toggling it on with no passage yet
+                  opens the picker first; we only flip `enabled` once a
+                  passage is chosen. Order matches the pill: Rotate / Micro
+                  / Cold / Break. */}
+              <View style={styles.settingsBlock}>
+                <ToggleRow
+                  icon="❄️"
+                  title="Cold"
+                  subtitle="Surprise performance during practice"
+                  enabled={playItCold.config.enabled}
+                  onToggle={() => {
+                    if (!playItCold.config.enabled && !playItCold.config.pieceId) {
+                      setPickerOpen(true);
+                      return;
+                    }
+                    playItCold.setConfig({ enabled: !playItCold.config.enabled });
+                  }}
+                />
+                <ChipRow
+                  options={COLD_MIN_INTERVAL_OPTS}
+                  value={
+                    (COLD_MIN_INTERVAL_OPTS.find(
+                      (v) => v === playItCold.config.intervalMin,
+                    ) ?? COLD_MIN_INTERVAL_OPTS[1]) as (typeof COLD_MIN_INTERVAL_OPTS)[number]
+                  }
+                  onChange={(v) => playItCold.setConfig({ intervalMin: v })}
+                  unit=" min"
+                  prefix="Min interval"
+                  disabled={!playItCold.config.enabled}
+                />
+                <ChipRow
+                  options={COLD_MAX_INTERVAL_OPTS}
+                  value={
+                    (COLD_MAX_INTERVAL_OPTS.find(
+                      (v) => v === playItCold.config.intervalMax,
+                    ) ?? COLD_MAX_INTERVAL_OPTS[1]) as (typeof COLD_MAX_INTERVAL_OPTS)[number]
+                  }
+                  onChange={(v) => playItCold.setConfig({ intervalMax: v })}
+                  unit=" min"
+                  prefix="Max interval"
+                  disabled={!playItCold.config.enabled}
+                />
+                <View style={styles.coldPassageRow}>
+                  <ThemedText style={[styles.coldPassageLabel, { color: C.icon }]}>
+                    Passage
+                  </ThemedText>
+                  <Pressable
+                    onPress={() => setPickerOpen(true)}
+                    style={[styles.coldPickBtn, { borderColor: C.icon }]}>
+                    <ThemedText
+                      style={[styles.coldPickBtnText, { color: C.text }]}
+                      numberOfLines={1}>
+                      {playItCold.passage?.title ?? 'Pick a passage…'}
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              </View>
 
-            <View style={styles.settingsBlock}>
-              <ToggleRow
-                icon="🚶"
-                title="Break"
-                subtitle="Get up, stretch, walk around"
-                enabled={bodyMove.config.enabled}
-                onToggle={() =>
-                  bodyMove.setConfig({ enabled: !bodyMove.config.enabled })
-                }
-              />
-              <ChipRow
-                options={BODY_MOVE_INTERVAL_OPTS}
-                value={
-                  (BODY_MOVE_INTERVAL_OPTS.find(
-                    (v) => v === bodyMove.config.intervalMin,
-                  ) ?? BODY_MOVE_INTERVAL_OPTS[1]) as (typeof BODY_MOVE_INTERVAL_OPTS)[number]
-                }
-                onChange={(v) => bodyMove.setConfig({ intervalMin: v })}
-                unit=" min"
-                disabled={!bodyMove.config.enabled}
-              />
-            </View>
-
-            <ThemedText style={[styles.infoFooter, { color: C.icon }]}>
-              Cold config (interval range + passage) still lives under
-              ⚙ Settings in the library — that one needs the full passage picker.
-            </ThemedText>
-          </ScrollView>
-          <Button label="Close" onPress={onClose} />
+              <View style={styles.settingsBlock}>
+                <ToggleRow
+                  icon="🚶"
+                  title="Break"
+                  subtitle="Get up, stretch, walk around"
+                  enabled={bodyMove.config.enabled}
+                  onToggle={() =>
+                    bodyMove.setConfig({ enabled: !bodyMove.config.enabled })
+                  }
+                />
+                <ChipRow
+                  options={BODY_MOVE_INTERVAL_OPTS}
+                  value={
+                    (BODY_MOVE_INTERVAL_OPTS.find(
+                      (v) => v === bodyMove.config.intervalMin,
+                    ) ?? BODY_MOVE_INTERVAL_OPTS[1]) as (typeof BODY_MOVE_INTERVAL_OPTS)[number]
+                  }
+                  onChange={(v) => bodyMove.setConfig({ intervalMin: v })}
+                  unit=" min"
+                  prefix="Fire every"
+                  disabled={!bodyMove.config.enabled}
+                />
+              </View>
+            </ScrollView>
+            <Button label="Close" onPress={onClose} />
+          </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+
+      <PassagePickerModal
+        visible={pickerOpen}
+        selectedId={playItCold.config.pieceId}
+        onClose={() => setPickerOpen(false)}
+        onPick={(pieceId) => {
+          playItCold.setConfig({ enabled: true, pieceId });
+          setPickerOpen(false);
+        }}
+        title="Pick a Play-It-Cold passage"
+      />
+    </>
   );
 }
 
@@ -687,4 +775,34 @@ const styles = StyleSheet.create({
     borderWidth: Borders.thin,
   },
   chipText: { fontSize: Type.size.sm, fontWeight: Type.weight.bold },
+  chipPrefix: {
+    fontSize: 12,
+    fontWeight: Type.weight.semibold,
+    paddingLeft: 36,
+    paddingBottom: 4,
+  },
+
+  // Cold passage picker row inside the in-tool settings sheet.
+  coldPassageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingLeft: 36,
+  },
+  coldPassageLabel: {
+    fontSize: 12,
+    fontWeight: Type.weight.semibold,
+    width: 60,
+  },
+  coldPickBtn: {
+    flex: 1,
+    borderWidth: Borders.thin,
+    borderRadius: Radii.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  coldPickBtnText: {
+    fontWeight: Type.weight.semibold,
+    fontSize: Type.size.sm,
+  },
 });

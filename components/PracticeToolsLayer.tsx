@@ -22,6 +22,12 @@ import {
 } from 'react-native';
 
 import { PracticeTimersPill } from '@/components/GlobalTimerTray';
+import {
+  useBodyMoveTimer,
+  useMicrobreakTimer,
+  useMoveOnTimer,
+  usePlayItColdTimer,
+} from '@/components/PracticeTimersContext';
 import { DEVICE, MetronomePanel } from '@/components/MetronomePanel';
 import { RecorderPanel } from '@/components/RecorderPanel';
 import { ThemedText } from '@/components/themed-text';
@@ -124,6 +130,14 @@ export function PracticeToolsLayer({
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const panelBg = scheme === 'dark' ? '#1f2123f4' : '#fffffff4';
+  // Light the Timer tab when ANY of the four timers is on, so the user can
+  // tell at a glance that something is scheduled without popping the tool.
+  const moveOnEnabled = useMoveOnTimer().config.enabled;
+  const microbreakEnabled = useMicrobreakTimer().config.enabled;
+  const coldEnabled = usePlayItColdTimer().config.enabled;
+  const bodyMoveEnabled = useBodyMoveTimer().config.enabled;
+  const anyTimerOn =
+    moveOnEnabled || microbreakEnabled || coldEnabled || bodyMoveEnabled;
   // Pencil is a stylus-only feature on web; hide its tab until the user proves
   // they have a pen (Apple Pencil in iPad Safari, Surface Pen, etc.). Native
   // always sees it — the iPad always pairs with an Apple Pencil.
@@ -269,6 +283,7 @@ export function PracticeToolsLayer({
             borderColor={TIMER_DEVICE.rim}
             tabTop={tabTop}
             tabSpan={span}
+            indicator={anyTimerOn ? DEVICE.accent : undefined}
             // Wider card so all six pill items (Rotate / Break / Cold /
             // Move + ⚙ + ?) fit in a single row on every device. Phone
             // gets the same width — 360 still fits inside an iPhone in

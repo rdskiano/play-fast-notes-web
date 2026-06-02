@@ -49,6 +49,12 @@ type Props = {
   /** Start with the panel already popped out (used on practice screens). */
   defaultOpen?: boolean;
   /**
+   * When set, a small dot in this colour is drawn on the tab — a lightweight
+   * "this tool is active" cue (e.g. the Timer tab lights up when any timer is
+   * enabled). Undefined leaves the tab visually unchanged.
+   */
+  indicator?: string;
+  /**
    * Phone mode: render as a fixed, full-height panel docked to the edge that
    * springs in/out on tab tap — no dragging, pinching, or resizing. Keeps the
    * tool from feeling like a loose floating card on a small screen.
@@ -94,6 +100,7 @@ export function ToolDock({
   containerH,
   defaultOpen = false,
   docked = false,
+  indicator,
   children,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
@@ -367,6 +374,19 @@ export function ToolDock({
             </ThemedText>
           </View>
         )}
+        {/* Activity dot — sits on the tab's inboard corner (the rounded
+            side facing into the screen), clear of the edge flush against
+            the screen border. */}
+        {indicator ? (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.tabIndicator,
+              edge === 'right' ? { left: 4 } : { right: 4 },
+              { backgroundColor: indicator },
+            ]}
+          />
+        ) : null}
       </Pressable>
     </>
   );
@@ -424,6 +444,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 22,
     textAlign: 'center',
+  },
+  tabIndicator: {
+    position: 'absolute',
+    top: 4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 
   // Collapse button — top-left, mirror of the resize cluster. Slightly
