@@ -259,7 +259,14 @@ export function PracticeToolsLayer({
             // it), so it needs the taller 330 in both phone cases.
             docked={isPhone}
             panelWidth={isPhone ? dockedW : 280}
-            panelHeight={isPhone ? dockedH : metronomeNote ? 384 : 312}>
+            panelHeight={isPhone ? dockedH : metronomeNote ? 384 : 312}
+            // Keep the full intrinsic height (so the controls aren't cramped)
+            // but pop the card out a touch zoomed-out on laptop/tablet so a
+            // tall metronome doesn't dominate the practice screen (B-011).
+            openScale={isPhone ? undefined : 0.85}
+            // Anchor to the top of the screen — the score fills the centre, so
+            // a top-anchored metronome is least likely to cover the passage.
+            openAtTop={!isPhone}>
             <MetronomePanel
               metronome={metro}
               note={metronomeNote}

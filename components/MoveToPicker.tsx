@@ -24,7 +24,7 @@ function buildOptions(folders: Folder[], disabledIds?: Set<string>): Option[] {
     if (!byParent.has(key)) byParent.set(key, []);
     byParent.get(key)!.push(f);
   }
-  const out: Option[] = [{ id: null, label: '📁 Library root', depth: 0 }];
+  const out: Option[] = [{ id: null, label: '📁 Library', depth: 0 }];
   function walk(parent: string | null, depth: number) {
     const children = byParent.get(parent) ?? [];
     for (const f of children) {

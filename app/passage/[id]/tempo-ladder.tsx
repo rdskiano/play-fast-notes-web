@@ -660,7 +660,12 @@ export default function TempoLadderScreen() {
                 // corner (the ✓ sits directly above it; both raised so
                 // the pair stays level). `insets.left` keeps it clear of the
                 // notch / camera / speaker on the side edge in landscape.
-                { bottom: insets.bottom + repBottomLift, left: insets.left + 16 },
+                // `cleanRightExtra` mirrors the ✓ button's inward shift so the
+                // pair sits symmetrically (B-009).
+                {
+                  bottom: insets.bottom + repBottomLift,
+                  left: insets.left + 16 + cleanRightExtra,
+                },
               ]}>
               <ThemedText style={styles.phoneRepGlyph}>✗</ThemedText>
             </Pressable>

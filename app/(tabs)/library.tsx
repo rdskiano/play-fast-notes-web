@@ -656,7 +656,7 @@ export default function LibraryScreen() {
   }
 
   function destinationLabel(targetFolderId: string | null): string {
-    if (targetFolderId === null) return 'Library root';
+    if (targetFolderId === null) return 'Library';
     const f = allFolders.find((x) => x.id === targetFolderId);
     return f?.name ?? 'folder';
   }

@@ -49,6 +49,21 @@ type Props = {
   /** Start with the panel already popped out (used on practice screens). */
   defaultOpen?: boolean;
   /**
+   * Scale the popped-out card animates to (non-docked only; defaults to 1).
+   * A value < 1 opens the card "less zoomed in" so a tall panel — the
+   * metronome — doesn't dominate the screen, while the panel keeps its full
+   * intrinsic height so its controls aren't cramped. The user can still pinch
+   * / use the corner sizer to grow it.
+   */
+  openScale?: number;
+  /**
+   * Pop the card out near the top of the container instead of vertically
+   * centred on its tab (non-docked only). The score usually fills the centre
+   * of a practice screen, so a top-anchored metronome is least likely to land
+   * on top of it.
+   */
+  openAtTop?: boolean;
+  /**
    * When set, a small dot in this colour is drawn on the tab — a lightweight
    * "this tool is active" cue (e.g. the Timer tab lights up when any timer is
    * enabled). Undefined leaves the tab visually unchanged.
@@ -101,6 +116,8 @@ export function ToolDock({
   defaultOpen = false,
   docked = false,
   indicator,
+  openScale = 1,
+  openAtTop = false,
   children,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
@@ -130,10 +147,12 @@ export function ToolDock({
     edge === 'left'
       ? TAB_THICKNESS + 14
       : Math.max(8, containerW - panelWidth - TAB_THICKNESS - 14);
-  const openY = Math.min(
-    Math.max(12, tabCenterY - panelHeight / 2),
-    Math.max(12, containerH - panelHeight - 12),
-  );
+  const openY = openAtTop
+    ? 12
+    : Math.min(
+        Math.max(12, tabCenterY - panelHeight / 2),
+        Math.max(12, containerH - panelHeight - 12),
+      );
 
   // Docked (phone): the panel renders in a full-screen Modal, so positions are
   // in WINDOW coordinates. It sits flush to the screen edge (the Modal is on
@@ -141,14 +160,14 @@ export function ToolDock({
   const dockedOpenX = edge === 'left' ? 0 : Math.max(0, winW - panelWidth);
   const dockedHiddenX = edge === 'left' ? -panelWidth : winW;
 
-  // Drag clamp — keep most of the card on screen. Same 25/75 rule on
-  // every edge so the user can push a card almost out of the way and
-  // still have a handle to grab it. The previous minY of 4 made the
-  // Metronome card un-draggable upward (it opens near the top of its
-  // tab to begin with).
+  // Drag clamp — keep most of the card on screen. Horizontal + bottom use a
+  // 25% poke so the user can push a card almost out of the way and still have
+  // a handle to grab it. The TOP edge is hard-clamped to 0 (B-011): on screens
+  // with a header (Tempo Ladder) a card dragged upward must stop at the top of
+  // its container rather than sliding under the header.
   const minX = -panelWidth * 0.25;
   const maxX = Math.max(minX, containerW - panelWidth * 0.75);
-  const minY = -panelHeight * 0.25;
+  const minY = 0;
   const maxY = Math.max(minY, containerH - panelHeight * 0.25);
 
   const tx = useSharedValue(docked ? dockedHiddenX : homeX);
@@ -176,7 +195,7 @@ export function ToolDock({
     if (open) {
       tx.value = withTiming(openX, { duration: DURATION });
       ty.value = withTiming(openY, { duration: DURATION });
-      scale.value = withTiming(1, { duration: DURATION });
+      scale.value = withTiming(openScale, { duration: DURATION });
       op.value = withTiming(1, { duration: DURATION });
     } else {
       tx.value = withTiming(homeX, { duration: DURATION });
@@ -184,7 +203,7 @@ export function ToolDock({
       scale.value = withTiming(COLLAPSED_SCALE, { duration: DURATION });
       op.value = withTiming(0, { duration: DURATION });
     }
-  }, [open, openX, openY, homeX, homeY, tx, ty, scale, op, docked, dockedOpenX, dockedHiddenX, dockedTopY]);
+  }, [open, openX, openY, homeX, homeY, tx, ty, scale, op, docked, dockedOpenX, dockedHiddenX, dockedTopY, openScale]);
 
   // Mount the docked Modal on open; keep it mounted through the slide-out
   // animation, then unmount. (Non-docked ignores this.)

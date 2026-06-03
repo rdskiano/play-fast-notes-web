@@ -799,7 +799,12 @@ export default function InterleavedScreen() {
                 styles.phoneMissBtn,
                 // Portrait lifts to clear the help button; landscape drops to
                 // the help line. `insets.left` clears the landscape notch.
-                { bottom: insets.bottom + repBottomLift, left: insets.left + 16 },
+                // `cleanRightExtra` mirrors the inward shift applied to the ✓
+                // button so the pair sits symmetrically (B-009).
+                {
+                  bottom: insets.bottom + repBottomLift,
+                  left: insets.left + 16 + cleanRightExtra,
+                },
               ]}>
               <ThemedText style={styles.phoneRepGlyph}>✗</ThemedText>
             </Pressable>
@@ -1149,9 +1154,10 @@ const styles = StyleSheet.create({
   repBar: {
     flexDirection: 'row',
     gap: Spacing.md,
-    paddingLeft: Spacing.lg,
-    // Extra right clearance so the Miss button is not partially under the
-    // floating Feedback bubble.
+    // The 160 right clearance keeps the Miss button out from under the
+    // floating help bubble in the bottom-right corner. Mirror it on the left
+    // so the Clean / Miss pair stays centered instead of shifted left (B-009).
+    paddingLeft: 160,
     paddingRight: 160,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,

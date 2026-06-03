@@ -284,6 +284,18 @@ export function RecorderPanel({
       setSignInOpen(true);
       return;
     }
+    // Guard "tap record, tap stop instantly" takes (B-006). MediaRecorder
+    // still emits a few hundred bytes of WEBM headers, so the zero-byte
+    // check inside saveRecording never fires for these — gate on duration.
+    // The bar is 1s: fmt() floors seconds, so anything shorter renders as
+    // "0:00" — a recording the user reasonably reads as zero-length and
+    // shouldn't be able to save. (0.3s was too low; sub-second taps slipped
+    // through and saved as 0:00 stubs.)
+    if (take.durationSec < 1) {
+      setError('Recording too short — hold Record for at least a second.');
+      return;
+    }
+    setError(null);
     setSavingId(take.id);
     try {
       await saveRecording(target, take.blob, take.durationSec);

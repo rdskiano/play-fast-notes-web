@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
@@ -299,7 +299,14 @@ export default function RhythmicScreen() {
             if (phase === 'playing') setPickerOpen(false);
           }}>
           <Pressable
-            style={[styles.pickerCard, { backgroundColor: C.background, borderColor: C.icon }]}
+            style={[
+              styles.pickerCard,
+              // Phone: cap the card to the viewport so the grid below can
+              // scroll instead of the bottom choices falling off-screen with
+              // no way to reach them (B-002).
+              isPhone && styles.pickerCardPhone,
+              { backgroundColor: C.background, borderColor: C.icon },
+            ]}
             onPress={(e) => e.stopPropagation()}>
             <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
               {pickerOpen && phase === 'playing' ? 'Change note grouping' : 'Choose a note grouping'}
@@ -307,7 +314,10 @@ export default function RhythmicScreen() {
             <ThemedText style={styles.pickerHelp}>
               Each grouping shows rhythms of that note count from the pattern library.
             </ThemedText>
-            <View style={styles.groupingGrid}>
+            <ScrollView
+              style={styles.groupingScroll}
+              contentContainerStyle={styles.groupingGrid}
+              showsVerticalScrollIndicator={isPhone}>
               {GROUPING_CHOICES.map(({ n, abc, w }) => (
                 <Pressable
                   key={n}
@@ -319,14 +329,22 @@ export default function RhythmicScreen() {
                       borderWidth: grouping === n ? 2 : 1,
                     },
                   ]}>
-                  <AbcStaffView abc={abc} width={w} height={60} hideStaffLines centered />
+                  {/* Smaller illustration on phone so all six chips pack into
+                      the bounded card with little or no scrolling. */}
+                  <AbcStaffView
+                    abc={abc}
+                    width={w}
+                    height={isPhone ? 44 : 60}
+                    hideStaffLines
+                    centered
+                  />
                   <ThemedText style={styles.groupingNum}>{n}</ThemedText>
                   <ThemedText style={[styles.groupingCount, { color: C.icon }]}>
                     {counts[n]} patterns
                   </ThemedText>
                 </Pressable>
               ))}
-            </View>
+            </ScrollView>
             {pickerOpen && phase === 'playing' && (
               <Pressable
                 onPress={() => setPickerOpen(false)}
@@ -431,6 +449,11 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: Spacing.md,
   },
+  // Phone caps the card to the viewport; the grouping grid scrolls inside.
+  pickerCardPhone: { maxHeight: '85%' },
+  // flexShrink lets the grid give up height to the title/help above when the
+  // card is height-capped, so the ScrollView actually has something to scroll.
+  groupingScroll: { alignSelf: 'stretch', flexShrink: 1 },
   pickerHelp: { opacity: 0.65, fontSize: 12, textAlign: 'center' },
   groupingGrid: {
     flexDirection: 'row',
