@@ -311,6 +311,11 @@ export function useMetronome(initialBpm = 60) {
   const pitchBeatDenomRef = useRef<number>(4);
   const pitchIdxRef = useRef<number>(0);
   const pitchNextStartRef = useRef<number>(0);
+  // AudioContext time of the exercise's first note — the origin of its beat
+  // grid. Stays fixed for the whole sequence (pitchNextStartRef advances as
+  // notes are scheduled), so the metronome can phase-align its clicks to the
+  // exercise grid when it's started mid-playback (see computeMetronomeStartTime).
+  const pitchGridStartRef = useRef<number>(0);
   const pitchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pitchGateRef = useRef<GainNode | null>(null);
   const pitchEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -374,7 +379,7 @@ export function useMetronome(initialBpm = 60) {
       ctx.resume().catch(() => undefined);
     }
 
-    nextNoteTimeRef.current = ctx.currentTime + 0.05;
+    nextNoteTimeRef.current = computeMetronomeStartTime(ctx);
     subStepRef.current = 0;
 
     function scheduler() {
@@ -636,7 +641,7 @@ export function useMetronome(initialBpm = 60) {
     rhythmTokensRef.current = tokens.slice();
     rhythmBeatDenomRef.current = beatDenominator;
     rhythmTokenIdxRef.current = 0;
-    rhythmNextStartRef.current = ctx.currentTime + 0.08;
+    rhythmNextStartRef.current = computeRhythmStartTime(ctx);
     setRhythmLooping(true);
     rhythmTick();
   }
@@ -933,6 +938,9 @@ export function useMetronome(initialBpm = 60) {
     pitchBeatDenomRef.current = beatDenominator;
     pitchIdxRef.current = 0;
     pitchNextStartRef.current = computePitchStartTime(ctx);
+    // Remember where the beat grid starts so a later-started metronome can
+    // phase-align to it.
+    pitchGridStartRef.current = pitchNextStartRef.current;
     setPlayingSequence(true);
     pitchTick();
   }
@@ -964,6 +972,88 @@ export function useMetronome(initialBpm = 60) {
       downbeat += ticksPerMeasure * tickSec;
     }
     return downbeat;
+  }
+
+  // If the metronome is currently clicking, align the rhythm loop's first
+  // note with the next metronome downbeat (beat 1 of the next measure).
+  // Otherwise, default to ~80 ms ahead like before.
+  function computeRhythmStartTime(ctx: AudioContext): number {
+    const defaultStart = ctx.currentTime + 0.08;
+    if (!runningRef.current) return defaultStart;
+    const sub = subRef.current;
+    const beats = beatPatternRef.current.length;
+    if (sub <= 0 || beats <= 0) return defaultStart;
+    const ticksPerMeasure = beats * sub;
+    const tickSec = 60 / bpmRef.current / sub;
+    const idx = ((subStepRef.current % ticksPerMeasure) + ticksPerMeasure) % ticksPerMeasure;
+    const ticksTilDownbeat = idx === 0 ? 0 : ticksPerMeasure - idx;
+    let downbeat = nextNoteTimeRef.current + ticksTilDownbeat * tickSec;
+    while (downbeat < ctx.currentTime + 0.05) {
+      downbeat += ticksPerMeasure * tickSec;
+    }
+    return downbeat;
+  }
+
+  // If a pitch sequence or rhythm loop is already playing, align the
+  // metronome's first tick to that stream's next perceived downbeat so the
+  // click drops in on phase. Returns ctx.currentTime + 0.05 (the existing
+  // default) when nothing else is playing.
+  function computeMetronomeStartTime(ctx: AudioContext): number {
+    const defaultStart = ctx.currentTime + 0.05;
+    // Rhythm loop active: its downbeat is the next time token index 0 fires.
+    // rhythmNextStartRef points at the next-scheduled note in the cycle. The
+    // *next downbeat* is rhythmNextStartRef plus the durations of remaining
+    // tokens in the current cycle (from the current token index onward to
+    // the wrap-back to 0).
+    if (rhythmTokensRef.current && rhythmGateRef.current) {
+      const tokens = rhythmTokensRef.current;
+      const beatDenom = rhythmBeatDenomRef.current;
+      const secondsPerQuarter = (60 / bpmRef.current) * (beatDenom / 4);
+      let t = rhythmNextStartRef.current;
+      if (rhythmTokenIdxRef.current === 0) {
+        // Already at a downbeat — that's the alignment target.
+        while (t < ctx.currentTime + 0.05) {
+          // Walk a full cycle forward if the upcoming downbeat is too soon
+          // to schedule reliably.
+          let cycleSec = 0;
+          for (const tok of tokens) cycleSec += TOKEN_QUARTER_FRACTIONS[tok] * secondsPerQuarter;
+          t += cycleSec;
+        }
+        return t;
+      }
+      // Walk from the current token index forward to the wrap.
+      for (let i = rhythmTokenIdxRef.current; i < tokens.length; i++) {
+        t += TOKEN_QUARTER_FRACTIONS[tokens[i]] * secondsPerQuarter;
+      }
+      while (t < ctx.currentTime + 0.05) {
+        let cycleSec = 0;
+        for (const tok of tokens) cycleSec += TOKEN_QUARTER_FRACTIONS[tok] * secondsPerQuarter;
+        t += cycleSec;
+      }
+      return t;
+    }
+    // Pitch sequence active. The metronome's click interval (60/bpm) is, by
+    // the BPM convention, exactly the exercise's beat (denominator-unit)
+    // interval — that same equality is what lets the reverse direction
+    // (computePitchStartTime) line the exercise up with the click. So we
+    // don't need to match tempo or find a chunk boundary: we only need to
+    // fix the PHASE. Drop the first click onto the exercise's beat grid,
+    // whose origin is pitchGridStartRef. Step forward by whole beats to the
+    // next grid point with enough lead time to schedule. Every later click
+    // then falls on a beat, coinciding with the exercise's on-beat notes
+    // instead of floating between them. Robust no matter when the metronome
+    // is started or how short the exercise is — unlike chunk alignment, which
+    // had nothing to lock onto once playback reached the final pattern.
+    if (pitchFreqsRef.current && pitchTokensRef.current && pitchGateRef.current) {
+      const secondsPerBeat = 60 / bpmRef.current;
+      if (secondsPerBeat <= 0) return defaultStart;
+      const origin = pitchGridStartRef.current;
+      const earliest = ctx.currentTime + 0.05;
+      const k = Math.ceil((earliest - origin) / secondsPerBeat);
+      const t = origin + k * secondsPerBeat;
+      return t < earliest ? t + secondsPerBeat : t;
+    }
+    return defaultStart;
   }
 
   function stopPitchSequence() {

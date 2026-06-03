@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
 import { FloatingRhythmCard } from '@/components/FloatingRhythmCard';
+import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
@@ -352,6 +353,16 @@ export default function RhythmicScreen() {
           canNext={currentIndex < patterns.length - 1}
         />
       )}
+
+      {/* Keyboard / foot-pedal advance: Space, Enter, Page Down, ArrowDown
+          (or any pedal key) call onNext, the same action as the card's
+          Next → button. Silent during the config / grouping-picker overlay
+          and the practice-log prompt so it can't fire behind a modal.
+          PedalCatcher already ignores keystrokes aimed at text inputs. */}
+      <PedalCatcher
+        active={phase === 'playing' && !notePromptVisible && !pickerOpen}
+        onAdvance={onNext}
+      />
 
       <PracticeLogNotePrompt
         visible={notePromptVisible}
