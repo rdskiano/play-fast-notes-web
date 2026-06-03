@@ -43,6 +43,20 @@ export function buildExerciseHtml(
         paddingright: 0,
         paddingtop: 2,
         paddingbottom: 2,
+        // Let abcjs lay out long passages on multiple staff lines instead
+        // of squishing one line to fit the page. preferredMeasuresPerLine
+        // = 8 packs the measures densely so a long passage stays a few
+        // staff lines tall (rather than ~5), which keeps several exercises
+        // on each page instead of one-per-page. minSpacing/maxSpacing
+        // constrain note-spacing so a wrapped line doesn't look loose.
+        wrap: {
+          minSpacing: 1.4,
+          maxSpacing: 2.7,
+          preferredMeasuresPerLine: 8,
+        },
+        // 'resize' scales the SVG to fit a smaller container if needed;
+        // without it, abcjs uses fixed staffwidth pixels which may
+        // overflow the page margins for some print engines.
         responsive: 'resize',
       });
     } catch(e) {
@@ -125,7 +139,13 @@ export function buildExerciseHtml(
      lines inside one exercise can't be confused with the start of the next,
      plus a heavier rule between items than between wrapped staff lines. */
   .exercise {
+    /* Keep each exercise whole on a page so it reads as one block (no
+       dangling numbers, no exercise split across a page turn). Each one is
+       kept short enough — via the wrap density below — that several pack
+       onto a page rather than one-per-page. A passage long enough to exceed
+       a full page degrades gracefully: the browser breaks it anyway. */
     page-break-inside: avoid;
+    break-inside: avoid;
     padding: 6px 0 16px;
     margin-bottom: 10px;
     border-bottom: 1.5px solid #cfcfcf;

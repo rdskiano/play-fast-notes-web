@@ -671,6 +671,12 @@ export default function RhythmBuilderScreen() {
             <PianoKeyboard onKeyPress={onKeyPress} preferSharps={useSharps} />
           </View>
 
+          {pitches.length > 0 && (
+            <ThemedText style={[styles.respellHint, { color: C.icon }]}>
+              Tap any note to re-spell or edit.
+            </ThemedText>
+          )}
+
           <PitchStaff
             pitches={pitches}
             keySignature={keySignature}
@@ -1157,6 +1163,14 @@ const styles = StyleSheet.create({
   genText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.md },
   keyboardWrap: {
     marginVertical: Spacing.md,
+  },
+  respellHint: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 4,
+    marginBottom: 6,
+    letterSpacing: 0.02,
   },
 
   body: {
