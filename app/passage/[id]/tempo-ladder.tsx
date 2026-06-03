@@ -141,6 +141,35 @@ export default function TempoLadderScreen() {
 
   const ann = useScoreAnnotation(passage);
 
+  // Live validation for the setup form, so the Start button can say WHY it
+  // won't start instead of silently doing nothing — e.g. a cluster window set
+  // above the Final performance tempo. Mirrors the guards inside
+  // useTempoLadderSession.startSession.
+  const configError: string | null = (() => {
+    if (mode === 'cluster') {
+      const low = parseInt(startTempo, 10);
+      const high = parseInt(clusterHigh, 10);
+      const final = parseInt(finalTempo, 10);
+      if (!low || !high || !final) return 'Enter a Low, High, and Final BPM.';
+      if (high <= low) return 'High BPM must be above Low BPM.';
+      if (final < high) return 'Final BPM must be at or above the cluster’s High BPM.';
+      return null;
+    }
+    if (mode === 'custom') {
+      if (!customPattern) return null; // covered by the pick-a-pattern hint
+      const base = parseInt(startTempo, 10);
+      const goal = parseInt(goalTempo, 10);
+      if (!base || !goal) return 'Enter a Base and Performance BPM.';
+      if (goal <= base) return 'Performance BPM must be above Base BPM.';
+      return null;
+    }
+    const start = parseInt(startTempo, 10);
+    const goal = parseInt(goalTempo, 10);
+    if (!start || !goal) return 'Enter a Start and Goal BPM.';
+    if (goal <= start) return 'Goal BPM must be above Start BPM.';
+    return null;
+  })();
+
   if (phase === 'config') {
     return (
       <ThemedView style={{ flex: 1 }}>
@@ -365,10 +394,13 @@ export default function TempoLadderScreen() {
         </ScrollView>
 
         <View style={styles.startBar}>
+          {configError && (
+            <ThemedText style={styles.configError}>{configError}</ThemedText>
+          )}
           <Button
             label="Start"
             onPress={startSession}
-            disabled={mode === 'custom' && !customPattern}
+            disabled={(mode === 'custom' && !customPattern) || configError !== null}
             style={actionButtonStyle}
           />
         </View>
@@ -857,6 +889,12 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingBottom: 20,
     paddingHorizontal: HELP_CLEARANCE,
+  },
+  configError: {
+    color: Status.danger,
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
   },
   divider: { height: 1, marginVertical: Spacing.sm, borderRadius: 1 },
   row: { flexDirection: 'row', gap: Spacing.md },
