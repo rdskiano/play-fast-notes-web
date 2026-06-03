@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
@@ -58,6 +59,7 @@ export function PassagePickerModal({
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
   const [passages, setPassages] = useState<Passage[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
@@ -122,7 +124,14 @@ export function PassagePickerModal({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <ThemedView style={{ flex: 1 }}>
-        <View style={[styles.topBar, { borderBottomColor: C.icon + '44' }]}>
+        <View
+          style={[
+            styles.topBar,
+            // Push the bar below the status bar / notch — this is a full-screen
+            // Modal, so without the inset the Cancel button lands under the
+            // notch on a phone and can't be tapped.
+            { paddingTop: insets.top + 14, borderBottomColor: C.icon + '44' },
+          ]}>
           <Button label="Cancel" variant="ghost" size="sm" onPress={onClose} />
           <ThemedText style={styles.topCenter} numberOfLines={1}>
             {title}
@@ -205,7 +214,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.md,
     paddingHorizontal: Spacing.md,
-    paddingTop: 14,
+    // paddingTop is applied inline as insets.top + 14 (safe-area aware).
     paddingBottom: Spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
