@@ -78,6 +78,13 @@ export function useTempoLadderSession(id: string | undefined) {
   // True once the user has reached goal at any point this session. Drives
   // the start-tempo bump on endSession.
   const reachedGoalRef = useRef(false);
+  // True when the user has completed a clean set whose step-up they haven't
+  // consumed yet (they saw the celebration but haven't tapped "Step up").
+  // Ending the session in this state banks the advance — completing the set
+  // IS the success criterion, so the next session resumes one rung higher.
+  // Cleared the moment a step-up is taken live (advanceAfterCelebration) or a
+  // new set begins (startSession / onMiss).
+  const earnedStepUpRef = useRef(false);
 
   const [mode, setMode] = useState<Mode>('step');
   const [startTempo, setStartTempo] = useState('60');
@@ -232,6 +239,7 @@ export function useTempoLadderSession(id: string | undefined) {
     if (!exerciseId || !id) return;
     lastHitTempoRef.current = null;
     reachedGoalRef.current = false;
+    earnedStepUpRef.current = false;
     setCompletedSets(0);
 
     if (mode === 'custom') {
@@ -348,6 +356,7 @@ export function useTempoLadderSession(id: string | undefined) {
       // All blocks done → completed pattern cleanly. Trigger celebration
       // and let advanceAfterCelebration bump the base.
       setCompletedSets((n) => n + 1);
+      earnedStepUpRef.current = true;
       lastHitTempoRef.current = customBase;
       const newBase = Math.min(progress.goal_tempo, customBase + (progress.increment ?? 5));
       const reached = newBase >= progress.goal_tempo;
@@ -375,6 +384,7 @@ export function useTempoLadderSession(id: string | undefined) {
 
     if (hitTarget) {
       setCompletedSets((n) => n + 1);
+      earnedStepUpRef.current = true;
       lastHitTempoRef.current = progress.current_tempo;
       const reached =
         progress.mode === 'cluster'
@@ -409,6 +419,9 @@ export function useTempoLadderSession(id: string | undefined) {
 
   async function onMiss() {
     if (!progress || !exerciseId) return;
+    // A miss starts a fresh attempt, so any unbanked completed-set advance is
+    // no longer owed.
+    earnedStepUpRef.current = false;
     // Custom mode: strict miss — reset position to (block 0, rep 0)
     // immediately. The base tempo stays unchanged; the metronome jumps
     // back to block 0's tempo so the user can start the pattern over.
@@ -431,6 +444,9 @@ export function useTempoLadderSession(id: string | undefined) {
       setCelebrating(null);
       return;
     }
+    // The step-up is being taken live, so it's no longer owed at endSession —
+    // current_tempo (and the cluster window / custom base) advances right here.
+    earnedStepUpRef.current = false;
     if (progress.mode === 'custom' && customPattern) {
       const newBase = Math.min(
         progress.goal_tempo,
@@ -500,8 +516,29 @@ export function useTempoLadderSession(id: string | undefined) {
       return;
     }
     const bpm = metronome.bpm;
-    const base = durableBase(progress?.mode ?? 'step', bpm, progress, customBase);
-    await updateTempoLadderState(exerciseId, base, progress?.current_streak ?? 0);
+    const inc = progress?.increment ?? 5;
+    // Persist where the NEXT session should resume. Completing a clean set
+    // earns a step-up; if the user ends without taking it live ("Step up
+    // tempo"), bank it here so the ladder still advances by one increment —
+    // completing the set IS the success criterion (see earnedStepUpRef).
+    // Otherwise persist the durable current position unchanged.
+    if (progress && earnedStepUpRef.current && progress.mode === 'custom') {
+      const newBase = Math.min(progress.goal_tempo, customBase + inc);
+      await updateCustomPosition(exerciseId, newBase, 0, 0);
+    } else if (progress && earnedStepUpRef.current && progress.mode === 'cluster') {
+      const lo = progress.cluster_low ?? progress.start_tempo;
+      const hi = progress.cluster_high ?? progress.goal_tempo;
+      const spread = hi - lo;
+      const newHi = Math.min(progress.goal_tempo, hi + inc);
+      const newLo = Math.max(progress.start_tempo, newHi - spread);
+      await advanceClusterWindow(exerciseId, newLo, newHi, newLo, 0);
+    } else if (progress && earnedStepUpRef.current) {
+      const next = Math.min(progress.goal_tempo, progress.current_tempo + inc);
+      await updateTempoLadderState(exerciseId, next, 0);
+    } else {
+      const base = durableBase(progress?.mode ?? 'step', bpm, progress, customBase);
+      await updateTempoLadderState(exerciseId, base, progress?.current_streak ?? 0);
+    }
     if (completedSets > 0) {
       await stampLastUsed(id, 'tempo_ladder');
       const data: Record<string, unknown> = {
@@ -532,7 +569,10 @@ export function useTempoLadderSession(id: string | undefined) {
       const newStart = Math.min(progress.start_tempo + bump, maxStart);
       const fields: { start_tempo?: number; cluster_low?: number } = {};
       if (newStart > progress.start_tempo) fields.start_tempo = newStart;
-      if (progress.mode === 'cluster') {
+      // Skip the cluster_low floor-raise when an earned step-up already slid
+      // the window above (it set cluster_low to the new floor) — otherwise the
+      // two writes fight over the same column.
+      if (progress.mode === 'cluster' && !earnedStepUpRef.current) {
         const oldLow = progress.cluster_low ?? progress.start_tempo;
         const maxLow = (progress.cluster_high ?? progress.goal_tempo) - bump;
         const newLow = Math.min(oldLow + bump, maxLow);
