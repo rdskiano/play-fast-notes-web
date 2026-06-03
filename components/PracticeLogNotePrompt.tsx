@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -70,15 +70,16 @@ export function PracticeLogNotePrompt({
     }
   }, [visible, initialMood, initialNote, initialRemindNext]);
 
-  // Open the keyboard as soon as the prompt appears. `autoFocus` alone fires
-  // before the modal's fade-in finishes (iPad Safari then ignores it) and
-  // doesn't re-fire when the same modal is reopened — so focus explicitly via
-  // a ref a beat after it's visible. iPad Safari honours programmatic focus
-  // and raises the on-screen keyboard.
-  useEffect(() => {
-    if (!visible) return;
-    const t = setTimeout(() => inputRef.current?.focus(), 150);
-    return () => clearTimeout(t);
+  // Raise the on-screen keyboard the instant the prompt opens. iOS / iPadOS
+  // only shows the keyboard when the input is focused *inside* the tap that
+  // triggered it — a deferred focus (setTimeout / useEffect / autoFocus's own
+  // internal defer) lands after the gesture and iOS silently ignores it,
+  // leaving the keyboard down. useLayoutEffect runs synchronously within the
+  // same event flush as the button press, so the focus stays inside the
+  // gesture window. (Auto-opens with no gesture — e.g. the goal-reached
+  // celebration — still can't raise the keyboard; that's an iOS hard limit.)
+  useLayoutEffect(() => {
+    if (visible) inputRef.current?.focus();
   }, [visible]);
 
   function submit() {
