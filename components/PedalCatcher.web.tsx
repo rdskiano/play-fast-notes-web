@@ -12,26 +12,31 @@
 
 import { useEffect, useRef } from 'react';
 
-// Keys a typical Bluetooth foot pedal sends. Letters / numbers and arrow
-// keys are intentionally excluded so the catcher doesn't intercept
-// characters the user types or the browser's own navigation. Two-pedal
-// pedals send a "forward" key on the right pedal (PageDown / Space) and a
-// "back" key on the left (PageUp). When `onBack` is wired, we route each
-// set to its own action; when it isn't, every key advances (the historical
-// behavior for Tempo Ladder / Interleaved).
+// Keys a typical Bluetooth foot pedal sends. Most page-turner pedals
+// (AirTurn, PageFlip, Donner, etc.) emit arrow keys or PageUp/PageDown, so
+// arrows MUST be included or the pedal isn't recognised at all. Letters /
+// numbers stay excluded so the catcher doesn't swallow characters the user
+// types. Two-pedal pedals send a "forward" key on the right pedal (right /
+// down / PageDown / Space) and a "back" key on the left (left / up / PageUp).
+// When `onBack` is wired we route each set to its own action; when it isn't,
+// every key advances (the historical behavior for Tempo Ladder / Interleaved).
 //
-// Arrow keys removed 2026-06-03 (B-022): they were also browser navigation
-// keys and caused "strange" practice-screen behaviour when users hit them
-// expecting to scroll. Pedals that send arrows can be reconfigured to
-// PageDown / PageUp / Space; the hint text shown on each practice screen
-// never advertised arrows in the first place.
+// History: arrows were briefly removed (B-022, 2026-06-03) to stop manual
+// arrow presses from advancing reps while scrolling — but that broke real
+// foot pedals (their whole reason for existing), so they're back. The catcher
+// is only live during the playing phase and ignores keystrokes aimed at text
+// inputs, so stray captures are already contained.
 const FORWARD_KEYS = new Set([
+  'ArrowDown',
+  'ArrowRight',
   'PageDown',
   ' ', // Space
   'Spacebar', // legacy
   'Enter',
 ]);
 const BACK_KEYS = new Set([
+  'ArrowUp',
+  'ArrowLeft',
   'PageUp',
   'Backspace',
 ]);
