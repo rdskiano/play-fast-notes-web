@@ -518,14 +518,15 @@ export default function TempoLadderScreen() {
   return (
     <View style={[styles.playRoot, { backgroundColor: C.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      {/* Keyboard shortcuts so laptop users don't have to keep clicking:
-          Space (or any pedal key) = ✓ Clean, X = ✗ Miss. Suppressed while
-          a celebration / log-prompt modal is showing so it can't fire a
+      {/* Keyboard / foot-pedal shortcuts so users don't have to keep clicking:
+          right pedal / Space = ✓ Clean, left pedal / X = ✗ Miss. Suppressed
+          while a celebration / log-prompt modal is showing so it can't fire a
           rep behind the modal. No-op on native (iPad relies on its
           floating buttons + Apple Pencil + foot pedal). */}
       <PedalCatcher
         active={!notePromptVisible && celebrating === null}
         onAdvance={onClean}
+        onBack={onMiss}
         secondaryKey="x"
         onSecondary={onMiss}
       />

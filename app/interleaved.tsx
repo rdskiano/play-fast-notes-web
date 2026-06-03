@@ -642,12 +642,13 @@ export default function InterleavedScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      {/* Keyboard shortcuts: Space (or any pedal key) = ✓ Clean,
-          X = ✗ Miss. Suppressed while celebration / log prompt is
-          open so a stray Space can't fire a rep behind the modal. */}
+      {/* Keyboard / foot-pedal shortcuts: right pedal / Space = ✓ Clean,
+          left pedal / X = ✗ Miss. Suppressed while celebration / log prompt
+          is open so a stray press can't fire a rep behind the modal. */}
       <PedalCatcher
         active={!notePromptVisible && !celebrating}
         onAdvance={onClean}
+        onBack={onMiss}
         secondaryKey="x"
         onSecondary={onMiss}
       />
