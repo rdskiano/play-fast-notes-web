@@ -371,7 +371,10 @@ export function useTempoLadderSession(id: string | undefined) {
         currentBlock.count - 1,
       );
       metronome.stop();
-      setCelebrating({ reached });
+      // Give the user a beat (~350 ms) to see the final dot fill before the
+      // celebration modal mounts. setCelebrating on the next tick lets React
+      // commit the streak update first.
+      setTimeout(() => setCelebrating({ reached }), 350);
       return;
     }
 
@@ -395,7 +398,10 @@ export function useTempoLadderSession(id: string | undefined) {
       const base = durableBase(progress.mode, progress.current_tempo, progress, customBase);
       await updateTempoLadderState(exerciseId, base, nextStreak);
       metronome.stop();
-      setCelebrating({ reached });
+      // Give the user a beat (~350 ms) to see the final dot fill before the
+      // celebration modal mounts. setCelebrating on the next tick lets React
+      // commit the streak update first.
+      setTimeout(() => setCelebrating({ reached }), 350);
       return;
     }
 

@@ -18,6 +18,8 @@
 import { StyleSheet, View } from 'react-native';
 
 import { expandPatternToReps, type CustomPattern } from '@/lib/strategies/customPatterns';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 type State = 'idle' | 'playing' | 'failed' | 'complete';
 
@@ -60,6 +62,8 @@ export function CustomPatternDots({
   size = 'medium',
   accent = '#2ecc71',
 }: Props) {
+  const scheme = useColorScheme() ?? 'light';
+  const themeIcon = Colors[scheme].icon;
   const reps = expandPatternToReps(pattern, base, performance);
   const preset = SIZE_PRESETS[size];
 
@@ -107,7 +111,8 @@ export function CustomPatternDots({
             style={[
               baseStyle,
               styles.upcoming,
-              state === 'failed' && { borderColor: '#ffffff55' },
+              { borderColor: themeIcon },
+              state === 'failed' && { borderColor: themeIcon + '55' },
             ]}
           />
         );
@@ -124,7 +129,6 @@ const styles = StyleSheet.create({
   },
   upcoming: {
     borderWidth: 2,
-    borderColor: '#ffffff99',
     backgroundColor: 'transparent',
   },
 });
