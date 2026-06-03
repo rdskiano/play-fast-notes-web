@@ -114,6 +114,10 @@ export default function PassageDetailScreen() {
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  // Landscape phone: the Rhythmic Variation chooser lays its two options
+  // side-by-side instead of stacked, so the short viewport doesn't hide the
+  // second one below a scroll with no cue.
+  const isLandscapePhone = isPhone && vpW > vpH;
   const isTouch = useIsTouchDevice();
   const ann = useScoreAnnotation(passage);
   const annotating = ann.pencil.active;
@@ -487,7 +491,7 @@ export default function PassageDetailScreen() {
               </Pressable>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator>
               {rhythmicStep === 'mode' ? (
                 <>
                   <ThemedText type="subtitle" style={styles.sheetTitle}>
@@ -498,36 +502,45 @@ export default function PassageDetailScreen() {
                     your internal pulse, improves evenness, and exposes weak spots
                     that playing as written can hide.
                   </ThemedText>
-                  <Button
-                    label="Rhythm patterns only"
-                    onPress={() => setRhythmicStep('grouping')}
-                    style={{ backgroundColor: '#4a235a' }}
-                    fullWidth
-                  />
-                  <ThemedText style={styles.sheetHint}>
-                    Browse rhythm patterns with a metronome while you read from your
-                    own score. Best when you already know the notes and just want to
-                    drill the rhythm.
-                  </ThemedText>
-                  <Button
-                    label="Exercise Builder"
-                    onPress={() => {
-                      setRhythmicSheetOpen(false);
-                      guardedNav(() =>
-                        router.push({
-                          pathname: '/passage/[id]/rhythm-list',
-                          params: { id: passage.id },
-                        }),
-                      );
-                    }}
-                    style={{ backgroundColor: '#9b59b6' }}
-                    fullWidth
-                  />
-                  <ThemedText style={styles.sheetHint}>
-                    Enter the pitches of your passage using the piano keyboard, and the
-                    app generates fully notated exercises for every rhythm pattern. Save
-                    as many exercises per passage as you like.
-                  </ThemedText>
+                  {/* Side-by-side on landscape phone so both options are visible
+                      at once; stacked everywhere else (B-002). */}
+                  <View
+                    style={[styles.modeOptions, isLandscapePhone && styles.modeOptionsRow]}>
+                    <View style={isLandscapePhone ? styles.modeOption : undefined}>
+                      <Button
+                        label="Rhythm patterns only"
+                        onPress={() => setRhythmicStep('grouping')}
+                        style={{ backgroundColor: '#4a235a' }}
+                        fullWidth
+                      />
+                      <ThemedText style={styles.sheetHint}>
+                        Browse rhythm patterns with a metronome while you read from your
+                        own score. Best when you already know the notes and just want to
+                        drill the rhythm.
+                      </ThemedText>
+                    </View>
+                    <View style={isLandscapePhone ? styles.modeOption : undefined}>
+                      <Button
+                        label="Exercise Builder"
+                        onPress={() => {
+                          setRhythmicSheetOpen(false);
+                          guardedNav(() =>
+                            router.push({
+                              pathname: '/passage/[id]/rhythm-list',
+                              params: { id: passage.id },
+                            }),
+                          );
+                        }}
+                        style={{ backgroundColor: '#9b59b6' }}
+                        fullWidth
+                      />
+                      <ThemedText style={styles.sheetHint}>
+                        Enter the pitches of your passage using the piano keyboard, and the
+                        app generates fully notated exercises for every rhythm pattern. Save
+                        as many exercises per passage as you like.
+                      </ThemedText>
+                    </View>
+                  </View>
                 </>
               ) : (
                 <>
@@ -708,6 +721,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     marginTop: -4,
   },
+  // Rhythmic chooser options: stacked by default, side-by-side on landscape
+  // phone (each column takes half the width) so both fit a short viewport.
+  modeOptions: { gap: Spacing.sm },
+  modeOptionsRow: { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
+  modeOption: { flex: 1, gap: Spacing.sm },
   groupingGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
