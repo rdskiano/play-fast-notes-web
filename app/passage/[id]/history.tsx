@@ -94,9 +94,19 @@ function formatDetail(entry: PracticeLogEntry): string | null {
     const data = JSON.parse(entry.data_json);
     if (entry.strategy === 'tempo_ladder') {
       const parts: string[] = [];
+      // Mode first — it's the strongest classifier and reads best as a lead.
+      // Custom mode gets the pattern name attached so a saved pattern reads
+      // as itself ("Custom · My 9+1") rather than the generic word "custom".
+      if (data.mode === 'custom' && typeof data.patternName === 'string' && data.patternName) {
+        parts.push(`Custom · ${data.patternName}`);
+      } else if (typeof data.mode === 'string' && data.mode) {
+        parts.push(data.mode.charAt(0).toUpperCase() + data.mode.slice(1));
+      }
       if (data.tempo) parts.push(`${data.tempo} BPM`);
       if (data.goalTempo) parts.push(`goal ${data.goalTempo}`);
-      if (data.mode) parts.push(data.mode);
+      if (typeof data.completedSets === 'number' && data.completedSets > 0) {
+        parts.push(`${data.completedSets} ${data.completedSets === 1 ? 'set' : 'sets'}`);
+      }
       return parts.join(' · ');
     }
     if (entry.strategy === 'click_up') {
@@ -107,12 +117,23 @@ function formatDetail(entry: PracticeLogEntry): string | null {
       return parts.join(' · ');
     }
     if (entry.strategy === 'interleaved') {
-      const parts: string[] = [];
-      if (data.mode) parts.push(data.mode);
+      const parts: string[] = ['Rep Rotator session'];
+      // List the OTHER passages in the rotation so the user reading this passage's
+      // log knows it was part of a group session and which group. Trim to the
+      // first 3 names so the line doesn't blow out on a 10-passage rotation.
+      if (Array.isArray(data.sessionPassages) && data.sessionPassages.length > 0) {
+        const names = data.sessionPassages.filter((n: unknown): n is string => typeof n === 'string' && n.length > 0);
+        if (names.length > 0) {
+          const shown = names.slice(0, 3).join(', ');
+          const more = names.length > 3 ? ` +${names.length - 3} more` : '';
+          parts.push(`with ${shown}${more}`);
+        }
+      }
       if (typeof data.tempo === 'number') parts.push(`${data.tempo} BPM`);
       if (data.completed) parts.push('completed ✓');
-      else if (data.streak != null && data.targetReps)
+      else if (data.streak != null && data.targetReps) {
         parts.push(`${data.streak}/${data.targetReps} reps`);
+      }
       return parts.join(' · ');
     }
     if (entry.strategy === 'recording' && typeof data.duration_seconds === 'number') {
@@ -141,7 +162,7 @@ function strategyLabel(e: PracticeLogEntry): string {
     try {
       if (e.data_json) {
         const data = JSON.parse(e.data_json);
-        if (data?.order === 'random') return 'Interleaved';
+        if (data?.order === 'random') return 'Rep Rotator';
       }
     } catch {
       // ignore — fall through to default

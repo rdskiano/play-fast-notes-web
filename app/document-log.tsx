@@ -83,7 +83,17 @@ function formatDetail(entry: PracticeLogWithTitle): string | null {
   if (!entry.data_json) return null;
   try {
     const data = JSON.parse(entry.data_json);
-    if (entry.strategy === 'tempo_ladder' && data.tempo) return `${data.tempo} BPM`;
+    if (entry.strategy === 'tempo_ladder' && data.tempo) {
+      // Lead with the mode (Step / Cluster / Custom + pattern name) so the
+      // chip says what kind of Tempo Ladder session it was, then the tempo.
+      const mode =
+        data.mode === 'custom' && typeof data.patternName === 'string' && data.patternName
+          ? `Custom · ${data.patternName}`
+          : typeof data.mode === 'string' && data.mode
+            ? data.mode.charAt(0).toUpperCase() + data.mode.slice(1)
+            : null;
+      return mode ? `${mode} · ${data.tempo} BPM` : `${data.tempo} BPM`;
+    }
     if (entry.strategy === 'click_up' && data.step != null && data.totalSteps)
       return `${data.step + 1}/${data.totalSteps}`;
     if (entry.strategy === 'interleaved') {
@@ -118,7 +128,7 @@ function strategyLabel(e: PracticeLogWithTitle): string {
     try {
       if (e.data_json) {
         const data = JSON.parse(e.data_json);
-        if (data?.order === 'random') return 'Interleaved';
+        if (data?.order === 'random') return 'Rep Rotator';
       }
     } catch {
       // ignore — fall through to default

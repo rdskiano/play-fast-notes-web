@@ -428,6 +428,13 @@ export default function InterleavedScreen() {
         if (mood) data.mood = mood;
         if (note) data.note = note;
         if (remindNext) data.remindNext = true;
+        // List the OTHER passages in this rotation so the per-passage log can
+        // show "with Mozart, Brahms" on a session entry. Filter on passage ID
+        // (not title) so two passages sharing a title aren't both dropped.
+        const others = spots
+          .filter((s) => s.passage.id !== spot.passage.id)
+          .map((s) => s.passage.title);
+        if (others.length > 0) data.sessionPassages = others;
         await logPractice(spot.passage.id, 'interleaved', data);
       } catch {
         // ignore — keep navigation flowing
@@ -939,6 +946,12 @@ function TimerActive({
           if (mood) data.mood = mood;
           if (note) data.note = note;
           if (remindNext) data.remindNext = true;
+          // List the OTHER passages in this rotation (filter on ID so a
+          // shared title doesn't drop both) for the per-passage log.
+          const others = snap.spots
+            .filter((s) => s.passage.id !== spot.passage.id)
+            .map((s) => s.passage.title);
+          if (others.length > 0) data.sessionPassages = others;
           await logPractice(spot.passage.id, 'interleaved', data);
         } catch {
           // ignore — keep navigation flowing
