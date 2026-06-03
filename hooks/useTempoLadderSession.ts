@@ -371,9 +371,18 @@ export function useTempoLadderSession(id: string | undefined) {
         currentBlock.count - 1,
       );
       metronome.stop();
+      // Fill the final dot. CustomPatternDots paints dots where
+      // i < customPosition, and customPosition = (reps in earlier blocks) +
+      // customRepInBlock. Advancing rep-in-block one past the last rep makes
+      // customPosition equal the total rep count, so every dot reads filled —
+      // the same "all green" moment the standard streak row gives. (The
+      // persisted position above stays at the last real rep so a
+      // mid-celebration reload resumes correctly; this only moves the live
+      // on-screen strip, which is torn down when the user steps up or ends.)
+      setCustomRepInBlock(currentBlock.count);
       // Give the user a beat (~350 ms) to see the final dot fill before the
       // celebration modal mounts. setCelebrating on the next tick lets React
-      // commit the streak update first.
+      // commit the position update first.
       setTimeout(() => setCelebrating({ reached }), 350);
       return;
     }
