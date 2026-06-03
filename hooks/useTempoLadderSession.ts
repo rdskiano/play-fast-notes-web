@@ -28,6 +28,9 @@ import {
 } from '@/lib/supabase/customPatterns';
 
 // Bump the ladder floor by this many BPM after a session that reached goal.
+// Deprecated: kept for one revision for any external import. The bump now
+// uses the user's chosen increment (progress.increment) — see durableBase /
+// endSession.
 const SUCCESS_BUMP_BPM = 5;
 
 export type Mode = 'step' | 'cluster' | 'custom';
@@ -41,6 +44,23 @@ function pickRandom(low: number, high: number): number {
   const lo = Math.min(low, high);
   const hi = Math.max(low, high);
   return Math.floor(lo + Math.random() * (hi - lo + 1));
+}
+
+// The user's real "ladder position" — what the library's tempo-ladder %
+// should reflect. In cluster mode this is the window floor (cluster_low),
+// NOT the live random pick; in custom mode it's the climbing base; in step
+// mode the live metronome BPM IS the rung. This is the single place that
+// encodes that distinction; use it for every persisted write.
+function durableBase(
+  mode: Mode,
+  metronomeBpm: number,
+  progress: TempoLadderProgress | null,
+  customBase: number,
+): number {
+  if (!progress) return metronomeBpm;
+  if (mode === 'cluster') return progress.cluster_low ?? progress.start_tempo;
+  if (mode === 'custom') return customBase;
+  return metronomeBpm; // step
 }
 
 export function useTempoLadderSession(id: string | undefined) {
@@ -362,7 +382,8 @@ export function useTempoLadderSession(id: string | undefined) {
           : progress.current_tempo >= progress.goal_tempo;
       if (reached) reachedGoalRef.current = true;
       setProgress({ ...progress, current_streak: nextStreak });
-      await updateTempoLadderState(exerciseId, progress.current_tempo, nextStreak);
+      const base = durableBase(progress.mode, progress.current_tempo, progress, customBase);
+      await updateTempoLadderState(exerciseId, base, nextStreak);
       metronome.stop();
       setCelebrating({ reached });
       return;
@@ -374,7 +395,10 @@ export function useTempoLadderSession(id: string | undefined) {
       const nextTempo = pickRandom(lo, hi);
       setProgress({ ...progress, current_tempo: nextTempo, current_streak: nextStreak });
       metronome.setBpm(nextTempo);
-      await updateTempoLadderState(exerciseId, nextTempo, nextStreak);
+      // Persist the durable base (window floor), not the live random pick, so
+      // the library % doesn't bounce with each rep. The React state + audio
+      // above still track the live pick.
+      await updateTempoLadderState(exerciseId, lo, nextStreak);
       await stampLastUsed(id, 'tempo_ladder');
       return;
     }
@@ -398,7 +422,8 @@ export function useTempoLadderSession(id: string | undefined) {
       return;
     }
     setProgress({ ...progress, current_streak: 0 });
-    await updateTempoLadderState(exerciseId, progress.current_tempo, 0);
+    const base = durableBase(progress.mode, progress.current_tempo, progress, customBase);
+    await updateTempoLadderState(exerciseId, base, 0);
   }
 
   async function advanceAfterCelebration() {
@@ -444,7 +469,9 @@ export function useTempoLadderSession(id: string | undefined) {
         current_streak: 0,
       });
       metronome.setBpm(nextTempo);
-      await advanceClusterWindow(exerciseId, newLo, newHi, nextTempo, 0);
+      // Persist the new window floor (newLo) as current_tempo, not the random
+      // pick, so the library % reflects the durable ladder position.
+      await advanceClusterWindow(exerciseId, newLo, newHi, newLo, 0);
     } else {
       const nextTempo = Math.min(
         progress.goal_tempo,
@@ -473,7 +500,8 @@ export function useTempoLadderSession(id: string | undefined) {
       return;
     }
     const bpm = metronome.bpm;
-    await updateTempoLadderState(exerciseId, bpm, progress?.current_streak ?? 0);
+    const base = durableBase(progress?.mode ?? 'step', bpm, progress, customBase);
+    await updateTempoLadderState(exerciseId, base, progress?.current_streak ?? 0);
     if (completedSets > 0) {
       await stampLastUsed(id, 'tempo_ladder');
       const data: Record<string, unknown> = {
@@ -496,18 +524,18 @@ export function useTempoLadderSession(id: string | undefined) {
     }
 
     // If the user reached the goal this session, raise the ladder floor so
-    // the next session loads pre-set 5 BPM higher. Clamp so there is always
-    // room between start and goal.
+    // the next session loads pre-set one increment higher. Clamp so there is
+    // always room between start and goal.
     if (reachedGoalRef.current && progress) {
-      const maxStart = progress.goal_tempo - SUCCESS_BUMP_BPM;
-      const newStart = Math.min(progress.start_tempo + SUCCESS_BUMP_BPM, maxStart);
+      const bump = progress.increment ?? 5;
+      const maxStart = progress.goal_tempo - bump;
+      const newStart = Math.min(progress.start_tempo + bump, maxStart);
       const fields: { start_tempo?: number; cluster_low?: number } = {};
       if (newStart > progress.start_tempo) fields.start_tempo = newStart;
       if (progress.mode === 'cluster') {
         const oldLow = progress.cluster_low ?? progress.start_tempo;
-        const maxLow =
-          (progress.cluster_high ?? progress.goal_tempo) - SUCCESS_BUMP_BPM;
-        const newLow = Math.min(oldLow + SUCCESS_BUMP_BPM, maxLow);
+        const maxLow = (progress.cluster_high ?? progress.goal_tempo) - bump;
+        const newLow = Math.min(oldLow + bump, maxLow);
         if (newLow > oldLow) fields.cluster_low = newLow;
       }
       if (fields.start_tempo !== undefined || fields.cluster_low !== undefined) {
