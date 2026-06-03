@@ -261,15 +261,6 @@ export default function DocumentScreen() {
     setPagerSize((prev) => (prev.width === w && prev.height === h ? prev : { width: w, height: h }));
   }, []);
 
-  // The width of one paging unit. On native, pagingEnabled snaps to the
-  // ScrollView's OWN measured width — which on iPad is narrower than the
-  // window because of the SafeAreaProvider insets. Sizing slots to the full
-  // window width (useWindowDimensions) made the snap step shorter than a slot,
-  // so pages landed half-turned. Use the measured pager width on native (the
-  // slot height already uses pagerSize.height for the same reason). Web keeps
-  // the window width it was tuned against, with its snap-correction below.
-  const pageW = Platform.OS === 'web' ? width : pagerSize.width || width;
-
   const selectedPassage = selectedPassageId
     ? passages.find((p) => p.id === selectedPassageId) ?? null
     : null;
@@ -355,7 +346,7 @@ export default function DocumentScreen() {
     // on RN-Web) — Safari can refuse smooth-scroll on a hidden-overflow element
     // and the page just jitters in place. Use instant scroll in that case.
     const animated = mode !== 'draw';
-    scrollRef.current?.scrollTo({ x: pageW * index, animated });
+    scrollRef.current?.scrollTo({ x: width * index, animated });
     setCurrentIndex(index);
   }
 
@@ -446,10 +437,10 @@ export default function DocumentScreen() {
     const nextScreen = Math.floor((firstVisiblePage - 1) / newPagesPerScreen);
     // Defer the scroll until React has laid out the new ScrollView geometry.
     setTimeout(() => {
-      scrollRef.current?.scrollTo({ x: pageW * nextScreen, animated: false });
+      scrollRef.current?.scrollTo({ x: width * nextScreen, animated: false });
       setCurrentIndex(nextScreen);
     }, 0);
-  }, [viewMode, currentIndex, pageW]);
+  }, [viewMode, currentIndex, width]);
 
   // Keyboard arrows. Disabled during draw/resize because those modes own the
   // pointer; section-mark allows nav so the user can swipe-or-arrow to the
@@ -491,9 +482,15 @@ export default function DocumentScreen() {
   // showing. Guarded so it's a no-op on turns that already landed square.
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   function snapToExactPage(x: number) {
-    if (suppressScrollEndRef.current || pageW <= 0) return;
-    const idx = Math.round(x / pageW);
-    const targetX = pageW * idx;
+    // WEB ONLY. On native, iOS pagingEnabled snaps to an exact page boundary on
+    // its own; calling scrollTo here mid-snap fights that native animation and
+    // parks the page between two pages. The old iPad-native viewer had no such
+    // correction and turned pages cleanly — so we match it and bail on native.
+    // This stays for RN-Web (iPad Safari), where pagingEnabled lands a few px off.
+    if (Platform.OS !== 'web') return;
+    if (suppressScrollEndRef.current || width <= 0) return;
+    const idx = Math.round(x / width);
+    const targetX = width * idx;
     if (Math.abs(x - targetX) > 1) {
       scrollRef.current?.scrollTo({ x: targetX, animated: true });
     }
@@ -502,8 +499,8 @@ export default function DocumentScreen() {
   function onScrollEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
     if (suppressScrollEndRef.current) return;
     const x = e.nativeEvent.contentOffset.x;
-    const idx = Math.round(x / Math.max(pageW, 1));
-    snapToExactPage(x);
+    const idx = Math.round(x / Math.max(width, 1));
+    snapToExactPage(x); // no-op on native (see above); native paging self-snaps
     if (idx !== currentIndex) setCurrentIndex(idx);
   }
 
@@ -513,18 +510,14 @@ export default function DocumentScreen() {
   // every scroll event so currentIndex always reflects what's visible.
   function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
     if (suppressScrollEndRef.current) return;
-    // Native: pagingEnabled snaps reliably and onMomentumScrollEnd/
-    // onScrollEndDrag fire dependably, so we let those drive currentIndex.
-    // The per-event tracking + settle-timer below was a workaround for iPad
-    // SAFARI (where momentum-end is unreliable); running it on native just
-    // re-renders the whole page list mid-scroll and can stall the swipe.
-    if (Platform.OS !== 'web') return;
     const x = e.nativeEvent.contentOffset.x;
-    const idx = Math.round(x / Math.max(pageW, 1));
+    const idx = Math.round(x / Math.max(width, 1));
     if (idx !== currentIndex) setCurrentIndex(idx);
-    // onMomentumScrollEnd is unreliable on iOS Safari (the first turn often
-    // never fires it), so also correct the snap when the scroll stream goes
-    // quiet — the dependable signal that motion has actually stopped.
+    // WEB ONLY settle-snap. onMomentumScrollEnd is unreliable on iOS Safari
+    // (the first turn often never fires it), so on web we also correct the
+    // snap when the scroll stream goes quiet. On native this must not run —
+    // the scrollTo it triggers fights native paging and parks pages mid-turn.
+    if (Platform.OS !== 'web') return;
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     settleTimerRef.current = setTimeout(() => snapToExactPage(x), 70);
   }
@@ -971,11 +964,11 @@ export default function DocumentScreen() {
               onScrollEndDrag={onScrollEnd}>
               {Array.from({ length: screenCount }).map((_, screenIdx) => {
                 const screenPages = pagesForScreen(screenIdx);
-                const slotW = viewMode === 'spread' ? pageW / 2 : pageW;
+                const slotW = viewMode === 'spread' ? width / 2 : width;
                 return (
                   <View
                     key={screenIdx}
-                    style={[styles.pageSlot, { width: pageW, flexDirection: 'row' }]}>
+                    style={[styles.pageSlot, { width, flexDirection: 'row' }]}>
                     {screenPages.map((p) => {
                       // In draw + resize modes, every page on the visible
                       // screen is interactive — user can drag in either half
