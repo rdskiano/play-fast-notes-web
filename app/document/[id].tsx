@@ -774,16 +774,26 @@ export default function DocumentScreen() {
         onExit={() => router.back()}
         exitLabel={isPhone ? '←' : 'LIBRARY'}
         center={
-          <View style={{ alignItems: 'center', flex: 1 }}>
+          // minWidth: 0 lets this flex child shrink below its content's
+          // natural width so a long title ellipsizes instead of overflowing
+          // into the right-slot icon buttons (B-023). Each Text also gets an
+          // explicit maxWidth so RN-Web honours the truncation.
+          <View style={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
             <ThemedText
               numberOfLines={1}
-              style={[styles.title, isPhone && styles.titlePhone]}>
+              ellipsizeMode="tail"
+              style={[styles.title, isPhone && styles.titlePhone, { maxWidth: '100%' }]}>
               {doc.title}
             </ThemedText>
             {/* Composer hides on phone — title alone already wraps if it's
                 long, and the next row of icons is fighting for space. */}
             {doc.composer && !isPhone ? (
-              <ThemedText style={styles.subtitle}>{doc.composer}</ThemedText>
+              <ThemedText
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                style={[styles.subtitle, { maxWidth: '100%' }]}>
+                {doc.composer}
+              </ThemedText>
             ) : null}
             {currentSection ? (
               <Pressable

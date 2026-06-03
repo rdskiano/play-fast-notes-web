@@ -42,6 +42,7 @@ import {
 } from '@/lib/db/repos/folders';
 import {
   getPassage,
+  listPassages,
   listPassagesInFolder,
   movePassage,
   renamePassage,
@@ -51,6 +52,7 @@ import {
 } from '@/lib/db/repos/passages';
 import {
   getDocument,
+  listAllDocuments,
   listDocumentsInFolder,
   moveDocument,
   parsePages,
@@ -206,6 +208,8 @@ type PassageCardProps = {
   canMoveDown: boolean;
   isPhone?: boolean;
   scuPct: number | null;
+  // Parent location shown under the title on search results ("in <folder>").
+  breadcrumb?: string | null;
   onOpen: () => void;
   onLongPress: () => void;
   onMoveUp: () => void;
@@ -226,6 +230,7 @@ function PassageCard({
   canMoveDown,
   isPhone,
   scuPct,
+  breadcrumb,
   onOpen,
   onLongPress,
   onMoveUp,
@@ -255,6 +260,11 @@ function PassageCard({
         {passage.composer && (
           <ThemedText style={{ opacity: Opacity.muted }}>{passage.composer}</ThemedText>
         )}
+        {breadcrumb ? (
+          <ThemedText style={[styles.breadcrumb, { color: moreColor }]} numberOfLines={1}>
+            in {breadcrumb}
+          </ThemedText>
+        ) : null}
       </ThemedView>
       {!editMode && scuPct !== null && (
         <View style={[styles.scuBadge, { backgroundColor: tempoColor }]}>
@@ -305,6 +315,8 @@ type DocumentCardProps = {
   canMoveUp: boolean;
   canMoveDown: boolean;
   isPhone?: boolean;
+  // Parent location shown under the title on search results ("in <folder>").
+  breadcrumb?: string | null;
   onOpen: () => void;
   onLongPress: () => void;
   onMoveUp: () => void;
@@ -323,6 +335,7 @@ function DocumentCard({
   canMoveUp,
   canMoveDown,
   isPhone,
+  breadcrumb,
   onOpen,
   onLongPress,
   onMoveUp,
@@ -364,6 +377,11 @@ function DocumentCard({
         <ThemedText style={{ opacity: Opacity.muted, fontSize: 12 }}>
           Full part · {document.page_count} page{document.page_count === 1 ? '' : 's'}
         </ThemedText>
+        {breadcrumb ? (
+          <ThemedText style={[styles.breadcrumb, { color: moreColor }]} numberOfLines={1}>
+            in {breadcrumb}
+          </ThemedText>
+        ) : null}
       </ThemedView>
       {editMode && (
         <View style={styles.editActions}>
@@ -424,6 +442,11 @@ export default function LibraryScreen() {
   const [passages, setPassages] = useState<Passage[]>([]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [allFolders, setAllFolders] = useState<Folder[]>([]);
+  // Whole-library lists, used only while a search query is active so a match
+  // in any folder surfaces (not just the current folder). Loaded alongside
+  // the folder-scoped lists in refresh().
+  const [allPassages, setAllPassages] = useState<Passage[]>([]);
+  const [allDocuments, setAllDocuments] = useState<DocumentRow[]>([]);
   const [scuProgress, setScuProgress] = useState<Record<string, number>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [editMode, setEditMode] = useState(false);
@@ -441,7 +464,7 @@ export default function LibraryScreen() {
   const refresh = useCallback(async () => {
     try {
       await rehomeOrphans();
-      const [f, p, d, all, pathF, sessions] = await Promise.all([
+      const [f, p, d, all, pathF, sessions, allP, allD] = await Promise.all([
         listFoldersInParent(currentFolderId),
         listPassagesInFolder(currentFolderId),
         listDocumentsInFolder(currentFolderId),
@@ -449,12 +472,17 @@ export default function LibraryScreen() {
         getFolderPath(currentFolderId),
         // Practice-session count gates the first-run TutorialStep.
         countPracticeLogEntries(),
+        // Whole-library lists for cross-folder search (B-024).
+        listPassages(),
+        listAllDocuments(),
       ]);
       setPracticeCount(sessions);
       setFolders(f);
       setPassages(p);
       setDocuments(d);
       setAllFolders(all);
+      setAllPassages(allP);
+      setAllDocuments(allD);
       setPath(pathF);
       if (p.length > 0) {
         const rows = await getTempoLadderProgressForPassages(p.map((x) => x.id));
@@ -490,23 +518,49 @@ export default function LibraryScreen() {
   }, []);
 
   const q = searchQuery.trim().toLowerCase();
+  // When searching, widen the scope to the whole library so a match in any
+  // folder shows up — not just the current folder (B-024). allFolders is
+  // already loaded for the move-to-folder picker; allPassages / allDocuments
+  // are fetched alongside in refresh().
+  const sourceFolders = q ? allFolders : folders;
+  const sourcePassages = q ? allPassages : passages;
+  const sourceDocuments = q ? allDocuments : documents;
   const filteredFolders = q
-    ? folders.filter((f) => f.name.toLowerCase().includes(q))
-    : folders;
+    ? sourceFolders.filter((f) => f.name.toLowerCase().includes(q))
+    : sourceFolders;
   const filteredPassages = q
-    ? passages.filter(
+    ? sourcePassages.filter(
         (p) =>
           p.title.toLowerCase().includes(q) ||
           (p.composer ?? '').toLowerCase().includes(q),
       )
-    : passages;
+    : sourcePassages;
   const filteredDocuments = q
-    ? documents.filter(
+    ? sourceDocuments.filter(
         (d) =>
           d.title.toLowerCase().includes(q) ||
           (d.composer ?? '').toLowerCase().includes(q),
       )
-    : documents;
+    : sourceDocuments;
+
+  // For search results spanning folders, show where each item lives. Prefer
+  // the parent document title for a passage that belongs to a PDF, else the
+  // parent folder name. Only computed while searching.
+  const folderNameById = new Map<string, string>();
+  for (const f of allFolders) folderNameById.set(f.id, f.name);
+  const documentTitleById = new Map<string, string>();
+  for (const d of allDocuments) documentTitleById.set(d.id, d.title);
+  function passageParentLabel(p: Passage): string | null {
+    if (!q) return null;
+    if (p.document_id) return documentTitleById.get(p.document_id) ?? null;
+    if (p.folder_id) return folderNameById.get(p.folder_id) ?? null;
+    return null;
+  }
+  function documentParentLabel(d: DocumentRow): string | null {
+    if (!q) return null;
+    if (d.folder_id) return folderNameById.get(d.folder_id) ?? null;
+    return null;
+  }
   const rows: ListRow[] = [
     ...filteredFolders.map((folder) => ({ kind: 'folder' as const, folder })),
     ...filteredDocuments.map((document) => ({ kind: 'document' as const, document })),
@@ -1085,6 +1139,7 @@ export default function LibraryScreen() {
                   canMoveUp={documentIdx > 0}
                   canMoveDown={documentIdx >= 0 && documentIdx < filteredDocuments.length - 1}
                   isPhone={isPhone}
+                  breadcrumb={documentParentLabel(item.document)}
                   onOpen={() => router.push(`/document/${item.document.id}` as never)}
                   onLongPress={() =>
                     setActionTarget({ kind: 'document', document: item.document })
@@ -1116,6 +1171,7 @@ export default function LibraryScreen() {
                 canMoveDown={passageIdx >= 0 && passageIdx < filteredPassages.length - 1}
                 isPhone={isPhone}
                 scuPct={scuProgress[item.passage.id] ?? null}
+                breadcrumb={passageParentLabel(item.passage)}
                 onOpen={() => router.push(`/passage/${item.passage.id}`)}
                 onLongPress={() => setActionTarget({ kind: 'passage', passage: item.passage })}
                 onMoveUp={() => moveItem('passage', item.passage.id, -1)}
@@ -1412,6 +1468,11 @@ const styles = StyleSheet.create({
   },
   iconBtnText: { fontSize: 18, lineHeight: 20 },
   cardText: { flex: 1, gap: Spacing.xs },
+  breadcrumb: {
+    fontSize: 11,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
   scuBadge: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
