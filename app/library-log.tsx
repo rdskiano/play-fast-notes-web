@@ -20,19 +20,7 @@ import {
   updatePracticeLogMoodNote,
   type LibraryPracticeLogEntry,
 } from '@/lib/db/repos/practiceLog';
-
-const STRATEGY_LABELS: Record<string, string> = {
-  tempo_ladder: 'Tempo Ladder',
-  click_up: 'Interleaved Click-Up',
-  rhythmic: 'Rhythmic Variation',
-  interleaved: 'Serial',
-  chunking: 'Chunking',
-  add_a_note: 'Add a Note',
-  pitch: 'Pitch',
-  phrasing: 'Phrasing',
-  recording: 'Recording',
-  freeform: 'Freeform',
-};
+import { formatPracticeDetail, strategyLabel } from '@/lib/practiceLog/format';
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
@@ -54,40 +42,6 @@ function dateKey(ts: number): string {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-function formatDetail(entry: LibraryPracticeLogEntry): string | null {
-  if (!entry.data_json) return null;
-  try {
-    const data = JSON.parse(entry.data_json);
-    if (entry.strategy === 'tempo_ladder' && data.tempo) {
-      // Lead with the mode (Step / Cluster / Custom + pattern name) so the
-      // chip says what kind of Tempo Ladder session it was, then the tempo.
-      const mode =
-        data.mode === 'custom' && typeof data.patternName === 'string' && data.patternName
-          ? `Custom · ${data.patternName}`
-          : typeof data.mode === 'string' && data.mode
-            ? data.mode.charAt(0).toUpperCase() + data.mode.slice(1)
-            : null;
-      return mode ? `${mode} · ${data.tempo} BPM` : `${data.tempo} BPM`;
-    }
-    if (entry.strategy === 'click_up' && data.step != null && data.totalSteps)
-      return `${data.step + 1}/${data.totalSteps}`;
-    if (entry.strategy === 'interleaved') {
-      const parts: string[] = [];
-      if (typeof data.tempo === 'number') parts.push(`${data.tempo} BPM`);
-      if (data.completed) parts.push('✓');
-      return parts.length > 0 ? parts.join(' ') : null;
-    }
-    if (entry.strategy === 'recording' && typeof data.duration_seconds === 'number') {
-      const m = Math.floor(data.duration_seconds / 60);
-      const s = Math.floor(data.duration_seconds % 60);
-      return `${m}:${s.toString().padStart(2, '0')}`;
-    }
-  } catch {
-    // ignore
-  }
-  return null;
-}
-
 function recordingUri(entry: LibraryPracticeLogEntry): string | null {
   if (!entry.data_json) return null;
   try {
@@ -98,26 +52,11 @@ function recordingUri(entry: LibraryPracticeLogEntry): string | null {
   }
 }
 
-function strategyLabel(e: LibraryPracticeLogEntry): string {
-  if (e.strategy === 'interleaved') {
-    try {
-      if (e.data_json) {
-        const data = JSON.parse(e.data_json);
-        if (data?.order === 'random') return 'Rep Rotator';
-      }
-    } catch {
-      // ignore — fall through to default
-    }
-    return 'Serial';
-  }
-  return STRATEGY_LABELS[e.strategy] ?? e.strategy;
-}
-
 function entryLabel(e: LibraryPracticeLogEntry): string {
   const label = strategyLabel(e);
   const exercise =
     e.exercise_name && e.exercise_name.trim().length > 0 ? e.exercise_name : null;
-  const detail = formatDetail(e);
+  const detail = formatPracticeDetail(e, { compact: true });
   const { mood } = parseMoodNote(e);
   const parts = [label];
   if (exercise) parts.push(exercise);

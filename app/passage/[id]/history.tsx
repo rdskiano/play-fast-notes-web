@@ -19,19 +19,7 @@ import {
   updatePracticeLogMoodNote,
   type PracticeLogEntry,
 } from '@/lib/db/repos/practiceLog';
-
-const STRATEGY_LABELS: Record<string, string> = {
-  tempo_ladder: 'Tempo Ladder',
-  click_up: 'Interleaved Click-Up',
-  rhythmic: 'Rhythmic Variation',
-  interleaved: 'Serial Practice',
-  chunking: 'Chunking',
-  add_a_note: 'Add a Note',
-  pitch: 'Pitch / Intonation',
-  phrasing: 'Phrasing',
-  recording: 'Recording',
-  freeform: 'Freeform',
-};
+import { formatPracticeDetail, strategyLabel } from '@/lib/practiceLog/format';
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
@@ -88,65 +76,6 @@ function parseRemindNext(entry: PracticeLogEntry): boolean {
   }
 }
 
-function formatDetail(entry: PracticeLogEntry): string | null {
-  if (!entry.data_json) return null;
-  try {
-    const data = JSON.parse(entry.data_json);
-    if (entry.strategy === 'tempo_ladder') {
-      const parts: string[] = [];
-      // Mode first — it's the strongest classifier and reads best as a lead.
-      // Custom mode gets the pattern name attached so a saved pattern reads
-      // as itself ("Custom · My 9+1") rather than the generic word "custom".
-      if (data.mode === 'custom' && typeof data.patternName === 'string' && data.patternName) {
-        parts.push(`Custom · ${data.patternName}`);
-      } else if (typeof data.mode === 'string' && data.mode) {
-        parts.push(data.mode.charAt(0).toUpperCase() + data.mode.slice(1));
-      }
-      if (data.tempo) parts.push(`${data.tempo} BPM`);
-      if (data.goalTempo) parts.push(`goal ${data.goalTempo}`);
-      if (typeof data.completedSets === 'number' && data.completedSets > 0) {
-        parts.push(`${data.completedSets} ${data.completedSets === 1 ? 'set' : 'sets'}`);
-      }
-      return parts.join(' · ');
-    }
-    if (entry.strategy === 'click_up') {
-      const parts: string[] = [];
-      if (data.step != null && data.totalSteps)
-        parts.push(`step ${data.step + 1}/${data.totalSteps}`);
-      if (data.tempo) parts.push(`${data.tempo} BPM`);
-      return parts.join(' · ');
-    }
-    if (entry.strategy === 'interleaved') {
-      const parts: string[] = ['Rep Rotator session'];
-      // List the OTHER passages in the rotation so the user reading this passage's
-      // log knows it was part of a group session and which group. Trim to the
-      // first 3 names so the line doesn't blow out on a 10-passage rotation.
-      if (Array.isArray(data.sessionPassages) && data.sessionPassages.length > 0) {
-        const names = data.sessionPassages.filter((n: unknown): n is string => typeof n === 'string' && n.length > 0);
-        if (names.length > 0) {
-          const shown = names.slice(0, 3).join(', ');
-          const more = names.length > 3 ? ` +${names.length - 3} more` : '';
-          parts.push(`with ${shown}${more}`);
-        }
-      }
-      if (typeof data.tempo === 'number') parts.push(`${data.tempo} BPM`);
-      if (data.completed) parts.push('completed ✓');
-      else if (data.streak != null && data.targetReps) {
-        parts.push(`${data.streak}/${data.targetReps} reps`);
-      }
-      return parts.join(' · ');
-    }
-    if (entry.strategy === 'recording' && typeof data.duration_seconds === 'number') {
-      const m = Math.floor(data.duration_seconds / 60);
-      const s = Math.floor(data.duration_seconds % 60);
-      return `${m}:${s.toString().padStart(2, '0')}`;
-    }
-  } catch {
-    // ignore
-  }
-  return null;
-}
-
 function recordingUri(entry: PracticeLogEntry): string | null {
   if (!entry.data_json) return null;
   try {
@@ -155,21 +84,6 @@ function recordingUri(entry: PracticeLogEntry): string | null {
   } catch {
     return null;
   }
-}
-
-function strategyLabel(e: PracticeLogEntry): string {
-  if (e.strategy === 'interleaved') {
-    try {
-      if (e.data_json) {
-        const data = JSON.parse(e.data_json);
-        if (data?.order === 'random') return 'Rep Rotator';
-      }
-    } catch {
-      // ignore — fall through to default
-    }
-    return 'Serial';
-  }
-  return STRATEGY_LABELS[e.strategy] ?? e.strategy;
 }
 
 type Section = { title: string; data: PracticeLogEntry[] };
@@ -278,7 +192,7 @@ export default function HistoryScreen() {
           renderItem={({ item }) => {
             const label = strategyLabel(item);
             const color = STRATEGY_COLORS[item.strategy] ?? C.icon;
-            const detail = formatDetail(item);
+            const detail = formatPracticeDetail(item);
             const exerciseName =
               item.exercise_name && item.exercise_name.trim().length > 0
                 ? item.exercise_name
