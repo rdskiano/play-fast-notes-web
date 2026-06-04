@@ -47,6 +47,27 @@ public class PdfRenderModule: Module {
       }
       return outURL.absoluteString
     }
+
+    // Read each page's dimensions (cropBox, in PDF points) without rasterizing.
+    // Returns 1-based index + w/h per page — used when adding a PDF on-device to
+    // build pages_json (matches the web getPdfPageSizes contract / aspect ratio).
+    AsyncFunction("getPageSizes") { (pdfUri: String) -> [[String: Double]] in
+      let url = PdfRenderModule.fileURL(from: pdfUri)
+      guard let document = PDFDocument(url: url) else {
+        throw PdfRenderError("Could not open PDF at \(pdfUri)")
+      }
+      var sizes: [[String: Double]] = []
+      for i in 0..<document.pageCount {
+        guard let page = document.page(at: i) else { continue }
+        let b = page.bounds(for: .cropBox)
+        sizes.append([
+          "index": Double(i + 1),
+          "w": Double(b.width),
+          "h": Double(b.height),
+        ])
+      }
+      return sizes
+    }
   }
 
   // Accept either a file:// URI (what expo-file-system hands us) or a bare path.

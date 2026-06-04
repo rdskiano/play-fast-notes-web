@@ -10,6 +10,8 @@
 
 import { requireNativeModule } from 'expo';
 
+export type PdfPageSize = { index: number; w: number; h: number };
+
 type PdfRenderNative = {
   // pageNumber is 1-based (matches pdf.js / pages_json index). maxEdge caps the
   // long side in px. Writes a JPEG to outputUri and returns its file:// URI.
@@ -19,6 +21,9 @@ type PdfRenderNative = {
     maxEdge: number,
     outputUri: string,
   ): Promise<string>;
+  // Per-page dimensions (1-based index) without rasterizing — for building
+  // pages_json when adding a PDF on-device.
+  getPageSizes(pdfUri: string): Promise<PdfPageSize[]>;
 };
 
 let native: PdfRenderNative | null = null;
@@ -44,4 +49,13 @@ export async function renderPdfPage(
 ): Promise<string | null> {
   if (!native) return null;
   return native.renderPage(pdfUri, pageNumber, maxEdge, outputUri);
+}
+
+/**
+ * Read each page's dimensions (1-based index, cropBox points) without
+ * rasterizing. Returns `null` when the native module isn't available.
+ */
+export async function getPdfPageSizes(pdfUri: string): Promise<PdfPageSize[] | null> {
+  if (!native) return null;
+  return native.getPageSizes(pdfUri);
 }
