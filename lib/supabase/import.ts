@@ -52,6 +52,9 @@ export type ImportResult = {
   tables: Record<string, number>;
   filesDownloaded: number;
   filesFailed: number;
+  // Titles of documents skipped because they have no original PDF the device can
+  // render (older/incompatible uploads). Surfaced so the user can re-upload them.
+  incompatible: string[];
 };
 
 function isHttpUrl(s: unknown): s is string {
@@ -234,6 +237,22 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
     });
   }
 
+  // Native renders pages from the original PDF, so a document with no original
+  // PDF can't be shown on-device. Skip those (and the passages/log rows that
+  // belong to them) and report their titles so the user can re-upload them.
+  const incompatibleDocIds = new Set<string>();
+  const incompatible: string[] = [];
+  for (const d of tables.documents ?? []) {
+    const orig = d.original_uri;
+    if (!(typeof orig === 'string' && orig.trim() !== '')) {
+      incompatibleDocIds.add(d.id as string);
+      incompatible.push((d.title as string) || '(untitled)');
+    }
+  }
+  if (incompatible.length > 0) {
+    onProgress(`⚠ ${incompatible.length} document(s) have no PDF and were skipped — re-upload them.`);
+  }
+
   onProgress('Inserting rows…');
   const counts: Record<string, number> = {};
   await db.withTransactionAsync(async () => {
@@ -250,6 +269,15 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
       let inserted = 0;
       for (const row of rows) {
         const r = sanitizeRow(t, row);
+        // Drop incompatible documents and anything that belongs to them.
+        if (t === 'documents' && incompatibleDocIds.has(r.id as string)) continue;
+        if (
+          (t === 'pieces' || t === 'practice_log') &&
+          typeof r.document_id === 'string' &&
+          incompatibleDocIds.has(r.document_id)
+        ) {
+          continue;
+        }
         const cols = Object.keys(r).filter((c) => {
           if (validCols.has(c)) return true;
           dropped.add(c);
@@ -280,5 +308,6 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
     tables: counts,
     filesDownloaded,
     filesFailed,
+    incompatible,
   };
 }

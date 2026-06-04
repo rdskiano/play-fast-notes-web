@@ -44,9 +44,9 @@ export async function resolvePageImageUri(
     if (!dir.exists) dir.create({ intermediates: true });
 
     // Cache: render each page once, reuse forever (cleared only with the cache).
-    // The "-s1" version tag invalidates earlier renders that were written at the
-    // Retina screen scale (2x) before the scale-1 fix — those broke passage crops.
-    const out = new File(dir, `p${page.index}-s1.jpg`);
+    // The "-s2" version tag invalidates earlier renders written at the wrong
+    // scale (2x Retina, or a fixed maxEdge that didn't match pages_json).
+    const out = new File(dir, `p${page.index}-s2.jpg`);
     if (out.exists) return out.uri;
 
     // The renderer needs a local PDF. After /import-supabase the original PDF is
@@ -59,7 +59,11 @@ export async function resolvePageImageUri(
       pdfUri = localPdf.uri;
     }
 
-    const rendered = await renderPdfPage(pdfUri, page.index, MAX_EDGE, out.uri);
+    // Render the page at EXACTLY its stored long edge (pages_json), so the image
+    // dimensions match the coordinate space passage crops are stored in. This is
+    // the single rule that keeps crops aligned no matter how the doc was made.
+    const renderEdge = Math.max(page.w, page.h) || MAX_EDGE;
+    const rendered = await renderPdfPage(pdfUri, page.index, renderEdge, out.uri);
     return rendered ?? '';
   } catch {
     // Don't crash the viewer over one unreadable page — leave it blank.

@@ -52,6 +52,14 @@ export default function ImportSupabaseScreen() {
       );
       const totalRows = Object.values(result.tables).reduce((s, n) => s + n, 0);
       append(`Rows: ${totalRows} inserted across ${Object.keys(result.tables).length} tables.`);
+      if (result.incompatible.length > 0) {
+        append('');
+        append(
+          `⚠ ${result.incompatible.length} document(s) couldn't be imported (older format, no PDF on file). ` +
+            `Re-upload these in the app to use them on this device:`,
+        );
+        for (const title of result.incompatible) append(`   • ${title}`);
+      }
       setDone(true);
     } catch (e) {
       append(`Aborted: ${(e as Error).message}`);
