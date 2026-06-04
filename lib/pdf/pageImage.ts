@@ -23,10 +23,21 @@ export async function resolvePageImageUri(
   doc: ResolvableDoc,
   page: ResolvablePage,
 ): Promise<string> {
-  // Stored render (older docs / image sets) — use it directly, no work.
-  if (page.image_uri) return page.image_uri;
-  // Nothing to render from.
-  if (!doc.original_uri) return '';
+  // Fast path: a stored per-page image — but only if it's actually usable. A
+  // remote URL loads over the network; a local file is used if it exists. A
+  // local path that's GONE (an import that didn't finish pulling images for a
+  // big doc, or files lost across an app reinstall) falls through to rendering
+  // from the original PDF instead of showing blank.
+  if (page.image_uri) {
+    if (page.image_uri.startsWith('http')) return page.image_uri;
+    try {
+      if (new File(page.image_uri).exists) return page.image_uri;
+    } catch {
+      // unreadable path — fall through to render
+    }
+  }
+  // No usable stored image and nothing to render from.
+  if (!doc.original_uri) return page.image_uri ?? '';
 
   try {
     const dir = new Directory(Paths.cache, 'pdf-pages', doc.id);
