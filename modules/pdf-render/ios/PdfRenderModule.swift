@@ -48,10 +48,12 @@ public class PdfRenderModule: Module {
       return outURL.absoluteString
     }
 
-    // Read each page's dimensions (cropBox, in PDF points) without rasterizing.
-    // Returns 1-based index + w/h per page — used when adding a PDF on-device to
-    // build pages_json (matches the web getPdfPageSizes contract / aspect ratio).
-    AsyncFunction("getPageSizes") { (pdfUri: String) -> [[String: Double]] in
+    // Read each page's dimensions without rasterizing, SCALED so the long edge
+    // equals maxEdge — the same scale renderPage rasterizes at and the web's
+    // getPdfPageSizes stores. This is what makes pages_json and the rendered
+    // page image share a coordinate space, so passage-crop rectangles (stored
+    // against pages_json) land on the right region. Returns 1-based index + w/h.
+    AsyncFunction("getPageSizes") { (pdfUri: String, maxEdge: Double) -> [[String: Double]] in
       let url = PdfRenderModule.fileURL(from: pdfUri)
       guard let document = PDFDocument(url: url) else {
         throw PdfRenderError("Could not open PDF at \(pdfUri)")
@@ -60,10 +62,12 @@ public class PdfRenderModule: Module {
       for i in 0..<document.pageCount {
         guard let page = document.page(at: i) else { continue }
         let b = page.bounds(for: .cropBox)
+        let longEdge = max(b.width, b.height)
+        let scale = longEdge > 0 ? maxEdge / longEdge : 1.0
         sizes.append([
           "index": Double(i + 1),
-          "w": Double(b.width),
-          "h": Double(b.height),
+          "w": Double(b.width * scale),
+          "h": Double(b.height * scale),
         ])
       }
       return sizes

@@ -20,6 +20,11 @@ import { getPdfPageSizes } from '@/modules/pdf-render';
 
 const BUCKET = 'pieces';
 
+// Long-edge cap for stored page dimensions. MUST match the maxEdge that
+// lib/pdf/pageImage.ts renders pages at, so passage-crop coordinates (stored
+// against these dims) line up with the rendered page image.
+const MAX_EDGE = 2000;
+
 function newDocId(): string {
   return `d_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -51,7 +56,7 @@ export async function addPdfDocument(opts: {
 
   // 2. Page sizes (PDFKit, no rasterize).
   onProgress?.('Reading pages…');
-  const sizes = await getPdfPageSizes(localPdf.uri);
+  const sizes = await getPdfPageSizes(localPdf.uri, MAX_EDGE);
   if (!sizes || sizes.length === 0) {
     throw new Error('Could not read the PDF — it may be empty or corrupt.');
   }

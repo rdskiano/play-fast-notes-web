@@ -21,9 +21,9 @@ type PdfRenderNative = {
     maxEdge: number,
     outputUri: string,
   ): Promise<string>;
-  // Per-page dimensions (1-based index) without rasterizing — for building
-  // pages_json when adding a PDF on-device.
-  getPageSizes(pdfUri: string): Promise<PdfPageSize[]>;
+  // Per-page dimensions (1-based index) without rasterizing, scaled so the long
+  // edge equals maxEdge — for building pages_json when adding a PDF on-device.
+  getPageSizes(pdfUri: string, maxEdge: number): Promise<PdfPageSize[]>;
 };
 
 let native: PdfRenderNative | null = null;
@@ -55,7 +55,10 @@ export async function renderPdfPage(
  * Read each page's dimensions (1-based index, cropBox points) without
  * rasterizing. Returns `null` when the native module isn't available.
  */
-export async function getPdfPageSizes(pdfUri: string): Promise<PdfPageSize[] | null> {
+export async function getPdfPageSizes(
+  pdfUri: string,
+  maxEdge: number,
+): Promise<PdfPageSize[] | null> {
   if (!native) return null;
-  return native.getPageSizes(pdfUri);
+  return native.getPageSizes(pdfUri, maxEdge);
 }
