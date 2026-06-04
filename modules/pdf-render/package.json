@@ -1,0 +1,9 @@
+{
+  "name": "pdf-render",
+  "version": "0.1.0",
+  "description": "On-device PDF page rendering (PDFKit)",
+  "main": "index.ts",
+  "license": "MIT",
+  "author": "Play Fast Notes",
+  "homepage": "https://playfastnotes.com"
+}
