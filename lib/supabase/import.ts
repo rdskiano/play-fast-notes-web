@@ -237,14 +237,25 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
     });
   }
 
-  // Native renders pages from the original PDF, so a document with no original
-  // PDF can't be shown on-device. Skip those (and the passages/log rows that
-  // belong to them) and report their titles so the user can re-upload them.
+  // A document is usable on-device if its pages can be shown EITHER way: from an
+  // original PDF (rendered on demand) OR from stored per-page images (image-based
+  // docs, e.g. scanned sets). Only a doc with NEITHER is incompatible — skip it
+  // (and the passages/log rows under it) and report its title for re-upload.
+  // NB: standalone photo passages (document_id null) are NOT documents and are
+  // never gated here — they just carry their own source image.
   const incompatibleDocIds = new Set<string>();
   const incompatible: string[] = [];
   for (const d of tables.documents ?? []) {
     const orig = d.original_uri;
-    if (!(typeof orig === 'string' && orig.trim() !== '')) {
+    const hasPdf = typeof orig === 'string' && orig.trim() !== '';
+    let hasPageImages = false;
+    try {
+      const pgs = JSON.parse((d.pages_json as string) ?? '[]') as { image_uri?: string }[];
+      hasPageImages = pgs.some((p) => typeof p.image_uri === 'string' && p.image_uri.trim() !== '');
+    } catch {
+      // malformed pages_json — treat as no page images
+    }
+    if (!hasPdf && !hasPageImages) {
       incompatibleDocIds.add(d.id as string);
       incompatible.push((d.title as string) || '(untitled)');
     }
