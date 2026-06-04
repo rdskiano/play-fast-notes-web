@@ -239,10 +239,22 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
   await db.withTransactionAsync(async () => {
     for (const t of INSERT_ORDER) {
       const rows = tables[t] ?? [];
+      // The on-device table can have fewer columns than Supabase (the web
+      // schema drifts ahead). Insert only columns that exist locally; dropping
+      // the rest keeps one unknown column from failing the WHOLE table (which
+      // is how passages + practice history silently vanished before). Lost
+      // columns are reported so drift stays visible, not silent.
+      const info = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${t});`);
+      const validCols = new Set(info.map((c) => c.name));
+      const dropped = new Set<string>();
       let inserted = 0;
       for (const row of rows) {
         const r = sanitizeRow(t, row);
-        const cols = Object.keys(r);
+        const cols = Object.keys(r).filter((c) => {
+          if (validCols.has(c)) return true;
+          dropped.add(c);
+          return false;
+        });
         if (cols.length === 0) continue;
         const placeholders = cols.map(() => '?').join(', ');
         const sql = `INSERT INTO ${t} (${cols.join(', ')}) VALUES (${placeholders});`;
@@ -253,6 +265,9 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
         } catch (e) {
           onProgress(`    ✗ ${t} row failed: ${(e as Error).message}`);
         }
+      }
+      if (dropped.size > 0) {
+        onProgress(`    ⚠ ${t}: skipped unknown column(s): ${[...dropped].join(', ')}`);
       }
       counts[t] = inserted;
       onProgress(`  ${t}: inserted ${inserted}/${rows.length}`);

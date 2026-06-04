@@ -160,4 +160,14 @@ export const MIGRATIONS: string[] = [
   DROP TABLE tempo_ladder_progress;
   ALTER TABLE tempo_ladder_progress_new RENAME TO tempo_ladder_progress;
   `,
+  `
+  -- Match columns the web/Supabase side gained so /import-supabase brings the
+  -- full row. Without these the per-row INSERT hit "no such column" and the
+  -- WHOLE table failed to import: pieces.annotation_* meant passages (and their
+  -- on-PDF boxes) never imported; practice_log.document_id meant practice
+  -- history never imported.
+  ALTER TABLE pieces ADD COLUMN annotation_data TEXT;
+  ALTER TABLE pieces ADD COLUMN annotation_image_uri TEXT;
+  ALTER TABLE practice_log ADD COLUMN document_id TEXT;
+  `,
 ];
