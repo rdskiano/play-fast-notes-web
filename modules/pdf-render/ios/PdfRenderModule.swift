@@ -33,8 +33,17 @@ public class PdfRenderModule: Module {
         height: max(1, bounds.height * scale)
       )
 
-      // thumbnail(of:for:) draws the page (handling rotation) into a UIImage.
-      let image = page.thumbnail(of: size, for: .cropBox)
+      // thumbnail(of:for:) draws the page (handling rotation) into a UIImage,
+      // but at the SCREEN scale (2x/3x on Retina) — so its pixel dimensions are
+      // 2-3x `size`. Passage crops use 1x coordinates (pages_json), so a 2x
+      // image makes crops grab the wrong region. Redraw into a scale-1 renderer
+      // so the JPEG is EXACTLY `size` pixels and crop coordinates line up.
+      let thumb = page.thumbnail(of: size, for: .cropBox)
+      let format = UIGraphicsImageRendererFormat.default()
+      format.scale = 1
+      let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+        thumb.draw(in: CGRect(origin: .zero, size: size))
+      }
       guard let data = image.jpegData(compressionQuality: 0.82) else {
         throw PdfRenderError("Failed to encode page \(pageNumber) as JPEG")
       }

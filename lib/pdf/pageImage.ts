@@ -33,7 +33,9 @@ export async function resolvePageImageUri(
     if (!dir.exists) dir.create({ intermediates: true });
 
     // Cache: render each page once, reuse forever (cleared only with the cache).
-    const out = new File(dir, `p${page.index}.jpg`);
+    // The "-s1" version tag invalidates earlier renders that were written at the
+    // Retina screen scale (2x) before the scale-1 fix — those broke passage crops.
+    const out = new File(dir, `p${page.index}-s1.jpg`);
     if (out.exists) return out.uri;
 
     // The renderer needs a local PDF. After /import-supabase the original PDF is
