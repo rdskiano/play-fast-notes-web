@@ -2,6 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import DocumentScanner from 'react-native-document-scanner-plugin';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -9,10 +10,13 @@ import { Colors } from '@/constants/theme';
 import { Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { addPdfDocument } from '@/lib/pdf/addPdfDocument';
+import { addScannedDocument } from '@/lib/scan/addScannedDocument';
 
-// Native "Add a full part (PDF)" screen. Local-first: pick a PDF from Files,
-// save it on-device (the viewer renders pages via the pdf-render module), and
-// sync to the user's Supabase account when signed in. See lib/pdf/addPdfDocument.
+// Native "Add a full part" screen. Local-first, two ways in:
+//  • Choose PDF — pick a PDF from Files (lib/pdf/addPdfDocument).
+//  • Scan pages — camera scan (auto edge-detect + crop), cleaned to B&W
+//    (lib/scan/addScannedDocument).
+// Both save on-device and sync to the user's account when signed in.
 export default function DocumentUploadScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ folder?: string }>();
@@ -21,6 +25,7 @@ export default function DocumentUploadScreen() {
   const C = Colors[scheme];
 
   const [picked, setPicked] = useState<{ uri: string; name: string } | null>(null);
+  const [scanned, setScanned] = useState<string[] | null>(null);
   const [title, setTitle] = useState('');
   const [composer, setComposer] = useState('');
   const [busy, setBusy] = useState(false);
@@ -35,26 +40,52 @@ export default function DocumentUploadScreen() {
     });
     if (res.canceled || !res.assets?.[0]) return;
     const asset = res.assets[0];
+    setScanned(null);
     setPicked({ uri: asset.uri, name: asset.name ?? 'document.pdf' });
-    if (!title.trim()) {
-      setTitle((asset.name ?? '').replace(/\.pdf$/i, ''));
+    if (!title.trim()) setTitle((asset.name ?? '').replace(/\.pdf$/i, ''));
+  }
+
+  async function scanPages() {
+    setError(null);
+    try {
+      const { scannedImages, status } = await DocumentScanner.scanDocument({
+        croppedImageQuality: 100,
+      });
+      if (status !== 'success' || !scannedImages || scannedImages.length === 0) return;
+      setPicked(null);
+      setScanned(scannedImages);
+      if (!title.trim()) setTitle('Scanned music');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     }
   }
 
-  const canAdd = !!picked && title.trim().length > 0 && !busy;
+  const hasSource = !!picked || (scanned?.length ?? 0) > 0;
+  const canAdd = hasSource && title.trim().length > 0 && !busy;
 
   async function onAdd() {
-    if (!canAdd || !picked) return;
+    if (!canAdd) return;
     setBusy(true);
     setError(null);
     try {
-      const { docId } = await addPdfDocument({
-        fileUri: picked.uri,
-        title,
-        composer,
-        folderId,
-        onProgress: setProgress,
-      });
+      let docId: string;
+      if (picked) {
+        ({ docId } = await addPdfDocument({
+          fileUri: picked.uri,
+          title,
+          composer,
+          folderId,
+          onProgress: setProgress,
+        }));
+      } else {
+        ({ docId } = await addScannedDocument({
+          imageUris: scanned!,
+          title,
+          composer,
+          folderId,
+          onProgress: setProgress,
+        }));
+      }
       // Cast: expo-router typed routes regenerate when the dev server starts.
       router.replace(`/document/${docId}` as never);
     } catch (e) {
@@ -67,20 +98,32 @@ export default function DocumentUploadScreen() {
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <ThemedText type="title">Add a full part (PDF)</ThemedText>
+        <ThemedText type="title">Add a full part</ThemedText>
         <ThemedText style={{ opacity: 0.6, fontSize: Type.size.sm }}>
-          Choose a PDF — typically your part for an orchestral work or a multi-page
-          solo. After it&apos;s added you can mark passages directly inside it.
+          Choose a PDF, or scan pages with the camera (auto-cropped and cleaned to
+          black &amp; white). After it&apos;s added you can mark passages inside it.
         </ThemedText>
 
-        <Pressable
-          style={[styles.pickBtn, { backgroundColor: C.tint }]}
-          disabled={busy}
-          onPress={pickPdf}>
-          <ThemedText style={styles.pickText}>
-            {picked ? `Selected: ${picked.name}` : 'Choose PDF'}
+        <View style={styles.btnRow}>
+          <Pressable
+            style={[styles.pickBtn, { backgroundColor: C.tint, flex: 1 }]}
+            disabled={busy}
+            onPress={pickPdf}>
+            <ThemedText style={styles.pickText}>Choose PDF</ThemedText>
+          </Pressable>
+          <Pressable
+            style={[styles.pickBtn, { backgroundColor: C.tint, flex: 1 }]}
+            disabled={busy}
+            onPress={scanPages}>
+            <ThemedText style={styles.pickText}>Scan pages</ThemedText>
+          </Pressable>
+        </View>
+
+        {(picked || scanned) && (
+          <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.8 }}>
+            {picked ? `Selected: ${picked.name}` : `Scanned: ${scanned!.length} page(s)`}
           </ThemedText>
-        </Pressable>
+        )}
 
         <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.7 }}>Title</ThemedText>
         <TextInput
@@ -129,6 +172,7 @@ export default function DocumentUploadScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { padding: 20, gap: Spacing.md },
+  btnRow: { flexDirection: 'row', gap: Spacing.md },
   pickBtn: {
     borderRadius: Radii.md,
     paddingVertical: 14,

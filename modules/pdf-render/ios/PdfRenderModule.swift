@@ -1,3 +1,4 @@
+import CoreImage
 import ExpoModulesCore
 import PDFKit
 import UIKit
@@ -80,6 +81,37 @@ public class PdfRenderModule: Module {
         ])
       }
       return sizes
+    }
+
+    // Clean up a scanned page for a "black & white document" look: drop colour
+    // and lift contrast a touch (what iOS's own scanner B&W filter effectively
+    // does). Kept as grayscale-with-contrast rather than 1-bit threshold so thin
+    // staff lines survive. Writes a JPEG to outputUri; returns its pixel size.
+    AsyncFunction("enhanceScan") { (uri: String, outputUri: String) -> [String: Double] in
+      let inURL = PdfRenderModule.fileURL(from: uri)
+      guard let input = CIImage(contentsOf: inURL) else {
+        throw PdfRenderError("Could not read scanned image at \(uri)")
+      }
+      let processed = input.applyingFilter("CIColorControls", parameters: [
+        kCIInputSaturationKey: 0.0,
+        kCIInputContrastKey: 1.15,
+        kCIInputBrightnessKey: 0.0,
+      ])
+      let context = CIContext(options: nil)
+      guard let cg = context.createCGImage(processed, from: processed.extent) else {
+        throw PdfRenderError("Failed to process scanned image")
+      }
+      let image = UIImage(cgImage: cg)
+      guard let data = image.jpegData(compressionQuality: 0.85) else {
+        throw PdfRenderError("Failed to encode enhanced scan")
+      }
+      let outURL = PdfRenderModule.fileURL(from: outputUri)
+      do {
+        try data.write(to: outURL, options: .atomic)
+      } catch {
+        throw PdfRenderError("Failed to write enhanced scan: \(error.localizedDescription)")
+      }
+      return ["width": Double(cg.width), "height": Double(cg.height)]
     }
   }
 

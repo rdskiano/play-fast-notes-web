@@ -24,6 +24,9 @@ type PdfRenderNative = {
   // Per-page dimensions (1-based index) without rasterizing, scaled so the long
   // edge equals maxEdge — for building pages_json when adding a PDF on-device.
   getPageSizes(pdfUri: string, maxEdge: number): Promise<PdfPageSize[]>;
+  // Grayscale + contrast a scanned page (clean B&W document look). Writes a JPEG
+  // to outputUri and returns its pixel { width, height }.
+  enhanceScan(uri: string, outputUri: string): Promise<{ width: number; height: number }>;
 };
 
 let native: PdfRenderNative | null = null;
@@ -61,4 +64,17 @@ export async function getPdfPageSizes(
 ): Promise<PdfPageSize[] | null> {
   if (!native) return null;
   return native.getPageSizes(pdfUri, maxEdge);
+}
+
+/**
+ * Grayscale + contrast a scanned page image (clean B&W document look). Writes a
+ * JPEG to `outputUri`. Returns its pixel size, or `null` if the native module
+ * isn't available.
+ */
+export async function enhanceScan(
+  uri: string,
+  outputUri: string,
+): Promise<{ width: number; height: number } | null> {
+  if (!native) return null;
+  return native.enhanceScan(uri, outputUri);
 }
