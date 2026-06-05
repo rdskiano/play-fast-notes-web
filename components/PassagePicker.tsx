@@ -11,6 +11,7 @@ import {
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -208,7 +209,11 @@ export function PassagePicker({
   // Arrow-key navigation on desktop, mirroring the document viewer. Bails
   // out when typing into a text input so we don't fight form fields.
   useEffect(() => {
-    if (loc.kind !== 'document' || typeof window === 'undefined') return;
+    // Desktop keyboard nav only. `typeof window` is NOT a safe native guard —
+    // React Native defines a `window` global without `addEventListener`, so on
+    // iOS this used to call `window.addEventListener` → "undefined is not a
+    // function" (crashed Rep Rotator the moment a PDF opened in the picker).
+    if (loc.kind !== 'document' || Platform.OS !== 'web') return;
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
