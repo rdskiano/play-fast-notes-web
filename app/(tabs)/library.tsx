@@ -240,20 +240,24 @@ function PassageCard({
   onDelete,
 }: PassageCardProps) {
   const thumbStyle = isPhone ? styles.thumbPhone : styles.thumb;
+  // Prefer the dedicated thumbnail, but if it fails to load (missing/broken
+  // file — e.g. a cropped photo whose thumbnail file didn't get written), fall
+  // back to the full source image, which is the same file the passage displays.
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const thumbUri =
+    !thumbFailed && passage.thumbnail_uri ? passage.thumbnail_uri : passage.source_uri;
   return (
     <Pressable
       onPress={editMode ? undefined : onOpen}
       onLongPress={editMode ? undefined : onLongPress}
       delayLongPress={400}
       style={[isPhone ? styles.cardPhone : styles.card, { borderColor }]}>
-      {passage.thumbnail_uri || passage.source_uri ? (
+      {thumbUri ? (
         <Image
-          // Fall back to the full source image when there's no dedicated
-          // thumbnail (e.g. a freshly added/cropped photo whose thumbnail_uri
-          // didn't get set) so the row always shows the passage, not a blank.
-          source={{ uri: passage.thumbnail_uri || passage.source_uri }}
+          source={{ uri: thumbUri }}
           style={thumbStyle}
           contentFit="cover"
+          onError={() => setThumbFailed(true)}
         />
       ) : (
         <View style={[thumbStyle, { backgroundColor: tintColor + '11' }]} />
