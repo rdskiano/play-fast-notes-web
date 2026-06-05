@@ -67,8 +67,8 @@ export function RhythmBar({
   // Merged header (has leading/trailing) gets a taller, larger-scale staff
   // since it has the room; the portrait band stays a touch smaller.
   const merged = Boolean(leading || trailing);
-  const notationH = merged ? 80 : compact ? 60 : 68;
-  const notationScale = merged ? 1.6 : compact ? 1.3 : 1.4;
+  const notationH = merged ? 56 : compact ? 60 : 68;
+  const notationScale = merged ? 1.15 : compact ? 1.3 : 1.4;
 
   function onNotationLayout(e: LayoutChangeEvent) {
     const w = Math.round(e.nativeEvent.layout.width);
