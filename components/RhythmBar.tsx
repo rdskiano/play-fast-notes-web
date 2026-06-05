@@ -63,12 +63,14 @@ export function RhythmBar({
   // Measured width of the flexible notation slot — feeds AbcStaffView so the
   // staff fills whatever room is left between the buttons on any screen.
   const [notationW, setNotationW] = useState(0);
-  const abc = useMemo(() => buildRhythmAbc(pattern), [pattern]);
+  const abc = useMemo(() => buildRhythmAbc(pattern, { bare: true }), [pattern]);
   // Merged header (has leading/trailing) gets a taller, larger-scale staff
   // since it has the room; the portrait band stays a touch smaller.
+  // Sizes validated against the bare (clef-less) notation: the staff sits on a
+  // single line and the time signature reads clearly at scale ~1.1 in ~56px.
   const merged = Boolean(leading || trailing);
-  const notationH = merged ? 48 : compact ? 50 : 54;
-  const notationScale = merged ? 1.0 : compact ? 1.0 : 1.1;
+  const notationH = merged ? 56 : compact ? 56 : 60;
+  const notationScale = merged ? 1.1 : compact ? 1.1 : 1.2;
 
   function onNotationLayout(e: LayoutChangeEvent) {
     const w = Math.round(e.nativeEvent.layout.width);

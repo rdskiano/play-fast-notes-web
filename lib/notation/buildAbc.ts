@@ -102,9 +102,17 @@ export function computeBeatBoundaries(
   return empty;
 }
 
-export function buildRhythmAbc(pattern: RhythmPattern): string {
+export function buildRhythmAbc(
+  pattern: RhythmPattern,
+  opts?: { bare?: boolean },
+): string {
+  // `bare` strips the treble clef and drops to a single staff line, rendering
+  // the pattern as a pure rhythm (the clef + 5-line staff just waste space and
+  // read like a melody). The notehead sits on the single middle line (pitch B)
+  // so it reads as conventional rhythm notation. Used by the compact RhythmBar.
+  const bare = opts?.bare ?? false;
   const noBeam = pattern.beaming === '0';
-  const pitch = 'd';
+  const pitch = bare ? 'B' : 'd';
 
   // Compute beat-boundary positions (in ×3 units for triplet compat).
   // Spaces are inserted at these cumulative-duration marks.
@@ -186,6 +194,7 @@ export function buildRhythmAbc(pattern: RhythmPattern): string {
     if (noBeam && gi < groups.length - 1) body += ' ';
   }
 
-  const head = ['X:1', `M:${pattern.timeSig}`, 'L:1/32', 'K:C'].join('\n');
+  const kLine = bare ? 'K:C clef=none stafflines=1' : 'K:C';
+  const head = ['X:1', `M:${pattern.timeSig}`, 'L:1/32', kLine].join('\n');
   return `${head}\n|${body}|`;
 }
