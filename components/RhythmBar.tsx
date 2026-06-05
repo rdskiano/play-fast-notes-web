@@ -3,19 +3,23 @@
 // Replaces the old floating, draggable, pinch-to-resize FloatingRhythmCard —
 // the only floating overlay on the screen that wasn't an actual practice tool.
 //
+// Control cluster order: [▶ Loop] [←] [ music ] [→] — Loop on the far left,
+// Back / Forward flanking the music tightly on each side.
+//
 // Two layouts, driven by the parent:
-//   • Landscape — passed `leading` (EXIT + grouping chip) and `trailing` (DONE)
-//     so the notation + controls live *in* the title row. Wide screens have
-//     width to spare and height to save, so this reclaims the whole separate
-//     band and lets the notation render large.
-//   • Portrait — a plain band docked under the normal top bar (no leading/
-//     trailing). Vertical space is plentiful there, so a band is fine.
+//   • Landscape (merged) — passed `leading` (EXIT + grouping chip) and
+//     `trailing` (DONE); the cluster sits centered between them in the title
+//     row, reclaiming the separate band.
+//   • Portrait (band) — a plain docked band; the cluster is centered.
+//
+// The music is sized to its own content (estimated from the note count) so the
+// flanking arrows hug it instead of leaving a long empty staff line.
 //
 // One unified file (no .web.tsx): notation renders through the already-split
 // AbcStaffView + buildRhythmAbc, so both web and native work via one call.
 
-import { useMemo, useState, type ReactNode } from 'react';
-import { type LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
+import { useMemo, type ReactNode } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
@@ -60,33 +64,75 @@ export function RhythmBar({
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const insets = useSafeAreaInsets();
-  // Measured width of the flexible notation slot — feeds AbcStaffView so the
-  // staff fills whatever room is left between the buttons on any screen.
-  const [notationW, setNotationW] = useState(0);
   const abc = useMemo(() => buildRhythmAbc(pattern, { bare: true }), [pattern]);
-  // Merged header (has leading/trailing) gets a taller, larger-scale staff
-  // since it has the room; the portrait band stays a touch smaller.
-  // Sizes validated against the bare (clef-less) notation: the staff sits on a
-  // single line and the time signature reads clearly at scale ~1.1 in ~56px.
+
+  // Merged (landscape title row) vs band (portrait dock). Sizes validated
+  // against the bare (clef-less) notation: single line, time signature legible.
   const merged = Boolean(leading || trailing);
   const notationH = merged ? 56 : compact ? 56 : 60;
   const notationScale = merged ? 1.1 : compact ? 1.1 : 1.2;
-  // Band (no leading/trailing): center the control cluster instead of spreading
-  // it edge-to-edge. On a wide screen (iPad) flex:1 would push Back to the far
-  // left and Loop/Next to the far right with a big empty gap in the middle —
-  // capping the notation width + centering keeps the cluster together.
-  const band = !merged;
 
-  function onNotationLayout(e: LayoutChangeEvent) {
-    const w = Math.round(e.nativeEvent.layout.width);
-    setNotationW((prev) => (Math.abs(prev - w) < 1 ? prev : w));
-  }
+  // Size the staff to its own content (note count × scale) so the flanking
+  // arrows hug it. AbcStaffView fills its `width` and renders the staff at
+  // width-10 on both platforms (web sets the svg to its bbox + clips; native's
+  // WebView clamps to width), so one value drives both the wrapper and the
+  // staff. A too-large width was what left the big empty gap on iPad.
+  const notationW = Math.round(
+    Math.max(150, Math.min((50 + pattern.notes.length * 42) * (notationScale / 1.1), 480)),
+  );
+
+  const loopBtn = (
+    <Pressable
+      onPress={onToggleRhythm}
+      hitSlop={6}
+      accessibilityLabel={rhythmLooping ? 'Stop rhythm' : 'Loop rhythm'}
+      style={[styles.loopBtn, { backgroundColor: rhythmLooping ? '#c0392b' : C.tint }]}>
+      <ThemedText style={styles.loopText}>
+        {rhythmLooping ? '■' : '▶'}
+        {compact ? '' : rhythmLooping ? ' Stop' : ' Loop'}
+      </ThemedText>
+    </Pressable>
+  );
+
+  const cluster = (
+    <View style={styles.cluster}>
+      {loopBtn}
+      <Pressable
+        onPress={onPrev}
+        disabled={!canPrev}
+        hitSlop={6}
+        accessibilityLabel="Previous pattern"
+        style={[styles.navBtn, { borderColor: C.tint, opacity: canPrev ? 1 : 0.3 }]}>
+        <ThemedText style={[styles.navText, { color: C.tint }]}>←</ThemedText>
+      </Pressable>
+
+      <View style={{ width: notationW, height: notationH, justifyContent: 'center' }}>
+        <AbcStaffView
+          abc={abc}
+          width={notationW}
+          height={notationH}
+          scale={notationScale}
+          centered
+          fallbackText={pattern.notes.join('  ·  ')}
+        />
+      </View>
+
+      <Pressable
+        onPress={onNext}
+        disabled={!canNext}
+        hitSlop={6}
+        accessibilityLabel="Next pattern"
+        style={[styles.navBtn, styles.nextBtn, { opacity: canNext ? 1 : 0.4 }]}>
+        <ThemedText style={[styles.navText, { color: '#fff' }]}>→</ThemedText>
+      </Pressable>
+    </View>
+  );
 
   return (
     <View
       style={[
         styles.bar,
-        band && styles.barCentered,
+        merged ? styles.barSpread : styles.barCentered,
         withSafeArea && {
           paddingTop: insets.top,
           paddingLeft: Spacing.md + insets.left,
@@ -98,51 +144,7 @@ export function RhythmBar({
         },
       ]}>
       {leading}
-
-      <Pressable
-        onPress={onPrev}
-        disabled={!canPrev}
-        hitSlop={6}
-        accessibilityLabel="Previous pattern"
-        style={[styles.navBtn, { borderColor: C.tint, opacity: canPrev ? 1 : 0.3 }]}>
-        <ThemedText style={[styles.navText, { color: C.tint }]}>←</ThemedText>
-      </Pressable>
-
-      <View
-        style={[styles.notation, band && styles.notationBand]}
-        onLayout={onNotationLayout}>
-        {notationW > 0 && (
-          <AbcStaffView
-            abc={abc}
-            width={notationW}
-            height={notationH}
-            scale={notationScale}
-            centered
-            fallbackText={pattern.notes.join('  ·  ')}
-          />
-        )}
-      </View>
-
-      <Pressable
-        onPress={onToggleRhythm}
-        hitSlop={6}
-        accessibilityLabel={rhythmLooping ? 'Stop rhythm' : 'Loop rhythm'}
-        style={[styles.loopBtn, { backgroundColor: rhythmLooping ? '#c0392b' : C.tint }]}>
-        <ThemedText style={styles.loopText}>
-          {rhythmLooping ? '■' : '▶'}
-          {compact ? '' : rhythmLooping ? ' Stop' : ' Loop'}
-        </ThemedText>
-      </Pressable>
-
-      <Pressable
-        onPress={onNext}
-        disabled={!canNext}
-        hitSlop={6}
-        accessibilityLabel="Next pattern"
-        style={[styles.navBtn, styles.nextBtn, { opacity: canNext ? 1 : 0.4 }]}>
-        <ThemedText style={[styles.navText, { color: '#fff' }]}>→</ThemedText>
-      </Pressable>
-
+      {cluster}
       {trailing}
     </View>
   );
@@ -157,11 +159,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  // Band: center the whole cluster. Merged: spread leading | cluster | trailing
+  // so EXIT/grouping sit left, DONE right, and the cluster lands in the middle.
   barCentered: { justifyContent: 'center' },
-  notation: { flex: 1, justifyContent: 'center' },
-  // Band: cap the staff so it doesn't stretch full-width on iPad; the row then
-  // centers the whole cluster (see barCentered) instead of edge-spreading it.
-  notationBand: { maxWidth: 460 },
+  barSpread: { justifyContent: 'space-between' },
+  cluster: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   navBtn: {
     minWidth: 48,
     borderWidth: Borders.thick,
