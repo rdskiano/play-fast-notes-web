@@ -96,13 +96,20 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
       };
     }, [editable, initialData]);
 
-    // Select a solid pen at the given width. Separate from the restore effect
-    // so a width change (it settles once the canvas measures its scale) doesn't
-    // reload the drawing and wipe unsaved strokes.
+    // Select a solid pen ONCE per edit session — then leave the tool alone so
+    // the user's own picks (eraser, a different colour/width) stick. Re-setting
+    // on every penWidth recompute was silently flipping the eraser back to pen,
+    // so erasing "sometimes didn't work".
+    const toolInit = useRef(false);
     useEffect(() => {
-      if (!editable) return;
+      if (!editable) {
+        toolInit.current = false;
+        return;
+      }
+      if (toolInit.current) return;
       const t = setTimeout(() => {
         pk.current?.setTool({ toolType: 'pen', width: penWidth });
+        toolInit.current = true;
       }, 0);
       return () => clearTimeout(t);
     }, [editable, penWidth]);
