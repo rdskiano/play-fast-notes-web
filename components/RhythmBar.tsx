@@ -71,6 +71,11 @@ export function RhythmBar({
   const merged = Boolean(leading || trailing);
   const notationH = merged ? 56 : compact ? 56 : 60;
   const notationScale = merged ? 1.1 : compact ? 1.1 : 1.2;
+  // Band (no leading/trailing): center the control cluster instead of spreading
+  // it edge-to-edge. On a wide screen (iPad) flex:1 would push Back to the far
+  // left and Loop/Next to the far right with a big empty gap in the middle —
+  // capping the notation width + centering keeps the cluster together.
+  const band = !merged;
 
   function onNotationLayout(e: LayoutChangeEvent) {
     const w = Math.round(e.nativeEvent.layout.width);
@@ -81,6 +86,7 @@ export function RhythmBar({
     <View
       style={[
         styles.bar,
+        band && styles.barCentered,
         withSafeArea && {
           paddingTop: insets.top,
           paddingLeft: Spacing.md + insets.left,
@@ -102,7 +108,9 @@ export function RhythmBar({
         <ThemedText style={[styles.navText, { color: C.tint }]}>←</ThemedText>
       </Pressable>
 
-      <View style={styles.notation} onLayout={onNotationLayout}>
+      <View
+        style={[styles.notation, band && styles.notationBand]}
+        onLayout={onNotationLayout}>
         {notationW > 0 && (
           <AbcStaffView
             abc={abc}
@@ -149,7 +157,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  barCentered: { justifyContent: 'center' },
   notation: { flex: 1, justifyContent: 'center' },
+  // Band: cap the staff so it doesn't stretch full-width on iPad; the row then
+  // centers the whole cluster (see barCentered) instead of edge-spreading it.
+  notationBand: { maxWidth: 460 },
   navBtn: {
     minWidth: 48,
     borderWidth: Borders.thick,
