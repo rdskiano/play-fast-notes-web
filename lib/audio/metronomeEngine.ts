@@ -208,6 +208,10 @@ export class MetronomeEngine {
   private pitchBeatDenom = 4;
   private pitchIdx = 0;
   private pitchNextStart = 0;
+  // Fixed beat-grid origin of the current pitch sequence (stays put while
+  // pitchNextStart advances). Lets a metronome STARTED mid-playback phase-align
+  // its clicks onto the exercise's beats. See computeMetronomeStartTime.
+  private pitchGridStart = 0;
   private pitchTimer: ReturnType<typeof setTimeout> | null = null;
   private pitchOnEnd: (() => void) | null = null;
 
@@ -301,7 +305,11 @@ export class MetronomeEngine {
     if (!this.ctx) return;
     try {
       this.subCount = 0;
-      this.nextNoteTime = this.ctx.currentTime + 0.05;
+      // If an exercise / rhythm loop is already playing, drop the first click
+      // (a downbeat, since subCount is 0) onto its grid so the click lines up
+      // with the playback — the "start playback first, then the metronome"
+      // direction. Otherwise just start now.
+      this.nextNoteTime = this.computeMetronomeStartTime();
     } catch {
       this.unavailable = true;
       this.ctx = null;
@@ -402,11 +410,16 @@ export class MetronomeEngine {
     this.pitchOnEnd = onEnd ?? null;
     // Align first pitch with the next metronome downbeat if it's running,
     // so the exercise lines up with the click track audibly.
-    this.pitchNextStart = this.computePitchStartTime();
+    this.pitchNextStart = this.computeAlignedStart();
+    this.pitchGridStart = this.pitchNextStart;
     this.pitchTick();
   }
 
-  private computePitchStartTime(): number {
+  // Start time for playback (pitch sequence OR rhythm loop) that aligns it to
+  // the metronome's next downbeat when the metronome is running — the
+  // "metronome first, then playback" direction. Falls back to ~now when the
+  // metronome is stopped.
+  private computeAlignedStart(): number {
     if (!this.ctx) return 0;
     const defaultStart = this.ctx.currentTime + 0.08;
     if (!this.running) return defaultStart;
@@ -425,6 +438,45 @@ export class MetronomeEngine {
       downbeat += ticksPerMeasure * tickSec;
     }
     return downbeat;
+  }
+
+  // Start time for the metronome's first click (a downbeat — start() resets
+  // subCount to 0) that aligns it to already-running playback — the "playback
+  // first, then metronome" direction. Pitch sequence: phase-lock the click onto
+  // the exercise's beat grid (origin = pitchGridStart, one beat = 60/bpm, the
+  // BPM convention that also drives computeAlignedStart). Rhythm loop: land on
+  // the loop's next cycle downbeat. Falls back to ~now when nothing's playing.
+  private computeMetronomeStartTime(): number {
+    if (!this.ctx) return 0;
+    const earliest = this.ctx.currentTime + 0.05;
+
+    if (this.pitchTokens && this.pitchGate) {
+      const secondsPerBeat = 60 / this._bpm;
+      if (secondsPerBeat > 0) {
+        const origin = this.pitchGridStart;
+        const k = Math.ceil((earliest - origin) / secondsPerBeat);
+        const t = origin + k * secondsPerBeat;
+        return t < earliest ? t + secondsPerBeat : t;
+      }
+    }
+
+    if (this.rhythmTokens && this.rhythmGate) {
+      const secondsPerQuarter = (60 / this._bpm) * (this.rhythmBeatDenom / 4);
+      let cycleSec = 0;
+      for (const tok of this.rhythmTokens) {
+        cycleSec += (TOKEN_QUARTER_FRACTIONS[tok] ?? 1) * secondsPerQuarter;
+      }
+      if (cycleSec > 0) {
+        // rhythmNextStart is the next cycle (downbeat) to be scheduled; walk it
+        // back to the soonest downbeat that's still schedulable.
+        let t = this.rhythmNextStart;
+        while (t - cycleSec >= earliest) t -= cycleSec;
+        while (t < earliest) t += cycleSec;
+        return t;
+      }
+    }
+
+    return earliest;
   }
 
   private pitchTick = () => {
@@ -558,7 +610,9 @@ export class MetronomeEngine {
       gate.gain.value = 1;
       gate.connect(this.ctx.destination);
       this.rhythmGate = gate;
-      this.rhythmNextStart = this.ctx.currentTime + 0.08;
+      // Start the loop on the metronome's next downbeat when it's running, so
+      // the loop locks to the click — the "metronome first, then loop" direction.
+      this.rhythmNextStart = this.computeAlignedStart();
     } catch {
       this.unavailable = true;
       this.ctx = null;
