@@ -4,7 +4,15 @@ This is **the unified Play Fast Notes codebase** — one Expo project that targe
 
 The user is **not a developer**. Always give them one-word terminal shortcuts (e.g. `playfast`, `playweb`), never long `cd ... && npx ...` lines that break on paste due to spaces in paths.
 
-> **🔄 Status as of 2026-05-24 — web cutover DONE; iPad cutover pending.** `playfastnotes.com` now ships from THIS repo. The remote `web-origin-archive` (alias name kept from before cutover, despite the misleading word "archive") points at `rdskiano/play-fast-notes-web` — Vercel auto-deploys its `master`. So `git push web-origin-archive master` IS a live deploy. Treat it that way: smoke-test the web build before pushing. The physical iPad still runs Xcode-built dev clients from `learn-fast-notes/` — that side of the cutover hasn't happened yet. EAS is wired to this repo (slug `learn-fast-notes`, project `c2ba6a6f…`) and will build from here whenever we run `playbuild` / `playpreview`. **Most recent workstream (2026-05-23 → 24): web parity, phone density, timer overhaul, keyboard advance.** See ROADMAP.md for the full log. **Current workstream**: friend-test the live web build, then iPad cutover, then Stripe (Phase 4.4.2).
+> **🔄 Status as of 2026-06-04 — web cutover DONE; iPad cutover DONE.** `playfastnotes.com` ships from THIS repo. The remote `web-origin-archive` (alias name kept from before cutover, despite the misleading word "archive") points at `rdskiano/play-fast-notes-web` — Vercel auto-deploys its `master`. So `git push web-origin-archive master` IS a live deploy. Treat it that way: smoke-test the web build before pushing.
+>
+> **iPad cutover complete (2026-06-03/04).** Both iPad + iPhone run the merged repo via EAS preview build (slug `learn-fast-notes`, project `c2ba6a6f…`) + free OTA updates. Old `../learn-fast-notes/` is archived → `../learn-fast-notes-archive/`. PDFs render on-device (PDFKit via local `modules/pdf-render`), passages crop correctly, import brings boxes + history + photos, and you can add music three ways (photo: choose/take · full part: pick PDF or scan). Bug-by-bug log + current handoff state in the memory note `project_ipad_cutover_pageturn`.
+>
+> **⚡ ITERATE VIA OTA, NOT BUILDS.** The user's EAS build quota is limited. For JS-only changes: `npx eas-cli update --channel preview --message "..."` (FREE, no build; user relaunches twice to apply). Only run `playpreview`/`playbuild` when NATIVE code changes (new module, permission, podspec, app.json native config). See memory `project_playfastnotes_ota_updates`.
+>
+> **Heads-up for next session:** as of 2026-06-04 there were **8 unpushed commits** (HEAD `3af1492`) — the post-cutover batch (scan, photo-add, annotation-zoom, resize fix, metronome bidirectional sync, notation auto-height, thumbnail fallbacks). All native-only / web-safe; push with `git push web-origin-archive master` for backup. Devices already have them via build+OTA.
+>
+> **Current workstream**: push the batch, then Stripe (Phase 4.4.2). **Earlier workstream (2026-05-23 → 24): web parity, phone density, timer overhaul, keyboard advance.** See ROADMAP.md for the full log.
 
 ## Where this lives
 
