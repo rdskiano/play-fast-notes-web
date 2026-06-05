@@ -36,6 +36,10 @@ export type PencilCanvasProps = {
   editable: boolean;
   /** Which inputs draw. 'pencilonly' lets a finger still scroll / page. */
   drawingPolicy?: 'default' | 'anyinput' | 'pencilonly';
+  /** Pen width in the canvas's OWN pixel space. For a page-resolution canvas
+   *  scaled down on screen (the PDF viewer), this must be large or the thin
+   *  on-screen stroke renders dotted in the live canvas. Defaults to 3. */
+  penWidth?: number;
   /** Fires after each user edit — not the initial restore of `initialData`. */
   onChange?: () => void;
   style?: StyleProp<ViewStyle>;
@@ -48,6 +52,7 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
       imageUri,
       editable,
       drawingPolicy = 'anyinput',
+      penWidth = 3,
       onChange,
       style,
     },
@@ -76,10 +81,6 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
       // the pencil tool, and pop Apple's tool picker.
       const t = setTimeout(() => {
         if (initialData) pk.current?.loadBase64Data(initialData);
-        // Solid pen (not the light/grainy 'pencil') so finger marks show up
-        // boldly. width 3 ≈ the second-thinnest preset. The tool picker stays
-        // open so the user can change thickness/colour.
-        pk.current?.setTool({ toolType: 'pen', width: 3 });
         pk.current?.showToolPicker();
       }, 0);
       // Restoring a drawing fires its own change event — wait it out before
@@ -94,6 +95,17 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
         pk.current?.hideToolPicker();
       };
     }, [editable, initialData]);
+
+    // Select a solid pen at the given width. Separate from the restore effect
+    // so a width change (it settles once the canvas measures its scale) doesn't
+    // reload the drawing and wipe unsaved strokes.
+    useEffect(() => {
+      if (!editable) return;
+      const t = setTimeout(() => {
+        pk.current?.setTool({ toolType: 'pen', width: penWidth });
+      }, 0);
+      return () => clearTimeout(t);
+    }, [editable, penWidth]);
 
     const handleDrawingChange = useCallback(() => {
       if (settled.current) onChange?.();

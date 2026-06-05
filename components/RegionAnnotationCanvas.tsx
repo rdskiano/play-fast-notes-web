@@ -37,6 +37,11 @@ export function RegionAnnotationCanvas({
       : null;
   // Page pixels -> on-screen points, sized so the region fills the score rect.
   const scale = drawn && region.w > 0 ? drawn.w / region.w : 0;
+  // The canvas is drawn at page resolution then scaled DOWN by `scale`, so a
+  // pen width set in page pixels is far thinner on screen. Convert a target
+  // on-screen width (~4 pt) into page pixels so the live stroke stays solid
+  // (a thin on-screen line renders dotted in the downscaled live canvas).
+  const penWidth = scale > 0 ? Math.min(60, Math.max(6, Math.round(4 / scale))) : 12;
 
   return (
     <View
@@ -74,6 +79,7 @@ export function RegionAnnotationCanvas({
               ref={canvasRef}
               editable
               initialData={pageData}
+              penWidth={penWidth}
               onChange={onChange}
               style={StyleSheet.absoluteFill}
             />
