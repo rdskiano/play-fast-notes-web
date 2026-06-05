@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 're
 
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
-import { FloatingRhythmCard } from '@/components/FloatingRhythmCard';
+import { RhythmBar } from '@/components/RhythmBar';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
@@ -231,12 +231,23 @@ export default function RhythmicScreen() {
         }
       />
 
-      {phase === 'playing' && (
+      {phase === 'playing' && grouping && patterns.length > 0 && (
+        <RhythmBar
+          pattern={patterns[currentIndex]}
+          rhythmLooping={metronome.rhythmLooping}
+          onToggleRhythm={toggleRhythm}
+          onPrev={onPrev}
+          onNext={onNext}
+          canPrev={currentIndex > 0}
+          canNext={currentIndex < patterns.length - 1}
+          compact={isPhone}
+        />
+      )}
+
+      {phase === 'playing' && !isPhone && (
         <ThemedText style={styles.playHelper}>
-          Apply the rhythm pattern shown in the floating card to your passage. Tap
-          Loop to hear it, then play along with the metronome from the edge tab.
-          Use ← → to cycle patterns. Long-press the card to drag, or pinch to
-          resize.
+          Play your passage in this rhythm — ▶ Loop to hear it, ← → to change
+          patterns, then play along with the metronome from the edge tab.
         </ThemedText>
       )}
 
@@ -358,20 +369,6 @@ export default function RhythmicScreen() {
         </Pressable>
       )}
 
-      {phase === 'playing' && grouping && patterns.length > 0 && (
-        <FloatingRhythmCard
-          pattern={patterns[currentIndex]}
-          patternIndex={currentIndex}
-          patternCount={patterns.length}
-          rhythmLooping={metronome.rhythmLooping}
-          onToggleRhythm={toggleRhythm}
-          onPrev={onPrev}
-          onNext={onNext}
-          canPrev={currentIndex > 0}
-          canNext={currentIndex < patterns.length - 1}
-        />
-      )}
-
       {/* Keyboard / foot-pedal advance: Space, Enter, Page Down, ArrowDown
           (or any pedal key) call onNext, the same action as the card's
           Next → button. Silent during the config / grouping-picker overlay
@@ -410,7 +407,7 @@ export default function RhythmicScreen() {
           title="Rhythmic Variation"
           body={
             "Play the passage with a different rhythm pattern each time — dotted, swung, reversed, anything that breaks your default groove. Strengthens internal pulse and exposes weak spots that playing as written can hide.\n\n" +
-            "The floating rhythm card shows the current pattern: tap ▶ Loop to hear it (■ Stop to silence it), and ← Prev / Next → to move through the patterns. Long-press the card to drag it, or pinch to resize.\n\n" +
+            "The rhythm bar across the top shows the current pattern: tap ▶ Loop to hear it (■ Stop to silence it), and ← / → to move through the patterns. The music fills the rest of the screen — pinch to zoom in on the notes.\n\n" +
             "Use the N-note ▾ chip in the top bar to switch to a different note grouping, and DONE to finish and log the session. Best when you already know the notes and want to even out your technique." +
             `\n\n${PRACTICE_TOOLS_HELP}`
           }
@@ -437,7 +434,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#00000066',
     padding: 20,
-    // Sit above FloatingRhythmCard and the floating practice tools so the
+    // Sit above the rhythm bar and the floating practice tools so the
     // picker modal cleanly covers them.
     zIndex: 500,
   },
