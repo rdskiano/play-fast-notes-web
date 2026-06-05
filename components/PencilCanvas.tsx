@@ -76,7 +76,10 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
       // the pencil tool, and pop Apple's tool picker.
       const t = setTimeout(() => {
         if (initialData) pk.current?.loadBase64Data(initialData);
-        pk.current?.setTool({ toolType: 'pencil' });
+        // Solid pen (not the light/grainy 'pencil') so finger marks show up
+        // boldly. width 3 ≈ the second-thinnest preset. The tool picker stays
+        // open so the user can change thickness/colour.
+        pk.current?.setTool({ toolType: 'pen', width: 3 });
         pk.current?.showToolPicker();
       }, 0);
       // Restoring a drawing fires its own change event — wait it out before
