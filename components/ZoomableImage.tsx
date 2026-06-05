@@ -113,11 +113,12 @@ type Props = {
    *  annotating). On a finger-only phone the pan gesture would otherwise
    *  swallow the drawing stroke. Defaults to true. */
   gesturesEnabled?: boolean;
-  /** Draw mode (phone Apple-Pencil-on-a-finger): keep two-finger PINCH zoom
-   *  live, but turn OFF one-finger pan + double-tap so a single finger passes
-   *  through to the drawing canvas overlay. So: one finger draws, two fingers
-   *  zoom. (On iPad the Pencil input is distinct, so leave this false there and
-   *  let the finger pan normally.) */
+  /** Draw mode (phone, finger drawing): turn OFF all zoom/pan gestures so the
+   *  finger reaches the drawing canvas and the stroke isn't chopped by the
+   *  gesture recognizer (which made strokes dotted/faint). The zoom transform
+   *  persists, so the flow is: position with zoom/pan (pencil off), then draw
+   *  (pencil on). Two-finger-zoom-while-drawing was tried and reverted — the
+   *  pinch recognizer fought PencilKit for the touch. */
   drawMode?: boolean;
   /** Fires (on the JS thread) when the zoom crosses in/out of ~1×. Lets a
    *  parent disable a surrounding horizontal pager while zoomed, so one-finger
@@ -205,7 +206,7 @@ export function ZoomableImage({
   }
 
   const pinch = Gesture.Pinch()
-    .enabled(gesturesEnabled)
+    .enabled(gesturesEnabled && !drawMode)
     .onStart(() => {
       'worklet';
       startScale.value = scale.value;
