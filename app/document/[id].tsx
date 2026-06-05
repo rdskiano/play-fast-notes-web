@@ -52,6 +52,7 @@ import { getSetting, setSetting } from '@/lib/db/repos/settings';
 const PDF_BOX_COACHED_KEY = 'pdfBox.coached';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import {
   getDocument,
   parsePages,
@@ -101,6 +102,10 @@ export default function DocumentScreen() {
   // Phone density: tight icon-only header so the title + tool buttons
   // don't pile on top of each other in narrow viewports.
   const isPhone = Math.min(width, height) < 600;
+  // Touch surfaces (iPhone + iPad, and iPad Safari on web) get pinch-zoom of
+  // the page; mouse-only laptops don't (no pinch gesture, and they have the
+  // framed static view instead).
+  const isTouch = useIsTouchDevice();
 
   const [doc, setDoc] = useState<DocumentRow | null | undefined>(undefined);
   const [pages, setPages] = useState<DocumentPage[]>([]);
@@ -227,11 +232,11 @@ export default function DocumentScreen() {
   // DocumentPage.index (so `p.index === currentPage` picks the visible page).
   const currentPage = currentIndex * (viewMode === 'spread' ? 2 : 1) + 1;
   const docAnn = useDocumentAnnotation(id, currentPage);
-  // Pinch-zoom on a phone in idle mode — INCLUDING while annotating, where it
-  // runs in draw mode (two-finger zoom, one-finger draws on the pencil canvas).
-  // Still excluded during draw/resize/section-marking, where the box math needs
-  // un-zoomed slot coordinates.
-  const pageZoomEnabled = isPhone && mode === 'idle' && !markingSection;
+  // Pinch-zoom on any touch device (iPhone + iPad) in idle mode — INCLUDING
+  // while annotating, where it runs in draw mode (two-finger zoom, one-finger
+  // draws on the pencil canvas). Still excluded during draw/resize/section-
+  // marking, where the box math needs un-zoomed slot coordinates.
+  const pageZoomEnabled = isTouch && mode === 'idle' && !markingSection;
   const currentPageZoomed = zoomedScreens.has(currentIndex);
 
   // Forward navigation (a push) doesn't fire 'beforeRemove', so an unsaved

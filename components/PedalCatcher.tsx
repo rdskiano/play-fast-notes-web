@@ -1,13 +1,18 @@
 // Foot-pedal capture. Renders the native KeyCaptureView from the local
 // `hardware-keys` Expo module — an invisible view that reports hardware key
-// presses. A Bluetooth foot pedal pairs as a keyboard; any key it sends
-// counts as a pedal press and calls `onAdvance`. Renders nothing while the
-// pedal is working — only surfaces a warning when no keyboard is detected.
+// presses. A Bluetooth foot pedal pairs as a keyboard; any key it sends counts
+// as a pedal press and calls `onAdvance`.
+//
+// Renders nothing visible. The foot pedal is an OPTIONAL accessory, so its
+// absence is not an error: a persistent "Foot pedal not detected" banner used
+// to show on every practice screen to everyone without a pedal (i.e. always, on
+// a phone), stealing vertical space from the score and implying something was
+// broken. The on-screen NEXT / Clean / Miss buttons and keyboard shortcuts
+// already cover every action, so a missing pedal is simply silent now.
 
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
 import { KeyCaptureView } from '@/modules/hardware-keys';
 
 // Keys the native module reports for the left pedal on a two-pedal foot
@@ -33,20 +38,14 @@ export function PedalCatcher({
   secondaryKey?: string;
   onSecondary?: () => void;
 }) {
-  // null until the native side first reports; then true / false.
-  const [connected, setConnected] = useState<boolean | null>(null);
   const lastAdvanceRef = useRef(0);
 
   if (!active) return null;
 
   const Capture = KeyCaptureView;
-  if (!Capture) {
-    return (
-      <ThemedText style={styles.warn}>
-        Foot pedal needs the latest app build — reinstall to use it.
-      </ThemedText>
-    );
-  }
+  // Module missing (shouldn't happen in a proper build): the pedal just
+  // doesn't work; on-screen buttons + keyboard still do. No banner.
+  if (!Capture) return null;
 
   function fire(key: string) {
     const now = Date.now();
@@ -62,28 +61,11 @@ export function PedalCatcher({
 
   return (
     <View>
-      <Capture
-        style={styles.capture}
-        onArrowKey={(e) => fire(e.nativeEvent.key)}
-        onStatus={(e) => setConnected(e.nativeEvent.keyboard)}
-      />
-      {connected === false && (
-        <ThemedText style={styles.warn}>
-          Foot pedal not detected — switch it on and check it&apos;s paired in
-          Settings → Bluetooth.
-        </ThemedText>
-      )}
+      <Capture style={styles.capture} onArrowKey={(e) => fire(e.nativeEvent.key)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  warn: {
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 6,
-  },
   capture: { position: 'absolute', width: 1, height: 1, opacity: 0 },
 });
