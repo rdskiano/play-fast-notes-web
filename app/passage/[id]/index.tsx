@@ -432,6 +432,8 @@ export default function PassageDetailScreen() {
                     style={StyleSheet.absoluteFill}
                     persistKey={passage.id}
                     overlay={ann.canvas}
+                    // While annotating, let the finger draw instead of pan.
+                    gesturesEnabled={!ann.pencil.active}
                   />
                 ) : (
                   <>

@@ -107,6 +107,11 @@ type Props = {
    *  the same session restores each one's last-used transform instead
    *  of inheriting the previous passage's zoom. */
   persistKey?: string;
+  /** When false, pinch/pan/double-tap are disabled so a finger touch passes
+   *  through to an interactive overlay (e.g. the Apple Pencil canvas while
+   *  annotating). On a finger-only phone the pan gesture would otherwise
+   *  swallow the drawing stroke. Defaults to true. */
+  gesturesEnabled?: boolean;
 };
 
 export function ZoomableImage({
@@ -116,6 +121,7 @@ export function ZoomableImage({
   overlay,
   children,
   persistKey,
+  gesturesEnabled = true,
 }: Props) {
   // Seed shared values from the cache so the first render already
   // shows the saved zoom — avoids a flicker at 1× before the effect
@@ -175,6 +181,7 @@ export function ZoomableImage({
   }
 
   const pinch = Gesture.Pinch()
+    .enabled(gesturesEnabled)
     .onStart(() => {
       'worklet';
       startScale.value = scale.value;
@@ -201,6 +208,7 @@ export function ZoomableImage({
     });
 
   const pan = Gesture.Pan()
+    .enabled(gesturesEnabled)
     .minDistance(2)
     .averageTouches(true)
     .onStart(() => {
@@ -222,6 +230,7 @@ export function ZoomableImage({
     });
 
   const doubleTap = Gesture.Tap()
+    .enabled(gesturesEnabled)
     .numberOfTaps(2)
     .onEnd(() => {
       'worklet';
