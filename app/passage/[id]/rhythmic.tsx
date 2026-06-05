@@ -16,7 +16,7 @@ import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
@@ -62,6 +62,7 @@ export default function RhythmicScreen() {
   // Phone density flag — drives the scrollable score below.
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  const isLandscape = vpW > vpH;
   const isTouch = useIsTouchDevice();
 
   const rawGrouping = Array.isArray(params.grouping)
@@ -195,43 +196,11 @@ export default function RhythmicScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SessionTopBar
-        onExit={phase === 'playing' ? exitSession : () => router.back()}
-        center={
-          phase === 'playing' && grouping ? (
-            <View style={styles.titleRow}>
-              <ThemedText style={styles.topCenter} numberOfLines={1}>
-                Pattern {currentIndex + 1}/{patterns.length}
-              </ThemedText>
-              <Pressable
-                onPress={() => setPickerOpen(true)}
-                hitSlop={6}
-                accessibilityLabel="Change note grouping"
-                style={[styles.changeChip, { borderColor: C.tint, backgroundColor: C.tint + '15' }]}>
-                <ThemedText style={[styles.changeChipText, { color: C.tint }]}>
-                  {grouping}-note ▾
-                </ThemedText>
-                <ThemedText style={[styles.changeHint, { color: C.tint }]}>
-                  change
-                </ThemedText>
-              </Pressable>
-            </View>
-          ) : (
-            <ThemedText style={styles.topCenter} numberOfLines={1}>
-              Rhythmic Variation
-            </ThemedText>
-          )
-        }
-        right={
-          phase === 'playing' ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Button label="DONE" variant="danger" size="sm" onPress={doneSession} />
-            </View>
-          ) : null
-        }
-      />
-
-      {phase === 'playing' && grouping && patterns.length > 0 && (
+      {phase === 'playing' && grouping && patterns.length > 0 && isLandscape ? (
+        // Landscape: the rhythm notation + Loop/Back/Next live IN the title
+        // row (EXIT + grouping on the left, DONE on the right). No separate
+        // band — wide screens have width to spare and height to save, and the
+        // notation renders large in the full title width.
         <RhythmBar
           pattern={patterns[currentIndex]}
           rhythmLooping={metronome.rhythmLooping}
@@ -240,15 +209,76 @@ export default function RhythmicScreen() {
           onNext={onNext}
           canPrev={currentIndex > 0}
           canNext={currentIndex < patterns.length - 1}
-          compact={isPhone}
+          withSafeArea
+          leading={
+            <View style={styles.headerLeading}>
+              <Pressable onPress={exitSession} hitSlop={8} style={styles.exitBtn}>
+                <ThemedText style={[styles.exitText, { color: C.tint }]}>EXIT</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => setPickerOpen(true)}
+                hitSlop={6}
+                accessibilityLabel="Change note grouping"
+                style={[styles.changeChip, { borderColor: C.tint, backgroundColor: C.tint + '15' }]}>
+                <ThemedText style={[styles.changeChipText, { color: C.tint }]}>
+                  {grouping}-note ▾
+                </ThemedText>
+              </Pressable>
+            </View>
+          }
+          trailing={<Button label="DONE" variant="danger" size="sm" onPress={doneSession} />}
         />
-      )}
+      ) : (
+        <>
+          <SessionTopBar
+            onExit={phase === 'playing' ? exitSession : () => router.back()}
+            center={
+              phase === 'playing' && grouping ? (
+                <View style={styles.titleRow}>
+                  <ThemedText style={styles.topCenter} numberOfLines={1}>
+                    Pattern {currentIndex + 1}/{patterns.length}
+                  </ThemedText>
+                  <Pressable
+                    onPress={() => setPickerOpen(true)}
+                    hitSlop={6}
+                    accessibilityLabel="Change note grouping"
+                    style={[styles.changeChip, { borderColor: C.tint, backgroundColor: C.tint + '15' }]}>
+                    <ThemedText style={[styles.changeChipText, { color: C.tint }]}>
+                      {grouping}-note ▾
+                    </ThemedText>
+                    <ThemedText style={[styles.changeHint, { color: C.tint }]}>
+                      change
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              ) : (
+                <ThemedText style={styles.topCenter} numberOfLines={1}>
+                  Rhythmic Variation
+                </ThemedText>
+              )
+            }
+            right={
+              phase === 'playing' ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Button label="DONE" variant="danger" size="sm" onPress={doneSession} />
+                </View>
+              ) : null
+            }
+          />
 
-      {phase === 'playing' && !isPhone && (
-        <ThemedText style={styles.playHelper}>
-          Play your passage in this rhythm — ▶ Loop to hear it, ← → to change
-          patterns, then play along with the metronome from the edge tab.
-        </ThemedText>
+          {phase === 'playing' && grouping && patterns.length > 0 && (
+            <RhythmBar
+              pattern={patterns[currentIndex]}
+              rhythmLooping={metronome.rhythmLooping}
+              onToggleRhythm={toggleRhythm}
+              onPrev={onPrev}
+              onNext={onNext}
+              canPrev={currentIndex > 0}
+              canNext={currentIndex < patterns.length - 1}
+              compact={isPhone}
+            />
+          )}
+        </>
       )}
 
       <View
@@ -420,14 +450,6 @@ export default function RhythmicScreen() {
 const styles = StyleSheet.create({
   topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.sm, textAlign: 'center' },
   contentArea: { flex: 1 },
-  playHelper: {
-    textAlign: 'center',
-    fontSize: Type.size.sm,
-    opacity: Opacity.muted,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: 6,
-    lineHeight: 18,
-  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
@@ -481,6 +503,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
   },
+  headerLeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  exitBtn: { paddingHorizontal: 4, paddingVertical: Spacing.xs },
+  exitText: { fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
   changeChip: {
     flexDirection: 'row',
     alignItems: 'center',

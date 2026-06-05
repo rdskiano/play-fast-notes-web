@@ -1,16 +1,22 @@
-// Fixed rhythm-pattern bar for the Rhythmic Variation screen.
+// Rhythm-pattern bar for the Rhythmic Variation screen.
 //
 // Replaces the old floating, draggable, pinch-to-resize FloatingRhythmCard —
 // the only floating overlay on the screen that wasn't an actual practice tool.
-// It docks directly under the top bar on every device so the score gets the
-// full body below, and nothing ever needs to be moved or resized to read the
-// music (the chronic problem in landscape on a phone).
 //
-// One unified file (no .web.tsx) because AbcStaffView is already platform-split,
-// so the notation renders on both web and native through the same call.
+// Two layouts, driven by the parent:
+//   • Landscape — passed `leading` (EXIT + grouping chip) and `trailing` (DONE)
+//     so the notation + controls live *in* the title row. Wide screens have
+//     width to spare and height to save, so this reclaims the whole separate
+//     band and lets the notation render large.
+//   • Portrait — a plain band docked under the normal top bar (no leading/
+//     trailing). Vertical space is plentiful there, so a band is fine.
+//
+// One unified file (no .web.tsx): notation renders through the already-split
+// AbcStaffView + buildRhythmAbc, so both web and native work via one call.
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { type LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { ThemedText } from '@/components/themed-text';
@@ -28,8 +34,14 @@ type Props = {
   onNext: () => void;
   canPrev: boolean;
   canNext: boolean;
-  /** Phone: shrink the notation + drop the Loop button's text label. */
+  /** Portrait band: shrink the notation + drop the Loop button's text label. */
   compact?: boolean;
+  /** Far-start slot (landscape merged header) — e.g. EXIT + grouping chip. */
+  leading?: ReactNode;
+  /** Far-end slot (landscape merged header) — e.g. DONE. */
+  trailing?: ReactNode;
+  /** Pad for the notch / rounded corners when this sits at the screen top. */
+  withSafeArea?: boolean;
 };
 
 export function RhythmBar({
@@ -41,14 +53,22 @@ export function RhythmBar({
   canPrev,
   canNext,
   compact = false,
+  leading,
+  trailing,
+  withSafeArea = false,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
   // Measured width of the flexible notation slot — feeds AbcStaffView so the
   // staff fills whatever room is left between the buttons on any screen.
   const [notationW, setNotationW] = useState(0);
   const abc = useMemo(() => buildRhythmAbc(pattern), [pattern]);
-  const notationH = compact ? 50 : 64;
+  // Merged header (has leading/trailing) gets a taller, larger-scale staff
+  // since it has the room; the portrait band stays a touch smaller.
+  const merged = Boolean(leading || trailing);
+  const notationH = merged ? 80 : compact ? 60 : 68;
+  const notationScale = merged ? 1.6 : compact ? 1.3 : 1.4;
 
   function onNotationLayout(e: LayoutChangeEvent) {
     const w = Math.round(e.nativeEvent.layout.width);
@@ -59,11 +79,18 @@ export function RhythmBar({
     <View
       style={[
         styles.bar,
+        withSafeArea && {
+          paddingTop: insets.top,
+          paddingLeft: Spacing.md + insets.left,
+          paddingRight: Spacing.md + insets.right,
+        },
         {
           borderBottomColor: C.icon + '44',
           backgroundColor: scheme === 'dark' ? '#1a1c1e' : '#fafafa',
         },
       ]}>
+      {leading}
+
       <Pressable
         onPress={onPrev}
         disabled={!canPrev}
@@ -79,7 +106,7 @@ export function RhythmBar({
             abc={abc}
             width={notationW}
             height={notationH}
-            scale={compact ? 1.1 : 1.3}
+            scale={notationScale}
             centered
             fallbackText={pattern.notes.join('  ·  ')}
           />
@@ -105,6 +132,8 @@ export function RhythmBar({
         style={[styles.navBtn, styles.nextBtn, { opacity: canNext ? 1 : 0.4 }]}>
         <ThemedText style={[styles.navText, { color: '#fff' }]}>→</ThemedText>
       </Pressable>
+
+      {trailing}
     </View>
   );
 }
