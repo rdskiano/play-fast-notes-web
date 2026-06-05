@@ -74,14 +74,25 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
       },
     }));
 
+    // Restore the saved drawing ONCE per edit session. Reloading whenever
+    // `initialData` changes was the bug: the idle auto-save updates the saved
+    // data mid-session, and reloading that snapshot while the user is still
+    // drawing/erasing reverts their in-progress strokes (a long erase scribble
+    // "popped the old marks back"). Load on entry; ignore later changes.
+    const loadedRef = useRef(false);
     useEffect(() => {
-      if (!editable) return;
+      if (!editable) {
+        loadedRef.current = false;
+        settled.current = false;
+        pk.current?.hideToolPicker();
+        return;
+      }
+      if (loadedRef.current) return;
       settled.current = false;
-      // Let the native canvas attach, then restore the saved drawing, select
-      // the pencil tool, and pop Apple's tool picker.
       const t = setTimeout(() => {
         if (initialData) pk.current?.loadBase64Data(initialData);
         pk.current?.showToolPicker();
+        loadedRef.current = true;
       }, 0);
       // Restoring a drawing fires its own change event — wait it out before
       // treating change events as real user edits.
@@ -91,8 +102,6 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
       return () => {
         clearTimeout(t);
         clearTimeout(settle);
-        settled.current = false;
-        pk.current?.hideToolPicker();
       };
     }, [editable, initialData]);
 
