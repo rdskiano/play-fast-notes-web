@@ -909,7 +909,16 @@ export default function LibraryScreen() {
           styles.header,
           isPhonePortrait && styles.headerStacked,
         ]}>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+        <View
+          style={[
+            { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+            // flex:1 only in the ROW (landscape) header so the cluster takes the
+            // left space. In the STACKED (portrait column) header, flex:1 means
+            // grow vertically — with no spare height it collapses to 0 and the
+            // title + back button disappear. In column mode alignItems:stretch
+            // already gives full width, so size to content instead.
+            !isPhonePortrait && { flex: 1 },
+          ]}>
           {path.length > 0 && (
             <Pressable onPress={goUp} hitSlop={8} style={styles.backBtn}>
               <ThemedText style={[styles.backArrow, { color: C.tint }]}>‹</ThemedText>
