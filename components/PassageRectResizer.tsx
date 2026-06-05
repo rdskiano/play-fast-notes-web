@@ -8,6 +8,7 @@
 // Web uses DOM pointer events with setPointerCapture; iPad uses a Pan
 // gesture per handle (each Pressable wraps its own GestureDetector).
 
+import { useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS } from 'react-native-reanimated';
@@ -59,12 +60,19 @@ export function PassageRectResizer({
   const k = sourceWidth / imageRect.w;
   const minDisplay = MIN_RECT / k;
   const bounds = imageRect;
-  // Snapshot the rect at gesture start so live updates compute against the
-  // initial geometry. We rebuild gestures every render when displayRect
-  // changes, so capturing here is safe.
-  const startRect: Rect = { ...displayRect };
+  // The rect at the moment a drag BEGINS — captured once per gesture (onBegin),
+  // not per render. applyDrag calls onRegionChange, which re-renders with a
+  // moved rect; if we derived the start from each render while the gesture's
+  // translation keeps accumulating from the original touch, every update would
+  // compound and the box would explode to the edges. A fixed start + cumulative
+  // translation tracks the finger correctly.
+  const startRef = useRef<Rect>(displayRect);
+  function captureStart(r: Rect) {
+    startRef.current = r;
+  }
 
   function applyDragJS(handle: Handle, dx: number, dy: number) {
+    const startRect = startRef.current;
     const next: Rect = { ...startRect };
     if (handle === 'move') {
       next.x = clamp(startRect.x + dx, 0, bounds.w - startRect.w);
@@ -115,7 +123,13 @@ export function PassageRectResizer({
   }
 
   function makeHandleGesture(name: Handle) {
+    // Snapshot of the rect at this render; onBegin pins it as the gesture's
+    // fixed start so re-renders mid-drag can't shift it.
+    const snapshot: Rect = { ...displayRect };
     return Gesture.Pan()
+      .onBegin(() => {
+        runOnJS(captureStart)(snapshot);
+      })
       .onUpdate((e) => {
         runOnJS(applyDragJS)(name, e.translationX, e.translationY);
       });
