@@ -82,6 +82,24 @@ export function PracticeLogNotePrompt({
     if (visible) inputRef.current?.focus();
   }, [visible]);
 
+  // Belt-and-suspenders for iPad Safari (web). The synchronous focus above
+  // catches the gesture-window case, but RN-Web mounts the modal's content a
+  // tick after `visible` flips, so that focus can fire before the <input>
+  // exists and no-op — which is why the keyboard didn't reliably pop up at the
+  // end of a session. Retry on the next frame and again shortly after; iPadOS
+  // raises the keyboard for a programmatic focus even slightly outside the
+  // gesture. (iPhone Safari ignores a deferred focus, and native already worked
+  // via the layout effect — so no regression on either.)
+  useEffect(() => {
+    if (!visible) return;
+    const raf = requestAnimationFrame(() => inputRef.current?.focus());
+    const t = setTimeout(() => inputRef.current?.focus(), 150);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [visible]);
+
   function submit() {
     const trimmed = note.trim();
     onSubmit({ mood, note: trimmed.length > 0 ? trimmed : null, remindNext });
