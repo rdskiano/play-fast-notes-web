@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { FloatingMetronome } from '@/components/FloatingMetronome';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PassagePicker } from '@/components/PassagePicker';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
@@ -172,6 +173,17 @@ function advanceForMode(
 }
 
 export default function InterleavedScreen() {
+  // Wrap the screen so a render crash shows a readable message (and stack)
+  // instead of the app blanking/closing — Rep Rotator was crashing on device
+  // and we need the actual error to fix it.
+  return (
+    <ErrorBoundary label="Rep Rotator">
+      <InterleavedScreenInner />
+    </ErrorBoundary>
+  );
+}
+
+function InterleavedScreenInner() {
   const router = useRouter();
   // Optional deep-link seed: the passage-detail Rep Rotator pill passes
   // the current passage so the picker opens with it pre-selected.
@@ -227,9 +239,13 @@ export default function InterleavedScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    listPassages().then((pcs) => {
-      if (!cancelled) setPassages(pcs);
-    });
+    listPassages()
+      .then((pcs) => {
+        if (!cancelled) setPassages(pcs);
+      })
+      .catch((err) => {
+        console.error('[interleaved] listPassages failed', err);
+      });
     return () => {
       cancelled = true;
     };
@@ -310,6 +326,10 @@ export default function InterleavedScreen() {
     const orderedPassages = selectedIds
       .map((id) => passages.find((p) => p.id === id))
       .filter((p): p is Passage => !!p);
+    // Guard against a session with no real passages (e.g. selected ids no
+    // longer in the library) — downstream code indexes spots[currentIndex]
+    // and would crash on an empty array.
+    if (orderedPassages.length < 2) return;
 
     if (mode === 'timer') {
       // Timer-mode session lives in the module-level singleton so the

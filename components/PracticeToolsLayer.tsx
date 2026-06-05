@@ -157,7 +157,11 @@ export function PracticeToolsLayer({
   // controls stranded in a huge empty rectangle; portrait uses the content
   // height instead. Laptop/iPad keep the draggable, resizable floating card.
   const isLandscape = viewportWidth > viewportHeight;
-  const dockedW = Math.round(Math.min(340, Math.max(240, viewportWidth / 3)));
+  // The metronome panel has fixed-width internals (the 244px beat-dots row +
+  // 18px padding each side ≈ 280px), so the card must be at least ~296 or the
+  // controls clip. Portrait phones used to clamp to 240 (vpW/3 is tiny in
+  // portrait) and cut off the panel. Floor at 296, capped to the viewport.
+  const dockedW = Math.round(Math.min(viewportWidth - 16, Math.max(296, viewportWidth / 3)));
   const dockedH = isLandscape && size.h > 0 ? size.h : 330;
   // Lifted metronome state — the phone docked panel renders in a Modal that
   // unmounts when collapsed, so meter + beat pattern live here to survive the

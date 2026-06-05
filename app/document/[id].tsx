@@ -192,13 +192,17 @@ export default function DocumentScreen() {
   }, [width, height, isSaveActive]);
   const effectiveDims = isSaveActive ? dimensionsBaselineRef.current : { w: width, h: height };
   const isLandscape = effectiveDims.w > effectiveDims.h;
-  const autoViewMode: ViewMode = isLandscape ? 'spread' : 'single';
+  // Phones are always single-page, even in landscape — a two-page spread on a
+  // ~6" screen makes each page too small to read; the user wants one page +
+  // pinch-zoom instead. Spread is an iPad/tablet (large-screen) affordance.
+  const spreadCapable = isLandscape && !isPhone;
+  const autoViewMode: ViewMode = spreadCapable ? 'spread' : 'single';
   // Portrait is always single-page — a two-page spread only makes sense in
   // landscape, where there's room for two pages side by side. The spread/
   // single toggle (and any saved override) only applies in landscape; in
   // portrait we ignore the override so a spread set in landscape doesn't
   // carry over when the iPad is rotated upright.
-  const viewMode: ViewMode = isLandscape ? (viewModeOverride ?? autoViewMode) : 'single';
+  const viewMode: ViewMode = spreadCapable ? (viewModeOverride ?? autoViewMode) : 'single';
   function toggleViewMode() {
     const nextMode: ViewMode = viewMode === 'spread' ? 'single' : 'spread';
     setViewModeOverride(nextMode === autoViewMode ? null : nextMode);
@@ -1252,7 +1256,7 @@ export default function DocumentScreen() {
               );
             },
           },
-          ...(isLandscape
+          ...(spreadCapable
             ? [
                 {
                   label:

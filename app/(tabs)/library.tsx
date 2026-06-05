@@ -13,6 +13,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
@@ -442,6 +443,16 @@ export default function LibraryScreen() {
   // the right. Phone landscape still single-rows because vertical
   // pixels are the scarce axis there.
   const isPhonePortrait = isPhone && vpH > vpW;
+  // The screen draws its own header (no native nav bar), so it must clear the
+  // status bar / Dynamic Island itself. The old fixed paddingTop:60 tucked the
+  // folder header under the island on portrait iPhones (landscape's top inset
+  // is tiny, so it looked fine there). Use the real safe-area top instead.
+  const insets = useSafeAreaInsets();
+  // Web has no status bar (insets.top is 0) — keep its original generous
+  // spacing. Native uses the real safe-area top so the header clears the
+  // Dynamic Island / status bar in portrait.
+  const headerTopPad =
+    Platform.OS === 'web' ? 60 : Math.max(insets.top, 12) + Spacing.sm;
 
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [path, setPath] = useState<Folder[]>([]);
@@ -892,7 +903,7 @@ export default function LibraryScreen() {
   const currentFolderName = isAtRoot ? 'Play Fast Notes' : path[path.length - 1].name;
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, { paddingTop: headerTopPad }]}>
       <ThemedView
         style={[
           styles.header,

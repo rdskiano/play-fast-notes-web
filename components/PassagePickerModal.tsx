@@ -121,6 +121,27 @@ export function PassagePickerModal({
     return out;
   }, [passages, folders, documents]);
 
+  // Collapsed by default — the user sees a tidy list of piece/folder titles and
+  // expands the one they want. The section holding the current selection starts
+  // open so it's visible.
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    if (!visible) return;
+    const idx = sections.findIndex((s) =>
+      s.items.some((it) => it.passage.id === selectedId),
+    );
+    setExpanded(idx >= 0 ? new Set([idx]) : new Set());
+  }, [visible, sections, selectedId]);
+
+  function toggleSection(i: number) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  }
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <ThemedView style={{ flex: 1 }}>
@@ -144,16 +165,25 @@ export function PassagePickerModal({
               No passages yet.
             </ThemedText>
           ) : (
-            sections.map((s, i) => (
+            sections.map((s, i) => {
+              const isOpen = expanded.has(i);
+              return (
               <View key={i} style={{ gap: 6 }}>
-                <ThemedText style={styles.folderHeader}>{s.title}</ThemedText>
-                {s.subtitle ? (
-                  <ThemedText
-                    style={[styles.folderSubtitle, { color: C.icon }]}>
-                    {s.subtitle}
+                <Pressable
+                  onPress={() => toggleSection(i)}
+                  style={styles.sectionHeader}>
+                  <ThemedText style={[styles.chevron, { color: C.icon }]}>
+                    {isOpen ? '▾' : '▸'}
                   </ThemedText>
-                ) : null}
-                {s.items.map(({ passage: p, pageHint }) => {
+                  <ThemedText style={styles.folderHeader} numberOfLines={1}>
+                    {s.title}
+                  </ThemedText>
+                  <ThemedText style={[styles.folderCount, { color: C.icon }]}>
+                    {s.items.length}
+                  </ThemedText>
+                </Pressable>
+                {isOpen &&
+                  s.items.map(({ passage: p, pageHint }) => {
                   const selected = p.id === selectedId;
                   return (
                     <Pressable
@@ -199,7 +229,8 @@ export function PassagePickerModal({
                   );
                 })}
               </View>
-            ))
+              );
+            })
           )}
         </ScrollView>
       </ThemedView>
@@ -220,7 +251,15 @@ const styles = StyleSheet.create({
   },
   topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md, flex: 1, textAlign: 'center' },
   content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing['2xl'] },
-  folderHeader: { fontWeight: Type.weight.heavy, fontSize: Type.size.md, marginTop: Spacing.xs },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+  },
+  chevron: { fontSize: Type.size.md, width: 16, textAlign: 'center' },
+  folderCount: { fontSize: 13, fontWeight: Type.weight.semibold },
+  folderHeader: { flex: 1, fontWeight: Type.weight.heavy, fontSize: Type.size.md },
   folderSubtitle: { fontSize: 12, marginTop: -2 },
   titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   pageHint: { fontSize: 12, fontWeight: Type.weight.semibold },
