@@ -52,7 +52,7 @@ export function ClickUpCoach() {
   }
 
   return (
-    <Modal
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
       visible={open}
       transparent
       animationType="fade"

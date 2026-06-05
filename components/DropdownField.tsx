@@ -45,7 +45,7 @@ export function DropdownField<T extends string = string>({
         <ThemedText style={[styles.chevron, { color: C.icon }]}>▾</ThemedText>
       </Pressable>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+      <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <View style={styles.backdrop}>
           <View style={[styles.card, { backgroundColor: C.background }]}>
             <ThemedText type="subtitle" style={{ textAlign: 'center' }}>

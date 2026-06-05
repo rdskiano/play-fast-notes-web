@@ -54,7 +54,7 @@ export function PromptModal({
   }, [visible, initialValue]);
 
   return (
-    <Modal
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
       visible={visible}
       transparent
       animationType="fade"

@@ -503,7 +503,7 @@ function DroneOverlay({
   }
 
   return (
-    <Modal
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
       visible={visible}
       transparent
       animationType="fade"
@@ -633,7 +633,7 @@ function RhythmsOverlay({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.droneBackdrop} onPress={onClose}>
         <Pressable style={styles.droneCard} onPress={(e) => e.stopPropagation()}>
           <View style={styles.overlayHeader}>

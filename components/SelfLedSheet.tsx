@@ -39,7 +39,7 @@ export function SelfLedSheet({ visible, onPick, onCancel }: Props) {
   }
 
   return (
-    <Modal
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
       visible={visible}
       transparent
       animationType="fade"

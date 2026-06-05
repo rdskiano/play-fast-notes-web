@@ -415,7 +415,7 @@ function TimerSettingsModal({
 
   return (
     <>
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onClose}>
         <View style={styles.infoBackdrop}>
           <View style={[styles.infoCard, { backgroundColor: C.background }]}>
             <ThemedText type="title" style={{ textAlign: 'center' }}>
@@ -592,7 +592,7 @@ function TimerInfoModal({
     ? TIMER_INFO.filter((t) => t.title !== 'Rotate Timer')
     : TIMER_INFO;
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.infoBackdrop}>
         <View style={[styles.infoCard, { backgroundColor: C.background }]}>
           <ThemedText type="title" style={{ textAlign: 'center' }}>

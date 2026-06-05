@@ -48,7 +48,7 @@ export function SignInModal({
   }
 
   return (
-    <Modal
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
       visible={visible}
       transparent
       animationType="fade"

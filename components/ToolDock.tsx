@@ -345,7 +345,7 @@ export function ToolDock({
           card. The transparent, box-none backdrop leaves the rest of the
           screen visible and (on web) interactive. */}
       {docked ? (
-        <Modal
+        <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
           visible={modalShown}
           transparent
           animationType="none"

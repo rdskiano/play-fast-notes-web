@@ -143,7 +143,7 @@ export function PassagePickerModal({
   }
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} animationType="slide" onRequestClose={onClose}>
       <ThemedView style={{ flex: 1 }}>
         <View
           style={[

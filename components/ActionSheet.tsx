@@ -34,7 +34,7 @@ export function ActionSheet({
   const C = Colors[scheme];
 
   return (
-    <Modal
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
       visible={visible}
       transparent
       animationType="fade"

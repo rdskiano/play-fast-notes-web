@@ -47,7 +47,7 @@ export function MoveToPicker({ visible, title, folders, disabledIds, onPick, onC
   const options = buildOptions(folders, disabledIds);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.backdrop}>
         <View style={[styles.card, { backgroundColor: C.background }]}>
           <ThemedText type="subtitle">{title}</ThemedText>

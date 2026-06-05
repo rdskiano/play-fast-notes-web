@@ -35,7 +35,7 @@ export function ConfirmModal({
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <Pressable style={styles.backdrop} onPress={onCancel}>
         <Pressable
           style={[styles.card, { backgroundColor: C.background }]}

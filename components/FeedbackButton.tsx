@@ -109,7 +109,7 @@ export function FeedbackButton() {
         <ThemedText style={styles.fabText}>💬 Feedback</ThemedText>
       </Pressable>
 
-      <Modal
+      <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
         visible={open}
         transparent
         animationType="fade"

@@ -777,7 +777,7 @@ export default function RhythmBuilderScreen() {
         }}
       />
 
-      <Modal
+      <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
         visible={pdfTitleModalOpen}
         transparent
         animationType="fade"

@@ -35,7 +35,7 @@ export function CelebrationModal({
   const C = Colors[scheme];
 
   return (
-    <Modal
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
       visible={visible}
       transparent
       animationType="fade"

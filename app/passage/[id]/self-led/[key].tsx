@@ -224,7 +224,7 @@ function SelfLedHelpModal({
   const C = Colors[scheme];
   if (!strategy) return null;
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={[styles.card, { backgroundColor: C.background }]}>
           <ThemedText type="title" style={{ textAlign: 'center' }}>

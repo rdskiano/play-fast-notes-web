@@ -43,7 +43,7 @@ export function NoteCardEditor({
 
   if (!pitch) {
     return (
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onClose}>
         <View style={styles.backdrop}>
           <View style={[styles.card, { backgroundColor: C.background }]} />
         </View>
@@ -68,7 +68,7 @@ export function NoteCardEditor({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={[styles.card, { backgroundColor: C.background }]}>
           <ThemedText type="subtitle" style={{ textAlign: 'center' }}>

@@ -51,7 +51,7 @@ export function PracticeTimerAlertModal() {
   if (!anyFiring) return null;
 
   return (
-    <Modal
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
       visible={anyFiring}
       transparent
       animationType="fade"

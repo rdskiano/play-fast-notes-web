@@ -484,7 +484,7 @@ export default function PassageDetailScreen() {
         <PracticeToolsLayer pencil={ann.pencil} recorderPassageId={passage?.id} />
       </View>
 
-      <Modal
+      <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
         visible={rhythmicSheetOpen}
         transparent
         animationType="fade"
