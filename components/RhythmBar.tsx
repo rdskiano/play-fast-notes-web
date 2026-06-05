@@ -69,8 +69,11 @@ export function RhythmBar({
   // Merged (landscape title row) vs band (portrait dock). Sizes validated
   // against the bare (clef-less) notation: single line, time signature legible.
   const merged = Boolean(leading || trailing);
-  const notationH = merged ? 56 : compact ? 56 : 60;
+  // Height must clear the stems + beams, which hang below the single line. Too
+  // short clips the beams (worst case = 16th-note double beams). Verified the
+  // 16th double-beam fits at h64/scale1.1 and h68/scale1.2.
   const notationScale = merged ? 1.1 : compact ? 1.1 : 1.2;
+  const notationH = notationScale >= 1.2 ? 68 : 64;
 
   // Size the staff to its own content (note count × scale) so the flanking
   // arrows hug it. AbcStaffView fills its `width` and renders the staff at
@@ -107,12 +110,14 @@ export function RhythmBar({
       </Pressable>
 
       <View style={{ width: notationW, height: notationH, justifyContent: 'center' }}>
+        {/* No `centered`: on web that triggers a getBBox resize that clips the
+            beams hanging below the staff. The slot is already content-sized, so
+            left-aligned notation fills it and the arrows still hug it. */}
         <AbcStaffView
           abc={abc}
           width={notationW}
           height={notationH}
           scale={notationScale}
-          centered
           fallbackText={pattern.notes.join('  ·  ')}
         />
       </View>
