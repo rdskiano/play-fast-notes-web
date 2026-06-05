@@ -179,6 +179,12 @@ export default function ClickUpScreen() {
           }
         />
         <ScrollView contentContainerStyle={styles.markingContent}>
+          {/* The strategy explainer eats scarce vertical space on a phone,
+              pushing the score (the thing you tap on) down and making marking
+              cramped. Hide it on phones — the one-line instruction below plus
+              the first-run tutorial cover what's needed; iPad/laptop keep it. */}
+          {!isPhone && (
+          <>
           <CollapsibleHelp title="How it works">
             <ThemedText style={styles.blurbText}>
               Interleaved Click-Up is a structured practice strategy developed by{' '}
@@ -229,6 +235,8 @@ export default function ClickUpScreen() {
           </CollapsibleHelp>
 
           <View style={[styles.divider, { backgroundColor: C.icon + '33' }]} />
+          </>
+          )}
 
           <ThemedText style={styles.helper}>
             Tap just above the music to mark the beginning of each unit. You need at
