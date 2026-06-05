@@ -29,6 +29,7 @@ import { Button } from '@/components/Button';
 import { DocumentPageImage } from '@/components/DocumentPageImage';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PageBoxOverlay } from '@/components/PageBoxOverlay';
+import { ZoomableImage } from '@/components/ZoomableImage';
 import { PassageRectDrawer } from '@/components/PassageRectDrawer';
 import { PassageRectResizer } from '@/components/PassageRectResizer';
 import { PostSaveSheet } from '@/components/PostSaveSheet';
@@ -153,6 +154,20 @@ export default function DocumentScreen() {
   const [renamePromptFor, setRenamePromptFor] = useState<Passage | null>(null);
   const [deleteConfirmFor, setDeleteConfirmFor] = useState<Passage | null>(null);
   const [pagerSize, setPagerSize] = useState({ width: 0, height: 0 });
+  // Phone-only pinch-zoom of the page (idle reading mode only — never during
+  // draw/resize/section-marking/annotating, where the box-drawing math runs in
+  // un-zoomed slot coordinates). While a page is zoomed we lock the horizontal
+  // pager so one-finger pan moves the page instead of flipping to the next.
+  const [zoomedScreens, setZoomedScreens] = useState<Set<number>>(new Set());
+  const setScreenZoomed = useCallback((idx: number, zoomed: boolean) => {
+    setZoomedScreens((prev) => {
+      if (zoomed === prev.has(idx)) return prev;
+      const next = new Set(prev);
+      if (zoomed) next.add(idx);
+      else next.delete(idx);
+      return next;
+    });
+  }, []);
 
   // Draw-mode state. drafts maps 1-indexed pageIndex → source-pixel rect.
   // The page on which the user dragged FIRST is "drag-anchor"; subsequent
@@ -212,6 +227,10 @@ export default function DocumentScreen() {
   // DocumentPage.index (so `p.index === currentPage` picks the visible page).
   const currentPage = currentIndex * (viewMode === 'spread' ? 2 : 1) + 1;
   const docAnn = useDocumentAnnotation(id, currentPage);
+  // Pinch-zoom only in plain reading mode on a phone.
+  const pageZoomEnabled =
+    isPhone && mode === 'idle' && !docAnn.annotating && !markingSection;
+  const currentPageZoomed = zoomedScreens.has(currentIndex);
 
   // Forward navigation (a push) doesn't fire 'beforeRemove', so an unsaved
   // page annotation must be flushed here first — else the next screen loads
@@ -960,7 +979,10 @@ export default function DocumentScreen() {
                 !renamePromptFor &&
                 !namePromptOpen &&
                 !postSaveTitle &&
-                !docAnn.annotating
+                !docAnn.annotating &&
+                // Locked while a page is pinch-zoomed so one-finger pan moves
+                // the page instead of flipping to the next.
+                !currentPageZoomed
               }
               showsHorizontalScrollIndicator={false}
               onScroll={onScroll}
@@ -980,10 +1002,8 @@ export default function DocumentScreen() {
                       // of a spread.
                       const drawerActive =
                         mode === 'draw' && screenForPage(p.index) === currentIndex;
-                      return (
-                        <View
-                          key={p.index}
-                          style={[styles.pageHalf, { width: slotW }]}>
+                      const pageInner = (
+                        <>
                           <DocumentPageImage
                             doc={doc}
                             page={p}
@@ -1098,6 +1118,28 @@ export default function DocumentScreen() {
                               onCapture={onCaptureSection}
                             />
                           )}
+                        </>
+                      );
+                      return (
+                        <View
+                          key={p.index}
+                          style={[styles.pageHalf, { width: slotW }]}>
+                          {pageZoomEnabled ? (
+                            // Reading mode on a phone: pinch to zoom the page +
+                            // its boxes together (boxes are children, so they
+                            // scale and stay tappable in the same coordinate
+                            // space). Lock the pager while zoomed.
+                            <ZoomableImage
+                              style={StyleSheet.absoluteFill}
+                              persistKey={`doc:${doc.id}:p${p.index}`}
+                              onZoomedChange={(z) =>
+                                setScreenZoomed(screenForPage(p.index), z)
+                              }>
+                              {pageInner}
+                            </ZoomableImage>
+                          ) : (
+                            pageInner
+                          )}
                         </View>
                       );
                     })}
@@ -1112,7 +1154,7 @@ export default function DocumentScreen() {
                 The visible chevrons (below) give mouse users an affordance;
                 the wider invisible zones keep the iPad's tap-anywhere-on-the-edge
                 muscle memory intact. */}
-            {mode === 'idle' && !selectedPassageId && !docAnn.annotating && (
+            {mode === 'idle' && !selectedPassageId && !docAnn.annotating && !currentPageZoomed && (
               <>
                 <Pressable
                   style={[styles.tapZone, { left: 0, width: 60 }]}

@@ -23,6 +23,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -112,6 +113,10 @@ type Props = {
    *  annotating). On a finger-only phone the pan gesture would otherwise
    *  swallow the drawing stroke. Defaults to true. */
   gesturesEnabled?: boolean;
+  /** Fires (on the JS thread) when the zoom crosses in/out of ~1×. Lets a
+   *  parent disable a surrounding horizontal pager while zoomed, so one-finger
+   *  pan moves the image instead of flipping the page. */
+  onZoomedChange?: (zoomed: boolean) => void;
 };
 
 export function ZoomableImage({
@@ -122,6 +127,7 @@ export function ZoomableImage({
   children,
   persistKey,
   gesturesEnabled = true,
+  onZoomedChange,
 }: Props) {
   // Seed shared values from the cache so the first render already
   // shows the saved zoom — avoids a flicker at 1× before the effect
@@ -173,6 +179,17 @@ export function ZoomableImage({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Tell the parent when we cross in/out of ~1× so it can lock a surrounding
+  // horizontal pager while zoomed (otherwise a one-finger pan flips the page).
+  useAnimatedReaction(
+    () => scale.value > 1.02,
+    (zoomed, prev) => {
+      if (zoomed !== prev && onZoomedChange) {
+        runOnJS(onZoomedChange)(zoomed);
+      }
+    },
+  );
 
   function reset() {
     scale.value = withTiming(1, { duration: 180 });
