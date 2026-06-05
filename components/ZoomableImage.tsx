@@ -94,6 +94,10 @@ type Props = {
    *  parent disable a surrounding horizontal pager while zoomed, so one-finger
    *  pan moves the image instead of flipping the page. */
   onZoomedChange?: (zoomed: boolean) => void;
+  /** Bump this number to snap the zoom/pan back to 1×. The PDF viewer uses it
+   *  to reset a page's zoom on every page-turn, so a page left zoomed-in can't
+   *  block the next turn. The initial value is ignored; only changes reset. */
+  resetSignal?: number;
 };
 
 export function ZoomableImage({
@@ -106,6 +110,7 @@ export function ZoomableImage({
   gesturesEnabled = true,
   drawMode = false,
   onZoomedChange,
+  resetSignal,
 }: Props) {
   // Seed shared values from the cache so the first render already
   // shows the saved zoom — avoids a flicker at 1× before the effect
@@ -211,6 +216,17 @@ export function ZoomableImage({
     tx.value = withTiming(0, { duration: 180 });
     ty.value = withTiming(0, { duration: 180 });
   }
+
+  // External reset trigger (PDF page-turn). Skip the initial value so we don't
+  // animate on mount; only an actual change snaps the page back to full size.
+  const resetSignalRef = useRef(resetSignal);
+  useEffect(() => {
+    if (resetSignal === resetSignalRef.current) return;
+    resetSignalRef.current = resetSignal;
+    reset();
+    setOffHome(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal]);
 
   const pinch = Gesture.Pinch()
     .enabled(gesturesEnabled && !drawMode)

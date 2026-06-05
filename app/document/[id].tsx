@@ -52,7 +52,6 @@ import { getSetting, setSetting } from '@/lib/db/repos/settings';
 const PDF_BOX_COACHED_KEY = 'pdfBox.coached';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import {
   getDocument,
   parsePages,
@@ -102,10 +101,6 @@ export default function DocumentScreen() {
   // Phone density: tight icon-only header so the title + tool buttons
   // don't pile on top of each other in narrow viewports.
   const isPhone = Math.min(width, height) < 600;
-  // Touch surfaces (iPhone + iPad, and iPad Safari on web) get pinch-zoom of
-  // the page; mouse-only laptops don't (no pinch gesture, and they have the
-  // framed static view instead).
-  const isTouch = useIsTouchDevice();
 
   const [doc, setDoc] = useState<DocumentRow | null | undefined>(undefined);
   const [pages, setPages] = useState<DocumentPage[]>([]);
@@ -173,6 +168,11 @@ export default function DocumentScreen() {
       return next;
     });
   }, []);
+  // Bumped on every page-turn to snap the PDF page zoom back to full size.
+  // Unlike practice screens (which remember each passage's zoom via persistKey),
+  // a PDF page must NOT keep its zoom — a left-zoomed page locks the pager and
+  // makes the next turn impossible. So pages carry no persistKey and reset here.
+  const [zoomResetSignal, setZoomResetSignal] = useState(0);
 
   // Draw-mode state. drafts maps 1-indexed pageIndex → source-pixel rect.
   // The page on which the user dragged FIRST is "drag-anchor"; subsequent
@@ -232,11 +232,15 @@ export default function DocumentScreen() {
   // DocumentPage.index (so `p.index === currentPage` picks the visible page).
   const currentPage = currentIndex * (viewMode === 'spread' ? 2 : 1) + 1;
   const docAnn = useDocumentAnnotation(id, currentPage);
-  // Pinch-zoom on any touch device (iPhone + iPad) in idle mode — INCLUDING
-  // while annotating, where it runs in draw mode (two-finger zoom, one-finger
-  // draws on the pencil canvas). Still excluded during draw/resize/section-
-  // marking, where the box math needs un-zoomed slot coordinates.
-  const pageZoomEnabled = isTouch && mode === 'idle' && !markingSection;
+  // Pinch-zoom the page is NATIVE-only (iPhone + iPad), in idle mode —
+  // INCLUDING while annotating (two-finger zoom, one-finger draws on the pencil
+  // canvas). Excluded during draw/resize/section-marking, where the box math
+  // needs un-zoomed slot coordinates. NOT on web: wrapping the page in the
+  // gesture-handler zoom layer makes the browser route horizontal touch to it
+  // (touch-action), swallowing swipe-to-turn-page; web turns pages via the
+  // pager swipe / arrows / chevrons and zooms with the browser.
+  const pageZoomEnabled =
+    Platform.OS !== 'web' && mode === 'idle' && !markingSection;
   const currentPageZoomed = zoomedScreens.has(currentIndex);
 
   // Forward navigation (a push) doesn't fire 'beforeRemove', so an unsaved
@@ -378,6 +382,9 @@ export default function DocumentScreen() {
     const animated = mode !== 'draw';
     scrollRef.current?.scrollTo({ x: width * index, animated });
     setCurrentIndex(index);
+    // Snap every page's zoom back to full size on a turn, so a page left
+    // zoomed-in doesn't keep the pager locked.
+    setZoomResetSignal((n) => n + 1);
   }
 
   // When returning from a passage, jump to that passage's first page. Effect
@@ -1132,13 +1139,16 @@ export default function DocumentScreen() {
                           key={p.index}
                           style={[styles.pageHalf, { width: slotW }]}>
                           {pageZoomEnabled ? (
-                            // Reading mode on a phone: pinch to zoom the page +
-                            // its boxes together (boxes are children, so they
-                            // scale and stay tappable in the same coordinate
-                            // space). Lock the pager while zoomed.
+                            // Reading mode (native): pinch to zoom the page + its
+                            // boxes together (boxes are children, so they scale
+                            // and stay tappable in the same coordinate space).
+                            // Lock the pager while zoomed. No persistKey — a PDF
+                            // page must NOT remember its zoom (that would keep the
+                            // pager locked on return); resetSignal snaps it back
+                            // to full size on every page-turn.
                             <ZoomableImage
                               style={StyleSheet.absoluteFill}
-                              persistKey={`doc:${doc.id}:p${p.index}`}
+                              resetSignal={zoomResetSignal}
                               // While the pencil is active: one finger draws on
                               // the canvas, two fingers still pinch-zoom.
                               drawMode={docAnn.annotating}
@@ -1164,18 +1174,27 @@ export default function DocumentScreen() {
                 The visible chevrons (below) give mouse users an affordance;
                 the wider invisible zones keep the iPad's tap-anywhere-on-the-edge
                 muscle memory intact. */}
-            {mode === 'idle' && !selectedPassageId && !docAnn.annotating && !currentPageZoomed && (
+            {mode === 'idle' && !selectedPassageId && !docAnn.annotating && (
               <>
-                <Pressable
-                  style={[styles.tapZone, { left: 0, width: 60 }]}
-                  onPress={() => goTo(currentIndex - 1)}
-                  accessibilityLabel="Previous page"
-                />
-                <Pressable
-                  style={[styles.tapZone, { right: 0, width: 60 }]}
-                  onPress={() => goTo(currentIndex + 1)}
-                  accessibilityLabel="Next page"
-                />
+                {/* Wide edge tap-zones turn off while zoomed so they don't
+                    swallow a one-finger pan of the zoomed page. The explicit
+                    chevron buttons (below) stay live even while zoomed, so a
+                    zoomed-in page can always be turned — goTo snaps it back to
+                    full size as it turns. */}
+                {!currentPageZoomed && (
+                  <>
+                    <Pressable
+                      style={[styles.tapZone, { left: 0, width: 60 }]}
+                      onPress={() => goTo(currentIndex - 1)}
+                      accessibilityLabel="Previous page"
+                    />
+                    <Pressable
+                      style={[styles.tapZone, { right: 0, width: 60 }]}
+                      onPress={() => goTo(currentIndex + 1)}
+                      accessibilityLabel="Next page"
+                    />
+                  </>
+                )}
                 {currentIndex > 0 && (
                   <Pressable
                     onPress={() => goTo(currentIndex - 1)}
