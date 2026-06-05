@@ -81,6 +81,18 @@ export default function UploadScreen() {
           <Pressable style={[styles.btn, { backgroundColor: C.tint }]} onPress={takePhoto}>
             <ThemedText style={styles.btnText}>Take photo</ThemedText>
           </Pressable>
+          <Pressable
+            style={[styles.multiPageBtn, { borderColor: C.icon }]}
+            onPress={() =>
+              router.push({
+                pathname: '/multi-page',
+                params: { folder: folderId ?? '' },
+              } as never)
+            }>
+            <ThemedText style={{ opacity: 0.6, fontSize: Type.size.sm }}>
+              Passage spans two pages?
+            </ThemedText>
+          </Pressable>
         </>
       )}
 
@@ -100,4 +112,12 @@ const styles = StyleSheet.create({
   btnText: { color: '#fff', fontWeight: Type.weight.bold, fontSize: Type.size.lg },
   center: { alignItems: 'center', padding: Spacing.md },
   error: { color: '#c0392b', fontSize: Type.size.sm },
+  multiPageBtn: {
+    alignSelf: 'center',
+    borderWidth: 1,
+    borderRadius: Radii.md,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginTop: Spacing.sm,
+  },
 });

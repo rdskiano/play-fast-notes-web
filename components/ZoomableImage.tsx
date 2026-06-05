@@ -29,6 +29,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+// Per-key zoom/pan persistence (see the block comment below). Web uses
+// localStorage; native uses a filesystem-backed store — same API on both.
+import { hydrateZoom, loadZoom, saveZoom } from '@/lib/storage/zoomStore';
+
 // 0.4 leaves the score readable while opening up a real margin of
 // empty space inside the wrap — enough for the rep buttons to sit
 // clear. Anything tighter than that and the score becomes thumbnail-
@@ -43,51 +47,17 @@ const HOME_SCALE = 1;
 // exactly where they aimed — including below 1×.
 const HOME_SNAP_TOLERANCE = 0.05;
 
-// Per-key zoom/pan cache. When a caller passes `persistKey`, the
+// Per-key zoom/pan persistence. When a caller passes `persistKey`, the
 // final transform of the outgoing key is captured and the incoming
 // key's saved transform (if any) is restored — so Interleaved /
-// Serial Practice can swap between passages and each one remembers
-// the exact zoom + pan the user dialed in.
+// Rep Rotator can swap between passages and each one remembers the
+// exact zoom + pan the user dialed in.
 //
-// Backed by localStorage (web) so the size you set on a passage STICKS
-// across reloads / new sessions — not just within one session. The
-// in-memory Map is the fast path; localStorage is the durable store.
-type SavedTransform = { scale: number; tx: number; ty: number };
-const transformCache = new Map<string, SavedTransform>();
-const STORE_PREFIX = 'pfn:zoom:';
-
-function loadSaved(key: string): SavedTransform | undefined {
-  const cached = transformCache.get(key);
-  if (cached) return cached;
-  try {
-    if (typeof localStorage === 'undefined') return undefined;
-    const raw = localStorage.getItem(STORE_PREFIX + key);
-    if (!raw) return undefined;
-    const parsed = JSON.parse(raw) as SavedTransform;
-    if (
-      typeof parsed?.scale === 'number' &&
-      typeof parsed?.tx === 'number' &&
-      typeof parsed?.ty === 'number'
-    ) {
-      transformCache.set(key, parsed);
-      return parsed;
-    }
-  } catch {
-    // Corrupt / unavailable storage — fall back to no saved transform.
-  }
-  return undefined;
-}
-
-function saveTransform(key: string, t: SavedTransform): void {
-  transformCache.set(key, t);
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(STORE_PREFIX + key, JSON.stringify(t));
-    }
-  } catch {
-    // Storage full / disabled — the in-memory cache still works this session.
-  }
-}
+// The size you set on a passage STICKS across reloads / new sessions on
+// BOTH platforms: web uses localStorage, native uses a filesystem-backed
+// store (see lib/storage/zoomStore.{ts,web.ts}). `loadZoom` is the sync
+// fast path for the first render; `hydrateZoom` covers native's async
+// cold-start read.
 
 type Props = {
   /** Source image URI. Required unless `children` is provided. */
@@ -140,7 +110,7 @@ export function ZoomableImage({
   // Seed shared values from the cache so the first render already
   // shows the saved zoom — avoids a flicker at 1× before the effect
   // restores it.
-  const initial = persistKey ? loadSaved(persistKey) : undefined;
+  const initial = persistKey ? loadZoom(persistKey) : undefined;
   const scale = useSharedValue(initial?.scale ?? 1);
   const tx = useSharedValue(initial?.tx ?? 0);
   const ty = useSharedValue(initial?.ty ?? 0);
@@ -171,7 +141,7 @@ export function ZoomableImage({
     const prev = prevKeyRef.current;
     if (prev && prev !== persistKey) {
       // Capture the outgoing key's final transform (durably).
-      saveTransform(prev, {
+      saveZoom(prev, {
         scale: scale.value,
         tx: tx.value,
         ty: ty.value,
@@ -179,7 +149,7 @@ export function ZoomableImage({
     }
     if (persistKey && persistKey !== prev) {
       // Load the incoming key's saved transform (default to identity).
-      const saved = loadSaved(persistKey);
+      const saved = loadZoom(persistKey);
       scale.value = saved?.scale ?? 1;
       tx.value = saved?.tx ?? 0;
       ty.value = saved?.ty ?? 0;
@@ -189,12 +159,33 @@ export function ZoomableImage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persistKey]);
 
+  // Native cold-start: the filesystem store loads asynchronously, so the sync
+  // `loadZoom` seed above misses on the very first read after app launch. Once
+  // the on-disk map is in memory, apply the saved transform for this key. On
+  // web the store is synchronous, so this resolves immediately and just re-sets
+  // the same values — harmless.
+  useEffect(() => {
+    if (!persistKey) return;
+    let cancelled = false;
+    hydrateZoom(persistKey, (t) => {
+      if (cancelled) return;
+      scale.value = t.scale;
+      tx.value = t.tx;
+      ty.value = t.ty;
+      setOffHome(Math.abs(t.scale - 1) > 0.02);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistKey]);
+
   // On unmount, save the current key's transform too — so
   // navigating away and back also restores the zoom.
   useEffect(() => {
     return () => {
       if (prevKeyRef.current) {
-        saveTransform(prevKeyRef.current, {
+        saveZoom(prevKeyRef.current, {
           scale: scale.value,
           tx: tx.value,
           ty: ty.value,

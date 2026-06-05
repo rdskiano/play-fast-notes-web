@@ -1,7 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Modal,
   Platform,
   Pressable,
@@ -53,6 +52,7 @@ import {
   type Pitch,
 } from '@/lib/music/pitch';
 import { buildExerciseHtml } from '@/lib/export/buildExerciseHtml';
+import { exportExercisePdf } from '@/lib/export/exportExercisePdf';
 import { buildExerciseAbc } from '@/lib/notation/buildExerciseAbc';
 import {
   parseBeatDenominator,
@@ -388,13 +388,6 @@ export default function RhythmBuilderScreen() {
   // the user may want something more descriptive.
   function openPdfTitlePrompt() {
     if (!passage) return;
-    if (Platform.OS !== 'web') {
-      Alert.alert(
-        'Not available on iPad',
-        'PDF export uses a browser print popup and is web-only for now. Open this exercise on playfastnotes.com to export.',
-      );
-      return;
-    }
     const defaultTitle =
       exercise?.name && exercise.name.trim().length > 0
         ? exercise.name
@@ -403,11 +396,19 @@ export default function RhythmBuilderScreen() {
     setPdfTitleModalOpen(true);
   }
 
-  // Actually generate the PDF popup once we have a title.
+  // Actually generate the PDF once we have a title. Web opens a print popup;
+  // native renders to a PDF file (expo-print) and opens the iOS share sheet.
   function runPdfExport(title: string) {
-    if (typeof window === 'undefined' || !passage) return;
+    if (!passage) return;
     const patterns = patternsByGrouping(grouping);
     const finalTitle = title.trim().length > 0 ? title.trim() : 'Exercises';
+
+    if (Platform.OS !== 'web') {
+      void exportExercisePdf(finalTitle, pitches, keySignature, clef, patterns);
+      return;
+    }
+
+    if (typeof window === 'undefined') return;
     const html = buildExerciseHtml(
       finalTitle,
       pitches,
@@ -794,14 +795,25 @@ export default function RhythmBuilderScreen() {
               This title prints at the top of the exported PDF. Be descriptive
               — recipients won&apos;t see your folder or passage names.
             </ThemedText>
-            <ThemedText style={[styles.pdfModalTip, { color: C.icon }]}>
-              Tip: in the print dialog that opens next, uncheck{' '}
-              <ThemedText style={styles.pdfModalTipBold}>
-                Headers and footers
-              </ThemedText>{' '}
-              to hide the browser&apos;s date / URL strip at the top and
-              bottom of each page.
-            </ThemedText>
+            {Platform.OS === 'web' ? (
+              <ThemedText style={[styles.pdfModalTip, { color: C.icon }]}>
+                Tip: in the print dialog that opens next, uncheck{' '}
+                <ThemedText style={styles.pdfModalTipBold}>
+                  Headers and footers
+                </ThemedText>{' '}
+                to hide the browser&apos;s date / URL strip at the top and
+                bottom of each page.
+              </ThemedText>
+            ) : (
+              <ThemedText style={[styles.pdfModalTip, { color: C.icon }]}>
+                Tip: choose{' '}
+                <ThemedText style={styles.pdfModalTipBold}>
+                  Save to Files
+                </ThemedText>{' '}
+                in the share sheet to keep the PDF, or AirDrop / print it
+                straight from there.
+              </ThemedText>
+            )}
             <TextInput
               ref={pdfTitleInputRef}
               value={pdfTitleDraft}

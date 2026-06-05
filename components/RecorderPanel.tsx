@@ -93,13 +93,23 @@ export function RecorderPanel({
       await recorder.stop();
       const uri = recorder.uri;
       await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      const durationSec = (Date.now() - recordStartRef.current) / 1000;
+      // Drop accidental sub-1-second takes (a quick double-tap of Record)
+      // instead of filing a 0:00 stub in the practice log — matches web.
+      if (durationSec < 1) {
+        Alert.alert(
+          'Recording too short',
+          'Hold Record for at least a second to capture a take.',
+        );
+        return;
+      }
       if (uri) {
         setTakes((t) => [
           ...t,
           {
             id: `t_${Date.now()}`,
             uri,
-            durationSec: (Date.now() - recordStartRef.current) / 1000,
+            durationSec,
             saved: false,
           },
         ]);

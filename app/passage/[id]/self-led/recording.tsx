@@ -12,7 +12,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
-  Pressable,
   StyleSheet,
   useWindowDimensions,
   View,
@@ -276,14 +275,24 @@ export default function SelfLedRecordingScreen() {
         {error && (
           <ThemedText style={styles.errorText}>{error}</ThemedText>
         )}
-        {phase === 'idle' && (
-          <Button
-            label="● Record"
-            variant="danger"
-            onPress={startRecording}
-            style={actionButtonStyle}
-          />
-        )}
+        {phase === 'idle' &&
+          (Platform.OS === 'web' ? (
+            <Button
+              label="● Record"
+              variant="danger"
+              onPress={startRecording}
+              style={actionButtonStyle}
+            />
+          ) : (
+            // Native records through the cross-cutting Recorder tool (the 🎙 tab
+            // on the right edge), which captures, plays back, and saves takes via
+            // expo-audio. This legacy self-led screen's own MediaRecorder flow is
+            // web-only, so point the user at the tool that actually works here.
+            <ThemedText style={[styles.saveHelp, { color: C.icon, textAlign: 'center' }]}>
+              Tap the 🎙 Recorder tool on the right edge to record this passage,
+              play it back, and save your take to the practice log.
+            </ThemedText>
+          ))}
         {phase === 'recording' && (
           <View style={styles.row}>
             <ThemedText style={[styles.timer, { color: C.text }]}>
