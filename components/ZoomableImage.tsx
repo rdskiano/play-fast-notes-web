@@ -18,7 +18,7 @@
 // cards.
 
 import { Image } from 'expo-image';
-import { type ReactNode, useEffect, useRef } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -151,6 +151,22 @@ export function ZoomableImage({
   // save the OUTGOING key's transform before loading the new one.
   const prevKeyRef = useRef<string | undefined>(persistKey);
 
+  // Whether the score is currently zoomed away from 1× (in OR out). Used to
+  // gate the PAN gesture: at exactly 1× pan is turned OFF so a one-finger
+  // swipe falls through to whatever sits behind us — most importantly the
+  // PDF viewer's horizontal page-turning ScrollView. Leaving pan enabled at
+  // 1× captured the swipe (even though it visually no-ops there) and killed
+  // swipe-to-turn-page. Once zoomed, pan re-enables to move the score around.
+  const [offHome, setOffHome] = useState(
+    initial ? Math.abs((initial.scale ?? 1) - 1) > 0.02 : false,
+  );
+  useAnimatedReaction(
+    () => Math.abs(scale.value - 1) > 0.02,
+    (off, prev) => {
+      if (off !== prev) runOnJS(setOffHome)(off);
+    },
+  );
+
   useEffect(() => {
     const prev = prevKeyRef.current;
     if (prev && prev !== persistKey) {
@@ -233,7 +249,9 @@ export function ZoomableImage({
     });
 
   const pan = Gesture.Pan()
-    .enabled(gesturesEnabled && !drawMode)
+    // Only while zoomed (off 1×). At home scale, leave pan OFF so a one-finger
+    // swipe passes through to a surrounding horizontal pager (page-turn).
+    .enabled(gesturesEnabled && !drawMode && offHome)
     .minDistance(2)
     .averageTouches(true)
     .onStart(() => {
