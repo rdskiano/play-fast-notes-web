@@ -63,8 +63,8 @@ So the schema is ~80% sync-ready.
    web-only auth gate; native just opens local SQLite). We add the same Supabase
    sign-in on native so the device knows whose library to sync. The Supabase
    client already exists on native (used by the `/import-supabase` dev route).
-   - [OPEN] Keep a "use without an account, local only" mode? Recommended: yes —
-     don't force login; sync is a benefit you opt into by signing in.
+   - **[DECIDED] Keep a no-account, local-only mode.** Don't force login; sync is
+     an opt-in benefit you get by signing in.
 2. **Fix the practice log's IDs.** `practice_log` is the one exception: native
    uses `INTEGER AUTOINCREMENT` (each device numbers 1,2,3… → collisions). Switch
    it to a client-generated text ID like every other table, on both platforms,
@@ -102,8 +102,9 @@ progress stay in sync across iPad/iPhone/web.** Still no heavy images moving yet
 Tables in scope: `folders`, `pieces`, `documents`, `exercises`, `practice_log`,
 `tempo_ladder_progress`, `click_up_progress`, `strategy_last_used`,
 `custom_patterns` (Supabase-only today), selected `settings`.
-- [OPEN] `settings`: sync user-level keys (timer configs) but NOT device-local
-  ones (e.g. "don't show the install prompt"). Pick an allowlist.
+- **[DECIDED] `settings`:** sync user-level keys (timer configs) but NOT
+  device-local ones (e.g. "don't show the install prompt"). Build an allowlist of
+  which keys sync; default unknown keys to device-local (safer).
 - `subscriptions` (Stripe) is **pull-only** — the server owns it.
 
 ---
@@ -119,12 +120,12 @@ on native they're local `file://` paths today (`persistPassageImage.ts`).
   device is the one that created it and it isn't in the cloud yet), then cache
   locally. PDFs already render per-page on demand, which fits this model well.
 - **[DECIDED] Recordings: not synced.** Stay device-local.
-- **[OPEN] Annotations (pencil marks).** Two parts: a small vector blob
-  (PencilKit data) + a flattened PNG. Recommendation: sync the **small vector
-  blob** with the catalog (so marks show on both devices) and lazy-download/
-  regenerate the PNG. Confirm there's a Supabase table for annotations (none was
-  found in `db/schema.sql` — may need adding). Could also be deferred to a
-  Phase 3.5 if you'd rather marks stay device-local for now.
+- **[DECIDED] Annotations (pencil marks) DO sync across devices.** Two parts: a
+  small vector blob (PencilKit data) + a flattened PNG. Plan: sync the **small
+  vector blob** with the catalog so marks appear on every device, and
+  lazy-download (or regenerate) the PNG. **TODO:** confirm/add a Supabase table
+  for annotations — none was found in `db/schema.sql`, so the cloud side may need
+  a table + the `annotations.web.ts` repo wired to it. Folded into Phase 3.
 
 A device that created an asset must **upload it once** so other devices can pull
 it; that upload can piggyback on the first sync after creation.
@@ -142,7 +143,7 @@ it; that upload can piggyback on the first sync after creation.
 - **Phase 3 — Lazy assets.** On-demand image/PDF download + cache; first-time
   upload of device-created assets. *Deliverable: open a passage on any device and
   its music appears.*
-- **Phase 3.5 — Annotations [OPEN].** Sync pencil marks if wanted.
+- Annotations are synced as part of Phase 3 (vector blob + lazy PNG).
 - Recordings: intentionally never synced.
 
 Each phase is shippable on its own (and rides our normal OTA updates).
@@ -182,10 +183,18 @@ hand-rolled sync proves flaky at scale.
 
 ---
 
-## 10. Open decisions to confirm before Phase 1
+## 10. Decisions — all resolved (2026-06-05)
 
-1. Keep a no-account **local-only mode**, with sync as opt-in on sign-in? (Rec: yes.)
-2. **Annotations**: sync the pencil marks (Phase 3.5), or leave device-local for now?
-3. **Settings allowlist**: which preferences are user-global (sync) vs device-local (don't)?
-4. Rough **cost ceiling** for cloud storage/egress before Phase 3 (drives how
-   aggressive the image caching/eviction is).
+1. **[DECIDED]** Keep a no-account **local-only mode**; sync is opt-in on sign-in.
+2. **[DECIDED]** **Annotations sync** across devices (Phase 3, vector + lazy PNG).
+3. **[DECIDED]** **Settings**: sync user-level keys, keep device-local ones local
+   (allowlist; unknown keys default to local).
+4. **Storage budget: user unsure → adopt this default policy.** Recordings
+   excluded + images lazy-loaded already keeps it small (sheet-music crops are
+   ~0.1–0.5 MB; a heavy library is tens-to-low-hundreds of MB total — within
+   Supabase's standard tiers). **Default:** keep cloud assets indefinitely; cache
+   on-device with no eviction at first; add a simple "evict least-recently-opened
+   images when the local cache exceeds N MB" only if devices actually fill up.
+   Re-estimate real numbers before Phase 3 ships.
+
+**→ All four resolved. Ready to start Phase 1 on the user's go-ahead.**
