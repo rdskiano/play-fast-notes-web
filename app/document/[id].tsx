@@ -916,6 +916,7 @@ export default function DocumentScreen() {
             return screenForPage(nextPage) === currentIndex;
           })(),
           savingDraft,
+          isPhone,
           onCancelDraw: cancelDraw,
           onAddNextPage: addNextPageToDraft,
           onSaveDraft: onSaveDraftClick,
@@ -1355,6 +1356,7 @@ function renderSubRow(args: {
   pageCount: number;
   nextPageVisibleOnScreen: boolean;
   savingDraft: boolean;
+  isPhone: boolean;
   onCancelDraw: () => void;
   onAddNextPage: () => void;
   onSaveDraft: () => void;
@@ -1370,6 +1372,7 @@ function renderSubRow(args: {
     pageCount,
     nextPageVisibleOnScreen,
     savingDraft,
+    isPhone,
     onCancelDraw,
     onAddNextPage,
     onSaveDraft,
@@ -1401,7 +1404,11 @@ function renderSubRow(args: {
       <View style={styles.subRow}>
         <Button label="Cancel" variant="ghost" size="sm" onPress={onCancelDraw} />
         <View style={{ flex: 1, paddingHorizontal: Spacing.sm }}>
-          <Button label={hint} variant="ghost" size="sm" onPress={() => undefined} disabled />
+          {!isPhone && (
+            <ThemedText numberOfLines={1} style={styles.subHint}>
+              {hint}
+            </ThemedText>
+          )}
         </View>
         {showAddNextPageButton && (
           <Button label="Add next page →" variant="outline" size="sm" onPress={onAddNextPage} />
@@ -1426,7 +1433,11 @@ function renderSubRow(args: {
       <View style={styles.subRow}>
         <Button label="Cancel" variant="ghost" size="sm" onPress={onCancelResize} />
         <View style={{ flex: 1, paddingHorizontal: Spacing.sm }}>
-          <Button label={hint} variant="ghost" size="sm" onPress={() => undefined} disabled />
+          {!isPhone && (
+            <ThemedText numberOfLines={1} style={styles.subHint}>
+              {hint}
+            </ThemedText>
+          )}
         </View>
         <Button
           label={savingResize ? 'Saving…' : 'Done'}
@@ -1465,11 +1476,20 @@ const styles = StyleSheet.create({
   },
   counter: { fontSize: Type.size.sm, opacity: 0.7, paddingRight: 6 },
   subRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     paddingHorizontal: Spacing.sm,
     paddingTop: Spacing.xs,
+  },
+  // Single-line so a narrow viewport can never wrap the hint into a tall
+  // one-character-per-line column (which used to stretch the whole top bar
+  // down the screen on phones). Hidden entirely on phone — see renderSubRow.
+  subHint: {
+    fontSize: Type.size.sm,
+    textAlign: 'center',
+    opacity: 0.6,
   },
   timerFloat: {
     // top is computed inline via insets.top + topBarHeight + Spacing.sm so the
