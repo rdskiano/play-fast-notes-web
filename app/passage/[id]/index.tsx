@@ -424,19 +424,25 @@ export default function PassageDetailScreen() {
               ]}>
               <View style={{ flex: 1, width: '100%', position: 'relative' }}>
                 {isTouch ? (
+                  // Annotation layer goes INSIDE the zoom transform (overlay) so
+                  // the writing pinch-zooms/pans together with the image instead
+                  // of floating on a fixed layer above it.
                   <ZoomableImage
                     uri={passage.source_uri}
                     style={StyleSheet.absoluteFill}
                     persistKey={passage.id}
+                    overlay={ann.canvas}
                   />
                 ) : (
-                  <Image
-                    source={{ uri: passage.source_uri }}
-                    style={StyleSheet.absoluteFill}
-                    contentFit="contain"
-                  />
+                  <>
+                    <Image
+                      source={{ uri: passage.source_uri }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="contain"
+                    />
+                    {ann.canvas}
+                  </>
                 )}
-                {ann.canvas}
               </View>
             </View>
           ) : (
