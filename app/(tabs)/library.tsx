@@ -246,9 +246,12 @@ function PassageCard({
       onLongPress={editMode ? undefined : onLongPress}
       delayLongPress={400}
       style={[isPhone ? styles.cardPhone : styles.card, { borderColor }]}>
-      {passage.thumbnail_uri ? (
+      {passage.thumbnail_uri || passage.source_uri ? (
         <Image
-          source={{ uri: passage.thumbnail_uri }}
+          // Fall back to the full source image when there's no dedicated
+          // thumbnail (e.g. a freshly added/cropped photo whose thumbnail_uri
+          // didn't get set) so the row always shows the passage, not a blank.
+          source={{ uri: passage.thumbnail_uri || passage.source_uri }}
           style={thumbStyle}
           contentFit="cover"
         />
