@@ -73,7 +73,17 @@ export function StitchHost() {
   useEffect(() => {
     if (!req || loaded < req.items.length) return;
     let cancelled = false;
-    captureRef(ref, { format: 'jpg', quality: 0.9, result: 'tmpfile' }).then(
+    // useRenderInContext renders the view's LAYER directly (CALayer
+    // renderInContext) instead of the default drawViewHierarchyInRect, which
+    // only captures what's actually on screen. The stitch surface is parked
+    // off-screen (so the user never sees it), so the default path would
+    // capture a blank frame — renderInContext gets the real stacked images.
+    captureRef(ref, {
+      format: 'jpg',
+      quality: 0.9,
+      result: 'tmpfile',
+      useRenderInContext: true,
+    }).then(
       (uri) => {
         if (cancelled) return;
         const r = req;
@@ -113,8 +123,13 @@ export function StitchHost() {
 const styles = StyleSheet.create({
   surface: {
     position: 'absolute',
+    // Off-screen so the user never sees it, but NOT opacity:0 —
+    // react-native-view-shot renders the view's layer, and a layer at
+    // opacity 0 captures as a blank (white, once flattened to JPEG) image.
+    // The large left offset hides it; capturing by ref is independent of the
+    // view's on-screen position, so the capture still gets the real pixels.
     left: -100000,
     top: 0,
-    opacity: 0,
+    backgroundColor: '#fff',
   },
 });
