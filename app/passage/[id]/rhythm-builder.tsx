@@ -1003,6 +1003,9 @@ function ExerciseCard({
         abc={abc}
         width={viewportWidth - 32}
         height={140}
+        // Grow to fit when the notation wraps to 2+ staff lines (140 is the
+        // single-line floor; without this the second line was clipped).
+        autoHeight
         wrap
         // Trim the SVG to its actual content and center it in the row.
         // Without this, abcjs renders the music left-aligned and pads

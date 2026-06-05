@@ -59,6 +59,9 @@ type Props = {
   /** Wrap notation across multiple staff lines (used by PitchStaff). */
   wrap?: boolean;
   preferredMeasuresPerLine?: number;
+  /** Grow the view to the rendered notation height (so wrapped multi-line
+   *  staves aren't clipped). `height` acts as the initial/min height. */
+  autoHeight?: boolean;
   /** Shown when abcjs fails to render. */
   fallbackText?: string;
   /** Maps a tapped note's SVG element to its index in the ABC body. */
@@ -149,6 +152,13 @@ function buildHtml(o: {
         }
       });
       highlight();
+      // Report the rendered SVG height so RN can grow the container to fit
+      // wrapped staff lines (otherwise a 2-line wrap clips at the fixed height).
+      try {
+        var svg = document.querySelector('#paper svg');
+        var h = svg ? (parseFloat(svg.getAttribute('height')) || svg.getBoundingClientRect().height) : 0;
+        if (h) post('H:' + Math.ceil(h));
+      } catch (he) {}
     } catch (e) {
       post('ERR:' + (e && e.message ? e.message : 'abcjs failed'));
     }
@@ -169,6 +179,7 @@ export function AbcStaffView({
   scale = 1,
   wrap,
   preferredMeasuresPerLine = 4,
+  autoHeight,
   fallbackText,
   onNoteTap,
   activeNoteIndex,
@@ -177,9 +188,14 @@ export function AbcStaffView({
   const C = Colors[scheme];
   const webRef = useRef<WebViewInstance | null>(null);
   const [failed, setFailed] = useState(false);
+  const [measured, setMeasured] = useState<number | null>(null);
 
   const resolvedWidth = width ?? 240;
   const resolvedHeight = height ?? 60;
+  // When autoHeight, grow to the rendered notation (floored at resolvedHeight)
+  // so wrapped staff lines show in full.
+  const containerHeight =
+    autoHeight && measured != null ? Math.max(resolvedHeight, measured) : resolvedHeight;
 
   const html = useMemo(
     () =>
@@ -211,9 +227,10 @@ export function AbcStaffView({
     ],
   );
 
-  // Reset the failure flag whenever the rendered content changes.
+  // Reset failure + measured height whenever the rendered content changes.
   useEffect(() => {
     setFailed(false);
+    setMeasured(null);
   }, [html]);
 
   // Push active-note changes without reloading the WebView. The guard
@@ -243,7 +260,7 @@ export function AbcStaffView({
   }
 
   return (
-    <View style={{ width: resolvedWidth, height: resolvedHeight }}>
+    <View style={{ width: resolvedWidth, height: containerHeight }}>
       <WebView
         ref={webRef}
         source={{ html }}
@@ -255,6 +272,9 @@ export function AbcStaffView({
           const data = e.nativeEvent.data;
           if (data.startsWith('ERR:')) {
             setFailed(true);
+          } else if (data.startsWith('H:')) {
+            const h = Number(data.slice(2));
+            if (!Number.isNaN(h) && h > 0) setMeasured(h + 8);
           } else if (onNoteTap) {
             const idx = Number(data);
             if (!Number.isNaN(idx)) onNoteTap(idx);
