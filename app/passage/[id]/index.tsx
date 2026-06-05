@@ -432,8 +432,10 @@ export default function PassageDetailScreen() {
                     style={StyleSheet.absoluteFill}
                     persistKey={passage.id}
                     overlay={ann.canvas}
-                    // While annotating, let the finger draw instead of pan.
-                    gesturesEnabled={!ann.pencil.active}
+                    // Phone: while annotating, one finger draws (pan off) but
+                    // two fingers still pinch-zoom. iPad keeps normal gestures
+                    // (the Apple Pencil draws; the finger pans).
+                    drawMode={isPhone && ann.pencil.active}
                   />
                 ) : (
                   <>

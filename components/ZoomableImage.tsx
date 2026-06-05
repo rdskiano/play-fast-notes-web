@@ -113,6 +113,12 @@ type Props = {
    *  annotating). On a finger-only phone the pan gesture would otherwise
    *  swallow the drawing stroke. Defaults to true. */
   gesturesEnabled?: boolean;
+  /** Draw mode (phone Apple-Pencil-on-a-finger): keep two-finger PINCH zoom
+   *  live, but turn OFF one-finger pan + double-tap so a single finger passes
+   *  through to the drawing canvas overlay. So: one finger draws, two fingers
+   *  zoom. (On iPad the Pencil input is distinct, so leave this false there and
+   *  let the finger pan normally.) */
+  drawMode?: boolean;
   /** Fires (on the JS thread) when the zoom crosses in/out of ~1×. Lets a
    *  parent disable a surrounding horizontal pager while zoomed, so one-finger
    *  pan moves the image instead of flipping the page. */
@@ -127,6 +133,7 @@ export function ZoomableImage({
   children,
   persistKey,
   gesturesEnabled = true,
+  drawMode = false,
   onZoomedChange,
 }: Props) {
   // Seed shared values from the cache so the first render already
@@ -225,7 +232,7 @@ export function ZoomableImage({
     });
 
   const pan = Gesture.Pan()
-    .enabled(gesturesEnabled)
+    .enabled(gesturesEnabled && !drawMode)
     .minDistance(2)
     .averageTouches(true)
     .onStart(() => {
@@ -247,7 +254,7 @@ export function ZoomableImage({
     });
 
   const doubleTap = Gesture.Tap()
-    .enabled(gesturesEnabled)
+    .enabled(gesturesEnabled && !drawMode)
     .numberOfTaps(2)
     .onEnd(() => {
       'worklet';

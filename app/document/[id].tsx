@@ -227,9 +227,11 @@ export default function DocumentScreen() {
   // DocumentPage.index (so `p.index === currentPage` picks the visible page).
   const currentPage = currentIndex * (viewMode === 'spread' ? 2 : 1) + 1;
   const docAnn = useDocumentAnnotation(id, currentPage);
-  // Pinch-zoom only in plain reading mode on a phone.
-  const pageZoomEnabled =
-    isPhone && mode === 'idle' && !docAnn.annotating && !markingSection;
+  // Pinch-zoom on a phone in idle mode — INCLUDING while annotating, where it
+  // runs in draw mode (two-finger zoom, one-finger draws on the pencil canvas).
+  // Still excluded during draw/resize/section-marking, where the box math needs
+  // un-zoomed slot coordinates.
+  const pageZoomEnabled = isPhone && mode === 'idle' && !markingSection;
   const currentPageZoomed = zoomedScreens.has(currentIndex);
 
   // Forward navigation (a push) doesn't fire 'beforeRemove', so an unsaved
@@ -1132,6 +1134,9 @@ export default function DocumentScreen() {
                             <ZoomableImage
                               style={StyleSheet.absoluteFill}
                               persistKey={`doc:${doc.id}:p${p.index}`}
+                              // While the pencil is active: one finger draws on
+                              // the canvas, two fingers still pinch-zoom.
+                              drawMode={docAnn.annotating}
                               onZoomedChange={(z) =>
                                 setScreenZoomed(screenForPage(p.index), z)
                               }>
