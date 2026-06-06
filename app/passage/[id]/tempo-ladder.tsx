@@ -662,9 +662,9 @@ export default function TempoLadderScreen() {
               accessibilityLabel="Exit session"
               style={[
                 styles.phoneEndBtn,
-                { top: insets.top + 8, left: insets.left + 8, backgroundColor: C.tint },
+                { top: insets.top + 8, left: insets.left + 8, backgroundColor: C.background },
               ]}>
-              <ThemedText style={styles.phoneEndGlyph}>EXIT</ThemedText>
+              <ThemedText style={[styles.phoneEndGlyph, { color: C.tint }]}>EXIT</ThemedText>
             </Pressable>
 
             <Pressable
@@ -1044,17 +1044,21 @@ const styles = StyleSheet.create({
     height: 36,
     paddingHorizontal: 12,
     borderRadius: 18,
-    backgroundColor: '#000000aa',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 5,
+    // Subtle white chip so the blue text stays legible over the score without
+    // the filled-pill weight of a primary button.
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
   },
+  // Mirrors SessionTopBar's exitText so every EXIT reads the same.
   phoneEndGlyph: {
-    color: '#fff',
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: Type.size.sm,
     fontWeight: Type.weight.heavy,
-    letterSpacing: 0.5,
   },
   phoneRepBtn: {
     position: 'absolute',
