@@ -23,6 +23,8 @@ export function PedalCatcher({
   active,
   onAdvance,
   onBack,
+  secondaryKey,
+  onSecondary,
 }: {
   active: boolean;
   onAdvance: () => void;
@@ -30,11 +32,11 @@ export function PedalCatcher({
   // pedal (up / left / pageup) fires `onBack`; without it, every pedal key
   // advances (the historical behavior).
   onBack?: () => void;
-  // The web sibling supports a secondary key binding (e.g. X = Miss in
-  // Tempo Ladder) so the laptop user can mirror what a two-button pedal
-  // would do. iPad only has one foot pedal that emits arrow keys, so
-  // these props are accepted for prop-type parity with the web sibling
-  // and intentionally ignored here.
+  // Optional second outcome for screens with two rep results (Tempo Ladder:
+  // Clean vs Miss). A two-button foot pedal already works via `onBack` — its
+  // LEFT pedal emits a back key (up/left/pageup) and fires the second action,
+  // its RIGHT pedal advances. This also wires `secondaryKey` so a hardware
+  // keyboard key (e.g. "x" = Miss) fires it too, matching the web sibling.
   secondaryKey?: string;
   onSecondary?: () => void;
 }) {
@@ -52,7 +54,15 @@ export function PedalCatcher({
     // De-dupe key auto-repeat and the multiple native capture paths.
     if (now - lastAdvanceRef.current <= 300) return;
     lastAdvanceRef.current = now;
-    if (onBack && BACK_KEYS.has(key)) {
+    if (
+      onSecondary &&
+      secondaryKey &&
+      key.toLowerCase() === secondaryKey.toLowerCase()
+    ) {
+      // A keyboard pressed the secondary key (e.g. "x" = Miss).
+      onSecondary();
+    } else if (onBack && BACK_KEYS.has(key)) {
+      // Left pedal → back / second-outcome (Click-Up: BACK; Tempo Ladder: Miss).
       onBack();
     } else {
       onAdvance();

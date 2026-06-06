@@ -12,9 +12,9 @@
 // <HelpModal>; auto-fire and manual open both flow through the same
 // `isOpen` state, so they can't stack.
 //
-// Web-only by design — the native sibling (HelpModal.tsx,
-// HelpButton.tsx) are no-ops because first-time visitors land on the
-// live web build and native has no persistent KV store wired up.
+// Cross-platform. Web and native both have a real HelpButton + HelpModal
+// + TutorialStep now (auto-opens are deduped in memory per session, so no
+// persistent store is needed). HelpProvider is mounted on both platforms.
 
 import {
   createContext,

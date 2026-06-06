@@ -31,9 +31,9 @@ export function FeedbackButton() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Web only — the iPad app has its own channels (and the parity rule says
-  // no web-only UI; this is the user-requested exception that lives only in
-  // play-fast-notes-web).
+  // Web (desktop) only, by a past explicit request. NOTE: native currently has
+  // NO in-app feedback/contact channel — if that's wanted for the App Store
+  // build, add one (e.g. in Settings) rather than relying on this.
   if (Platform.OS !== 'web') return null;
   // Phone screens don't have the edge space to spare — every pixel goes to
   // the score, the practice rep buttons, and the tool tabs. The user can

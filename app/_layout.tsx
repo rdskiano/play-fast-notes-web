@@ -14,11 +14,10 @@
 //     no-op on web via Metro's .web.ts resolution (lib/startup/migrate.web.ts).
 //   - Native mounts InterleavedTimerProvider; web doesn't need it (no
 //     background-audio timer there). Rendered conditionally below.
-//   - Web mounts the in-app help system (HelpProvider / HelpModal /
-//     HelpButton); native mounts no-op siblings. First-time visitors
-//     land on the live web build, and native has no persistent KV
-//     store wired up for the per-step session-dedupe — see
-//     components/HelpContext for the design rationale.
+//   - The in-app help system (HelpProvider / HelpModal / HelpButton /
+//     TutorialStep) runs on BOTH platforms now. Auto-opens are deduped
+//     in memory per session, so no persistent store is needed — see
+//     components/HelpContext.
 
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Redirect, Stack, usePathname } from 'expo-router';
@@ -201,8 +200,8 @@ export default function RootLayout() {
                 {/* Help system: HelpModal is the single global modal
                     that both auto-fires (from <TutorialStep>) and
                     manual opens (from <HelpButton>) share. The button
-                    is fixed bottom-right on every screen. Both are
-                    no-ops on native — see components/HelpContext. */}
+                    is fixed bottom-right on every screen. Live on both
+                    web and native — see components/HelpContext. */}
                 <HelpModal />
                 <HelpButton />
                 {/* Phone-only Add-to-Home-Screen coach. On the iPad app

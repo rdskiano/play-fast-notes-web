@@ -1,8 +1,46 @@
 // Single-tap overlay used in section-mark mode. iPad port of the web
 // SectionMarkerCapturer. The user taps a page; we capture the y position
-// in source-page pixels and report via onCapture. No persistent visual.
+// in source-page pixels and report via onCapture.
 
 import { Pressable, StyleSheet, View } from 'react-native';
+
+// Diagonal "armed" stripes matching the web's CSS repeating-linear-gradient
+// (135deg, cyan 0.06 / 0.10 alternating, 12px bands). RN has no gradient, so
+// we render a rotated stack of horizontal bars and clip it to the surface.
+const STRIPE = 12;
+const STRIPE_A = 'rgba(0,200,255,0.06)';
+const STRIPE_B = 'rgba(0,200,255,0.10)';
+
+function DiagonalStripes({ w, h }: { w: number; h: number }) {
+  if (w <= 0 || h <= 0) return null;
+  // Oversize so the rotated band still covers the corners of the surface.
+  const side = Math.ceil(Math.sqrt(w * w + h * h)) + STRIPE * 2;
+  const count = Math.ceil(side / STRIPE) + 1;
+  const bars = [];
+  for (let i = 0; i < count; i++) {
+    bars.push(
+      <View
+        key={i}
+        style={{ width: side, height: STRIPE, backgroundColor: i % 2 ? STRIPE_B : STRIPE_A }}
+      />,
+    );
+  }
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <View
+        style={{
+          position: 'absolute',
+          left: (w - side) / 2,
+          top: (h - side) / 2,
+          width: side,
+          height: side,
+          transform: [{ rotate: '135deg' }],
+        }}>
+        {bars}
+      </View>
+    </View>
+  );
+}
 
 type Props = {
   pageIndex: number;
@@ -32,15 +70,20 @@ export function SectionMarkerCapturer({
     onCapture(pageIndex, ySource);
   }
 
+  const drawW = useFallback ? slotWidth : imageRect.w;
+  const drawH = useFallback ? slotHeight : imageRect.h;
+
   return (
     <View
       pointerEvents="auto"
       style={[
         styles.layer,
+        styles.clip,
         useFallback
           ? { left: 0, top: 0, right: 0, bottom: 0 }
           : { left: imageRect.x, top: imageRect.y, width: imageRect.w, height: imageRect.h },
       ]}>
+      <DiagonalStripes w={drawW} h={drawH} />
       <Pressable
         onPress={handlePress}
         style={styles.surface}
@@ -65,15 +108,15 @@ function fitContain(slotW: number, slotH: number, sourceW: number, sourceH: numb
 
 const styles = StyleSheet.create({
   layer: { position: 'absolute' },
+  // Clip the oversized rotated stripe band to the armed surface.
+  clip: { overflow: 'hidden' },
+  // Transparent tap surface over the stripes; the "armed" tint is now the
+  // diagonal stripes behind it (DiagonalStripes), matching the web.
   surface: {
     position: 'absolute',
     top: 0,
     right: 0,
     bottom: 0,
     left: 0,
-    // Subtle striped tint indicating the page is "armed" for marking.
-    // Web uses a CSS gradient; RN doesn't have gradients without a lib, so
-    // we use a near-transparent solid color tint as a fallback.
-    backgroundColor: 'rgba(0,200,255,0.08)',
   },
 });

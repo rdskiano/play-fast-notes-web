@@ -11,6 +11,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
@@ -192,6 +194,31 @@ export default function PassageDetailScreen() {
   const goNext = useCallback(() => {
     if (next) router.replace(`/passage/${next.id}`);
   }, [next, router]);
+
+  // Native swipe-to-navigate between sibling passages — parity with the web
+  // pointer-swipe (which stays the path on web). Horizontal flings only; the
+  // ‹ › buttons still work too. Disabled on web so it doesn't double up with
+  // the pointer handlers below.
+  const swipeNav = useMemo(
+    () =>
+      Gesture.Race(
+        Gesture.Fling()
+          .direction(Directions.LEFT)
+          .enabled(Platform.OS !== 'web')
+          .onStart(() => {
+            'worklet';
+            runOnJS(goNext)();
+          }),
+        Gesture.Fling()
+          .direction(Directions.RIGHT)
+          .enabled(Platform.OS !== 'web')
+          .onStart(() => {
+            'worklet';
+            runOnJS(goPrev)();
+          }),
+      ),
+    [goNext, goPrev],
+  );
 
   // Keyboard arrows on desktop. Skip while a sheet is open or focus is in
   // an input — otherwise we steal text-cursor movement.
@@ -384,11 +411,11 @@ export default function PassageDetailScreen() {
         <PassageReminders passageId={passage.id} />
       </View>
 
+      <GestureDetector gesture={swipeNav}>
       <View
-        // Swipe handlers are web-only — onPointerDown/Up/Cancel are HTMLElement
-        // events. RN-Web forwards them through View. On native, this is a
-        // plain flex wrapper with no swipe support (the prev/next buttons
-        // still navigate).
+        // Swipe-to-navigate: web uses pointer events (onPointerDown/Up/Cancel,
+        // HTMLElement-only, forwarded by RN-Web); native uses the horizontal
+        // fling in `swipeNav` above. Either way the ‹ › buttons still navigate.
         {...(Platform.OS === 'web'
           ? ({
               onPointerDown: onSwipeStart,
@@ -483,6 +510,7 @@ export default function PassageDetailScreen() {
 
         <PracticeToolsLayer pencil={ann.pencil} recorderPassageId={passage?.id} />
       </View>
+      </GestureDetector>
 
       <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
         visible={rhythmicSheetOpen}
