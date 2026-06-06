@@ -2,7 +2,6 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   Image as RNImage,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,7 +12,6 @@ import {
 import { ActionSheet } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
 import { ClickUpCoach } from '@/components/ClickUpCoach';
-import { CollapsibleHelp } from '@/components/CollapsibleHelp';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
@@ -182,64 +180,8 @@ export default function ClickUpScreen() {
           }
         />
         <ScrollView contentContainerStyle={styles.markingContent}>
-          {/* The strategy explainer eats scarce vertical space on a phone,
-              pushing the score (the thing you tap on) down and making marking
-              cramped. Hide it on phones — the one-line instruction below plus
-              the first-run tutorial cover what's needed; iPad/laptop keep it. */}
-          {!isPhone && (
-          <>
-          <CollapsibleHelp title="How it works">
-            <ThemedText style={styles.blurbText}>
-              Interleaved Click-Up is a structured practice strategy developed by{' '}
-              <ThemedText
-                style={styles.blurbBold}
-                onPress={() => Linking.openURL('https://www.mollygebrian.com')}>
-                Molly Gebrian
-              </ThemedText>
-              , a viola professor and expert in the science of practice. The strategy is
-              detailed in her book{' '}
-              <ThemedText style={styles.blurbItalic}>
-                Learn Faster, Perform Better — A Musician&apos;s Guide to the Neuroscience
-                of Practicing
-              </ThemedText>
-              .
-            </ThemedText>
-            <ThemedText style={styles.blurbText}>
-              Break the passage into small units (like beats or measures) by tapping the
-              score to mark the beginning of each unit. Tap just above the music so the
-              notes are still visible. The app then walks you through a carefully ordered
-              sequence that interleaves individual units with progressively larger
-              combinations — and at each stage the tempo climbs from your start BPM to
-              your goal. This forces your brain to constantly retrieve and reconnect
-              sections, producing deeper learning and more reliable performances under
-              pressure.
-            </ThemedText>
-            <ThemedText style={styles.blurbText}>
-              During practice, tap{' '}
-              <ThemedText style={styles.blurbBold}>NEXT →</ThemedText> (or press Space,
-              Enter, or the right foot pedal) after each rep. To redo the previous step
-              — say, you advanced too quickly and want to revisit that tempo — tap{' '}
-              <ThemedText style={styles.blurbBold}>← BACK</ThemedText> (or press the
-              left arrow, Backspace, or the left foot pedal). The metronome and the
-              active units rewind with you.
-            </ThemedText>
-            <ThemedText style={styles.blurbText}>
-              The session logs automatically when you reach the last step. To log
-              earlier, tap <ThemedText style={styles.blurbBold}>DONE</ThemedText> at the
-              top right.
-            </ThemedText>
-            <Pressable
-              onPress={() => Linking.openURL('https://www.mollygebrian.com')}
-              style={[styles.linkBtn, { borderColor: C.tint }]}>
-              <ThemedText style={[styles.linkText, { color: C.tint }]}>
-                Visit mollygebrian.com
-              </ThemedText>
-            </Pressable>
-          </CollapsibleHelp>
-
-          <View style={[styles.divider, { backgroundColor: C.icon + '33' }]} />
-          </>
-          )}
+          {/* The full strategy explainer now lives behind the ? button
+              (auto-opens for first-timers); no inline panel here. */}
 
           <ThemedText style={styles.helper}>
             Tap just above the music to mark the beginning of each unit. You need at
@@ -274,11 +216,13 @@ export default function ClickUpScreen() {
           visible={practiceLogCount === 0}
           title="Mark your units"
           body={
-            "Tap just above the music to mark the start of each unit (a beat, a measure — whatever feels like the smallest chunk you want to drill). Drop one extra mark at the end of the last unit so the app knows where it stops. You need at least " +
+            "Interleaved Click-Up is a structured practice method developed by Molly Gebrian — a viola professor and researcher in the neuroscience of practice (her book: Learn Faster, Perform Better). Instead of repeating a passage start-to-finish, you break it into small units; the app interleaves them at climbing tempos, forcing your brain to keep retrieving and reconnecting sections. That builds deeper, more reliable playing under pressure.\n\n" +
+            "Mark your units: tap just above the music to mark the start of each unit (a beat, a measure — the smallest chunk you want to drill). Drop one extra mark at the end of the last unit so the app knows where it stops. You need at least " +
             String(MIN_MARKERS) +
             " marks total.\n\n" +
-            "To fix a mistake: tap a marker again to remove it, tap UNDO to remove just the last one, or tap CLEAR to wipe them all and start over.\n\n" +
-            "When you've placed your marks, tap NEXT → at the top right to set your tempo range."
+            "Fixing marks: tap a marker again to remove it, tap UNDO for just the last one, or CLEAR to start over. When you're done, tap NEXT → at the top right to set your tempo range.\n\n" +
+            "During practice: tap NEXT → (or Space / Enter / right foot pedal) after each rep; tap ← BACK (or the left arrow / Backspace / left pedal) to revisit the previous step — the metronome and active units rewind with you. The session logs automatically at the last step; tap DONE to log it earlier.\n\n" +
+            "Learn more at mollygebrian.com."
           }
           image={{
             source: require('@/assets/images/tutorial-click-up-marking.png'),

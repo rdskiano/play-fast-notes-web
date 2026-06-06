@@ -7,7 +7,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BpmStepper } from '@/components/BpmStepper';
 import { Button } from '@/components/Button';
 import { CelebrationModal } from '@/components/CelebrationModal';
-import { CollapsibleHelp } from '@/components/CollapsibleHelp';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { CustomPatternDots } from '@/components/CustomPatternDots';
 import { CustomPatternEditor } from '@/components/CustomPatternEditor';
@@ -198,26 +197,8 @@ export default function TempoLadderScreen() {
             </>
           )}
 
-          <CollapsibleHelp title="How it works">
-            <ThemedText style={styles.blurbText}>
-              Tempo Ladder builds tempo control through disciplined repetition. Start well
-              below your target tempo and play the passage with the metronome. After each
-              rep, tap <ThemedText style={styles.blurbBold}>Clean ✓</ThemedText> if it was
-              accurate or <ThemedText style={styles.blurbBold}>Miss ✗</ThemedText> if it
-              was not.
-            </ThemedText>
-            <ThemedText style={styles.blurbText}>
-              <ThemedText style={styles.blurbBold}>Step click-up</ThemedText> — climb in
-              fixed jumps after N clean reps in a row.
-              {'\n'}
-              <ThemedText style={styles.blurbBold}>Randomized cluster</ThemedText> — each
-              rep picks a random tempo from a window that slides up as you succeed.
-              {'\n'}
-              <ThemedText style={styles.blurbBold}>Custom</ThemedText> — define your own
-              sequence (e.g. 9 reps at base + 1 rep at base+10). One clean run of the
-              pattern bumps the tempo. A miss restarts the pattern.
-            </ThemedText>
-          </CollapsibleHelp>
+          {/* Strategy explainer now lives behind the ? button (auto-opens for
+              first-timers); no inline panel here. */}
 
           {/* ── Mode picker (top of the form) ───────────────────────── */}
           <ThemedText type="subtitle" style={{ marginTop: Spacing.sm }}>Mode</ThemedText>
@@ -464,6 +445,7 @@ export default function TempoLadderScreen() {
           visible={practiceLogCount === 0}
           title="Set up your Tempo Ladder"
           body={
+            "Tempo Ladder builds tempo control through disciplined repetition: start well below your target, play the passage with the metronome, and after each rep mark Clean ✓ (accurate) or Miss ✗ (not). Clean reps climb you toward your goal tempo.\n\n" +
             "Three modes to pick from:\n\n" +
             "Step click-up — the metronome bumps up after N clean reps in a row. Best place to start.\n\n" +
             "Randomized cluster — each rep is a random tempo between two tempos you choose. Keeps you sharp because you never know what's coming. Choose how many you have to get in a row to bump up the cluster.\n\n" +
