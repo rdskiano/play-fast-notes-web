@@ -341,7 +341,9 @@ export default function ClickUpScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <SessionTopBar
         onExit={exitSession}
-        exitLabel={isPhone ? '←' : 'EXIT'}
+        // "EXIT" on every size — matches the other practice screens; a bare
+        // back-arrow here read as "undo", not "leave the session".
+        exitLabel="EXIT"
         center={
           // Phone (esp. landscape): fold the instruction onto the SAME header
           // line as a compact step fraction, so it doesn't eat a whole row of
