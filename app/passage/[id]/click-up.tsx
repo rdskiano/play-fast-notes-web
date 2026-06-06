@@ -54,6 +54,9 @@ export default function ClickUpScreen() {
   const C = Colors[scheme];
   const { width: winWidth, height: winHeight } = useWindowDimensions();
   const isPhone = Math.min(winWidth, winHeight) < 600;
+  // Phone landscape is where vertical space is scarce — fold the instruction
+  // into the header there. Portrait keeps the readable standalone row.
+  const isPhoneLandscape = isPhone && winWidth > winHeight;
   const isTouch = useIsTouchDevice();
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
@@ -396,9 +399,22 @@ export default function ClickUpScreen() {
         onExit={exitSession}
         exitLabel={isPhone ? '←' : 'EXIT'}
         center={
-          <ThemedText style={styles.topCenter} numberOfLines={1}>
-            {unitLabel} · {currentIndex + 1}/{storedConfig.steps.length}
-          </ThemedText>
+          // Phone (esp. landscape): fold the instruction onto the SAME header
+          // line as a compact step fraction, so it doesn't eat a whole row of
+          // scarce vertical space above the music and the header stays one line.
+          // Larger screens keep the full unit label + the standalone line below.
+          isPhoneLandscape ? (
+            <ThemedText style={styles.topCenter} numberOfLines={1}>
+              {currentIndex + 1}/{storedConfig.steps.length}
+              <ThemedText style={styles.topCenterHint}>
+                {'   ·   Play from one green arrow ▼ to the next.'}
+              </ThemedText>
+            </ThemedText>
+          ) : (
+            <ThemedText style={styles.topCenter} numberOfLines={1}>
+              {unitLabel} · {currentIndex + 1}/{storedConfig.steps.length}
+            </ThemedText>
+          )
         }
         right={
           isPhone ? (
@@ -448,9 +464,13 @@ export default function ClickUpScreen() {
         }
       />
 
-      <ThemedText style={styles.playHelper}>
-        Play from one green arrow ▼ to the next.
-      </ThemedText>
+      {/* Phone LANDSCAPE folds this into the header line above (scarce vertical
+          space); portrait + larger screens keep the standalone reminder. */}
+      {!isPhoneLandscape && (
+        <ThemedText style={styles.playHelper}>
+          Play from one green arrow ▼ to the next.
+        </ThemedText>
+      )}
 
       {/* Keyboard / pedal capture is always live during the playing phase
           (gated only by note prompts + celebration overlays). Laptop
@@ -609,6 +629,9 @@ const styles = StyleSheet.create({
   topBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radii.md },
   topBtnText: { fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
   topCenter: { textAlign: 'center', fontWeight: Type.weight.bold, fontSize: Type.size.sm },
+  // Lighter, non-bold instruction appended to the step fraction in the phone
+  // header so it reads as a hint next to the counter.
+  topCenterHint: { fontWeight: '400', opacity: Opacity.muted },
   markingContent: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing['2xl'] },
   helper: {
     textAlign: 'center',
