@@ -519,7 +519,7 @@ export default function TempoLadderScreen() {
             { borderBottomColor: C.icon + '44', paddingTop: insets.top + 10 },
           ]}>
           <Pressable onPress={onEndPress} hitSlop={8} style={styles.endBtn}>
-            <ThemedText style={styles.endBtnText}>EXIT</ThemedText>
+            <ThemedText style={[styles.endBtnText, { color: C.tint }]}>EXIT</ThemedText>
           </Pressable>
           <View style={styles.streakDots}>
             {progress.mode === 'custom' && customPattern ? (
@@ -662,7 +662,7 @@ export default function TempoLadderScreen() {
               accessibilityLabel="Exit session"
               style={[
                 styles.phoneEndBtn,
-                { top: insets.top + 8, left: insets.left + 8, backgroundColor: C.background },
+                { top: insets.top + 8, left: insets.left + 8 },
               ]}>
               <ThemedText style={[styles.phoneEndGlyph, { color: C.tint }]}>EXIT</ThemedText>
             </Pressable>
@@ -971,8 +971,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffffd0',
     zIndex: 1,
   },
-  endBtn: { paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs },
-  endBtnText: { fontSize: Type.size.lg, fontWeight: Type.weight.semibold },
+  endBtn: { paddingHorizontal: 6, paddingVertical: Spacing.xs },
+  // Mirrors SessionTopBar's exitText so every EXIT reads the same.
+  endBtnText: { fontSize: Type.size.sm, fontWeight: Type.weight.heavy },
   streakDots: {
     flexDirection: 'row',
     gap: 10,
@@ -1039,21 +1040,13 @@ const styles = StyleSheet.create({
   phoneDotEmpty: { borderColor: '#ffffff77', backgroundColor: 'transparent' },
   phoneDotFilled: { borderColor: '#2ecc71', backgroundColor: '#2ecc71' },
   phoneEndBtn: {
+    // Plain blue text, no chip — matches SessionTopBar's EXIT exactly so the
+    // floating (no-top-bar) layout reads the same as every other screen.
     position: 'absolute',
     left: 8,
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: Spacing.xs,
     zIndex: 5,
-    // Subtle white chip so the blue text stays legible over the score without
-    // the filled-pill weight of a primary button.
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
   },
   // Mirrors SessionTopBar's exitText so every EXIT reads the same.
   phoneEndGlyph: {

@@ -809,7 +809,7 @@ function InterleavedScreenInner() {
               accessibilityLabel="Exit session"
               style={[
                 styles.phoneEndBtn,
-                { top: insets.top + 8, left: insets.left + 8, backgroundColor: C.background },
+                { top: insets.top + 8, left: insets.left + 8 },
               ]}>
               <ThemedText style={[styles.phoneEndGlyph, { color: C.tint }]}>EXIT</ThemedText>
             </Pressable>
@@ -1361,21 +1361,13 @@ const styles = StyleSheet.create({
   phoneDotEmpty: { borderColor: '#ffffff77', backgroundColor: 'transparent' },
   phoneDotFilled: { borderColor: '#2ecc71', backgroundColor: '#2ecc71' },
   phoneEndBtn: {
+    // Plain blue text, no chip — matches SessionTopBar's EXIT exactly so the
+    // floating (no-top-bar) layout reads the same as every other screen.
     position: 'absolute',
     left: 8,
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: Spacing.xs,
     zIndex: 5,
-    // Subtle white chip so the blue text stays legible over the score without
-    // the filled-pill weight of a primary button.
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
   },
   // Mirrors SessionTopBar's exitText so every EXIT reads the same.
   phoneEndGlyph: {
