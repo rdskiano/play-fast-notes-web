@@ -519,7 +519,7 @@ export default function TempoLadderScreen() {
             { borderBottomColor: C.icon + '44', paddingTop: insets.top + 10 },
           ]}>
           <Pressable onPress={onEndPress} hitSlop={8} style={styles.endBtn}>
-            <ThemedText style={styles.endBtnText}>End</ThemedText>
+            <ThemedText style={styles.endBtnText}>EXIT</ThemedText>
           </Pressable>
           <View style={styles.streakDots}>
             {progress.mode === 'custom' && customPattern ? (
@@ -659,9 +659,9 @@ export default function TempoLadderScreen() {
             <Pressable
               onPress={onEndPress}
               hitSlop={6}
-              accessibilityLabel="End session"
+              accessibilityLabel="Exit session"
               style={[styles.phoneEndBtn, { top: insets.top + 8, left: insets.left + 8 }]}>
-              <ThemedText style={styles.phoneEndGlyph}>✕</ThemedText>
+              <ThemedText style={styles.phoneEndGlyph}>EXIT</ThemedText>
             </Pressable>
 
             <Pressable
@@ -751,7 +751,7 @@ export default function TempoLadderScreen() {
           "Play a rep at the current tempo, then mark it:\n\n" +
           "✓ Clean — counts toward your target reps in a row (the dots up top track your streak). Once you hit your target, the metronome bumps up by your increment.\n\n" +
           "✗ Miss — resets your streak (Step / Cluster) or restarts the pattern (Custom).\n\n" +
-          "Keyboard shortcuts on laptop: Space = Clean ✓, X = Miss ✗. Foot pedals work the same. Tap ✕ at the top-left to end the session and log it." +
+          "Keyboard shortcuts on laptop: Space = Clean ✓, X = Miss ✗. Foot pedals work the same. Tap EXIT at the top-left to end the session and log it." +
           `\n\n${PRACTICE_TOOLS_HELP}`
         }
       />
@@ -1038,8 +1038,8 @@ const styles = StyleSheet.create({
   phoneEndBtn: {
     position: 'absolute',
     left: 8,
-    width: 36,
     height: 36,
+    paddingHorizontal: 12,
     borderRadius: 18,
     backgroundColor: '#000000aa',
     alignItems: 'center',
@@ -1048,9 +1048,10 @@ const styles = StyleSheet.create({
   },
   phoneEndGlyph: {
     color: '#fff',
-    fontSize: 18,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 16,
     fontWeight: Type.weight.heavy,
+    letterSpacing: 0.5,
   },
   phoneRepBtn: {
     position: 'absolute',

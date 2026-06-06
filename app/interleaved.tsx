@@ -806,9 +806,9 @@ function InterleavedScreenInner() {
             <Pressable
               onPress={endSession}
               hitSlop={6}
-              accessibilityLabel="End session"
+              accessibilityLabel="Exit session"
               style={[styles.phoneEndBtn, { top: insets.top + 8, left: insets.left + 8 }]}>
-              <ThemedText style={styles.phoneEndGlyph}>✕</ThemedText>
+              <ThemedText style={styles.phoneEndGlyph}>EXIT</ThemedText>
             </Pressable>
 
             <Pressable
@@ -1360,8 +1360,8 @@ const styles = StyleSheet.create({
   phoneEndBtn: {
     position: 'absolute',
     left: 8,
-    width: 36,
     height: 36,
+    paddingHorizontal: 12,
     borderRadius: 18,
     backgroundColor: '#000000aa',
     alignItems: 'center',
@@ -1370,9 +1370,10 @@ const styles = StyleSheet.create({
   },
   phoneEndGlyph: {
     color: '#fff',
-    fontSize: 18,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 16,
     fontWeight: Type.weight.heavy,
+    letterSpacing: 0.5,
   },
   phoneRepBtn: {
     position: 'absolute',

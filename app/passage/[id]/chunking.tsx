@@ -101,7 +101,7 @@ export default function ChunkingScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <SessionTopBar
         onExit={() => router.back()}
-        exitLabel="‹ Back"
+        exitLabel="EXIT"
         center={
           <ThemedText style={styles.topCenter} numberOfLines={1}>
             Chunking
