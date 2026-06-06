@@ -1,4 +1,4 @@
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
@@ -53,6 +53,7 @@ export function ActionSheet({
               {title}
             </ThemedText>
           )}
+          <ScrollView style={styles.scroll} bounces={false}>
           {items.map((it, i) => {
             if (it.primary) {
               return (
@@ -95,6 +96,7 @@ export function ActionSheet({
               </Pressable>
             );
           })}
+          </ScrollView>
           <Pressable
             onPress={onCancel}
             style={({ pressed }) => [
@@ -125,11 +127,18 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 360,
+    // Cap height so a long list (e.g. all the time signatures) never runs off
+    // a short screen (phone landscape) — the items then scroll, with the title
+    // pinned at the top and Cancel at the bottom.
+    maxHeight: '85%',
     borderRadius: Radii['2xl'],
     overflow: 'hidden',
     borderWidth: Borders.thin,
     borderColor: '#0001',
   },
+  // flexShrink lets the scroll area give way to the title + Cancel so the card
+  // honours maxHeight and the middle scrolls.
+  scroll: { flexShrink: 1 },
   // Title styling reworked 2026-05-25 after user feedback: the previous
   // uppercase + bold + letter-spaced treatment made the name-of-the-
   // tapped-thing (e.g. "INTO 1") read as a chip / button, competing for
