@@ -956,12 +956,17 @@ export default function LibraryScreen() {
             // chevron / undo overlays used elsewhere in the app so the
             // header feels familiar.
             <>
-              <Pressable
-                onPress={() => Linking.openURL(bmacUrl())}
-                accessibilityLabel="Support the developer"
-                style={[styles.iconBtn, { borderColor: C.icon }]}>
-                <ThemedText style={styles.iconBtnText}>☕</ThemedText>
-              </Pressable>
+              {/* Buy Me a Coffee is web-only — App Store guideline 3.1.1
+                  forbids linking out to an external payment for the app, so
+                  the iOS build hides it. */}
+              {Platform.OS === 'web' && (
+                <Pressable
+                  onPress={() => Linking.openURL(bmacUrl())}
+                  accessibilityLabel="Support the developer"
+                  style={[styles.iconBtn, { borderColor: C.icon }]}>
+                  <ThemedText style={styles.iconBtnText}>☕</ThemedText>
+                </Pressable>
+              )}
               <Pressable
                 onPress={() => {
                   if (currentFolderId) {
@@ -1002,12 +1007,15 @@ export default function LibraryScreen() {
             </>
           ) : (
             <>
-              <Button
-                label="☕"
-                variant="outline"
-                size="sm"
-                onPress={() => Linking.openURL(bmacUrl())}
-              />
+              {/* Web-only — App Store 3.1.1 forbids external-payment links. */}
+              {Platform.OS === 'web' && (
+                <Button
+                  label="☕"
+                  variant="outline"
+                  size="sm"
+                  onPress={() => Linking.openURL(bmacUrl())}
+                />
+              )}
               <Button
                 label="Practice Log"
                 variant="outline"
@@ -1312,7 +1320,9 @@ export default function LibraryScreen() {
         body={
           '+ Add (top right) — snap a photo of a tricky measure, upload a PDF of the full part, or make a folder. The easiest first move: a photo of one passage you want to drill.\n\n' +
           'Header buttons:\n' +
-          '☕ — buy me a coffee, if the app helps you.\n' +
+          (Platform.OS === 'web'
+            ? '☕ — buy me a coffee, if the app helps you.\n'
+            : '') +
           '📋 Practice Log — every session you\'ve logged, for this folder or the whole library.\n' +
           '🔀 Rep Rotator — drill several passages in shuffled order.\n' +
           '⚙ Settings.\n' +
