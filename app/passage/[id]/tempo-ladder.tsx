@@ -660,7 +660,10 @@ export default function TempoLadderScreen() {
               onPress={onEndPress}
               hitSlop={6}
               accessibilityLabel="Exit session"
-              style={[styles.phoneEndBtn, { top: insets.top + 8, left: insets.left + 8 }]}>
+              style={[
+                styles.phoneEndBtn,
+                { top: insets.top + 8, left: insets.left + 8, backgroundColor: C.tint },
+              ]}>
               <ThemedText style={styles.phoneEndGlyph}>EXIT</ThemedText>
             </Pressable>
 
