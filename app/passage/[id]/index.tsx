@@ -114,6 +114,9 @@ export default function PassageDetailScreen() {
   // pill row, which doesn't fit alongside the title on a phone, into a
   // single ⋯ button that opens a labeled ActionSheet.
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
+  // Separate "more actions" (☰) menu — History / Crop — split off from the
+  // Strategies menu so each button does one obvious thing.
+  const [phoneMoreOpen, setPhoneMoreOpen] = useState(false);
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
   // Landscape phone: the Rhythmic Variation chooser lays its two options
@@ -355,20 +358,27 @@ export default function PassageDetailScreen() {
               Tempo Ladder / Click-Up / Rhythmic / Self-Led / History /
               Crop live now — without it the ⋯ alone is unguessable. */}
           {isPhone && (
-            <Pressable
-              onPress={() => setPhoneMenuOpen(true)}
-              hitSlop={6}
-              accessibilityLabel="Practice strategies and more"
-              style={styles.phoneMenuRow}>
-              <ThemedText style={[styles.phoneMenuHint, { color: C.tint }]}>
-                strategies →
-              </ThemedText>
-              <View style={[styles.phoneMenuBtn, { borderColor: C.icon }]}>
+            <View style={styles.phoneMenuRow}>
+              {/* Strategies and the other actions used to share one ⋯ menu;
+                  split into a labelled Strategies button (the primary action)
+                  and a ☰ menu for History / Crop. */}
+              <Pressable
+                onPress={() => setPhoneMenuOpen(true)}
+                hitSlop={6}
+                accessibilityLabel="Practice strategies"
+                style={[styles.phoneStrategiesBtn, { backgroundColor: C.tint }]}>
+                <ThemedText style={styles.phoneStrategiesText}>Strategies</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => setPhoneMoreOpen(true)}
+                hitSlop={6}
+                accessibilityLabel="More actions"
+                style={[styles.phoneMenuBtn, { borderColor: C.icon }]}>
                 <ThemedText style={[styles.phoneMenuGlyph, { color: C.text }]}>
-                  ⋯
+                  ☰
                 </ThemedText>
-              </View>
-            </Pressable>
+              </Pressable>
+            </View>
           )}
         </View>
         {!isPhone && (
@@ -666,17 +676,25 @@ export default function PassageDetailScreen() {
               setSelfLedOpen(true);
             },
           },
+        ]}
+        onCancel={() => setPhoneMenuOpen(false)}
+      />
+
+      <ActionSheet
+        visible={phoneMoreOpen}
+        title={passage.title}
+        items={[
           {
             label: 'Practice History',
             onPress: () => {
-              setPhoneMenuOpen(false);
+              setPhoneMoreOpen(false);
               guardedNav(() => router.push(`/passage/${passage.id}/history`));
             },
           },
           {
             label: 'Crop',
             onPress: () => {
-              setPhoneMenuOpen(false);
+              setPhoneMoreOpen(false);
               guardedNav(() =>
                 passage.document_id
                   ? router.push(
@@ -687,7 +705,7 @@ export default function PassageDetailScreen() {
             },
           },
         ]}
-        onCancel={() => setPhoneMenuOpen(false)}
+        onCancel={() => setPhoneMoreOpen(false)}
       />
 
       {/* Step 2 of the guided first-session flow. Fires on any passage
@@ -795,10 +813,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  phoneMenuHint: {
-    fontSize: 12,
-    fontWeight: Type.weight.semibold,
+  phoneStrategiesBtn: {
+    paddingHorizontal: 12,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  phoneStrategiesText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   phoneMenuBtn: {
     width: 36,
     height: 36,
