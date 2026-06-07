@@ -118,8 +118,15 @@ function sanitizeRow(table: string, row: Row): Row {
   return out;
 }
 
+// Tables that carry a soft-delete sticker. We never want to pull rows the user
+// has already deleted on the web — otherwise every import drags back the trash
+// (orphaned passages, documents and their page images).
+const SOFT_DELETE_TABLES = new Set(['folders', 'documents', 'pieces', 'exercises']);
+
 async function fetchTable(table: string, onProgress: ImportProgress): Promise<Row[]> {
-  const { data, error } = await supabase.from(table).select('*');
+  let query = supabase.from(table).select('*');
+  if (SOFT_DELETE_TABLES.has(table)) query = query.is('deleted_at', null);
+  const { data, error } = await query;
   if (error) {
     onProgress(`  ${table}: ✗ ${error.message}`);
     return [];
