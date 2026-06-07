@@ -159,6 +159,7 @@ function renderDateCard(
   setEditing: (e: LibraryPracticeLogEntry) => void,
   isPhone: boolean,
 ) {
+  const isDeleted = pg.entries.some((e) => e.is_deleted);
   return (
     <View
       key={key}
@@ -167,9 +168,18 @@ function renderDateCard(
         isPhone && styles.cardPhone,
         { borderColor: C.icon + '33' },
       ]}>
-      <ThemedText style={styles.passageName} numberOfLines={1}>
-        {pg.passageTitle}
-      </ThemedText>
+      <View style={styles.nameRow}>
+        <ThemedText
+          style={[styles.passageName, isDeleted && { color: C.icon }]}
+          numberOfLines={1}>
+          {pg.passageTitle}
+        </ThemedText>
+        {isDeleted && (
+          <ThemedText style={[styles.deletedTag, { color: C.icon, borderColor: C.icon + '66' }]}>
+            deleted
+          </ThemedText>
+        )}
+      </View>
       <View style={styles.pillRow}>
         {pg.entries.map((e) => (
           <Pressable
@@ -217,13 +227,23 @@ function renderPassageRow(
   STRATEGY_COLORS: Record<string, string>,
   setEditing: (e: LibraryPracticeLogEntry) => void,
 ) {
+  const isDeleted = pg.entries.some((e) => e.is_deleted);
   return (
     <View
       key={key}
       style={[styles.passageRow, { borderColor: C.tint + '88' }]}>
-      <ThemedText style={styles.passageName} numberOfLines={1}>
-        {pg.passageTitle}
-      </ThemedText>
+      <View style={styles.nameRow}>
+        <ThemedText
+          style={[styles.passageName, isDeleted && { color: C.icon }]}
+          numberOfLines={1}>
+          {pg.passageTitle}
+        </ThemedText>
+        {isDeleted && (
+          <ThemedText style={[styles.deletedTag, { color: C.icon, borderColor: C.icon + '66' }]}>
+            deleted
+          </ThemedText>
+        )}
+      </View>
       <View style={styles.pillRow}>
         {pg.entries.map((e) => (
           <Pressable
@@ -819,7 +839,18 @@ const styles = StyleSheet.create({
   cardPhone: {
     flexBasis: '100%',
   },
-  passageName: { fontWeight: Type.weight.bold, fontSize: Type.size.sm },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  passageName: { fontWeight: Type.weight.bold, fontSize: Type.size.sm, flexShrink: 1 },
+  deletedTag: {
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    borderWidth: Borders.thin,
+    borderRadius: Radii.sm,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
   folderSubtitle: { fontSize: Type.size.xs, fontWeight: Type.weight.semibold, marginTop: -2 },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
   pillRowWide: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },

@@ -3,6 +3,7 @@
 // multi-image set the user marks passages inside of. Standalone passages
 // (the existing flow) keep working unchanged with document_id = null.
 import { supabase } from '@/lib/supabase/client';
+import { removePublicUrls } from '@/lib/supabase/storage';
 
 import { listPassagesInDocument, softDeletePassage } from './passages';
 
@@ -243,7 +244,34 @@ export async function updateDocumentSortOrder(id: string, sortOrder: number): Pr
 export async function softDeleteDocument(id: string): Promise<void> {
   const childPassages = await listPassagesInDocument(id);
   for (const p of childPassages) {
-    await softDeletePassage(p.id);
+    await softDeletePassage(p.id); // frees each passage's files + tombstones it
+  }
+  // Free the document's own Storage: the original PDF, every rendered page image,
+  // and any page-level Pencil annotations. Best-effort — never block the delete.
+  const { data: doc } = await supabase
+    .from('documents')
+    .select('original_uri, pages_json')
+    .eq('id', id)
+    .maybeSingle();
+  const { data: annos } = await supabase
+    .from('document_annotations')
+    .select('annotation_image_uri')
+    .eq('document_id', id);
+  const urls: (string | null | undefined)[] = [doc?.original_uri ?? null];
+  if (doc?.pages_json) {
+    try {
+      for (const pg of JSON.parse(doc.pages_json)) {
+        if (pg?.image_uri) urls.push(pg.image_uri);
+      }
+    } catch {
+      // malformed pages_json — skip page images
+    }
+  }
+  for (const a of annos ?? []) urls.push(a.annotation_image_uri);
+  try {
+    await removePublicUrls(urls);
+  } catch {
+    // ignore — keep going with the soft-delete
   }
   const now = Date.now();
   const { error } = await supabase

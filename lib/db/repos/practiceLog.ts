@@ -77,6 +77,9 @@ export type PracticeLogWithTitle = PracticeLogEntry & {
   document_id: string | null;
   document_title: string | null;
   section_name: string | null;
+  // True when the source passage/document has since been deleted. The library
+  // practice log keeps the entry (history is preserved) and tags it.
+  is_deleted?: boolean;
 };
 
 export type LibraryPracticeLogEntry = PracticeLogWithTitle & {
@@ -110,7 +113,11 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
     regions_json: string | null;
     document_title: string | null;
     document_sections_json: string | null;
+    piece_deleted_at: number | null;
   };
+  // Include deleted passages so the practice log preserves work done on them
+  // (the entry is tagged is_deleted). Only 'recording' strategy rows are split
+  // out and merged separately below.
   const rows = await db.getAllAsync<Row>(
     `SELECT pl.id, pl.piece_id, pl.strategy, pl.practiced_at, pl.data_json,
             pl.exercise_id, e.name AS exercise_name,
@@ -120,13 +127,14 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
             p.document_id AS document_id,
             p.regions_json AS regions_json,
             d.title AS document_title,
-            d.sections_json AS document_sections_json
+            d.sections_json AS document_sections_json,
+            p.deleted_at AS piece_deleted_at
      FROM practice_log pl
      JOIN pieces p ON pl.piece_id = p.id
      LEFT JOIN exercises e ON e.id = pl.exercise_id
      LEFT JOIN folders f ON f.id = p.folder_id
      LEFT JOIN documents d ON d.id = p.document_id
-     WHERE p.deleted_at IS NULL AND pl.strategy != 'recording'
+     WHERE pl.strategy != 'recording'
      ORDER BY pl.practiced_at DESC;`,
   );
   const local = rows.map((r) => ({
@@ -143,6 +151,7 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
     document_id: r.document_id,
     document_title: r.document_title,
     section_name: resolveSectionName(r),
+    is_deleted: r.piece_deleted_at != null,
   }));
   const recordings = await getAllRecordingEntries();
   return [...local, ...recordings].sort(

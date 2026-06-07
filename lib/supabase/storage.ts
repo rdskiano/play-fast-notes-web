@@ -133,6 +133,27 @@ export async function uploadAnnotationImage(
   return `${data.publicUrl}?v=${hash}`;
 }
 
+/**
+ * Permanently delete objects from the pieces bucket, given their PUBLIC URLs.
+ * Extracts each object's storage path (the part after `/public/<bucket>/`, with
+ * the `?v=` cache-bust token stripped). URLs that aren't in this bucket, blank,
+ * or null are ignored. Deleting via this Storage API call is the ONLY way to
+ * actually free the bytes — a SQL delete of storage.objects orphans the file
+ * and you keep paying for it.
+ */
+export async function removePublicUrls(
+  urls: (string | null | undefined)[],
+): Promise<void> {
+  const marker = `/public/${BUCKET}/`;
+  const paths = urls
+    .filter((u): u is string => !!u && u.includes(marker))
+    .map((u) => u.slice(u.indexOf(marker) + marker.length).split('?')[0]);
+  if (paths.length === 0) return;
+  // remove() accepts up to 1000 paths; a single passage/document is far under.
+  const { error } = await supabase.storage.from(BUCKET).remove(paths);
+  if (error) throw error;
+}
+
 function base64ToBytes(base64: string): Uint8Array {
   // Tolerate a data-URL prefix (`data:image/png;base64,...`).
   const clean = base64.includes(',')

@@ -1,5 +1,6 @@
 // SQL table name remains "pieces" — see ROADMAP Phase 0 (TS rename only).
 import { supabase } from '@/lib/supabase/client';
+import { removePublicUrls } from '@/lib/supabase/storage';
 
 export type SourceKind = 'pdf' | 'image';
 
@@ -220,11 +221,27 @@ export async function updatePassageRegionsAndAssets(
 }
 
 export async function softDeletePassage(id: string): Promise<void> {
+  // Free this passage's Storage files (image, thumbnail, Pencil annotation) so
+  // deleting actually reclaims space. Best-effort: a storage hiccup must not
+  // block the delete — any leftover can be swept later. The DB row is KEPT as a
+  // tombstone (deleted_at set) so the practice log can still show work done on
+  // this passage; the practice log never loads these files.
+  const { data: row } = await supabase
+    .from('pieces')
+    .select('source_uri, thumbnail_uri, annotation_image_uri')
+    .eq('id', id)
+    .maybeSingle();
+  if (row) {
+    try {
+      await removePublicUrls([row.source_uri, row.thumbnail_uri, row.annotation_image_uri]);
+    } catch {
+      // ignore — keep going with the soft-delete
+    }
+  }
   const now = Date.now();
   const { error } = await supabase
     .from('pieces')
     .update({ deleted_at: now, updated_at: now })
     .eq('id', id);
   if (error) throw error;
-  // Note: web uses Supabase Storage URLs (not local files); no file delete needed.
 }

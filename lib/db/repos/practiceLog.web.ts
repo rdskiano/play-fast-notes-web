@@ -19,6 +19,11 @@ export type PracticeLogWithTitle = PracticeLogEntry & {
   document_id: string | null;
   document_title: string | null;
   section_name: string | null;
+  // True when the passage/document this entry belongs to has since been deleted.
+  // The log keeps showing the entry (so you don't lose practice history) and the
+  // UI tags it so you know the source is gone from your library. Optional: only
+  // the library log resolves it; per-passage views leave it unset.
+  is_deleted?: boolean;
 };
 
 export type LibraryPracticeLogEntry = PracticeLogWithTitle & {
@@ -106,6 +111,7 @@ type PieceWithDoc = {
   folder_id: string | null;
   document_id: string | null;
   regions_json: string | null;
+  deleted_at: number | null;
 };
 
 type DocLite = {
@@ -113,6 +119,7 @@ type DocLite = {
   title: string;
   sections_json: string | null;
   folder_id: string | null;
+  deleted_at: number | null;
 };
 
 function resolveSection(
@@ -138,13 +145,15 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
       .from('practice_log')
       .select('id, piece_id, document_id, strategy, practiced_at, data_json, exercise_id')
       .order('practiced_at', { ascending: false }),
+    // Include deleted rows here: the practice log is meant to preserve work done
+    // on passages/documents even after they've been deleted from the library.
+    // We resolve their titles for the log and tag the entry as deleted.
     supabase
       .from('pieces')
-      .select('id, title, folder_id, document_id, regions_json, deleted_at')
-      .is('deleted_at', null),
+      .select('id, title, folder_id, document_id, regions_json, deleted_at'),
     supabase.from('exercises').select('id, name'),
-    supabase.from('folders').select('id, name').is('deleted_at', null),
-    supabase.from('documents').select('id, title, sections_json, folder_id').is('deleted_at', null),
+    supabase.from('folders').select('id, name'),
+    supabase.from('documents').select('id, title, sections_json, folder_id, deleted_at'),
   ]);
   if (logsRes.error) throw logsRes.error;
   if (piecesRes.error) throw piecesRes.error;
@@ -204,6 +213,7 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
           folder_name: piece.folder_id
             ? folderNames.get(piece.folder_id) ?? null
             : null,
+          is_deleted: piece.deleted_at != null,
         };
       }
       // A document-level entry (a recording made on the PDF viewer): file it
@@ -222,6 +232,7 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
           folder_name: doc.folder_id
             ? folderNames.get(doc.folder_id) ?? null
             : null,
+          is_deleted: doc.deleted_at != null,
         };
       }
       return null;
