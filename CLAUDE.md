@@ -10,9 +10,9 @@ The user is **not a developer**. Always give them one-word terminal shortcuts (e
 >
 > **⚡ ITERATE VIA OTA, NOT BUILDS.** The user's EAS build quota is limited. For JS-only changes: `npx eas-cli update --channel preview --message "..."` (FREE, no build; user relaunches twice to apply). Only run `playpreview`/`playbuild` when NATIVE code changes (new module, permission, podspec, app.json native config). See memory `project_playfastnotes_ota_updates`.
 >
-> **Heads-up for next session:** as of 2026-06-04 there were **8 unpushed commits** (HEAD `3af1492`) — the post-cutover batch (scan, photo-add, annotation-zoom, resize fix, metronome bidirectional sync, notation auto-height, thumbnail fallbacks). All native-only / web-safe; push with `git push web-origin-archive master` for backup. Devices already have them via build+OTA.
+> **🍎 v1.0.0 SUBMITTED TO THE APP STORE (2026-06-07).** Build 2 (`184c0c6e`, commit `16dbf16`) is in App Store review (Waiting for Review; auto-release after approval). Working tree pushed/clean at `16dbf16`. Details + the App Store Connect settings + the "stale prod build" gotcha (verify build commit ≥ HEAD) live in memory `project_app_store_submission`. If rejected, fix → rebuild (`eas build --profile production --platform ios`) → `eas submit -p ios --latest`.
 >
-> **Current workstream**: push the batch, then Stripe (Phase 4.4.2). **Earlier workstream (2026-05-23 → 24): web parity, phone density, timer overhaul, keyboard advance.** See ROADMAP.md for the full log.
+> **Current workstream**: await Apple review, then **Stripe / paid tier (Phase 4.4.2)**. Recently shipped (2026-06-06/07, all pushed+OTA'd): EXIT-button consistency; Supabase import skips deleted rows; **delete now frees Storage** while the practice log keeps deleted-rep history (memory `project_supabase_soft_delete_storage`); one-time 867 MB storage purge. See ROADMAP.md for the full log.
 
 ## Where this lives
 

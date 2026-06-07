@@ -1,12 +1,26 @@
 # Play Fast Notes — Roadmap (unified)
 
-_Last updated: 2026-05-30_
+_Last updated: 2026-06-07_
 
 This roadmap covers **both surfaces** (iOS/iPad + web) of the unified Play Fast Notes app, which lives in this directory (`play-fast-notes/`). The two older repos (`../learn-fast-notes/` for iPad and `../play-fast-notes-web/` for web) are read-only archives and their roadmaps are historical only.
 
 > **🚀 2026-05-24 — WEB CUTOVER COMPLETE.** `playfastnotes.com` now ships from THIS repo via `git push web-origin-archive master` (the remote alias still has the "archive" word, but it points at `rdskiano/play-fast-notes-web` and Vercel auto-deploys from there). The 2026-05-23/24 push (`3d031c2` + `17767f6`) shipped: web Recorder + web Pencil (stylus-gated) + PWA + camera capture + phone density pass + per-passage pinch-zoom + timer overhaul (4 timers Rotate/Micro/Cold/Break + ⚙ settings sheet) + Space/X keyboard advance + ToolDock −/+ resize. **iPad cutover is the remaining plumbing milestone** — the physical iPad still runs Xcode-built dev clients from `learn-fast-notes/`.
 
 The old web-only context note (2026-05-17 Mac upgrade) is now folded into history. iPad still uses local Xcode builds for the user's working device; web now ships from this repo via Vercel.
+
+## 🚀 2026-06-07 — SUBMITTED TO THE APP STORE (v1.0.0, build 2)
+
+**Play Fast Notes v1.0.0 (build 2, `184c0c6e`, commit `16dbf16`) was submitted for App Store review.** Status: Waiting for Review; "Automatically release" after approval. Memory: `[[project_app_store_submission]]`.
+
+- First production build (`58ac8d0f`, commit `34edabf`) was **stale** — predated the Buy-Me-a-Coffee removal (`f13d38a`, guideline 3.1.1) and 18 other commits. Rebuilt at HEAD before submitting. EAS reused cached signing creds (no interactive Apple login needed for the build); `eas submit` generated an App Store Connect API key.
+- App Store Connect settings used: Primary category **Music** (Education secondary); **Free**; Content Rights = no third-party content (users import their own); Age rating **4+**; App Privacy 5 types (Email, User ID, Photos/Videos, Audio, Other User Content) all *App Functionality / linked / no tracking*; demo account + reviewer notes for sign-in; iPhone + iPad screenshots.
+- Pre-launch gates cleared earlier this run: account deletion (5.1.1(v)), privacy policy live, no ads/tracking SDKs.
+
+### Also shipped this session (web push + OTA, commits `38b1571`→`16dbf16`)
+- **EXIT-button consistency** (`1cfc324`, `8371592`, `38b1571`, `684fc26`): every practice screen's top-left control reads **EXIT** as plain blue text (`C.tint`, heavy, `Type.size.sm`) — stripped the white pill/shadow off the phone floating EXITs and shrank the Tempo Ladder desktop EXIT. Matches `SessionTopBar`.
+- **Supabase import skips deleted rows** (`b347dcb`): `lib/supabase/import.ts` `fetchTable` filters `.is('deleted_at', null)` on folders/documents/pieces/exercises so iPad imports stop dragging back deleted passages/PDFs + their page images.
+- **Delete now frees Storage; practice log keeps deleted work** (`16dbf16`): `softDeletePassage`/`softDeleteDocument` (`.web.ts`) call new `removePublicUrls()` in `lib/supabase/storage.ts` to delete the actual files (SQL delete would orphan + still bill them). The DB row is kept as a tombstone so `getPracticeLogForLibrary` (web + native) can still show work on deleted reps — now tagged `is_deleted` with a "deleted" badge in `app/library-log.tsx`. Memory: `[[project_supabase_soft_delete_storage]]`.
+- **One-time storage purge** (out-of-band, via a retired guarded edge function `purge-orphans` + service role): removed 483 orphaned objects / **867 MB** from the `pieces` bucket (1369 MB → 502 MB) — leftovers from soft-deletes that never cleaned Storage + old re-crop versions. The `purge-orphans` function is now an inert 410 stub; safe to delete from the Supabase dashboard.
 
 ## 2026-05-30 — Egress build (LIVE) + on-device PDF rendering + score framing/pinch (mostly committed, NOT pushed)
 
