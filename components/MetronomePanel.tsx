@@ -7,8 +7,12 @@
 //   1. volume bar
 //   2. a centered row of per-beat dots — tap to cycle silent → click →
 //      accented click (grey / orange / orange-with-">")
-//   3. the tempo cluster — − / + flanking the recessed BPM readout, with
-//      a tap-tempo button beneath
+//   3. the tempo cluster — − / + flanking the recessed BPM readout, a
+//      tap-tempo (or strategy NEXT) button, then a function strip of three
+//      chips: DRONE (pitch) · RHYTHMS (grooves) · GAPS (random dropper).
+//      Each opens a centered overlay, glows when active, and shows its set
+//      value inline. The three are mutually exclusive — turning one on
+//      clears the others.
 //   4. a bottom row — meter (left), play (center, large), subdivision
 //      (right), evenly spaced
 //
@@ -53,9 +57,11 @@ export const DEVICE = {
   rim: '#494c54', // card border, control outlines, divider
   text: '#f4f1ec', // warm off-white
   dim: '#b7bac0', // dim labels
-  accent: '#ec8b34', // orange — clicks + play
+  accent: '#ec8b34', // orange — clicks + play + rhythms
   stop: '#d24b3e', // running / stop
   mute: '#43464d', // a silent beat dot (darker than the body)
+  tone: '#3aa6b8', // cool teal — the drone (pitch, not rhythm)
+  gap: '#9b86e0', // violet — the Gaps random-dropper
 };
 
 const BPM_MIN = 30;
@@ -195,10 +201,36 @@ export function MetronomePanel({
   const setBeatPattern = onBeatPatternChange ?? setBeatPatternLocal;
   const [meterOpen, setMeterOpen] = useState(false);
   const [subOpen, setSubOpen] = useState(false);
-  // Drone is retired from the UI (replaced by Rhythms) but kept in code so
-  // it can be revived; `droneOpen` never opens now.
   const [droneOpen, setDroneOpen] = useState(false);
   const [rhythmsOpen, setRhythmsOpen] = useState(false);
+  const [gapsOpen, setGapsOpen] = useState(false);
+
+  // The DRONE / RHYTHMS / GAPS layers are mutually exclusive — each is its
+  // own practice mode. Turning one on clears the other two so the metronome
+  // is only ever doing one of: pitched drone, drum groove, or random gaps.
+  function enableDrone(on: boolean) {
+    m.setDroneEnabled(on);
+    if (on) {
+      m.setGroove(null);
+      m.setDropChance(0);
+    }
+  }
+  function pickGroove(id: string | null) {
+    m.setGroove(id);
+    if (id != null) {
+      m.setDroneEnabled(false);
+      m.setDropChance(0);
+      if (!m.running) m.start();
+    }
+  }
+  function setGaps(frac: number) {
+    m.setDropChance(frac);
+    if (frac > 0) {
+      m.setGroove(null);
+      m.setDroneEnabled(false);
+      if (!m.running) m.start();
+    }
+  }
 
   // Push the pattern to the audio engine on mount and whenever it changes.
   useEffect(() => {
@@ -386,9 +418,7 @@ export function MetronomePanel({
             <ThemedText style={styles.stepGlyph}>+</ThemedText>
           </Pressable>
         </View>
-        {/* Left slot: NEXT when a strategy supplies it, otherwise TAP TEMPO
-            (now on phone too). Right slot: the RHYTHMS button, which shows
-            the active groove's name once one is selected. */}
+        {/* NEXT when a strategy supplies it, otherwise TAP TEMPO. */}
         <View style={styles.actionRow}>
           {onNext ? (
             <Pressable onPress={onNext} style={[styles.nextBtn, styles.raised]}>
@@ -399,19 +429,51 @@ export function MetronomePanel({
               <ThemedText style={styles.tapText}>TAP TEMPO</ThemedText>
             </Pressable>
           )}
+        </View>
+
+        {/* Function strip — the three optional layers. Each opens its own
+            overlay, glows in its own colour when active (teal = pitch, orange
+            = rhythm, violet = gaps), and shows its set value inline. */}
+        <View style={styles.actionRow}>
+          <Pressable
+            onPress={() => setDroneOpen(true)}
+            style={[
+              styles.fnChip,
+              styles.raised,
+              m.droneEnabled && { backgroundColor: DEVICE.tone },
+            ]}>
+            <ThemedText
+              numberOfLines={1}
+              style={[styles.fnChipText, m.droneEnabled && { color: '#fff' }]}>
+              {m.droneEnabled ? noteName(m.droneMidi) : 'DRONE'}
+            </ThemedText>
+          </Pressable>
           <Pressable
             onPress={() => setRhythmsOpen(true)}
             style={[
-              styles.tapBtn,
+              styles.fnChip,
               styles.raised,
               m.activeGroove != null && { backgroundColor: DEVICE.accent },
             ]}>
             <ThemedText
               numberOfLines={1}
-              style={[styles.tapText, m.activeGroove != null && { color: '#fff' }]}>
+              style={[styles.fnChipText, m.activeGroove != null && { color: '#fff' }]}>
               {m.activeGroove != null
                 ? getGroove(m.activeGroove)?.name ?? 'RHYTHMS'
                 : 'RHYTHMS'}
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={() => setGapsOpen(true)}
+            style={[
+              styles.fnChip,
+              styles.raised,
+              m.dropChance > 0 && { backgroundColor: DEVICE.gap },
+            ]}>
+            <ThemedText
+              numberOfLines={1}
+              style={[styles.fnChipText, m.dropChance > 0 && { color: '#fff' }]}>
+              {m.dropChance > 0 ? `${Math.round(m.dropChance * 100)}%` : 'GAPS'}
             </ThemedText>
           </Pressable>
         </View>
@@ -472,6 +534,7 @@ export function MetronomePanel({
       <DroneOverlay
         visible={droneOpen}
         m={m}
+        onToggle={enableDrone}
         onClose={() => setDroneOpen(false)}
       />
 
@@ -479,7 +542,15 @@ export function MetronomePanel({
         visible={rhythmsOpen}
         m={m}
         meter={meter}
+        onPick={pickGroove}
         onClose={() => setRhythmsOpen(false)}
+      />
+
+      <GapsOverlay
+        visible={gapsOpen}
+        m={m}
+        onSet={setGaps}
+        onClose={() => setGapsOpen(false)}
       />
     </View>
   );
@@ -491,10 +562,12 @@ export function MetronomePanel({
 function DroneOverlay({
   visible,
   m,
+  onToggle,
   onClose,
 }: {
   visible: boolean;
   m: MetronomeApi;
+  onToggle: (on: boolean) => void;
   onClose: () => void;
 }) {
   function stepMidi(delta: number) {
@@ -525,12 +598,12 @@ function DroneOverlay({
           <View style={styles.droneRow}>
             <ThemedText style={styles.droneRowLabel}>DRONE TONE</ThemedText>
             <Pressable
-              onPress={() => m.setDroneEnabled(!m.droneEnabled)}
+              onPress={() => onToggle(!m.droneEnabled)}
               style={[
                 styles.onOff,
                 styles.raised,
                 {
-                  backgroundColor: m.droneEnabled ? DEVICE.accent : DEVICE.mute,
+                  backgroundColor: m.droneEnabled ? DEVICE.tone : DEVICE.mute,
                 },
               ]}>
               <ThemedText style={styles.onOffText}>
@@ -565,7 +638,7 @@ function DroneOverlay({
             <VolumeSlider
               value={m.droneSustain}
               onChange={m.setDroneSustain}
-              minimumTrackTintColor={DEVICE.accent}
+              minimumTrackTintColor={DEVICE.tone}
               maximumTrackTintColor={DEVICE.rim}
               thumbTintColor={DEVICE.text}
               staircase
@@ -588,7 +661,7 @@ function DroneOverlay({
                   style={[
                     styles.a4Btn,
                     styles.raised,
-                    { backgroundColor: sel ? DEVICE.accent : DEVICE.cap },
+                    { backgroundColor: sel ? DEVICE.tone : DEVICE.cap },
                   ]}>
                   <ThemedText
                     style={[
@@ -615,11 +688,13 @@ function RhythmsOverlay({
   visible,
   m,
   meter,
+  onPick,
   onClose,
 }: {
   visible: boolean;
   m: MetronomeApi;
   meter: string;
+  onPick: (id: string | null) => void;
   onClose: () => void;
 }) {
   const grooves = groovesForMeter(meter);
@@ -628,8 +703,7 @@ function RhythmsOverlay({
   const { height: vpH } = useWindowDimensions();
 
   function pick(id: string | null) {
-    m.setGroove(id);
-    if (id != null && !m.running) m.start();
+    onPick(id);
   }
 
   return (
@@ -691,6 +765,90 @@ function RhythmsOverlay({
               </ThemedText>
             </>
           )}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+// The Gaps levels — 10 % … 80 % of beats dropped. 0 (Off) is the absence of
+// any lit segment, set via the Off pill.
+const GAP_LEVELS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+
+// Gaps picker — a centred modal with a big percentage readout and a stepped
+// bar. Picking a level silences that share of beats at random (beat 1
+// included, no visual tell); "Off" brings every click back. Its own
+// standalone mode — selecting it clears any drone / groove (see setGaps).
+function GapsOverlay({
+  visible,
+  m,
+  onSet,
+  onClose,
+}: {
+  visible: boolean;
+  m: MetronomeApi;
+  onSet: (frac: number) => void;
+  onClose: () => void;
+}) {
+  const pct = Math.round(m.dropChance * 100);
+  return (
+    <Modal
+      supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}>
+      <Pressable style={styles.droneBackdrop} onPress={onClose}>
+        <Pressable style={styles.droneCard} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.overlayHeader}>
+            <ThemedText style={styles.overlayTitle}>Random gaps</ThemedText>
+            <Pressable onPress={onClose} hitSlop={8} style={[styles.doneBtn, styles.raised]}>
+              <ThemedText style={styles.doneText}>Done</ThemedText>
+            </Pressable>
+          </View>
+
+          <View style={styles.gapDisplay}>
+            <ThemedText style={styles.gapPct}>{pct > 0 ? `${pct}%` : 'OFF'}</ThemedText>
+            <ThemedText style={styles.gapPctLabel}>OF BEATS DROPPED</ThemedText>
+          </View>
+
+          <View style={styles.gapBar}>
+            {GAP_LEVELS.map((level) => {
+              const active = m.dropChance >= level - 0.0001;
+              return (
+                <Pressable
+                  key={level}
+                  onPress={() => onSet(level)}
+                  hitSlop={4}
+                  style={[
+                    styles.gapSeg,
+                    { backgroundColor: active ? DEVICE.gap : DEVICE.mute },
+                  ]}
+                />
+              );
+            })}
+          </View>
+
+          <Pressable
+            onPress={() => onSet(0)}
+            style={[
+              styles.offPill,
+              styles.raised,
+              { backgroundColor: m.dropChance === 0 ? DEVICE.gap : DEVICE.cap },
+            ]}>
+            <ThemedText
+              style={[
+                styles.offPillText,
+                { color: m.dropChance === 0 ? '#fff' : DEVICE.text },
+              ]}>
+              Off
+            </ThemedText>
+          </Pressable>
+
+          <ThemedText style={styles.droneHint}>
+            Randomly silences this share of beats — beat 1 included — so you keep
+            time on your own. The click never shows which beats it drops.
+          </ThemedText>
         </Pressable>
       </Pressable>
     </Modal>
@@ -819,6 +977,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: Type.weight.heavy,
     letterSpacing: 1.2,
+    color: DEVICE.text,
+  },
+  // A function-strip chip (DRONE / RHYTHMS / GAPS). Same raised cap as the
+  // tap button but compact, so three sit across the card.
+  fnChip: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 14,
+    backgroundColor: DEVICE.cap,
+    borderWidth: 1,
+    borderColor: DEVICE.rim,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fnChipText: {
+    fontSize: 11.5,
+    fontWeight: Type.weight.heavy,
+    letterSpacing: 0.6,
     color: DEVICE.text,
   },
   nextBtn: {
@@ -995,4 +1171,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   a4Text: { fontSize: 17, fontWeight: Type.weight.heavy },
+
+  // ── Gaps overlay ─────────────────────────────────────────────────────
+  gapDisplay: {
+    backgroundColor: DEVICE.display,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: DEVICE.rim,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  gapPct: {
+    fontSize: 40,
+    lineHeight: 44,
+    fontWeight: Type.weight.black,
+    color: DEVICE.text,
+    fontVariant: ['tabular-nums'],
+  },
+  gapPctLabel: {
+    fontSize: 10,
+    fontWeight: Type.weight.bold,
+    letterSpacing: 1,
+    color: DEVICE.dim,
+    marginTop: 2,
+  },
+  gapBar: { flexDirection: 'row', gap: 6, height: 36, alignItems: 'stretch' },
+  gapSeg: { flex: 1, borderRadius: 6 },
+  offPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DEVICE.rim,
+  },
+  offPillText: { fontSize: 13, fontWeight: Type.weight.heavy },
 });

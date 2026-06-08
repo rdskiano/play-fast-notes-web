@@ -258,6 +258,11 @@ export function useMetronome(initialBpm = 60) {
   const [droneMidi, setDroneMidiState] = useState(69); // A4
   const [droneSustain, setDroneSustainState] = useState(0.6);
   const [droneA4, setDroneA4State] = useState(440);
+  // "Gaps" — the random beat-dropper. A fraction (0..0.8) of beats are
+  // silenced at random so the player has to keep time on their own. Beat 1
+  // is NOT spared (fully random). Applies to the plain click only; it's a
+  // standalone mode (the UI keeps it mutually exclusive with drone + grooves).
+  const [dropChance, setDropChanceState] = useState(0);
   // Opt-in tempo-bump signal. The MetronomePanel shows a floating "↑ N"
   // only when a caller passes `{ animateBump: true }` to setBpm (today just
   // the Interleaved Click-Up advance). `token` changes on each animated
@@ -281,6 +286,11 @@ export function useMetronome(initialBpm = 60) {
   const droneEnabledRef = useRef(false);
   const droneFreqRef = useRef(440);
   const droneSustainRef = useRef(0.6);
+  // Live drop probability + the current beat's roll. The roll is decided once
+  // at each beat's first tick and held across that beat's subdivision ticks so
+  // a dropped beat goes fully silent (not just its downbeat).
+  const dropChanceRef = useRef(0);
+  const beatDroppedRef = useRef(false);
 
   // Groove ("Rhythms") state — a drum-machine pattern that replaces the
   // plain click while active. Scheduled on its own lookahead loop, gated on
@@ -406,11 +416,18 @@ export function useMetronome(initialBpm = 60) {
         const beatIndex = Math.floor(tim / sub);
         const isBeatStart = tim % sub === 0;
         const beatState = pattern[beatIndex] ?? 'normal';
+        // Gaps: roll once per beat (at its first tick) whether to silence the
+        // whole beat. Held in beatDroppedRef so every subdivision tick of a
+        // dropped beat stays silent too. Beat 1 is not exempt.
+        if (isBeatStart) {
+          beatDroppedRef.current =
+            dropChanceRef.current > 0 && Math.random() < dropChanceRef.current;
+        }
         // When a groove is active it replaces the plain click entirely —
         // the groove scheduler produces the sound. The click loop keeps
         // running silently so timing stays continuous if the groove is
         // toggled off mid-play.
-        if (beatState !== 'mute' && !grooveActiveRef.current) {
+        if (beatState !== 'mute' && !grooveActiveRef.current && !beatDroppedRef.current) {
           if (droneEnabledRef.current) {
             // Drone-click: a pitched tone with a fast, defined attack that
             // always ends before the next tick so each beat stays
@@ -565,6 +582,12 @@ export function useMetronome(initialBpm = 60) {
   }
   function setDroneA4(a4Hz: number) {
     setDroneA4State(a4Hz);
+  }
+  function setDropChance(frac: number) {
+    const v = Math.max(0, Math.min(0.8, frac));
+    dropChanceRef.current = v;
+    if (v === 0) beatDroppedRef.current = false;
+    setDropChanceState(v);
   }
   function setVolume(v: number) {
     setVolumeState(Math.max(0, Math.min(1, v)));
@@ -1100,6 +1123,7 @@ export function useMetronome(initialBpm = 60) {
     droneSustain,
     droneA4,
     activeGroove,
+    dropChance,
     bump,
     setBpm,
     setSubdivision,
@@ -1109,6 +1133,7 @@ export function useMetronome(initialBpm = 60) {
     setDroneMidi,
     setDroneSustain,
     setDroneA4,
+    setDropChance,
     setVolume,
     start,
     stop,

@@ -235,6 +235,13 @@ export class MetronomeEngine {
   private _droneFreq = 440;
   private _droneSustain = 0.6;
 
+  // "Gaps" — random beat-dropper. A fraction (0..0.8) of beats are silenced
+  // at random (beat 1 included) so the player keeps time on their own. The
+  // per-beat roll is decided at the beat's first tick and held in
+  // _beatDropped across its subdivision ticks so the whole beat goes silent.
+  private _dropChance = 0;
+  private _beatDropped = false;
+
   get bpm() {
     return this._bpm;
   }
@@ -296,6 +303,11 @@ export class MetronomeEngine {
 
   setDroneSustain(frac: number) {
     this._droneSustain = Math.max(0, Math.min(1, frac));
+  }
+
+  setDropChance(frac: number) {
+    this._dropChance = Math.max(0, Math.min(0.8, frac));
+    if (this._dropChance === 0) this._beatDropped = false;
   }
 
   start() {
@@ -1169,9 +1181,15 @@ export class MetronomeEngine {
       const beatIndex = Math.floor(tickInMeasure / this._subdivision);
       const isBeatStart = tickInMeasure % this._subdivision === 0;
       const beatState = this._beatPattern[beatIndex] ?? 'normal';
+      // Gaps: roll once at the beat's first tick; hold it across the beat's
+      // subdivisions so a dropped beat is fully silent. Beat 1 isn't spared.
+      if (isBeatStart) {
+        this._beatDropped =
+          this._dropChance > 0 && Math.random() < this._dropChance;
+      }
       // A groove replaces the click entirely — keep advancing the beat clock
       // (so pitch playback can still sync to the downbeat) but stay silent.
-      if (beatState !== 'mute' && !this.groove) {
+      if (beatState !== 'mute' && !this.groove && !this._beatDropped) {
         const kind: ClickKind = isBeatStart
           ? beatState === 'accent'
             ? 'accent'

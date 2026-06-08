@@ -162,7 +162,7 @@ export function PracticeToolsLayer({
   // controls clip. Portrait phones used to clamp to 240 (vpW/3 is tiny in
   // portrait) and cut off the panel. Floor at 296, capped to the viewport.
   const dockedW = Math.round(Math.min(viewportWidth - 16, Math.max(296, viewportWidth / 3)));
-  const dockedH = isLandscape && size.h > 0 ? size.h : 330;
+  const dockedH = isLandscape && size.h > 0 ? size.h : 384;
   // Lifted metronome state — the phone docked panel renders in a Modal that
   // unmounts when collapsed, so meter + beat pattern live here to survive the
   // remount (the audio engine itself is in `metro` below, always mounted).
@@ -247,23 +247,18 @@ export function PracticeToolsLayer({
             defaultOpen={!!metronomeNote && !isPhone}
             tabTop={tabTop}
             tabSpan={span}
-            // Phone gets a tighter card — the instructional `note`,
-            // TAP TEMPO, and DRONE MET are all hidden inside
-            // MetronomePanel at this width. Width has to fit the
-            // bottom row's pickBtn (64) + playBtn (64) + pickBtn (64)
-            // = 192 plus the root's 18-px horizontal padding × 2,
-            // so 240 minimum. Height accounts for the remaining stack
-            // (volume row + 28-tall dots + 64-tall BPM display row +
-            // 1 divider + 64-tall play/meter/sub row, plus four 14-px
-            // gaps and the root's 18-px padding top and bottom = ~277).
-            // The earlier 220 × 230 was too small and the card was
-            // clipping both the right edge of the play row and the
-            // bottom of the play row. Phone now always shows the action
-            // row (the RHYTHMS button — and NEXT when a strategy supplies
-            // it), so it needs the taller 330 in both phone cases.
+            // Phone gets a tighter card — the instructional `note` is
+            // hidden inside MetronomePanel at this width. Width has to fit
+            // the bottom row's pickBtn (64) + playBtn (64) + pickBtn (64)
+            // = 192 plus the root's 18-px horizontal padding × 2, so 240
+            // minimum. Height accounts for the remaining stack (volume row
+            // + 28-tall dots + 64-tall BPM display row + TAP/NEXT row +
+            // the DRONE/RHYTHMS/GAPS function strip + 1 divider + 64-tall
+            // play/meter/sub row, plus the 14-px gaps and 18-px padding) —
+            // ~360, so the card carries the function strip without clipping.
             docked={isPhone}
             panelWidth={isPhone ? dockedW : 280}
-            panelHeight={isPhone ? dockedH : metronomeNote ? 384 : 312}
+            panelHeight={isPhone ? dockedH : metronomeNote ? 444 : 372}
             // Keep the full intrinsic height (so the controls aren't cramped)
             // but pop the card out a touch zoomed-out on laptop/tablet so a
             // tall metronome doesn't dominate the practice screen (B-011).

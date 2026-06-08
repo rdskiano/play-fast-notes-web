@@ -42,6 +42,8 @@ export function useMetronome(initialBpm: number = 60) {
   // voices (ported from the web engine); this state mirrors the engine's
   // selection so the shared MetronomePanel reflects which groove is active.
   const [activeGroove, setActiveGrooveState] = useState<string | null>(null);
+  // "Gaps" random beat-dropper (0..0.8). Mirrors useMetronome.web.ts.
+  const [dropChance, setDropChanceState] = useState(0);
   const sequenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Opt-in tempo-bump signal. The MetronomePanel shows a floating "↑ N"
   // only when a caller passes `{ animateBump: true }` to setBpm (today just
@@ -94,6 +96,7 @@ export function useMetronome(initialBpm: number = 60) {
     droneSustain,
     droneA4,
     activeGroove,
+    dropChance,
     bump,
     setBpm(v: number, opts?: { animateBump?: boolean }) {
       const prev = engineRef.current?.bpm ?? bpm;
@@ -136,6 +139,11 @@ export function useMetronome(initialBpm: number = 60) {
     setDroneA4(a4Hz: number) {
       engineRef.current?.setDroneFreq(droneHz(droneMidi, a4Hz));
       setDroneA4State(a4Hz);
+    },
+    setDropChance(frac: number) {
+      const v = Math.max(0, Math.min(0.8, frac));
+      engineRef.current?.setDropChance(v);
+      setDropChanceState(v);
     },
     start() {
       engineRef.current?.start();
