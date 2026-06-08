@@ -211,8 +211,8 @@ export default function TempoLadderScreen() {
               paddingTop: insets.top + Spacing.sm,
             },
           ]}>
-          <Pressable onPress={() => router.back()} hitSlop={14} style={styles.backBtn}>
-            <ThemedText style={[styles.backText, { color: C.tint }]}>‹ Passage</ThemedText>
+          <Pressable onPress={() => router.back()} hitSlop={8} style={styles.endBtn}>
+            <ThemedText style={[styles.endBtnText, { color: C.tint }]}>EXIT</ThemedText>
           </Pressable>
           <ThemedText style={styles.topTitle}>Tempo Ladder</ThemedText>
         </View>
