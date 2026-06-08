@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionSheet } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
@@ -101,6 +102,7 @@ export default function ClickUpScreen() {
   const C = Colors[scheme];
   const { width: winWidth, height: winHeight } = useWindowDimensions();
   const isPhone = Math.min(winWidth, winHeight) < 600;
+  const insets = useSafeAreaInsets();
   // Phone landscape is where vertical space is scarce — fold the instruction
   // into the header there. Portrait keeps the readable standalone row.
   const isPhoneLandscape = isPhone && winWidth > winHeight;
@@ -287,7 +289,15 @@ export default function ClickUpScreen() {
     return (
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ScrollView contentContainerStyle={[styles.configContainer, configColumnStyle, { paddingTop: 10 }]}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.configContainer,
+            configColumnStyle,
+            // This phase has no SessionTopBar, so cushion the content below the
+            // device status bar (clock / wifi) — without insets.top the first
+            // line ("N units defined…") tucks under the notch on phone.
+            { paddingTop: insets.top + 10 },
+          ]}>
           {/* Phone: drop the H1 (the user already sees "Set the tempo range"
               context from getting here via Start Practicing) and the long
               explanatory paragraph below — both eat half the screen on
