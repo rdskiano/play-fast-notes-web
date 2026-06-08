@@ -1,11 +1,10 @@
-// HelpButton — fixed bottom-right `?` button that opens the help
+// HelpButton — fixed bottom-right "i" (info) button that opens the help
 // modal for the current screen. Replaces the old FeedbackButton.
 //
-// Always visible on web (including phone — phone users especially
-// need help discovery). On screens where no <TutorialStep> has
-// registered content, clicking opens a placeholder modal that says
-// "No help here yet" — intentionally honest, so blank-help screens
-// become visible as a to-do list.
+// Styled to match the guided-tour ⓘ dots (same teal, same "i", same white
+// ring) so the whole help system reads as one family. Always visible on
+// web (including phone) EXCEPT on screens that have a guided tour, where
+// the tour + its dots are the help and this would be redundant.
 //
 // The button lives in a fixed corner globally (mounted once by
 // _layout.tsx). It doesn't need to know which screen it's on — the
@@ -15,14 +14,22 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { useHelpContext } from '@/components/HelpContext';
 import { ThemedText } from '@/components/themed-text';
-import { Colors } from '@/constants/theme';
-import { Borders, Radii, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTour } from '@/components/tour/TourContext';
+import { Radii, Type } from '@/constants/tokens';
+
+// Shared with the tour accent (TourContext.web ACCENT) so the floating
+// button and the per-control ⓘ dots are visually one family.
+const HELP_TEAL = '#2dd4bf';
 
 export function HelpButton() {
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
   const { openManually } = useHelpContext();
+  const { screen } = useTour();
+
+  // Screens with a guided tour carry their own help (the first-run tour +
+  // the per-control ⓘ dots), so the floating button is redundant there
+  // and we hide it. On every other screen it's still the help entry point
+  // and opens the modal.
+  if (screen) return null;
 
   return (
     <Pressable
@@ -31,13 +38,9 @@ export function HelpButton() {
       accessibilityLabel="Help for this screen"
       style={({ pressed }) => [
         styles.btn,
-        {
-          backgroundColor: C.tint,
-          borderColor: C.tint,
-          opacity: pressed ? 0.85 : 1,
-        },
+        { opacity: pressed ? 0.85 : 1 },
       ]}>
-      <ThemedText style={styles.glyph}>?</ThemedText>
+      <ThemedText style={styles.glyph}>i</ThemedText>
     </Pressable>
   );
 }
@@ -50,7 +53,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: Radii.circle,
-    borderWidth: Borders.thin,
+    borderWidth: 2,
+    backgroundColor: HELP_TEAL,
+    borderColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
     // RN-Web maps this to CSS box-shadow.
@@ -67,6 +72,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: Type.size.lg,
     fontWeight: Type.weight.heavy,
+    fontStyle: 'italic',
     lineHeight: Type.size.lg + 2,
   },
 });

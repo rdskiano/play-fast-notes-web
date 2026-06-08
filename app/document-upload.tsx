@@ -2,7 +2,13 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import DocumentScanner from 'react-native-document-scanner-plugin';
+// NOTE: react-native-document-scanner-plugin is iOS-only and runs a
+// TurboModule lookup the instant it's imported — which throws on web
+// ("getEnforcing of undefined"). Because Expo Router evaluates this native
+// route file even on web (the web screen is document-upload.web.tsx), a
+// top-level import here takes down the whole dev site. So it's lazily
+// require()'d inside scanPages() instead (require, not dynamic import(),
+// which breaks Hermes on native).
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -48,6 +54,9 @@ export default function DocumentUploadScreen() {
   async function scanPages() {
     setError(null);
     try {
+      // Lazy load — see the import note at the top of this file.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const DocumentScanner = require('react-native-document-scanner-plugin').default;
       const { scannedImages, status } = await DocumentScanner.scanDocument({
         croppedImageQuality: 100,
       });

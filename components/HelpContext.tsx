@@ -13,8 +13,16 @@
 // `isOpen` state, so they can't stack.
 //
 // Cross-platform. Web and native both have a real HelpButton + HelpModal
-// + TutorialStep now (auto-opens are deduped in memory per session, so no
-// persistent store is needed). HelpProvider is mounted on both platforms.
+// + TutorialStep. HelpProvider is mounted on both platforms.
+//
+// Auto-open is "once ever, per id" — the first time a user lands on a
+// screen whose TutorialStep is eligible (visible), its intro fires and a
+// flag is persisted (`help.autoSeen.<id>`) via the cross-platform
+// settings store (SQLite on native, Supabase on web — the same store the
+// Click-Up coach uses). After that it never auto-fires again; the user
+// reopens on demand with the ? button. An in-memory set additionally
+// dedupes within a single session so the async flag read only runs once
+// per id per launch.
 
 import {
   createContext,
@@ -27,6 +35,7 @@ import {
 } from 'react';
 
 import type { TutorialStepImage } from '@/components/TutorialStep';
+import { getSetting, setSetting } from '@/lib/db/repos/settings';
 
 export type HelpContent = {
   id: string;
@@ -46,10 +55,10 @@ type HelpCtxValue = {
   isOpen: boolean;
   // Open the modal showing `active` content (or placeholder if null).
   openManually: () => void;
-  // Auto-open guard: only fires the modal the first time per app
-  // session for a given id, so a user who closed the auto-fire doesn't
-  // see it re-pop every time they navigate back to the same screen.
-  // They can always reopen via the ? button.
+  // Auto-open guard: fires the modal the first time EVER for a given id
+  // (persisted across sessions), so a user who has already seen a
+  // strategy's intro doesn't get it again. They can always reopen via
+  // the ? button.
   openAuto: (id: string) => void;
   close: () => void;
 };
@@ -76,7 +85,9 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   const registryRef = useRef<HelpContent[]>([]);
   const [active, setActive] = useState<HelpContent | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  // Per-session de-dupe set for auto-opens. Resets on app reload.
+  // Per-session de-dupe set for auto-opens, so the persisted-flag read
+  // below only runs once per id per app launch. The durable "seen ever"
+  // record lives in the settings store (see openAuto).
   const autoOpenedRef = useRef<Set<string>>(new Set());
 
   const register = useCallback((content: HelpContent) => {
@@ -97,9 +108,28 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openAuto = useCallback((id: string) => {
+    // Attempt at most once per id per session (guards the async read
+    // below from re-running when useFocusEffect re-fires).
     if (autoOpenedRef.current.has(id)) return;
     autoOpenedRef.current.add(id);
-    setIsOpen(true);
+    // Fire only the first time ever for this id. Persist immediately so
+    // it never auto-fires again, on any device the user syncs to (web)
+    // or this device (native).
+    const key = `help.autoSeen.${id}`;
+    getSetting(key)
+      .then((seen) => {
+        if (seen === '1') return;
+        setIsOpen(true);
+        setSetting(key, '1').catch(() => {
+          // Couldn't persist — worst case it auto-fires once more next
+          // session. Not worth surfacing.
+        });
+      })
+      .catch(() => {
+        // Read failed (no DB yet on first native launch, or a network
+        // blip on web before sign-in). Fail open: help the user now.
+        setIsOpen(true);
+      });
   }, []);
 
   const close = useCallback(() => {

@@ -11,13 +11,12 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { useHelpContext } from '@/components/HelpContext';
 import { ThemedText } from '@/components/themed-text';
-import { Colors } from '@/constants/theme';
-import { Borders, Radii, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Radii, Type } from '@/constants/tokens';
+
+// Matches the web help button + tour ⓘ dots (same teal "i").
+const HELP_TEAL = '#2dd4bf';
 
 export function HelpButton() {
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
   const { openManually } = useHelpContext();
 
   return (
@@ -27,13 +26,9 @@ export function HelpButton() {
       accessibilityLabel="Help for this screen"
       style={({ pressed }) => [
         styles.btn,
-        {
-          backgroundColor: C.tint,
-          borderColor: C.tint,
-          opacity: pressed ? 0.85 : 1,
-        },
+        { opacity: pressed ? 0.85 : 1 },
       ]}>
-      <ThemedText style={styles.glyph}>?</ThemedText>
+      <ThemedText style={styles.glyph}>i</ThemedText>
     </Pressable>
   );
 }
@@ -46,7 +41,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: Radii.circle,
-    borderWidth: Borders.thin,
+    borderWidth: 2,
+    backgroundColor: HELP_TEAL,
+    borderColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -60,6 +57,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: Type.size.lg,
     fontWeight: Type.weight.heavy,
+    fontStyle: 'italic',
     lineHeight: Type.size.lg + 2,
   },
 });

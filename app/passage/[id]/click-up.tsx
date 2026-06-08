@@ -2,6 +2,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   Image as RNImage,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -28,8 +29,9 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { MIN_MARKERS, useClickUpSession } from '@/hooks/useClickUpSession';
-import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import { TutorialStep } from '@/components/TutorialStep';
+import { useScreenTour } from '@/components/tour/TourContext';
+import { tourTag, type TourStep } from '@/components/tour/types';
 import { activePairMarkers } from '@/lib/strategies/clickUp';
 import {
   actionButtonStyle,
@@ -46,6 +48,53 @@ function formatActiveUnits(activeUnits: number[]): string {
   return `UNITS ${activeUnits[0]}–${activeUnits[activeUnits.length - 1]}`;
 }
 
+// Guided tour for the Click-Up marking screen (web only — see
+// useScreenTour / TourContext.web). Module-level so the reference stays
+// stable across renders.
+const CU_MARKING_STEPS: TourStep[] = [
+  {
+    target: 'cu-score',
+    title: 'Mark your units',
+    body:
+      'Interleaved Click-Up — developed by researcher Molly Gebrian — breaks your passage into small units and drills them at shuffled tempos, and in changing contexts, which builds more reliable playing under pressure.\n\n' +
+      'The passage needs to be broken down into small, manageable units. You can decide to go by the single beat (usually a beat plus the first note of the next beat), or by the measure. If a single beat contains too many notes (like six to eight) and is too difficult, you should break it down further into half or a quarter of a beat. As you get better over multiple days, this can expand to every two bars or an entire line.\n\n' +
+      'Tap just above the music to mark where each unit begins (a beat or a measure), and add one extra mark at the very end. Tap a mark again to remove it, or use UNDO / CLEAR up top.',
+    image: {
+      source: require('@/assets/images/tutorial-click-up-marking.png'),
+      aspectRatio: 2727 / 549,
+      caption: 'Example: a mark above the start of each unit (and one at the end).',
+    },
+  },
+  {
+    target: 'cu-next',
+    title: 'Set your tempo',
+    hideDot: true,
+    body:
+      `You need at least ${MIN_MARKERS} marks. Once they’re placed, NEXT → lights up — tap it to choose your start and performance tempos.`,
+  },
+];
+
+// Guided tour for the Click-Up tempo screen (the 'config' phase, after
+// NEXT → on the marking screen).
+const CU_CONFIG_STEPS: TourStep[] = [
+  {
+    target: 'cu-tempo',
+    title: 'Set your tempo range',
+    body:
+      '**Start Tempo** — it must be set to a tempo that is so slow that you couldn’t possibly make a mistake, which is often half the goal tempo or slower. If you make even a small mistake, the start tempo is too fast.\n\n' +
+      '**Performance Tempo** — the speed you ultimately need. **Ideally, set this 5 to 10 percent faster than the actual performance tempo.** If your maximum speed is the performance tempo, it will always feel scary on stage; practicing it faster ensures the performance tempo feels comfortable.\n\n' +
+      '**Increment** — the change in tempo should feel only slightly faster, not significantly faster (but you should feel the increase).\n\n' +
+      'The app climbs through every tempo in between, interleaving single units with growing combinations.',
+  },
+  {
+    target: 'cu-start',
+    title: 'Start practicing',
+    hideDot: true,
+    body:
+      'Tap Start practicing to begin. Play the unit shown, mark each rep, and the tempo climbs toward your performance tempo.',
+  },
+];
+
 export default function ClickUpScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scheme = useColorScheme() ?? 'light';
@@ -59,23 +108,6 @@ export default function ClickUpScreen() {
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
-  // Practice-log count for the first-time tutorial gate. Hoisted above
-  // the phase-based early returns so the hook count stays stable.
-  // null = still loading; 0 = first-timer.
-  const [practiceLogCount, setPracticeLogCount] = useState<number | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    countPracticeLogEntries()
-      .then((n) => {
-        if (!cancelled) setPracticeLogCount(n);
-      })
-      .catch(() => {
-        // count failing just suppresses the tutorial — not fatal
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const session = useClickUpSession(id);
 
   useEffect(() => {
@@ -122,6 +154,17 @@ export default function ClickUpScreen() {
 
   const ann = useScoreAnnotation(passage);
 
+  // Web-only guided tour of the marking screen. No-op on native, where the
+  // help modal still covers Click-Up.
+  useScreenTour(
+    phase === 'config' ? 'click-up-config' : 'click-up-marking',
+    phase === 'marking'
+      ? CU_MARKING_STEPS
+      : phase === 'config'
+        ? CU_CONFIG_STEPS
+        : null,
+  );
+
   // ── MARKING ────────────────────────────────────────────────────────────
   if (phase === 'marking') {
     if (!passage) return <ThemedView style={{ flex: 1 }} />;
@@ -166,6 +209,7 @@ export default function ClickUpScreen() {
                 onPress={canContinue ? commitMarkersAndConfigure : undefined}
                 hitSlop={6}
                 disabled={!canContinue}
+                {...tourTag('cu-next')}
                 style={[
                   styles.topBtn,
                   {
@@ -192,6 +236,7 @@ export default function ClickUpScreen() {
               triangles don't have a clipping wrapper, so we drop it here too
               to keep the two phases visually consistent. */}
           <View
+            {...tourTag('cu-score')}
             style={{
               height: imageAspect ? (winWidth - 32) / imageAspect : 500,
               borderRadius: 8,
@@ -211,9 +256,11 @@ export default function ClickUpScreen() {
             never completed a practice session. The example image
             shows numbered markers above a scale — most novel UX
             in the app and the hardest to grok from copy alone. */}
+        {/* Native (iPad) keeps the one-shot modal; web uses the guided
+            tour above instead, so suppress the modal's auto-fire there. */}
         <TutorialStep
           id="click-up-marking"
-          visible={practiceLogCount === 0}
+          visible={Platform.OS !== 'web'}
           title="Mark your units"
           body={
             "Interleaved Click-Up is a structured practice method developed by Molly Gebrian — a viola professor and researcher in the neuroscience of practice (her book: Learn Faster, Perform Better). Instead of repeating a passage start-to-finish, you break it into small units; the app interleaves them at climbing tempos, forcing your brain to keep retrieving and reconnecting sections. That builds deeper, more reliable playing under pressure.\n\n" +
@@ -251,29 +298,22 @@ export default function ClickUpScreen() {
           <ThemedText style={{ opacity: 0.7 }}>
             {derivedN} units defined from your {markers.length} marks.
           </ThemedText>
-          <TempoConfigFields
-            startLabel="Start Tempo"
-            goalLabel="Performance Tempo"
-            startValue={startTempo}
-            goalValue={goalTempo}
-            increment={increment}
-            onStart={setStartTempo}
-            onGoal={setGoalTempo}
-            onIncrement={setIncrement}
-            metronome={metronome}
-          />
-          {!isPhone && (
-            <View style={{ marginTop: 10 }}>
-              <ThemedText style={styles.blurbText}>
-                Set your <ThemedText style={styles.blurbBold}>Start Tempo</ThemedText> to
-                a speed where you can play the passage comfortably and accurately — a
-                good rule of thumb is to start at half the performance tempo. Set the{' '}
-                <ThemedText style={styles.blurbBold}>Performance Tempo</ThemedText> to
-                the speed you ultimately need to perform at. The app will walk through
-                every tempo in between, climbing by the increment you choose above.
-              </ThemedText>
-            </View>
-          )}
+          <View {...tourTag('cu-tempo')}>
+            <TempoConfigFields
+              startLabel="Start Tempo"
+              goalLabel="Performance Tempo"
+              startValue={startTempo}
+              goalValue={goalTempo}
+              increment={increment}
+              onStart={setStartTempo}
+              onGoal={setGoalTempo}
+              onIncrement={setIncrement}
+              metronome={metronome}
+            />
+          </View>
+          {/* The inline tempo explainer used to live here. It's now owned
+              by the guided tour (web) + the ? help modal (native), so it
+              was removed to avoid a second, diverging copy. */}
         </ScrollView>
 
         <View style={{ padding: 20, gap: 10 }}>
@@ -292,16 +332,20 @@ export default function ClickUpScreen() {
               style={actionButtonStyle}
             />
           )}
-          <Button
-            label={
-              storedConfig && currentIndex > 0
-                ? 'Start over from Step 1'
-                : 'Start practicing'
-            }
-            variant={storedConfig && currentIndex > 0 ? 'outline' : 'primary'}
-            onPress={startPlaying}
-            style={actionButtonStyle}
-          />
+          <View
+            style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}
+            {...tourTag('cu-start')}>
+            <Button
+              label={
+                storedConfig && currentIndex > 0
+                  ? 'Start over from Step 1'
+                  : 'Start practicing'
+              }
+              variant={storedConfig && currentIndex > 0 ? 'outline' : 'primary'}
+              onPress={startPlaying}
+              style={actionButtonStyle}
+            />
+          </View>
           <Button
             label="← Back to marking"
             variant="ghost"

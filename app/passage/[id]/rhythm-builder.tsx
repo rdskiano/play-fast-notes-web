@@ -23,6 +23,8 @@ import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { TutorialStep } from '@/components/TutorialStep';
+import { useScreenTour } from '@/components/tour/TourContext';
+import { tourTag, type TourStep } from '@/components/tour/types';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { ThemedView } from '@/components/themed-view';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
@@ -84,6 +86,66 @@ function parseConfig(json: string | null | undefined): StoredConfig {
   }
 }
 
+// Guided tours for the Exercise Builder (web only — see useScreenTour /
+// TourContext.web). Module-level so the references stay stable.
+const RB_SETUP_STEPS: TourStep[] = [
+  {
+    target: 'rb-score',
+    // Score is full-width; the controls below are inset by Spacing.lg (16),
+    // so shift its dot left to line up with the other two.
+    dotOffset: { x: -16, y: 24 },
+    title: 'Here’s your passage',
+    body:
+      'This is the passage of music you’re working on. Pinch and zoom to see it more clearly while you set things up.',
+  },
+  {
+    target: 'rb-fields',
+    dotOffset: { y: 16 },
+    title: 'Instrument, key & clef',
+    body:
+      '**Instrument** — sets how playback sounds, so the pitches you hear match what you’ll actually play.\n\n' +
+      '**Key** — renders the accidentals (sharps and flats) accurately for your passage.\n\n' +
+      '**Clef** — places the notes in the right spot on the staff for your instrument.',
+  },
+  {
+    target: 'rb-grouping',
+    dotOffset: { y: 24 },
+    title: 'Choose a note grouping',
+    body:
+      'Choose the grouping that most closely resembles the passage you’re working on — count the notes in a typical beat or measure.',
+  },
+  {
+    target: 'rb-continue',
+    title: 'Enter your pitches',
+    hideDot: true,
+    body: 'Tap Continue to move on and tap in the notes of your passage.',
+  },
+];
+
+const RB_ENTRY_STEPS: TourStep[] = [
+  {
+    target: 'rb-keyboard',
+    dotOffset: { x: -20 },
+    title: 'Tap in your pitches',
+    body:
+      'Tap the piano keys to enter your passage’s pitches, one note at a time. They build up on the staff below.',
+  },
+  {
+    target: 'rb-staff',
+    dotOffset: { x: -20 },
+    title: 'Edit any note',
+    body:
+      'Tap a note on the staff to re-spell it (e.g. B♭ → A♯), force an accidental to show, or insert a note before or after it.',
+  },
+  {
+    target: 'rb-transport',
+    dotOffset: { x: -20 },
+    title: 'Hear it, then generate',
+    body:
+      '▶ Play hears your pitches with the metronome. Undo / Clear fix mistakes, and Switch to sharps/flats changes how new notes are spelled. When the sequence is right, tap Generate → to render the rhythm-variation exercises.',
+  },
+];
+
 export default function RhythmBuilderScreen() {
   const params = useLocalSearchParams<{ id: string; exerciseId?: string }>();
   const id = params.id;
@@ -111,6 +173,19 @@ export default function RhythmBuilderScreen() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
+
+  // Web-only guided tours for the setup + pitch-entry phases. No-op on
+  // native, where the help modal still covers the Exercise Builder.
+  // Setup + pitch-entry use the guided tour; the generate page falls back
+  // to the (restyled) help modal via the ? button.
+  useScreenTour(
+    phase === 'entry' ? 'rhythm-builder-entry' : 'rhythm-builder-setup',
+    phase === 'setup'
+      ? RB_SETUP_STEPS
+      : phase === 'entry'
+        ? RB_ENTRY_STEPS
+        : null,
+  );
   // PDF export title prompt. The site's organization (folder / passage title)
   // gave the exercise its in-app name; for a printable/shareable PDF the user
   // often wants something more descriptive (e.g. "Daily warm-up — C major").
@@ -508,25 +583,28 @@ export default function RhythmBuilderScreen() {
             // grouping. Container has a fixed height so the rest of
             // the screen stays accessible — the user can still scroll
             // past the score to the dropdowns + Continue button.
-            <ZoomableImage uri={passage.source_uri} style={styles.setupScore} />
+            <View {...tourTag('rb-score')}>
+              <ZoomableImage uri={passage.source_uri} style={styles.setupScore} />
+            </View>
           ) : null}
 
           <View style={styles.setupControlsInner}>
-            <DropdownField
-              label="Instrument"
-              valueId={instrument.id}
-              options={INSTRUMENTS.map((i) => ({ id: i.id, label: i.label }))}
-              onChange={(idValue) => {
-                const next = INSTRUMENTS.find((x) => x.id === idValue);
-                if (next) setInstrument(next);
-              }}
-              pickerTitle="Select instrument"
-            />
+            <View style={{ gap: Spacing.md }} {...tourTag('rb-fields')}>
+              <DropdownField
+                label="Instrument"
+                valueId={instrument.id}
+                options={INSTRUMENTS.map((i) => ({ id: i.id, label: i.label }))}
+                onChange={(idValue) => {
+                  const next = INSTRUMENTS.find((x) => x.id === idValue);
+                  if (next) setInstrument(next);
+                }}
+                pickerTitle="Select instrument"
+              />
 
-            <View style={styles.dropdownRow}>
-              <View style={{ flex: 1 }}>
-                <DropdownField
-                  label="Key"
+              <View style={styles.dropdownRow}>
+                <View style={{ flex: 1 }}>
+                  <DropdownField
+                    label="Key"
                   valueId={keySignature.id}
                   options={KEY_SIGNATURES.map((k) => ({ id: k.id, label: k.label }))}
                   onChange={(idValue) => {
@@ -552,15 +630,19 @@ export default function RhythmBuilderScreen() {
                 />
               </View>
             </View>
+            </View>
 
-            <ThemedText style={styles.label}>Note grouping</ThemedText>
-            <GroupingPicker
-              selected={grouping}
-              onSelect={(n) => setGrouping(n as Grouping)}
-            />
+            <View {...tourTag('rb-grouping')}>
+              <ThemedText style={styles.label}>Note grouping</ThemedText>
+              <GroupingPicker
+                selected={grouping}
+                onSelect={(n) => setGrouping(n as Grouping)}
+              />
+            </View>
 
             <Pressable
               onPress={onContinue}
+              {...tourTag('rb-continue')}
               style={[styles.continueBtn, { backgroundColor: C.tint }]}>
               <ThemedText style={styles.continueText}>
                 Continue → Enter pitches
@@ -605,7 +687,7 @@ export default function RhythmBuilderScreen() {
             </Pressable>
           )}
 
-          <View style={styles.transportRow}>
+          <View style={styles.transportRow} {...tourTag('rb-transport')}>
             <Pressable
               onPress={metronome.playingSequence ? metronome.stopPitchSequence : playSequence}
               disabled={pitches.length === 0 && !metronome.playingSequence}
@@ -668,7 +750,7 @@ export default function RhythmBuilderScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.keyboardWrap}>
+          <View style={styles.keyboardWrap} {...tourTag('rb-keyboard')}>
             <PianoKeyboard onKeyPress={onKeyPress} preferSharps={useSharps} />
           </View>
 
@@ -678,14 +760,16 @@ export default function RhythmBuilderScreen() {
             </ThemedText>
           )}
 
-          <PitchStaff
-            pitches={pitches}
-            keySignature={keySignature}
-            clef={clef}
-            width={winWidth}
-            onNoteTap={(i) => setEditingIndex(i)}
-            activeNoteIndex={editingIndex}
-          />
+          <View {...tourTag('rb-staff')}>
+            <PitchStaff
+              pitches={pitches}
+              keySignature={keySignature}
+              clef={clef}
+              width={winWidth}
+              onNoteTap={(i) => setEditingIndex(i)}
+              activeNoteIndex={editingIndex}
+            />
+          </View>
 
           <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.md }}>
             <Button

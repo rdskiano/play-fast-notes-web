@@ -40,6 +40,7 @@ import { PracticeTimerAlertModal } from '@/components/PracticeTimerAlertModal';
 import { PracticeTimersProvider } from '@/components/PracticeTimersContext';
 import { StitchHost } from '@/components/StitchHost';
 import { StrategyColorsProvider } from '@/components/StrategyColorsContext';
+import { TourProvider } from '@/components/tour/TourContext';
 import { useSession } from '@/lib/supabase/auth';
 import { registerServiceWorker } from '@/lib/sw/registerServiceWorker';
 import { startupMigrate } from '@/lib/startup/migrate';
@@ -118,6 +119,7 @@ export default function RootLayout() {
           <NativeWrapper>
             <PracticeTimersProvider>
               <HelpProvider>
+              <TourProvider>
               <ThemeProvider value={DefaultTheme}>
               <Stack>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -211,6 +213,7 @@ export default function RootLayout() {
                 <InstallPrompt />
                 <StatusBar style="dark" />
               </ThemeProvider>
+              </TourProvider>
               </HelpProvider>
             </PracticeTimersProvider>
           </NativeWrapper>

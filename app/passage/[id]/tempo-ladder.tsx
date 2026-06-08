@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BpmStepper } from '@/components/BpmStepper';
@@ -16,6 +16,8 @@ import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
+import { useScreenTour } from '@/components/tour/TourContext';
+import { tourTag, type TourStep } from '@/components/tour/types';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { Colors } from '@/constants/theme';
@@ -34,7 +36,6 @@ import {
   totalRepsInPattern,
   type CustomPattern,
 } from '@/lib/strategies/customPatterns';
-import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import {
   createCustomPattern,
   deleteCustomPattern,
@@ -51,6 +52,48 @@ import {
 } from '@/lib/layout/configForm';
 
 const INCREMENTS: Increment[] = [2, 5, 10];
+
+// Guided tour for the Tempo Ladder setup screen (web only — see
+// useScreenTour / TourContext.web). Each step spotlights one tagged
+// control (tourTag below). The "reps to advance" step is skipped
+// automatically in Custom mode, where that control isn't shown.
+// Module-level const so its reference stays stable across renders.
+const TL_SETUP_STEPS: TourStep[] = [
+  {
+    target: 'tl-mode',
+    title: 'Pick a mode',
+    dotOffset: { y: -6 },
+    body:
+      '**Step click-up** — the traditional 5 or 10× in a row without a mistake, all at the same tempo. Then the tempo increments.\n\n' +
+      '**Cluster** — within a given range, you’ll play a random new tempo each rep. After a set number of clean reps, the range increments.\n\n' +
+      '**Custom** — create your own sequence. Once you complete it successfully, the tempo increments.',
+  },
+  {
+    target: 'tl-tempo',
+    title: 'Set your tempo range',
+    body:
+      'Start well below your target (around half speed is a good rule of thumb) and set your goal to your performance tempo. The ladder climbs between the two.',
+  },
+  {
+    target: 'tl-increment',
+    title: 'Choose your step size',
+    body:
+      'How much should the tempo increase after each set? Enough to feel the difference, not so much that the passage suddenly becomes hard.',
+  },
+  {
+    target: 'tl-reps',
+    title: 'Reps to advance',
+    body:
+      'How many clean reps in a row before you climb. Pick a number that adds a little pressure — nailing 9 in a row makes the 10th feel like a performance. Imagine the pressure at 19!!',
+  },
+  {
+    target: 'tl-start',
+    title: 'Start practicing',
+    hideDot: true,
+    body:
+      'When it’s set, tap Start. Mark each rep Clean ✓ or Miss ✗ — honesty with yourself pays dividends.',
+  },
+];
 
 export default function TempoLadderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -81,24 +124,6 @@ export default function TempoLadderScreen() {
   // Extra right offset for the ✓ in landscape so it seats just left of the
   // bottom-right help button instead of on top of it.
   const cleanRightExtra = isPhone && isLandscape ? 60 : 0;
-
-  // Practice-log count for the first-time tutorial gate. Hoisted above
-  // the phase-based early returns for the same hook-count-stability
-  // reason as isPhone. null = still loading; 0 = first-timer.
-  const [practiceLogCount, setPracticeLogCount] = useState<number | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    countPracticeLogEntries()
-      .then((n) => {
-        if (!cancelled) setPracticeLogCount(n);
-      })
-      .catch(() => {
-        // count failing just suppresses the tutorial — not fatal
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const session = useTempoLadderSession(id);
   const {
@@ -139,6 +164,11 @@ export default function TempoLadderScreen() {
   } = session;
 
   const ann = useScoreAnnotation(passage);
+
+  // Web-only guided tour of the setup screen (the 'config' phase — its
+  // tagged controls only exist there). No-op on native, where the help
+  // modal still covers Tempo Ladder.
+  useScreenTour('tempo-ladder-setup', phase === 'config' ? TL_SETUP_STEPS : null);
 
   // Live validation for the setup form, so the Start button can say WHY it
   // won't start instead of silently doing nothing — e.g. a cluster window set
@@ -202,7 +232,7 @@ export default function TempoLadderScreen() {
 
           {/* ── Mode picker (top of the form) ───────────────────────── */}
           <ThemedText type="subtitle" style={{ marginTop: Spacing.sm }}>Mode</ThemedText>
-          <View style={styles.modeGrid}>
+          <View style={styles.modeGrid} {...tourTag('tl-mode')}>
             <ModeCard
               title="Step click-up"
               subtitle="Climb one step after N clean reps."
@@ -249,7 +279,9 @@ export default function TempoLadderScreen() {
           {/* Cluster mode shows three BPM cards — they never fit across the
               capped column, so always stack. Step/Custom have two and go
               2-across when the column is wide enough (e.g. landscape). */}
-          <View style={mode === 'cluster' || tempoStacks(vpW) ? styles.rowPhone : styles.row}>
+          <View
+            style={mode === 'cluster' || tempoStacks(vpW) ? styles.rowPhone : styles.row}
+            {...tourTag('tl-tempo')}>
             <View style={styles.field}>
               <ThemedText style={styles.label}>
                 {mode === 'cluster' ? 'Low BPM' : mode === 'custom' ? 'Base BPM' : 'Start BPM'}
@@ -285,7 +317,7 @@ export default function TempoLadderScreen() {
           <ThemedText style={styles.label}>
             {mode === 'cluster' ? 'Shift window by, per advance' : 'Increment per advance'}
           </ThemedText>
-          <View style={styles.chipRow}>
+          <View style={styles.chipRow} {...tourTag('tl-increment')}>
             {INCREMENTS.map((n) => (
               <Pressable
                 key={n}
@@ -314,7 +346,7 @@ export default function TempoLadderScreen() {
           {mode !== 'custom' && (
             <>
               <ThemedText style={styles.label}>Clean reps in a row to advance</ThemedText>
-              <View style={styles.chipRow}>
+              <View style={styles.chipRow} {...tourTag('tl-reps')}>
                 {REP_TARGETS.map((n: RepTarget) => (
                   <Pressable
                     key={n}
@@ -378,12 +410,19 @@ export default function TempoLadderScreen() {
           {configError && (
             <ThemedText style={styles.configError}>{configError}</ThemedText>
           )}
-          <Button
-            label="Start"
-            onPress={startSession}
-            disabled={(mode === 'custom' && !customPattern) || configError !== null}
-            style={actionButtonStyle}
-          />
+          {/* Tag a wrapper sized to the button (not the full-width bar) so
+              the tour spotlight + ⓘ dot land on the Start button itself,
+              not the far-right screen edge. */}
+          <View
+            style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}
+            {...tourTag('tl-start')}>
+            <Button
+              label="Start"
+              onPress={startSession}
+              disabled={(mode === 'custom' && !customPattern) || configError !== null}
+              style={actionButtonStyle}
+            />
+          </View>
         </View>
 
         <CustomPatternEditor
@@ -436,21 +475,22 @@ export default function TempoLadderScreen() {
           }}
         />
 
-        {/* Step 3 of the guided first-session flow. Fires on the
-            Tempo Ladder setup screen while the user has never
-            completed a practice session — auto-resolves once any
-            strategy logs an entry. */}
+        {/* Native (iPad) keeps the one-shot help modal. On web the
+            guided spotlight tour (useScreenTour above) covers this
+            screen instead, so the modal's auto-fire is suppressed there
+            to avoid showing both. The ? button still reaches this
+            content's tour on web; on native it opens this modal. */}
         <TutorialStep
           id="tempo-ladder-setup"
-          visible={practiceLogCount === 0}
+          visible={Platform.OS !== 'web'}
           title="Set up your Tempo Ladder"
           body={
-            "Tempo Ladder builds tempo control through disciplined repetition: start well below your target, play the passage with the metronome, and after each rep mark Clean ✓ (accurate) or Miss ✗ (not). Clean reps climb you toward your goal tempo.\n\n" +
+            "Tempo Ladder helps you track the slow process of clicking up the metronome over time. Start well below your target (maybe 50%), play the passage with the metronome, and after each rep mark Clean ✓ (accurate) or Miss ✗ (not). The goal is to get through the sequence of reps without making a mistake. Make sure the passage is PLAYABLE - short enough or slow enough for you to play accurately.\n\n" +
             "Three modes to pick from:\n\n" +
             "Step click-up — the metronome bumps up after N clean reps in a row. Best place to start.\n\n" +
-            "Randomized cluster — each rep is a random tempo between two tempos you choose. Keeps you sharp because you never know what's coming. Choose how many you have to get in a row to bump up the cluster.\n\n" +
+            "Randomized cluster — each rep is a random tempo between two tempos you choose. Keeps you sharp because you never know what's coming. Choose how many you have to get in a row to bump up the cluster. This introduces a slight amount of variability which enhances your learning.\n\n" +
             "Custom — build your own sequence (like 9 reps at base + 1 rep at base+10). One clean run bumps the tempo; one miss restarts the pattern. Tap + Build a custom pattern to create one, or the ✎ on a saved card to edit it.\n\n" +
-            "Then set your Start BPM (well below your target) and Goal BPM (your performance tempo). The +2 / +5 / +10 chips set how far each advance jumps, and (Step / Cluster only) the number chips set how many clean reps in a row bump you up. Tap Start when you're ready."
+            "Choose an increment large enough that you can feel the difference, but not so large that the passage suddenly becomes difficult. Choose a number of clean reps to advance that feels like it will simulate some performance anxiety — if you've played it 9 times without mistake, you may feel pressure on number 10 to avoid starting over again. Even more so if you've played 19 clean reps!"
           }
         />
       </ThemedView>

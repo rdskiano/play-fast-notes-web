@@ -11,9 +11,14 @@ import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-nat
 
 import { ThemedText } from '@/components/themed-text';
 import { useHelpContext, type HelpContent } from '@/components/HelpContext';
-import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Radii, Spacing, Type } from '@/constants/tokens';
+
+// Match the guided-tour card so the help modal reads as the same coaching
+// layer: dark slate panel, teal accent, light body text.
+const CARD_BG = '#1e293b';
+const CARD_TITLE = '#f8fafc';
+const CARD_BODY = '#cbd5e1';
+const ACCENT = '#2dd4bf';
 
 const PLACEHOLDER: HelpContent = {
   id: '__placeholder__',
@@ -22,8 +27,6 @@ const PLACEHOLDER: HelpContent = {
 };
 
 export function HelpModal() {
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
   const { active, isOpen, close } = useHelpContext();
   const content = active ?? PLACEHOLDER;
 
@@ -35,32 +38,23 @@ export function HelpModal() {
       supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
       onRequestClose={close}>
       <View style={styles.backdrop}>
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: C.background, borderColor: C.icon },
-          ]}>
+        <View style={styles.card}>
           {/* Scrolls when the body is taller than the capped card so the
               Close button below always stays reachable. */}
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}>
-            <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
+            <ThemedText type="subtitle" style={styles.title}>
               {content.title}
             </ThemedText>
-            <ThemedText style={[styles.body, { color: C.text }]}>
-              {content.body}
-            </ThemedText>
+            <ThemedText style={styles.body}>{content.body}</ThemedText>
 
             {content.image && (
               <View style={styles.imageWrap}>
                 <View
                   style={[
                     styles.imageFrame,
-                    {
-                      aspectRatio: content.image.aspectRatio,
-                      borderColor: C.icon + '44',
-                    },
+                    { aspectRatio: content.image.aspectRatio },
                   ]}>
                   <Image
                     source={content.image.source}
@@ -70,8 +64,7 @@ export function HelpModal() {
                   />
                 </View>
                 {content.image.caption && (
-                  <ThemedText
-                    style={[styles.imageCaption, { color: C.text, opacity: Opacity.muted }]}>
+                  <ThemedText style={styles.imageCaption}>
                     {content.image.caption}
                   </ThemedText>
                 )}
@@ -82,7 +75,7 @@ export function HelpModal() {
           <View style={styles.buttonRow}>
             <Pressable
               onPress={close}
-              style={[styles.btnPrimary, { backgroundColor: C.tint }]}
+              style={styles.btnPrimary}
               accessibilityRole="button">
               <ThemedText style={styles.btnPrimaryText}>Close</ThemedText>
             </Pressable>
@@ -106,7 +99,9 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     maxHeight: '85%',
     borderRadius: Radii.xl,
-    borderWidth: Borders.thin,
+    borderWidth: 1,
+    backgroundColor: CARD_BG,
+    borderColor: ACCENT + '55',
     padding: Spacing.lg,
     gap: Spacing.md,
   },
@@ -116,10 +111,15 @@ const styles = StyleSheet.create({
   scrollContent: {
     gap: Spacing.md,
   },
+  title: {
+    textAlign: 'center',
+    color: CARD_TITLE,
+  },
   body: {
     fontSize: Type.size.md,
     textAlign: 'center',
     lineHeight: 22,
+    color: CARD_BODY,
   },
   imageWrap: {
     gap: Spacing.xs,
@@ -127,7 +127,8 @@ const styles = StyleSheet.create({
   imageFrame: {
     width: '100%',
     borderRadius: Radii.md,
-    borderWidth: Borders.thin,
+    borderWidth: 1,
+    borderColor: ACCENT + '33',
     backgroundColor: '#fff',
     overflow: 'hidden',
   },
@@ -138,6 +139,7 @@ const styles = StyleSheet.create({
   imageCaption: {
     fontSize: Type.size.sm,
     textAlign: 'center',
+    color: CARD_BODY,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -149,9 +151,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: Radii.md,
+    backgroundColor: ACCENT,
   },
   btnPrimaryText: {
-    color: '#fff',
+    color: '#06302b',
     fontWeight: Type.weight.heavy,
     fontSize: Type.size.sm,
   },
