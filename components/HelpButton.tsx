@@ -13,8 +13,8 @@ import { useHelpContext } from '@/components/HelpContext';
 import { ThemedText } from '@/components/themed-text';
 import { Radii, Type } from '@/constants/tokens';
 
-// Matches the web help button + tour ⓘ dots (same teal "i").
-const HELP_TEAL = '#2dd4bf';
+// Matches the web help button + tour ⓘ dots (same blue "i").
+const HELP_BLUE = '#0a7ea4';
 
 export function HelpButton() {
   const { openManually } = useHelpContext();
@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: Radii.circle,
     borderWidth: 2,
-    backgroundColor: HELP_TEAL,
+    backgroundColor: HELP_BLUE,
     borderColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',

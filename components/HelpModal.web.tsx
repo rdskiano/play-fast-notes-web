@@ -25,7 +25,7 @@ import { Radii, Spacing, Type } from '@/constants/tokens';
 const CARD_BG = '#1e293b';
 const CARD_TITLE = '#f8fafc';
 const CARD_BODY = '#cbd5e1';
-const ACCENT = '#2dd4bf';
+const ACCENT = '#e67e22'; // site orange
 
 const PLACEHOLDER: HelpContent = {
   id: '__placeholder__',
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT,
   },
   btnPrimaryText: {
-    color: '#06302b',
+    color: '#fff',
     fontWeight: Type.weight.heavy,
     fontSize: Type.size.sm,
   },

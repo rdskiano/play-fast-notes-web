@@ -73,7 +73,8 @@ const Ctx = createContext<TourCtxValue>(NOOP);
 
 // Tour visuals are a deliberately dark "coaching" layer so they read as an
 // overlay on top of the app, never as part of the (light) UI itself.
-const ACCENT = '#2dd4bf'; // bright teal — ties the card to the spotlight ring
+const ACCENT = '#e67e22'; // site orange — spotlight ring, labels, buttons
+const DOT_BLUE = '#0a7ea4'; // site blue — the per-control ⓘ dots (match the ? button)
 const CARD_BG = '#1e293b'; // slate-800
 const CARD_TITLE = '#f8fafc';
 const CARD_BODY = '#cbd5e1';
@@ -570,7 +571,7 @@ function TourDots() {
               width: 18,
               height: 18,
               borderRadius: 99,
-              background: ACCENT,
+              background: DOT_BLUE,
               color: '#fff',
               border: '2px solid #fff',
               fontSize: 11,
@@ -607,7 +608,7 @@ const ghostBtn: CSSProperties = {
 const primaryBtn: CSSProperties = {
   background: ACCENT,
   border: 'none',
-  color: '#06302b', // dark teal text on the bright-teal button
+  color: '#fff', // white on the orange button
   fontSize: 14,
   fontWeight: 800,
   padding: '8px 16px',

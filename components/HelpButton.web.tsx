@@ -17,9 +17,10 @@ import { ThemedText } from '@/components/themed-text';
 import { useTour } from '@/components/tour/TourContext';
 import { Radii, Type } from '@/constants/tokens';
 
-// Shared with the tour accent (TourContext.web ACCENT) so the floating
-// button and the per-control ⓘ dots are visually one family.
-const HELP_TEAL = '#2dd4bf';
+// The "i" affordances (this button + the per-control tour dots) use the
+// site's blue so they read as native chrome. The tour/modal *accents*
+// (ring, buttons, labels) use orange — see TourContext.web ACCENT.
+const HELP_BLUE = '#0a7ea4';
 
 export function HelpButton() {
   const { openManually } = useHelpContext();
@@ -54,7 +55,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: Radii.circle,
     borderWidth: 2,
-    backgroundColor: HELP_TEAL,
+    backgroundColor: HELP_BLUE,
     borderColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
