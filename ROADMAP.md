@@ -1,12 +1,27 @@
 # Play Fast Notes — Roadmap (unified)
 
-_Last updated: 2026-06-07_
+_Last updated: 2026-06-08_
 
 This roadmap covers **both surfaces** (iOS/iPad + web) of the unified Play Fast Notes app, which lives in this directory (`play-fast-notes/`). The two older repos (`../learn-fast-notes/` for iPad and `../play-fast-notes-web/` for web) are read-only archives and their roadmaps are historical only.
 
 > **🚀 2026-05-24 — WEB CUTOVER COMPLETE.** `playfastnotes.com` now ships from THIS repo via `git push web-origin-archive master` (the remote alias still has the "archive" word, but it points at `rdskiano/play-fast-notes-web` and Vercel auto-deploys from there). The 2026-05-23/24 push (`3d031c2` + `17767f6`) shipped: web Recorder + web Pencil (stylus-gated) + PWA + camera capture + phone density pass + per-passage pinch-zoom + timer overhaul (4 timers Rotate/Micro/Cold/Break + ⚙ settings sheet) + Space/X keyboard advance + ToolDock −/+ resize. **iPad cutover is the remaining plumbing milestone** — the physical iPad still runs Xcode-built dev clients from `learn-fast-notes/`.
 
 The old web-only context note (2026-05-17 Mac upgrade) is now folded into history. iPad still uses local Xcode builds for the user's working device; web now ships from this repo via Vercel.
+
+## ✅ 2026-06-08 — Metronome: drone revived + GAPS random dropper; Click-Up setup safe-area fix (LIVE)
+
+Two web pushes (live on playfastnotes.com). Memory: `[[metronome-sound-future-work]]`.
+
+### Metronome panel redesign — drone back + new GAPS trainer (`ba2fde5`)
+The metronome's secondary controls became a **three-chip function strip — DRONE · RHYTHMS · GAPS** — each opening its own centered overlay, glowing in its own colour when active, and showing its set value inline (note name / groove name / "30%"). The three are **mutually exclusive** (each is its own practice mode); turning one on clears the others via `enableDrone`/`pickGroove`/`setGaps` in `MetronomePanel.tsx`. TAP TEMPO moved to its own row; card heights bumped in `PracticeToolsLayer.tsx` (phone dockedH 330→384; desktop 312→372 / note-mode 384→444) to fit the strip.
+
+- **Drone revived.** The pitched drone (retired from the UI 2026-05-29, kept in code) is wired back to its chip and **recoloured teal** (`DEVICE.tone`) so pitch reads as distinct from the orange rhythm controls — the user explicitly asked for the pitch to be a different colour. `DroneOverlay` accents (ON toggle, A4 selection, sustain track) all switched to teal.
+- **GAPS — new random beat-dropper.** A 0–80% **stepped slider** (`GapsOverlay`: big % readout + 8-segment bar 10–80% + Off pill, violet `DEVICE.gap`) silences that share of beats **at random**. Per the user's explicit calls: **beat 1 is NOT spared** (fully random) and there is **NO visual tell** of which beats drop — you only find out by ear — so the player must keep time internally. Click only; **GAPS is its own mode** (auto-clears any groove/drone, and vice-versa).
+- **Engine (both surfaces).** `dropChance` (0–0.8) + `setDropChance` added to `useMetronome.web.ts` AND `useMetronome.ts`/`metronomeEngine.ts` (keeps `MetronomeApi = ReturnType<typeof useMetronome>` in sync). Each click scheduler rolls the dice once at the beat's first tick (`isBeatStart`) and holds the result in `beatDropped`/`_beatDropped` across the beat's subdivisions, so a dropped beat goes **fully** silent, not just its downbeat. `Math.random() < dropChance`.
+- **Verified** web only (tsc clean except the 2 known self-led pre-existing errors; `expo export --platform web` compiled all routes). Native drum/gaps audio is wired in the engine but iPad isn't cut over, so it's unverified on device.
+
+### Click-Up setup screen — phone status-bar overlap fix (`1b1fefd`)
+The Click-Up `config` phase (the tempo-range setup after marking units) renders without a `SessionTopBar`, so its scroll content started flush at the top edge — the "N units defined…" line tucked under the phone's clock/wifi. Added `useSafeAreaInsets()` and cushioned the `ScrollView` content with `paddingTop: insets.top + 10` (`app/passage/[id]/click-up.tsx`). The marking + playing phases already use `SessionTopBar`, which handles the inset; config was the only gap.
 
 ## 🚀 2026-06-07 — SUBMITTED TO THE APP STORE (v1.0.0, build 2)
 
