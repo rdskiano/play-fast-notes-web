@@ -23,13 +23,31 @@ export function ToolsMetronome({
    *  to render without clipping. Don't go much below this. */
   height?: number;
 }) {
-  const { width: vpW } = useWindowDimensions();
-  // Fit the panel's fixed-width internals (~280) plus padding, capped to the
-  // viewport so it never runs off a narrow phone.
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
+  // The panel's internals are fixed-pixel, so on a phone we show it at natural
+  // size. On larger screens (iPad / laptop) the natural card looks tiny adrift
+  // in the empty space, so scale the whole device up — it stays centered and
+  // reads as the centerpiece. The outer wrapper reserves the SCALED footprint
+  // so neighbours (a unit prompt above, nav below) lay out around the real
+  // visual size, not the unscaled box.
+  const scale = isPhone ? 1 : 1.4;
   const width = Math.min(vpW - 24, 320);
   return (
-    <View style={[styles.card, { width, height }]}>
-      <MetronomePanel metronome={metronome} />
+    <View
+      style={{
+        width: width * scale,
+        height: height * scale,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+      <View
+        style={[
+          styles.card,
+          { width, height, transform: scale !== 1 ? [{ scale }] : undefined },
+        ]}>
+        <MetronomePanel metronome={metronome} />
+      </View>
     </View>
   );
 }

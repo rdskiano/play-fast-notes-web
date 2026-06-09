@@ -76,8 +76,9 @@ export default function ToolsStepperScreen() {
     if (generated.length === 0) return;
     setSteps(generated);
     setCurrentIndex(0);
+    // Set the tempo but don't start clicking — let the user press play on the
+    // metronome when they're ready.
     metronome.setBpm(generated[0].tempo);
-    metronome.start();
     setPhase('playing');
   }
 
@@ -206,20 +207,13 @@ export default function ToolsStepperScreen() {
 
       <PedalCatcher active onAdvance={onNext} onBack={onPrev} />
 
-      {isPhone ? (
-        // Phone: show the unit prompt AND the metronome together. The
-        // metronome carries the tempo readout, so we drop the separate
-        // BPM line. Scrolls if a short (landscape) phone can't fit both.
-        <ScrollView contentContainerStyle={styles.phoneStage}>
-          <ThemedText style={[styles.cue, { color: C.text }]}>{cue}</ThemedText>
-          <ToolsMetronome metronome={metronome} />
-        </ScrollView>
-      ) : (
-        <View style={styles.stage}>
-          <ThemedText style={[styles.cue, { color: C.text }]}>{cue}</ThemedText>
-          <ThemedText style={[styles.tempo, { color: C.tint }]}>{step.tempo} BPM</ThemedText>
-        </View>
-      )}
+      {/* Show the unit prompt AND the metronome together (the metronome
+          carries the tempo readout, so there's no separate BPM line). Bigger
+          metronome on iPad/laptop. Scrolls if a short screen can't fit both. */}
+      <ScrollView contentContainerStyle={styles.centerStage}>
+        <ThemedText style={[styles.cue, { color: C.text }]}>{cue}</ThemedText>
+        <ToolsMetronome metronome={metronome} />
+      </ScrollView>
 
       <View style={styles.bottomBar}>
         {!isPhone && (
@@ -245,9 +239,9 @@ export default function ToolsStepperScreen() {
       <PracticeToolsLayer
         metronome={metronome}
         metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."
-        // Phone renders the metronome inline (above), so drop it from the
-        // edge tabs to avoid two; keep just the practice timers.
-        tools={isPhone ? { left: [], right: ['timer'] } : undefined}
+        // The metronome is rendered inline (above), so drop it from the edge
+        // tabs to avoid two; keep just the practice timers.
+        tools={{ left: [], right: ['timer'] }}
       />
 
       {/* "?" content during play (auto-fire already happened in config). */}
@@ -279,14 +273,7 @@ const styles = StyleSheet.create({
   },
   counterBtnText: { fontSize: 26, fontWeight: Type.weight.heavy, lineHeight: 30 },
   counterValue: { fontSize: 34, fontWeight: Type.weight.heavy, minWidth: 56, textAlign: 'center' },
-  stage: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.xl,
-    gap: Spacing.lg,
-  },
-  phoneStage: {
+  centerStage: {
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -294,7 +281,6 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   cue: { fontSize: 36, fontWeight: Type.weight.heavy, textAlign: 'center', lineHeight: 44 },
-  tempo: { fontSize: 22, fontWeight: Type.weight.bold, letterSpacing: 1 },
   bottomBar: {
     paddingHorizontal: HELP_CLEARANCE,
     paddingTop: Spacing.sm,

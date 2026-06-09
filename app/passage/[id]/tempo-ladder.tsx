@@ -678,10 +678,11 @@ export default function TempoLadderScreen() {
                 contentFit="contain"
               />
             ))}
-          {/* Tools mode on phone: no score, so show the metronome inline and
-              centered instead of leaving it collapsed in an edge tab. The rep
-              ✗/✓ buttons + dots pill float over the corners around it. */}
-          {toolsOnly && isPhone && (
+          {/* Tools mode: no score, so show the metronome inline and centered
+              (bigger on iPad/laptop) instead of leaving it off in an edge tab.
+              The rep controls sit in the top bar (non-phone) or float at the
+              corners (phone) around it. */}
+          {toolsOnly && (
             <View style={styles.toolsMetroWrap} pointerEvents="box-none">
               <ToolsMetronome metronome={metronome} />
             </View>
@@ -693,9 +694,9 @@ export default function TempoLadderScreen() {
           metronomeNote="Tempo Ladder controls the tempo — no need to adjust it. Just press play."
           pencil={ann.pencil}
           recorderPassageId={passage?.id}
-          // Phone tools mode renders the metronome inline (above), so drop it
-          // from the edge tabs to avoid two; keep just the practice timers.
-          tools={toolsOnly && isPhone ? { left: [], right: ['timer'] } : undefined}
+          // Tools mode renders the metronome inline (above), so drop it from
+          // the edge tabs to avoid two; keep just the practice timers.
+          tools={toolsOnly ? { left: [], right: ['timer'] } : undefined}
         />
 
         {/* Phone overlays — float on top of the score so the practice
