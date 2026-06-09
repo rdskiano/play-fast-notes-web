@@ -992,6 +992,12 @@ export default function LibraryScreen() {
                 <ThemedText style={styles.iconBtnText}>🔀</ThemedText>
               </Pressable>
               <Pressable
+                onPress={() => router.push('/tools')}
+                accessibilityLabel="Tools"
+                style={[styles.iconBtn, { borderColor: C.icon }]}>
+                <ThemedText style={styles.iconBtnText}>🛠</ThemedText>
+              </Pressable>
+              <Pressable
                 onPress={() => router.push('/settings')}
                 accessibilityLabel="Settings"
                 style={[styles.iconBtn, { borderColor: C.icon }]}>
@@ -1039,6 +1045,12 @@ export default function LibraryScreen() {
                 variant="outline"
                 size="sm"
                 onPress={() => router.push('/interleaved')}
+              />
+              <Button
+                label="🛠 Tools"
+                variant="outline"
+                size="sm"
+                onPress={() => router.push('/tools')}
               />
               <Button
                 label="⚙"
@@ -1325,6 +1337,7 @@ export default function LibraryScreen() {
             : '') +
           '📋 Practice Log — every session you\'ve logged, for this folder or the whole library.\n' +
           '🔀 Rep Rotator — drill several passages in shuffled order.\n' +
+          '🛠 Tools — the metronome, tempo ladder, rhythm variations, and Interleaved Click-Up on their own, without uploading any music.\n' +
           '⚙ Settings.\n' +
           '✎ Edit — reorder with ↑ ↓, plus rename, move, or delete each item; tap Done to leave.\n\n' +
           'Search — filter folders and passages by title or composer.\n\n' +

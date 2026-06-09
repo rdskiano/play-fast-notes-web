@@ -24,6 +24,9 @@ import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
+import { buildRhythmAbc } from '@/lib/notation/buildAbc';
+import { isToolsOnly } from '@/lib/strategies/toolsMode';
+import { TOOLS_RHYTHMIC_HELP } from '@/constants/toolsHelp';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import {
   SCORE_SIDE_BUFFER,
@@ -56,6 +59,11 @@ function groupingCounts(): Record<Grouping, number> {
 export default function RhythmicScreen() {
   const params = useLocalSearchParams<{ id: string; grouping?: string }>();
   const id = params.id;
+  // Tools mode: reached from the library Tools hub via the sentinel id, no
+  // piece attached. The rhythm patterns come from a built-in library, so the
+  // tool runs identically; we just skip the score backdrop and the
+  // passage-keyed practice-log write.
+  const toolsOnly = isToolsOnly(id);
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -92,18 +100,21 @@ export default function RhythmicScreen() {
   const ann = useScoreAnnotation(passage);
 
   useEffect(() => {
-    if (!id) return;
     let cancelled = false;
-    getPassage(id).then((p) => {
-      if (!cancelled) setPassage(p);
-    });
+    // Skip the passage fetch in Tools mode — the sentinel id is not a real
+    // piece, and there's no score to show.
+    if (id && !toolsOnly) {
+      getPassage(id).then((p) => {
+        if (!cancelled) setPassage(p);
+      });
+    }
     return () => {
       cancelled = true;
       metronome.stop();
       metronome.stopRhythmLoop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, toolsOnly]);
 
   useEffect(() => {
     if (phase !== 'playing' || !microbreak.config.enabled) return;
@@ -134,7 +145,7 @@ export default function RhythmicScreen() {
     remindNext: boolean = false,
   ) {
     setNotePromptVisible(false);
-    if (id) {
+    if (id && !toolsOnly) {
       await stampLastUsed(id, 'rhythmic');
       const data: Record<string, unknown> = {};
       if (mood) data.mood = mood;
@@ -189,14 +200,15 @@ export default function RhythmicScreen() {
     );
   }
 
-  if (!passage) return <ThemedView style={{ flex: 1 }} />;
+  // In Tools mode there's no passage to wait for — render straight through.
+  if (!passage && !toolsOnly) return <ThemedView style={{ flex: 1 }} />;
 
   const counts = groupingCounts();
 
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      {phase === 'playing' && grouping && patterns.length > 0 && isLandscape ? (
+      {!toolsOnly && phase === 'playing' && grouping && patterns.length > 0 && isLandscape ? (
         // Landscape: the rhythm notation + Loop/Back/Next live IN the title
         // row (EXIT + grouping on the left, DONE on the right). No separate
         // band — wide screens have width to spare and height to save, and the
@@ -266,7 +278,7 @@ export default function RhythmicScreen() {
             }
           />
 
-          {phase === 'playing' && grouping && patterns.length > 0 && (
+          {!toolsOnly && phase === 'playing' && grouping && patterns.length > 0 && (
             <RhythmBar
               pattern={patterns[currentIndex]}
               rhythmLooping={metronome.rhythmLooping}
@@ -296,30 +308,92 @@ export default function RhythmicScreen() {
           },
         ]}>
         <View style={{ flex: 1, width: '100%', position: 'relative' }}>
-          {isTouch ? (
-            // Phone: show the full passage by default, let the user pinch
-            // in (and one-finger pan) to read notes up close. Replaces the
-            // earlier horizontal-scroll-only approach so the user can
-            // also zoom vertically when a passage has tall barlines or
-            // multi-line systems.
-            <ZoomableImage
-              uri={passage.source_uri}
-              style={StyleSheet.absoluteFill}
-              persistKey={passage.id}
-            />
-          ) : (
-            <ScoreWithMarkers
-              uri={passage.source_uri}
-              markers={[]}
-              mode="play"
-              activePair={null}
-            />
+          {/* No score in Tools mode — the rhythm bar + metronome are all the
+              tool needs; the body stays empty. */}
+          {passage &&
+            (isTouch ? (
+              // Phone: show the full passage by default, let the user pinch
+              // in (and one-finger pan) to read notes up close. Replaces the
+              // earlier horizontal-scroll-only approach so the user can
+              // also zoom vertically when a passage has tall barlines or
+              // multi-line systems.
+              <ZoomableImage
+                uri={passage.source_uri}
+                style={StyleSheet.absoluteFill}
+                persistKey={passage.id}
+              />
+            ) : (
+              <ScoreWithMarkers
+                uri={passage.source_uri}
+                markers={[]}
+                mode="play"
+                activePair={null}
+              />
+            ))}
+          {/* Tools mode: no score, so make the rhythm itself the centerpiece —
+              a large, centered staff with the Loop / Prev / Next controls right
+              beneath it. (In a piece these live in the RhythmBar up top.) */}
+          {toolsOnly && phase === 'playing' && grouping && patterns.length > 0 && (
+            <View style={styles.toolsStage} pointerEvents="box-none">
+              <AbcStaffView
+                abc={buildRhythmAbc(patterns[currentIndex], { bare: true })}
+                width={Math.round(
+                  Math.max(
+                    220,
+                    Math.min(
+                      (50 + patterns[currentIndex].notes.length * 42) * (2 / 1.1),
+                      vpW - 48,
+                    ),
+                  ),
+                )}
+                height={150}
+                scale={2}
+                fallbackText={patterns[currentIndex].notes.join('  ·  ')}
+              />
+              <View style={styles.toolsControls}>
+                <Pressable
+                  onPress={toggleRhythm}
+                  hitSlop={6}
+                  accessibilityLabel={metronome.rhythmLooping ? 'Stop rhythm' : 'Loop rhythm'}
+                  style={[
+                    styles.toolsLoopBtn,
+                    { backgroundColor: metronome.rhythmLooping ? '#c0392b' : C.tint },
+                  ]}>
+                  <ThemedText style={styles.toolsLoopText}>
+                    {metronome.rhythmLooping ? '■ Stop' : '▶ Loop'}
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={onPrev}
+                  disabled={currentIndex === 0}
+                  hitSlop={6}
+                  accessibilityLabel="Previous pattern"
+                  style={[
+                    styles.toolsNavBtn,
+                    { borderColor: C.tint, opacity: currentIndex === 0 ? 0.3 : 1 },
+                  ]}>
+                  <ThemedText style={[styles.toolsNavText, { color: C.tint }]}>← Prev</ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={onNext}
+                  disabled={currentIndex >= patterns.length - 1}
+                  hitSlop={6}
+                  accessibilityLabel="Next pattern"
+                  style={[
+                    styles.toolsNavBtn,
+                    styles.toolsNextBtn,
+                    { opacity: currentIndex >= patterns.length - 1 ? 0.4 : 1 },
+                  ]}>
+                  <ThemedText style={[styles.toolsNavText, { color: '#fff' }]}>Next →</ThemedText>
+                </Pressable>
+              </View>
+            </View>
           )}
           {/* Annotation canvas stays mounted on tablet/desktop. On phone
               it's hidden during rhythmic — the canvas would have to scroll
               with the score to stay aligned, and the user's ask was about
               seeing notes clearly, not annotating in this flow. */}
-          {!isPhone && ann.canvas}
+          {!isPhone && !toolsOnly && ann.canvas}
         </View>
         {phase === 'playing' && (
           <PracticeToolsLayer
@@ -420,7 +494,16 @@ export default function RhythmicScreen() {
         onSkip={() => finishLog(null, null)}
       />
 
-      {phase === 'config' ? (
+      {toolsOnly ? (
+        // Tools mode: one tools-specific tutorial, auto-firing once on the
+        // setup (grouping-picker) phase; the "?" reopens it anytime.
+        <TutorialStep
+          id="tools-rhythmic"
+          visible={phase === 'config'}
+          title={TOOLS_RHYTHMIC_HELP.title}
+          body={TOOLS_RHYTHMIC_HELP.body}
+        />
+      ) : phase === 'config' ? (
         <TutorialStep
           id="rhythmic-config"
           visible={false}
@@ -450,6 +533,34 @@ export default function RhythmicScreen() {
 const styles = StyleSheet.create({
   topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.sm, textAlign: 'center' },
   contentArea: { flex: 1 },
+  // Tools-mode hero: the staff + its controls, centered in the empty body.
+  toolsStage: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xl,
+    padding: Spacing.lg,
+  },
+  toolsControls: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  toolsLoopBtn: {
+    borderRadius: Radii.md,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toolsLoopText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.md },
+  toolsNavBtn: {
+    minWidth: 64,
+    borderWidth: Borders.thick,
+    borderRadius: Radii.md,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toolsNextBtn: { backgroundColor: '#9b59b6', borderColor: '#6c3483' },
+  toolsNavText: { fontWeight: Type.weight.heavy, fontSize: Type.size.md },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',

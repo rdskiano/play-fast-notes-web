@@ -291,6 +291,12 @@ The metronome's pitched **drone** is **disabled in the UI but not deleted** — 
 
 **Open follow-ups:** native (iPad) drum audio is unimplemented (web is live; iPad isn't cut over). 6/8 tempo is read as quarter-note BPM (fine since the groove replaces the click). Tunable: per-voice gain balance, more grooves/meters.
 
+## ✅ 2026-06-08 — Tools-only mode (branch `tools-only-mode`, NOT pushed)
+
+A **🛠 Tools** library-header button → a hub (`/tools`) of practice tools usable with **no piece attached, nothing saved**: Metronome, Tempo Ladder (Step/Cluster/Custom), Rhythm Variations, and Interleaved Click-Up (the real ICU sequence narrated as text from a unit *count*, not marks on a score). Full write-up in ROADMAP.md + memory `[[project_tools_only_mode]]`.
+
+**Key pattern — sentinel id, not a parallel route tree.** `lib/strategies/toolsMode.ts` (`TOOLS_ONLY_ID = '__tools__'`, `isToolsOnly(id)`). Tempo Ladder + Rhythm Variations **reuse their real `app/passage/[id]/*` screens** — the hub pushes `/passage/__tools__/<tool>`, the screen detects the sentinel and skips the passage fetch + score backdrop + all passage-keyed writes. `useTempoLadderSession(id, toolsOnly)` threads a `toolsOnly` flag (loads only the Custom-pattern library; gates every DB write `if (!toolsOnly && exerciseId)`; synthesizes progress in memory). Metronome + Click-Up are dedicated screens under `app/tools/`. Tutorials: `constants/toolsHelp.ts` + a `<TutorialStep>` per tool (ids `tools-hub` / `tools-metronome` / `tools-tempo-ladder` / `tools-rhythmic` / `tools-click-up`), all auto-fire once. **When extending a passage strategy, remember the tools path** — guard new passage-keyed reads/writes with `isToolsOnly`/`toolsOnly` so they don't run on the sentinel id (a real Supabase write with `piece_id='__tools__'` would error).
+
 ## Where to pick up next
 
 In rough priority order:

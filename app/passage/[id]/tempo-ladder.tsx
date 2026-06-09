@@ -25,6 +25,8 @@ import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/toke
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
+import { isToolsOnly } from '@/lib/strategies/toolsMode';
+import { TOOLS_TEMPO_LADDER_HELP } from '@/constants/toolsHelp';
 import {
   REP_TARGETS,
   useTempoLadderSession,
@@ -125,7 +127,12 @@ export default function TempoLadderScreen() {
   // bottom-right help button instead of on top of it.
   const cleanRightExtra = isPhone && isLandscape ? 60 : 0;
 
-  const session = useTempoLadderSession(id);
+  // Tools mode: reached from the library Tools hub via the sentinel id, with
+  // no piece attached. The score backdrop already collapses (it only renders
+  // when `passage?.source_uri` exists); the hook handles skipping all
+  // passage-keyed persistence.
+  const toolsOnly = isToolsOnly(id);
+  const session = useTempoLadderSession(id, toolsOnly);
   const {
     phase,
     passage,
@@ -168,7 +175,12 @@ export default function TempoLadderScreen() {
   // Web-only guided tour of the setup screen (the 'config' phase — its
   // tagged controls only exist there). No-op on native, where the help
   // modal still covers Tempo Ladder.
-  useScreenTour('tempo-ladder-setup', phase === 'config' ? TL_SETUP_STEPS : null);
+  // The web spotlight tour points at the in-passage setup controls; in Tools
+  // mode we show a plain tutorial modal instead (no score, different copy).
+  useScreenTour(
+    'tempo-ladder-setup',
+    phase === 'config' && !toolsOnly ? TL_SETUP_STEPS : null,
+  );
 
   // Live validation for the setup form, so the Start button can say WHY it
   // won't start instead of silently doing nothing — e.g. a cluster window set
@@ -475,11 +487,22 @@ export default function TempoLadderScreen() {
           }}
         />
 
+        {/* Tools mode: plain tutorial modal with tools-specific copy,
+            auto-firing once on every platform (there's no web tour here). */}
+        {toolsOnly && (
+          <TutorialStep
+            id="tools-tempo-ladder"
+            visible
+            title={TOOLS_TEMPO_LADDER_HELP.title}
+            body={TOOLS_TEMPO_LADDER_HELP.body}
+          />
+        )}
         {/* Native (iPad) keeps the one-shot help modal. On web the
             guided spotlight tour (useScreenTour above) covers this
             screen instead, so the modal's auto-fire is suppressed there
             to avoid showing both. The ? button still reaches this
             content's tour on web; on native it opens this modal. */}
+        {!toolsOnly && (
         <TutorialStep
           id="tempo-ladder-setup"
           visible={Platform.OS !== 'web'}
@@ -493,6 +516,7 @@ export default function TempoLadderScreen() {
             "Choose an increment large enough that you can feel the difference, but not so large that the passage suddenly becomes difficult. Choose a number of clean reps to advance that feels like it will simulate some performance anxiety — if you've played it 9 times without mistake, you may feel pressure on number 10 to avoid starting over again. Even more so if you've played 19 clean reps!"
           }
         />
+        )}
       </ThemedView>
     );
   }
@@ -786,18 +810,28 @@ export default function TempoLadderScreen() {
         }}
       />
 
-      <TutorialStep
-        id="tempo-ladder-play"
-        visible={false}
-        title="Running a Tempo Ladder"
-        body={
-          "Play a rep at the current tempo, then mark it:\n\n" +
-          "✓ Clean — counts toward your target reps in a row (the dots up top track your streak). Once you hit your target, the metronome bumps up by your increment.\n\n" +
-          "✗ Miss — resets your streak (Step / Cluster) or restarts the pattern (Custom).\n\n" +
-          "Keyboard shortcuts on laptop: Space = Clean ✓, X = Miss ✗. Foot pedals work the same. Tap EXIT at the top-left to end the session and log it." +
-          `\n\n${PRACTICE_TOOLS_HELP}`
-        }
-      />
+      {toolsOnly ? (
+        // "?" content during play (the tools intro already auto-fired in setup).
+        <TutorialStep
+          id="tools-tempo-ladder"
+          visible={false}
+          title={TOOLS_TEMPO_LADDER_HELP.title}
+          body={TOOLS_TEMPO_LADDER_HELP.body}
+        />
+      ) : (
+        <TutorialStep
+          id="tempo-ladder-play"
+          visible={false}
+          title="Running a Tempo Ladder"
+          body={
+            "Play a rep at the current tempo, then mark it:\n\n" +
+            "✓ Clean — counts toward your target reps in a row (the dots up top track your streak). Once you hit your target, the metronome bumps up by your increment.\n\n" +
+            "✗ Miss — resets your streak (Step / Cluster) or restarts the pattern (Custom).\n\n" +
+            "Keyboard shortcuts on laptop: Space = Clean ✓, X = Miss ✗. Foot pedals work the same. Tap EXIT at the top-left to end the session and log it." +
+            `\n\n${PRACTICE_TOOLS_HELP}`
+          }
+        />
+      )}
     </View>
   );
 }

@@ -8,6 +8,22 @@ This roadmap covers **both surfaces** (iOS/iPad + web) of the unified Play Fast 
 
 The old web-only context note (2026-05-17 Mac upgrade) is now folded into history. iPad still uses local Xcode builds for the user's working device; web now ships from this repo via Vercel.
 
+## ✅ 2026-06-08 — Tools-only mode: practice tools without a piece (branch `tools-only-mode`, NOT pushed)
+
+A **🛠 Tools** button in the library header (phone icon cluster + desktop button row, next to 🔀 Rep Rotator) opens a **hub** (`app/tools/index.tsx`, route `/tools`) of practice tools usable with **no piece of music attached and nothing saved** to the practice log. Built so people can warm up / drill technique without uploading music. Memory: `[[project_tools_only_mode]]`.
+
+**Four tools:**
+- **🥁 Metronome** (`app/tools/metronome.tsx`) — new tiny screen that mounts the existing `PracticeToolsLayer` metronome (open by default) with its own `useMetronome` instance.
+- **🪜 Tempo Ladder** — **reuses the real screen** `app/passage/[id]/tempo-ladder.tsx` via a sentinel id. Step, Cluster, AND **Custom** all work (Custom patterns load from the user's account — they're logged in); just no progress/exercise/practice-log persistence.
+- **🎵 Rhythm Variations** — reuses `app/passage/[id]/rhythmic.tsx` via the sentinel. With no score, the rhythm notation renders **large and centered** in the body with ▶ Loop · ← Prev · Next → beneath it (instead of the small top RhythmBar).
+- **⏱ Interleaved Click-Up** (`app/tools/stepper.tsx`) — the genuine ICU sequence from `generateSteps(N, …)`, but **driven by a unit count instead of marks on a score** and **narrated as text** ("Play unit 1" → "Now play units 1 and 2" → …). User sets unit count + tempo range; NEXT/BACK + foot pedal / Space. (Route file is still named `stepper.tsx` from its earlier "Tempo Stepper" name; the user renamed the feature to Interleaved Click-Up.)
+
+**Architecture — sentinel id, not a parallel route tree.** `lib/strategies/toolsMode.ts` exports `TOOLS_ONLY_ID = '__tools__'` + `isToolsOnly(id)`. The hub navigates Tempo Ladder / Rhythm to `/passage/__tools__/<tool>`; those screens detect `isToolsOnly(id)` and (a) skip the passage fetch, (b) collapse the score backdrop, (c) skip every passage-keyed write. `useTempoLadderSession(id, toolsOnly)` gained a `toolsOnly` param: its effect loads ONLY the Custom-pattern library (no passage/exercise/progress reads), and each DB write in startSession/onClean/onMiss/advanceAfterCelebration/endSession is gated `if (!toolsOnly && exerciseId)`; progress is synthesized in-memory (`synthProgress`). New routes registered in `_layout.tsx`: `tools/index`, `tools/metronome`, `tools/stepper`.
+
+**Tutorials.** `constants/toolsHelp.ts` holds title/body for each tool. Each tool mounts a `<TutorialStep>` that auto-fires once-ever and feeds the global "?" button: hub (`tools-hub`), metronome (`tools-metronome`), `tools-tempo-ladder`, `tools-rhythmic`, `tools-click-up`. Tempo Ladder + Rhythmic swap to the tools-specific TutorialStep (and suppress the web spotlight tour) when `toolsOnly`. The library's `library-add` tutorial gained a 🛠 Tools line.
+
+**Verified:** tsc clean (except the 2 known self-led pre-existing errors); `expo export --platform web` compiles all routes incl. `/tools`, `/tools/metronome`, `/tools/stepper`. **Authenticated click-through still pending** (needs the user's Supabase login). Not pushed.
+
 ## ✅ 2026-06-08 — Metronome: drone revived + GAPS random dropper; Click-Up setup safe-area fix (LIVE)
 
 Two web pushes (live on playfastnotes.com). Memory: `[[metronome-sound-future-work]]`.

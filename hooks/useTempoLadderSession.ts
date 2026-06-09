@@ -14,6 +14,7 @@ import {
   updateTempoLadderConfigBounds,
   updateTempoLadderState,
   upsertTempoLadder,
+  type TempoLadderConfig,
   type TempoLadderProgress,
 } from '@/lib/db/repos/tempoLadder';
 import {
@@ -63,7 +64,15 @@ function durableBase(
   return metronomeBpm; // step
 }
 
-export function useTempoLadderSession(id: string | undefined) {
+export function useTempoLadderSession(
+  id: string | undefined,
+  // Tools-mode: run with no piece attached. We still load the user's saved
+  // Custom-pattern library (it lives on their account, not a piece), but skip
+  // every passage-keyed DB read/write — no exercise row, no progress
+  // persistence, no practice-log entry. The ladder mechanics are identical;
+  // they just run off in-memory state for the session and vanish on exit.
+  toolsOnly: boolean = false,
+) {
   const router = useRouter();
   const metronome = useMetronome(60);
   const microbreak = useMicrobreakTimer();
@@ -107,8 +116,24 @@ export function useTempoLadderSession(id: string | undefined) {
   const [customBase, setCustomBase] = useState(60);
 
   useEffect(() => {
-    if (!id) return;
     let cancelled = false;
+    // Tools mode: no piece, so skip the passage + exercise + progress reads.
+    // Still load the per-user Custom-pattern library so Step / Cluster /
+    // Custom all work — Custom patterns belong to the account, not a piece.
+    if (toolsOnly) {
+      listCustomPatterns()
+        .then((patterns) => {
+          if (!cancelled) setCustomPatterns(patterns);
+        })
+        .catch((e) => {
+          console.warn('[tempoLadder] listCustomPatterns failed:', e);
+        });
+      return () => {
+        cancelled = true;
+        metronome.stop();
+      };
+    }
+    if (!id) return;
     getPassage(id).then((p) => {
       if (!cancelled) setPassage(p);
     });
@@ -184,7 +209,7 @@ export function useTempoLadderSession(id: string | undefined) {
       metronome.stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, toolsOnly]);
 
   function setModeAndSyncCluster(next: Mode) {
     setMode(next);
@@ -235,8 +260,18 @@ export function useTempoLadderSession(id: string | undefined) {
     }
   }
 
+  // Build an in-memory progress row for Tools mode (no DB round-trip). Mirrors
+  // the shape upsertTempoLadder would return so the rest of the session logic
+  // is identical whether or not we're persisting.
+  function synthProgress(
+    cfg: TempoLadderConfig,
+    currentTempo: number,
+  ): TempoLadderProgress {
+    return { ...cfg, current_tempo: currentTempo, current_streak: 0, updated_at: 0 };
+  }
+
   async function startSession() {
-    if (!exerciseId || !id) return;
+    if (!toolsOnly && (!exerciseId || !id)) return;
     lastHitTempoRef.current = null;
     reachedGoalRef.current = false;
     earnedStepUpRef.current = false;
@@ -247,8 +282,8 @@ export function useTempoLadderSession(id: string | undefined) {
       const base = parseInt(startTempo, 10);
       const goal = parseInt(goalTempo, 10);
       if (!base || !goal || goal <= base) return;
-      const saved = await upsertTempoLadder({
-        exercise_id: exerciseId,
+      const cfg: TempoLadderConfig = {
+        exercise_id: exerciseId ?? '',
         mode: 'custom',
         start_tempo: base,
         goal_tempo: goal,
@@ -259,8 +294,12 @@ export function useTempoLadderSession(id: string | undefined) {
         custom_pattern_id: customPatternId,
         custom_block_index: 0,
         custom_rep_in_block: 0,
-      });
-      await updateCustomPosition(exerciseId, base, 0, 0);
+      };
+      const saved =
+        !toolsOnly && exerciseId
+          ? await upsertTempoLadder(cfg)
+          : synthProgress(cfg, base);
+      if (!toolsOnly && exerciseId) await updateCustomPosition(exerciseId, base, 0, 0);
       setCustomBase(base);
       setCustomBlockIndex(0);
       setCustomRepInBlock(0);
@@ -282,8 +321,8 @@ export function useTempoLadderSession(id: string | undefined) {
       const start = parseInt(startTempo, 10);
       const goal = parseInt(goalTempo, 10);
       if (!start || !goal || goal <= start) return;
-      const saved = await upsertTempoLadder({
-        exercise_id: exerciseId,
+      const cfg: TempoLadderConfig = {
+        exercise_id: exerciseId ?? '',
         mode: 'step',
         start_tempo: start,
         goal_tempo: goal,
@@ -291,8 +330,12 @@ export function useTempoLadderSession(id: string | undefined) {
         cluster_low: null,
         cluster_high: null,
         target_reps: targetReps,
-      });
-      await updateTempoLadderState(exerciseId, start, 0);
+      };
+      const saved =
+        !toolsOnly && exerciseId
+          ? await upsertTempoLadder(cfg)
+          : synthProgress(cfg, start);
+      if (!toolsOnly && exerciseId) await updateTempoLadderState(exerciseId, start, 0);
       setProgress({ ...saved, current_tempo: start, current_streak: 0 });
       metronome.setBpm(start);
       setPhase('playing');
@@ -303,8 +346,8 @@ export function useTempoLadderSession(id: string | undefined) {
     const high = parseInt(clusterHigh, 10);
     const final = parseInt(finalTempo, 10);
     if (!low || !high || !final || high <= low || final < high) return;
-    const saved = await upsertTempoLadder({
-      exercise_id: exerciseId,
+    const cfg: TempoLadderConfig = {
+      exercise_id: exerciseId ?? '',
       mode: 'cluster',
       start_tempo: low,
       goal_tempo: final,
@@ -312,9 +355,14 @@ export function useTempoLadderSession(id: string | undefined) {
       cluster_low: low,
       cluster_high: high,
       target_reps: targetReps,
-    });
+    };
     const firstBpm = pickRandom(low, high);
-    await advanceClusterWindow(exerciseId, low, high, firstBpm, 0);
+    const saved =
+      !toolsOnly && exerciseId
+        ? await upsertTempoLadder(cfg)
+        : synthProgress(cfg, firstBpm);
+    if (!toolsOnly && exerciseId)
+      await advanceClusterWindow(exerciseId, low, high, firstBpm, 0);
     setProgress({
       ...saved,
       cluster_low: low,
@@ -327,7 +375,7 @@ export function useTempoLadderSession(id: string | undefined) {
   }
 
   async function onClean() {
-    if (!progress || !exerciseId || !id) return;
+    if (!progress || (!toolsOnly && (!exerciseId || !id))) return;
 
     // ── Custom mode ──────────────────────────────────────────────────
     // One full execution of the pattern with no misses = one clean set,
@@ -339,7 +387,8 @@ export function useTempoLadderSession(id: string | undefined) {
       if (nextRepInBlock < currentBlock.count) {
         // Still inside the current block — same tempo, next rep.
         setCustomRepInBlock(nextRepInBlock);
-        await updateCustomPosition(exerciseId, customBase, customBlockIndex, nextRepInBlock);
+        if (!toolsOnly && exerciseId)
+          await updateCustomPosition(exerciseId, customBase, customBlockIndex, nextRepInBlock);
         return;
       }
       // Block done. Move to the next block.
@@ -350,7 +399,8 @@ export function useTempoLadderSession(id: string | undefined) {
         setCustomBlockIndex(nextBlockIndex);
         setCustomRepInBlock(0);
         metronome.setBpm(nextBpm);
-        await updateCustomPosition(exerciseId, customBase, nextBlockIndex, 0);
+        if (!toolsOnly && exerciseId)
+          await updateCustomPosition(exerciseId, customBase, nextBlockIndex, 0);
         return;
       }
       // All blocks done → completed pattern cleanly. Trigger celebration
@@ -364,12 +414,13 @@ export function useTempoLadderSession(id: string | undefined) {
       // Persist the position pre-bump so a reload mid-celebration restores
       // the user at the END of the just-completed pattern. The actual
       // bump-and-reset happens in advanceAfterCelebration.
-      await updateCustomPosition(
-        exerciseId,
-        customBase,
-        customPattern.blocks.length - 1,
-        currentBlock.count - 1,
-      );
+      if (!toolsOnly && exerciseId)
+        await updateCustomPosition(
+          exerciseId,
+          customBase,
+          customPattern.blocks.length - 1,
+          currentBlock.count - 1,
+        );
       metronome.stop();
       // Fill the final dot. CustomPatternDots paints dots where
       // i < customPosition, and customPosition = (reps in earlier blocks) +
@@ -405,7 +456,8 @@ export function useTempoLadderSession(id: string | undefined) {
       if (reached) reachedGoalRef.current = true;
       setProgress({ ...progress, current_streak: nextStreak });
       const base = durableBase(progress.mode, progress.current_tempo, progress, customBase);
-      await updateTempoLadderState(exerciseId, base, nextStreak);
+      if (!toolsOnly && exerciseId)
+        await updateTempoLadderState(exerciseId, base, nextStreak);
       metronome.stop();
       // Give the user a beat (~350 ms) to see the final dot fill before the
       // celebration modal mounts. setCelebrating on the next tick lets React
@@ -423,17 +475,20 @@ export function useTempoLadderSession(id: string | undefined) {
       // Persist the durable base (window floor), not the live random pick, so
       // the library % doesn't bounce with each rep. The React state + audio
       // above still track the live pick.
-      await updateTempoLadderState(exerciseId, lo, nextStreak);
-      await stampLastUsed(id, 'tempo_ladder');
+      if (!toolsOnly && exerciseId) {
+        await updateTempoLadderState(exerciseId, lo, nextStreak);
+        if (id) await stampLastUsed(id, 'tempo_ladder');
+      }
       return;
     }
 
     setProgress({ ...progress, current_streak: nextStreak });
-    await updateTempoLadderState(exerciseId, progress.current_tempo, nextStreak);
+    if (!toolsOnly && exerciseId)
+      await updateTempoLadderState(exerciseId, progress.current_tempo, nextStreak);
   }
 
   async function onMiss() {
-    if (!progress || !exerciseId) return;
+    if (!progress || (!toolsOnly && !exerciseId)) return;
     // A miss starts a fresh attempt, so any unbanked completed-set advance is
     // no longer owed.
     earnedStepUpRef.current = false;
@@ -446,16 +501,16 @@ export function useTempoLadderSession(id: string | undefined) {
       setCustomBlockIndex(0);
       setCustomRepInBlock(0);
       metronome.setBpm(firstBpm);
-      await updateCustomPosition(exerciseId, customBase, 0, 0);
+      if (!toolsOnly && exerciseId) await updateCustomPosition(exerciseId, customBase, 0, 0);
       return;
     }
     setProgress({ ...progress, current_streak: 0 });
     const base = durableBase(progress.mode, progress.current_tempo, progress, customBase);
-    await updateTempoLadderState(exerciseId, base, 0);
+    if (!toolsOnly && exerciseId) await updateTempoLadderState(exerciseId, base, 0);
   }
 
   async function advanceAfterCelebration() {
-    if (!progress || !exerciseId) {
+    if (!progress || (!toolsOnly && !exerciseId)) {
       setCelebrating(null);
       return;
     }
@@ -479,7 +534,7 @@ export function useTempoLadderSession(id: string | undefined) {
         custom_rep_in_block: 0,
       });
       metronome.setBpm(firstBpm);
-      await updateCustomPosition(exerciseId, newBase, 0, 0);
+      if (!toolsOnly && exerciseId) await updateCustomPosition(exerciseId, newBase, 0, 0);
       setCelebrating(null);
       metronome.start();
       return;
@@ -502,7 +557,8 @@ export function useTempoLadderSession(id: string | undefined) {
       metronome.setBpm(nextTempo);
       // Persist the new window floor (newLo) as current_tempo, not the random
       // pick, so the library % reflects the durable ladder position.
-      await advanceClusterWindow(exerciseId, newLo, newHi, newLo, 0);
+      if (!toolsOnly && exerciseId)
+        await advanceClusterWindow(exerciseId, newLo, newHi, newLo, 0);
     } else {
       const nextTempo = Math.min(
         progress.goal_tempo,
@@ -510,7 +566,7 @@ export function useTempoLadderSession(id: string | undefined) {
       );
       setProgress({ ...progress, current_tempo: nextTempo, current_streak: 0 });
       metronome.setBpm(nextTempo);
-      await updateTempoLadderState(exerciseId, nextTempo, 0);
+      if (!toolsOnly && exerciseId) await updateTempoLadderState(exerciseId, nextTempo, 0);
     }
     setCelebrating(null);
     metronome.start();
@@ -526,6 +582,13 @@ export function useTempoLadderSession(id: string | undefined) {
     note: string | null;
     remindNext?: boolean;
   }) {
+    // Tools mode keeps nothing — no progress bump, no practice-log row. Just
+    // stop the click and leave.
+    if (toolsOnly) {
+      metronome.stop();
+      router.back();
+      return;
+    }
     if (!exerciseId || !id) {
       router.back();
       return;
@@ -550,10 +613,13 @@ export function useTempoLadderSession(id: string | undefined) {
     } else if (progress && earnedStepUpRef.current) {
       const next = Math.min(progress.goal_tempo, progress.current_tempo + inc);
       await updateTempoLadderState(exerciseId, next, 0);
-    } else {
-      const base = durableBase(progress?.mode ?? 'step', bpm, progress, customBase);
-      await updateTempoLadderState(exerciseId, base, progress?.current_streak ?? 0);
     }
+    // No `else` write. If the user didn't finish a series this session, leave
+    // the durable ladder position exactly where onClean/onMiss last persisted
+    // it. The old else-branch wrote durableBase(...) — in step mode the live
+    // metronome BPM — so merely opening the ladder, nudging the tempo, and
+    // exiting would shove the library's completion % even though nothing was
+    // accomplished. Real play already persists position via onClean/onMiss.
     if (completedSets > 0) {
       await stampLastUsed(id, 'tempo_ladder');
       const data: Record<string, unknown> = {
