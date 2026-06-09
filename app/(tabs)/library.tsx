@@ -1078,7 +1078,8 @@ export default function LibraryScreen() {
           next action without scanning options. */}
       {isAtRoot && !editMode && (
         <ThemedText style={[styles.addHint, { color: C.icon }]}>
-          Add full parts, or take a photo of a difficult passage.
+          Add full parts, or take a photo of a difficult passage. Or tap 🛠 Tools
+          to practice without uploading music.
         </ThemedText>
       )}
 
