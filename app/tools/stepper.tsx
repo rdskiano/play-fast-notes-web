@@ -9,6 +9,7 @@ import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { TempoConfigFields, type Increment } from '@/components/TempoConfigFields';
 import { ThemedText } from '@/components/themed-text';
+import { ToolsMetronome } from '@/components/ToolsMetronome';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
@@ -205,10 +206,20 @@ export default function ToolsStepperScreen() {
 
       <PedalCatcher active onAdvance={onNext} onBack={onPrev} />
 
-      <View style={styles.stage}>
-        <ThemedText style={[styles.cue, { color: C.text }]}>{cue}</ThemedText>
-        <ThemedText style={[styles.tempo, { color: C.tint }]}>{step.tempo} BPM</ThemedText>
-      </View>
+      {isPhone ? (
+        // Phone: show the unit prompt AND the metronome together. The
+        // metronome carries the tempo readout, so we drop the separate
+        // BPM line. Scrolls if a short (landscape) phone can't fit both.
+        <ScrollView contentContainerStyle={styles.phoneStage}>
+          <ThemedText style={[styles.cue, { color: C.text }]}>{cue}</ThemedText>
+          <ToolsMetronome metronome={metronome} height={340} />
+        </ScrollView>
+      ) : (
+        <View style={styles.stage}>
+          <ThemedText style={[styles.cue, { color: C.text }]}>{cue}</ThemedText>
+          <ThemedText style={[styles.tempo, { color: C.tint }]}>{step.tempo} BPM</ThemedText>
+        </View>
+      )}
 
       <View style={styles.bottomBar}>
         {!isPhone && (
@@ -234,6 +245,9 @@ export default function ToolsStepperScreen() {
       <PracticeToolsLayer
         metronome={metronome}
         metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."
+        // Phone renders the metronome inline (above), so drop it from the
+        // edge tabs to avoid two; keep just the practice timers.
+        tools={isPhone ? { left: [], right: ['timer'] } : undefined}
       />
 
       {/* "?" content during play (auto-fire already happened in config). */}
@@ -270,6 +284,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
+    gap: Spacing.lg,
+  },
+  phoneStage: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
     gap: Spacing.lg,
   },
   cue: { fontSize: 36, fontWeight: Type.weight.heavy, textAlign: 'center', lineHeight: 44 },
