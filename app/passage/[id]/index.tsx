@@ -345,41 +345,70 @@ export default function PassageDetailScreen() {
           },
         ]}>
         <View style={styles.titleRow}>
-          <Pressable onPress={() => router.back()} hitSlop={16} style={styles.backBtn}>
-            <ThemedText style={[styles.backArrow, { color: C.tint }]}>‹</ThemedText>
-          </Pressable>
+          {/* Left: back control. For a passage that belongs to a PDF/part, this
+              is an explicit "‹ Full Part" button to the parent document — the
+              floating ‹ › on the score handle moving between sibling passages,
+              so the top button is unambiguously "back to the whole part." A
+              standalone passage keeps a plain back chevron. */}
+          <View style={styles.titleSide}>
+            {passage.document_id ? (
+              <Pressable
+                onPress={() =>
+                  // A PDF-backed passage is reached FROM its PDF (these
+                  // passages aren't listed in the library), so a true back()
+                  // returns to that PDF in one step — no extra history entry,
+                  // no double-back. Only push the document if there's no
+                  // history to go back to (e.g. a deep link straight here).
+                  guardedNav(() =>
+                    router.canGoBack()
+                      ? router.back()
+                      : router.navigate(`/document/${passage.document_id}`),
+                  )
+                }
+                hitSlop={16}
+                accessibilityLabel="Back to full part"
+                style={styles.backBtn}>
+                <ThemedText
+                  style={[styles.backLabel, { color: C.tint }]}
+                  numberOfLines={1}>
+                  ‹ Full Part
+                </ThemedText>
+              </Pressable>
+            ) : (
+              <Pressable onPress={() => router.back()} hitSlop={16} style={styles.backBtn}>
+                <ThemedText style={[styles.backArrow, { color: C.tint }]}>‹</ThemedText>
+              </Pressable>
+            )}
+          </View>
           <ThemedText style={styles.topTitle} numberOfLines={1}>
             {passage.title}
           </ThemedText>
-          {/* Phone: the whole pillRow becomes a single ⋯ menu so the
-              title isn't squeezed into the corner. Tablet / desktop still
-              see the full pill row below. The "strategies →" hint pairs
-              with the ⋯ button so first-time users know that's where
-              Tempo Ladder / Click-Up / Rhythmic / Self-Led / History /
-              Crop live now — without it the ⋯ alone is unguessable. */}
-          {isPhone && (
-            <View style={styles.phoneMenuRow}>
-              {/* Strategies and the other actions used to share one ⋯ menu;
-                  split into a labelled Strategies button (the primary action)
-                  and a ☰ menu for History / Crop. */}
-              <Pressable
-                onPress={() => setPhoneMenuOpen(true)}
-                hitSlop={6}
-                accessibilityLabel="Practice strategies"
-                style={[styles.phoneStrategiesBtn, { backgroundColor: C.tint }]}>
-                <ThemedText style={styles.phoneStrategiesText}>Strategies</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => setPhoneMoreOpen(true)}
-                hitSlop={6}
-                accessibilityLabel="More actions"
-                style={[styles.phoneMenuBtn, { borderColor: C.icon }]}>
-                <ThemedText style={[styles.phoneMenuGlyph, { color: C.text }]}>
-                  ☰
-                </ThemedText>
-              </Pressable>
-            </View>
-          )}
+          {/* Right: on phone the strategy + actions menus live here so the
+              centered title stays balanced. Tablet / desktop see the full pill
+              row below instead. The labelled "Strategies" button pairs with the
+              ☰ menu (History / Crop) — the ☰ alone would be unguessable. */}
+          <View style={[styles.titleSide, styles.titleSideRight]}>
+            {isPhone && (
+              <View style={styles.phoneMenuRow}>
+                <Pressable
+                  onPress={() => setPhoneMenuOpen(true)}
+                  hitSlop={6}
+                  accessibilityLabel="Practice strategies"
+                  style={[styles.phoneStrategiesBtn, { backgroundColor: C.tint }]}>
+                  <ThemedText style={styles.phoneStrategiesText}>Strategies</ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={() => setPhoneMoreOpen(true)}
+                  hitSlop={6}
+                  accessibilityLabel="More actions"
+                  style={[styles.phoneMenuBtn, { borderColor: C.icon }]}>
+                  <ThemedText style={[styles.phoneMenuGlyph, { color: C.text }]}>
+                    ☰
+                  </ThemedText>
+                </Pressable>
+              </View>
+            )}
+          </View>
         </View>
         {!isPhone && (
           <View style={styles.pillRow}>
@@ -805,9 +834,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  // Equal-width left/right cells flank the title so it sits centered in the
+  // bar regardless of how wide the back button or phone menu are.
+  titleSide: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  titleSideRight: { justifyContent: 'flex-end' },
   backBtn: { paddingHorizontal: Spacing.sm, paddingVertical: 6 },
   backArrow: { fontSize: 30, fontWeight: '400', lineHeight: 32 },
-  topTitle: { fontSize: 15, fontWeight: Type.weight.bold, flex: 1 },
+  backLabel: { fontSize: 16, fontWeight: '600', lineHeight: 24 },
+  topTitle: {
+    fontSize: 15,
+    fontWeight: Type.weight.bold,
+    textAlign: 'center',
+    flexShrink: 1,
+  },
   phoneMenuRow: {
     flexDirection: 'row',
     alignItems: 'center',

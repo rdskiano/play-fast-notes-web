@@ -54,7 +54,15 @@ export function buildPitchAbc(
     const want = p.accidental;
     const current = active.has(key) ? active.get(key)! : keySigDefaults[L];
     const needed = want !== current;
-    const prefix = needed || p.courtesy ? ACC_PREFIX[want] : '';
+    // Unlike the per-measure exercise staff, every note here lives in one
+    // big meterless measure, so an out-of-key accidental would normally only
+    // print on its first appearance and stay suppressed thereafter. The user
+    // reads that as "my re-spelling vanished." Reprint the accidental on every
+    // out-of-key note (and every forced/courtesy one) so edits are always
+    // visible; `active` still tracks the sounding spelling so a return to the
+    // key default correctly prints a natural.
+    const outOfKey = want !== keySigDefaults[L];
+    const prefix = needed || outOfKey || p.courtesy ? ACC_PREFIX[want] : '';
     if (needed) active.set(key, want);
     tokens.push(prefix + toAbcBody(L, octave));
   }
