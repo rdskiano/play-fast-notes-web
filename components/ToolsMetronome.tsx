@@ -25,13 +25,14 @@ export function ToolsMetronome({
 }) {
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
-  // The panel's internals are fixed-pixel, so on a phone we show it at natural
-  // size. On larger screens (iPad / laptop) the natural card looks tiny adrift
-  // in the empty space, so scale the whole device up — it stays centered and
-  // reads as the centerpiece. The outer wrapper reserves the SCALED footprint
-  // so neighbours (a unit prompt above, nav below) lay out around the real
-  // visual size, not the unscaled box.
-  const scale = isPhone ? 1 : 1.4;
+  // The panel's internals are fixed-pixel. On a phone we show it at natural
+  // size. On larger screens the natural card can look small adrift in the
+  // space, so scale the device up — but only as far as the viewport HEIGHT
+  // allows, so it stays a centerpiece on a tall iPad without dominating a short
+  // laptop window (where a unit prompt + nav share the height). Capped at 1.4.
+  // The outer wrapper reserves the SCALED footprint so neighbours lay out
+  // around the real visual size, not the unscaled box.
+  const scale = isPhone ? 1 : Math.max(1, Math.min(1.4, (vpH * 0.5) / height));
   const width = Math.min(vpW - 24, 320);
   return (
     <View
