@@ -5,25 +5,20 @@ import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ToolsMetronome } from '@/components/ToolsMetronome';
 import { TutorialStep } from '@/components/TutorialStep';
-import { Colors } from '@/constants/theme';
 import { Spacing, Type } from '@/constants/tokens';
 import { TOOLS_METRONOME_HELP } from '@/constants/toolsHelp';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useMetronome } from '@/lib/audio/useMetronome';
 
-// Tools-mode standalone Metronome. PracticeToolsLayer already hosts the full
-// metronome (meter, subdivisions, drum grooves) as an edge-docked tool on
-// every practice screen; here we mount it on an otherwise-empty screen and
-// hand it its own metronome instance so it drives the audio. The
-// `metronomeNote` makes the panel pop open by default on laptop/tablet (the
-// note copy itself is hidden on phone, where tools stay collapsed and the
-// user taps the tab).
+// Tools-mode standalone Metronome. The full metronome (meter, subdivisions,
+// drum grooves) lives in MetronomePanel; here we drop it straight into the
+// middle of the screen — front and centre, since the metronome IS the screen —
+// rather than behind an edge tab. PracticeToolsLayer still mounts the practice
+// timers on the right edge (its metronome tab is removed to avoid a second one).
 
 export default function ToolsMetronomeScreen() {
   const router = useRouter();
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
   const metronome = useMetronome(120);
 
   function exit() {
@@ -43,12 +38,9 @@ export default function ToolsMetronomeScreen() {
         }
       />
       <View style={styles.body}>
-        <ThemedText style={[styles.hint, { color: C.icon }]}>
-          Open the 🥁 Metronome tab to set tempo, meter, subdivisions, and
-          drum grooves.
-        </ThemedText>
-        <PracticeToolsLayer metronome={metronome} metronomeNote="Standalone metronome." />
+        <ToolsMetronome metronome={metronome} height={384} />
       </View>
+      <PracticeToolsLayer metronome={metronome} tools={{ left: [], right: ['timer'] }} />
 
       <TutorialStep
         id="tools-metronome"
@@ -62,6 +54,5 @@ export default function ToolsMetronomeScreen() {
 
 const styles = StyleSheet.create({
   topCenter: { textAlign: 'center', fontWeight: Type.weight.bold, fontSize: Type.size.sm },
-  body: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  hint: { textAlign: 'center', fontSize: Type.size.md, lineHeight: 22, maxWidth: 360 },
+  body: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.lg },
 });

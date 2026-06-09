@@ -21,7 +21,7 @@ export const TOOLS_HUB_HELP: ToolsHelp = {
 export const TOOLS_METRONOME_HELP: ToolsHelp = {
   title: 'Metronome',
   body:
-    'A standalone metronome. Open the 🥁 Metronome tab (right edge) to:\n\n' +
+    'A standalone metronome, front and centre. Use it to:\n\n' +
     '• Set the tempo — type it, use −/+, or TAP TEMPO to the beat.\n' +
     '• Pick a meter and which beats are accented (tap the dots).\n' +
     '• Choose a subdivision — eighths, triplets, sixteenths.\n' +

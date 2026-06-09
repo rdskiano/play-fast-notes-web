@@ -212,7 +212,7 @@ export default function ToolsStepperScreen() {
         // BPM line. Scrolls if a short (landscape) phone can't fit both.
         <ScrollView contentContainerStyle={styles.phoneStage}>
           <ThemedText style={[styles.cue, { color: C.text }]}>{cue}</ThemedText>
-          <ToolsMetronome metronome={metronome} height={340} />
+          <ToolsMetronome metronome={metronome} />
         </ScrollView>
       ) : (
         <View style={styles.stage}>

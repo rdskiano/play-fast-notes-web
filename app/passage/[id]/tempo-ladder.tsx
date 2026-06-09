@@ -683,7 +683,7 @@ export default function TempoLadderScreen() {
               ✗/✓ buttons + dots pill float over the corners around it. */}
           {toolsOnly && isPhone && (
             <View style={styles.toolsMetroWrap} pointerEvents="box-none">
-              <ToolsMetronome metronome={metronome} height={340} />
+              <ToolsMetronome metronome={metronome} />
             </View>
           )}
           {ann.canvas}
@@ -1116,10 +1116,17 @@ const styles = StyleSheet.create({
   },
   phoneDotsPill: {
     flexDirection: 'row',
+    // Wrap to a second row when there are too many dots for the phone width
+    // (e.g. a 20-rep target) instead of overflowing off-screen. maxWidth fits
+    // ~10 dots per row, so 20 lands as two tidy rows of 10.
+    flexWrap: 'wrap',
+    maxWidth: 248,
+    justifyContent: 'center',
+    rowGap: 6,
     gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 999,
+    borderRadius: 20,
     backgroundColor: '#000000aa',
   },
   phoneDot: {
