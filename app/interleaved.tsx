@@ -1053,13 +1053,8 @@ function TimerActive({
           style={[styles.strategyBtn, { backgroundColor: '#4a235a' }]}>
           <ThemedText style={styles.strategyText}>Rhythmic Variation</ThemedText>
         </Pressable>
-        <Pressable
-          onPress={() => setSelfLedOpen(true)}
-          style={[styles.selfLedStratBtn, { borderColor: C.tint }]}>
-          <ThemedText style={[styles.selfLedStratText, { color: C.tint }]}>
-            Self-Led ▾
-          </ThemedText>
-        </Pressable>
+        {/* Self-Led launcher hidden for now (unused), matching the passage
+            detail screen. SelfLedSheet stays mounted so it's a 1-line restore. */}
       </View>
 
       {cur?.passage.source_uri &&

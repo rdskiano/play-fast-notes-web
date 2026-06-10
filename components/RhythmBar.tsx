@@ -73,7 +73,12 @@ export function RhythmBar({
   // short clips the beams (worst case = 16th-note double beams). Verified the
   // 16th double-beam fits at h64/scale1.1 and h68/scale1.2.
   const notationScale = merged ? 1.1 : compact ? 1.1 : 1.2;
-  const notationH = notationScale >= 1.2 ? 68 : 64;
+  // A tuplet ('3') adds a bracket + number below the beams, making the notation
+  // noticeably taller. Without extra room the web staff (bottom-aligned, cropped
+  // to its bbox) clips the TOP — the time signature disappears off the top edge.
+  // Give tuplet patterns a taller slot so the whole thing fits.
+  const hasTuplet = pattern.notes.some((t) => t.endsWith('t'));
+  const notationH = (notationScale >= 1.2 ? 68 : 64) + (hasTuplet ? 24 : 0);
 
   // Size the staff to its own content (note count × scale) so the flanking
   // arrows hug it. AbcStaffView fills its `width` and renders the staff at

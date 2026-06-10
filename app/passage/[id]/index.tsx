@@ -54,6 +54,7 @@ type StrategyKey =
   | 'click_up'
   | 'rhythmic'
   | 'micro_chaining'
+  | 'macro_chaining'
   | 'rep_rotator';
 
 type StrategyDef = {
@@ -67,6 +68,7 @@ const STRATEGIES: StrategyDef[] = [
   { key: 'click_up', label: 'Interleaved Click-Up', enabled: true },
   { key: 'rhythmic', label: 'Rhythmic Variation', enabled: true },
   { key: 'micro_chaining', label: 'Micro-Chaining', enabled: true },
+  { key: 'macro_chaining', label: 'Macro-Chaining', enabled: true },
   { key: 'rep_rotator', label: 'Rep Rotator', enabled: true },
 ];
 
@@ -305,6 +307,8 @@ export default function PassageDetailScreen() {
       guardedNav(() => router.push(`/passage/${passage.id}/click-up`));
     } else if (key === 'micro_chaining') {
       guardedNav(() => router.push(`/passage/${passage.id}/micro-chaining`));
+    } else if (key === 'macro_chaining') {
+      guardedNav(() => router.push(`/passage/${passage.id}/macro-chaining`));
     } else if (key === 'rhythmic') {
       setRhythmicStep('mode');
       setRhythmicSheetOpen(true);
@@ -421,13 +425,8 @@ export default function PassageDetailScreen() {
         {!isPhone && (
           <View style={styles.pillRow}>
             {STRATEGIES.map(renderPill)}
-            <Pressable
-              onPress={() => setSelfLedOpen(true)}
-              style={[styles.outlinePill, { borderColor: C.tint }]}>
-              <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
-                Self-Led ▾
-              </ThemedText>
-            </Pressable>
+            {/* Self-Led pill hidden for now (unused). The SelfLedSheet + routes
+                stay mounted so it can be restored by re-adding this trigger. */}
             <View style={{ flex: 1 }} />
             <Pressable
               onPress={() =>
@@ -706,13 +705,7 @@ export default function PassageDetailScreen() {
               },
             } satisfies ActionSheetItem;
           })),
-          {
-            label: 'Self-Led…',
-            onPress: () => {
-              setPhoneMenuOpen(false);
-              setSelfLedOpen(true);
-            },
-          },
+          // Self-Led entry hidden for now (unused).
         ]}
         onCancel={() => setPhoneMenuOpen(false)}
       />
@@ -761,8 +754,9 @@ export default function PassageDetailScreen() {
           "Tempo Ladder — clicking up the metronome slowly over time.\n\n" +
           "Interleaved Click-Up — practice each measure or beat in isolation and in ever-changing contexts and tempos. A favorite!\n\n" +
           "Rhythmic Variation — play the passage with different rhythm patterns to expose weak spots and even out your technique.\n\n" +
+          "Micro-Chaining — build a tricky spot back one note at a time (forward, backward, or out from the problem note).\n\n" +
+          "Macro-Chaining — play it in chunks at goal tempo with beats of rest between, then remove the rests as it locks in.\n\n" +
           "Rep Rotator — 🔀 drill this passage shuffled together with its siblings.\n\n" +
-          "Self-Led — your own structured drills (chunking and more).\n\n" +
           "Practice History — every session you've logged on this passage.\n\n" +
           "Crop — re-trim the boxed region of the score.\n\n" +
           "Move between passages with the ‹ › arrows, by swiping, or with the ← / → keys.\n\n" +
@@ -842,18 +836,20 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  // Equal-width left/right cells flank the title so it sits centered in the
-  // bar regardless of how wide the back button or phone menu are.
-  titleSide: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  // Side cells are content-sized (back button / phone menu); the title takes
+  // the middle and ellipsizes. minWidth:0 lets it shrink past its longest word
+  // so a long title truncates instead of overlapping the Strategies button.
+  titleSide: { flexDirection: 'row', alignItems: 'center' },
   titleSideRight: { justifyContent: 'flex-end' },
   backBtn: { paddingHorizontal: Spacing.sm, paddingVertical: 6 },
   backArrow: { fontSize: 30, fontWeight: '400', lineHeight: 32 },
   backLabel: { fontSize: 16, fontWeight: '600', lineHeight: 24 },
   topTitle: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 15,
     fontWeight: Type.weight.bold,
     textAlign: 'center',
-    flexShrink: 1,
   },
   phoneMenuRow: {
     flexDirection: 'row',

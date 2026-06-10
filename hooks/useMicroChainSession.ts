@@ -17,6 +17,7 @@ import {
 } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
+import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import {
   generateMicroSteps,
@@ -48,6 +49,7 @@ export type MicroStoredConfig = {
 export function useMicroChainSession(id: string | undefined) {
   const router = useRouter();
   const metronome = useMetronome(60);
+  const microbreak = useMicrobreakTimer();
 
   const [phase, setPhase] = useState<MicroPhase>('marking');
   const [passage, setPassage] = useState<Passage | null>(null);
@@ -224,6 +226,10 @@ export function useMicroChainSession(id: string | undefined) {
       return;
     }
     setCurrentIndex(nextIdx);
+    // Microbreak: a short mental rest every N notes of progress (N from the
+    // Micro timer settings). trigger() self-gates on the Micro timer enabled.
+    const everyN = microbreak.config.microChainNotes || 3;
+    if ((nextIdx + 1) % everyN === 0) microbreak.trigger();
     await setClickUpIndex(exerciseId, nextIdx);
   }
 

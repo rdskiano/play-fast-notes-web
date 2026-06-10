@@ -902,6 +902,21 @@ export default function LibraryScreen() {
   const isAtRoot = path.length === 0;
   const currentFolderName = isAtRoot ? 'Play Fast Notes' : path[path.length - 1].name;
 
+  // Account entry point — lives at the bottom of the library page (replaces the
+  // old ⚙ Settings button in the header). Shown as the list footer when there
+  // are passages, and in the empty state so a fresh / post-reset user can still
+  // reach sign-out.
+  const accountFooter = (
+    <View style={styles.accountFooter}>
+      <Button
+        label="Account"
+        variant="outline"
+        size="sm"
+        onPress={() => router.push('/account')}
+      />
+    </View>
+  );
+
   return (
     <ThemedView style={[styles.container, { paddingTop: headerTopPad }]}>
       <ThemedView
@@ -998,12 +1013,6 @@ export default function LibraryScreen() {
                 <ThemedText style={styles.iconBtnText}>🛠</ThemedText>
               </Pressable>
               <Pressable
-                onPress={() => router.push('/settings')}
-                accessibilityLabel="Settings"
-                style={[styles.iconBtn, { borderColor: C.icon }]}>
-                <ThemedText style={styles.iconBtnText}>⚙</ThemedText>
-              </Pressable>
-              <Pressable
                 onPress={() => setEditMode(true)}
                 accessibilityLabel="Edit"
                 style={[styles.iconBtn, { borderColor: C.icon }]}>
@@ -1051,12 +1060,6 @@ export default function LibraryScreen() {
                 variant="outline"
                 size="sm"
                 onPress={() => router.push('/tools')}
-              />
-              <Button
-                label="⚙"
-                variant="outline"
-                size="sm"
-                onPress={() => router.push('/settings')}
               />
               <Button
                 label="Edit"
@@ -1137,6 +1140,7 @@ export default function LibraryScreen() {
               Tap "+ Add" to get started.
             </ThemedText>
           )}
+          {accountFooter}
         </ThemedView>
       ) : (
         <FlatList
@@ -1150,6 +1154,7 @@ export default function LibraryScreen() {
                 : `p:${row.passage.id}`
           }
           contentContainerStyle={{ gap: Spacing.md, paddingBottom: Spacing.xl }}
+          ListFooterComponent={accountFooter}
           renderItem={({ item }) => {
             if (item.kind === 'folder') {
               const folderIdx = filteredFolders.findIndex((f) => f.id === item.folder.id);
@@ -1339,9 +1344,9 @@ export default function LibraryScreen() {
           '📋 Practice Log — every session you\'ve logged, for this folder or the whole library.\n' +
           '🔀 Rep Rotator — drill several passages in shuffled order.\n' +
           '🛠 Tools — the metronome, tempo ladder, rhythm variations, and Interleaved Click-Up on their own, without uploading any music.\n' +
-          '⚙ Settings.\n' +
           '✎ Edit — reorder with ↑ ↓, plus rename, move, or delete each item; tap Done to leave.\n\n' +
           'Search — filter folders and passages by title or composer.\n\n' +
+          'Account — at the bottom of this page: sign out, reset your data, or delete your account.\n\n' +
           'On any folder, passage, or PDF card: tap to open it, or long-press for quick actions (rename, move, edit/crop, delete).'
         }
       />
@@ -1405,6 +1410,10 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.lg,
     paddingTop: 60,
+  },
+  accountFooter: {
+    alignItems: 'center',
+    paddingTop: Spacing.lg,
   },
   header: {
     flexDirection: 'row',

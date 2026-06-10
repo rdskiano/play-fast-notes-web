@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
@@ -116,11 +116,10 @@ export default function RhythmicScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, toolsOnly]);
 
-  useEffect(() => {
-    if (phase !== 'playing' || !microbreak.config.enabled) return;
-    const handle = setInterval(() => microbreak.trigger(), 2 * 60 * 1000);
-    return () => clearInterval(handle);
-  }, [phase, microbreak.config.enabled, microbreak]);
+  // Microbreak cadence is work-based, not wall-clock: fire after advancing
+  // through N patterns (N from the Micro timer settings). trigger() self-gates
+  // on the Micro timer being enabled.
+  const advanceCountRef = useRef(0);
 
   function startWithGrouping(g: Grouping) {
     const list = patternsByGrouping(g);
@@ -131,11 +130,17 @@ export default function RhythmicScreen() {
     setGrouping(g);
     setPatterns(list);
     setCurrentIndex(0);
+    advanceCountRef.current = 0;
     setPhase('playing');
     setPickerOpen(false);
   }
 
   function doneSession() {
+    // Tools-only mode has no piece to log against — just leave, no log prompt.
+    if (toolsOnly) {
+      exitSession();
+      return;
+    }
     setNotePromptVisible(true);
   }
 
@@ -183,6 +188,9 @@ export default function RhythmicScreen() {
     const next = Math.min(patterns.length - 1, currentIndex + 1);
     if (next === currentIndex) return;
     setCurrentIndex(next);
+    advanceCountRef.current += 1;
+    const everyN = microbreak.config.rhythmicPatterns || 4;
+    if (advanceCountRef.current % everyN === 0) microbreak.trigger();
     if (metronome.rhythmLooping && patterns[next]) {
       metronome.startRhythmLoop(
         patterns[next].notes,

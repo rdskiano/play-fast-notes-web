@@ -31,6 +31,10 @@ type Props = {
   // Place-mode only: indices drawn in the highlight color (orange) instead of
   // the default green — used to show the two chosen notes of a problem span.
   highlightIndices?: number[];
+  // Play-mode only: shrink the ▼ arrows further for phone screens, where the
+  // standard chain arrows crowd the small viewport. Non-phone keeps the normal
+  // size. Only the chaining screens (Micro / Macro) pass this.
+  phoneArrows?: boolean;
 };
 
 const MARKER_HIT_RADIUS = 24;
@@ -44,6 +48,7 @@ export function ScoreWithMarkers({
   captureTaps = true,
   compact = false,
   highlightIndices,
+  phoneArrows = false,
 }: Props) {
   const highlightSet = new Set(highlightIndices ?? []);
   // Marker geometry — compact for note-level chains, standard for beats.
@@ -51,8 +56,10 @@ export function ScoreWithMarkers({
   const mHalf = mSize / 2;
   const mLift = compact ? 22 : 28; // px the circle sits above the tapped point
   const mFont = compact ? 10 : 12;
-  const arrowFont = compact ? 20 : 28;
-  const arrowLift = compact ? 26 : 34;
+  // Play-mode ▼ arrows: standard 20 for chaining screens (28 for beat-level
+  // Click-Up/Rhythmic), shrunk to 14 only on phones that opt in via phoneArrows.
+  const arrowFont = phoneArrows ? 14 : compact ? 20 : 28;
+  const arrowLift = phoneArrows ? 18 : compact ? 26 : 34;
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [aspect, setAspect] = useState<number | null>(null);
 

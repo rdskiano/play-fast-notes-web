@@ -59,7 +59,7 @@ const CU_MARKING_STEPS: TourStep[] = [
     body:
       'Interleaved Click-Up — developed by researcher Molly Gebrian — breaks your passage into small units and drills them at shuffled tempos, and in changing contexts, which builds more reliable playing under pressure.\n\n' +
       'The passage needs to be broken down into small, manageable units. You can decide to go by the single beat (usually a beat plus the first note of the next beat), or by the measure. If a single beat contains too many notes (like six to eight) and is too difficult, you should break it down further into half or a quarter of a beat. As you get better over multiple days, this can expand to every two bars or an entire line.\n\n' +
-      'Tap just above the music to mark where each unit begins (a beat or a measure), and add one extra mark at the very end. Tap a mark again to remove it, or use UNDO / CLEAR up top.',
+      'Tap just above the music to mark where each unit begins (a beat or a measure), and add one extra mark at the very end. Pinch to zoom in for accuracy. Tap a mark again to remove it, or use UNDO / CLEAR up top.',
     image: {
       source: require('@/assets/images/tutorial-click-up-marking.png'),
       aspectRatio: 2727 / 549,
@@ -277,7 +277,7 @@ export default function ClickUpScreen() {
           title="Mark your units"
           body={
             "Interleaved Click-Up is a structured practice method developed by Molly Gebrian — a viola professor and researcher in the neuroscience of practice (her book: Learn Faster, Perform Better). Instead of repeating a passage start-to-finish, you break it into small units; the app interleaves them at climbing tempos, forcing your brain to keep retrieving and reconnecting sections. That builds deeper, more reliable playing under pressure.\n\n" +
-            "Mark your units: tap just above the music to mark the start of each unit (a beat, a measure — the smallest chunk you want to drill). Drop one extra mark at the end of the last unit so the app knows where it stops. You need at least " +
+            "Mark your units: tap just above the music to mark the start of each unit (a beat, a measure — the smallest chunk you want to drill). Pinch to zoom in for accuracy. Drop one extra mark at the end of the last unit so the app knows where it stops. You need at least " +
             String(MIN_MARKERS) +
             " marks total.\n\n" +
             "Fixing marks: tap a marker again to remove it, tap UNDO for just the last one, or CLEAR to start over. When you're done, tap NEXT → at the top right to set your tempo range.\n\n" +

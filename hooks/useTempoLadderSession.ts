@@ -441,7 +441,8 @@ export function useTempoLadderSession(
     const nextStreak = progress.current_streak + 1;
     const hitTarget = nextStreak >= progress.target_reps;
 
-    const isCadenceMark = nextStreak % 3 === 0;
+    const cadence = microbreak.config.tempoLadderReps || 3;
+    const isCadenceMark = nextStreak % cadence === 0;
     const willBreak = microbreak.config.enabled && isCadenceMark && !hitTarget;
     if (willBreak) microbreak.trigger();
 

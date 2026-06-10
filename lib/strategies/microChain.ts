@@ -27,8 +27,8 @@ function range(a: number, b: number): number[] {
 /**
  * Build the ordered step list for a Micro-Chaining session.
  *
- * - forward: start on note 1, add one note to the END each step → [1], [1,2], … [1..N].
- * - backward: start on note N, add one note to the FRONT each step → [N], [N-1,N], … [1..N].
+ * - forward: start on the first two notes, add one to the END each step → [1,2], [1,2,3], … [1..N].
+ * - backward: start on the last two notes, add one to the FRONT each step → [N-1,N], [N-2,N], … [1..N].
  * - problem: start on the user-chosen problem span [a, b] (two notes, adjacent
  *   or not), then expand outward, alternating one note before / one note after
  *   until the whole fragment is rebuilt. `problemA` / `problemB` are the two
@@ -43,12 +43,16 @@ export function generateMicroSteps(
   const N = noteCount;
   if (N < 1) return [];
 
+  // Chaining is about connections, so forward/backward begin on a two-note
+  // connection (two arrows), not a single note.
   if (mode === 'forward') {
-    return range(1, N).map((k) => ({ activeIndices: range(1, k) }));
+    if (N < 2) return [{ activeIndices: [1] }];
+    return range(2, N).map((k) => ({ activeIndices: range(1, k) }));
   }
 
   if (mode === 'backward') {
-    return range(1, N).map((k) => ({ activeIndices: range(N - k + 1, N) }));
+    if (N < 2) return [{ activeIndices: [1] }];
+    return range(2, N).map((k) => ({ activeIndices: range(N - k + 1, N) }));
   }
 
   // problem — start on the chosen span [a, b] (default to the first two notes

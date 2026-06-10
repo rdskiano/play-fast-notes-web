@@ -19,13 +19,7 @@
 
 import { Image } from 'expo-image';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import {
-  type LayoutChangeEvent,
-  StyleSheet,
-  View,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 import { computeDrawnRect } from '@/lib/layout/containFit';
@@ -132,10 +126,11 @@ export function ZoomableImage({
   onTapPoint,
   tapAspectRatio,
 }: Props) {
-  // Container size, captured on layout. The tap→image-space inverse needs it
-  // (the transform is anchored on the container's center), so we read it on
-  // the JS thread when a tap lands rather than threading it through a worklet.
-  const containerRef = useRef({ w: 0, h: 0 });
+  // Ref to the (untransformed) wrapper. The tap→image-space inverse measures
+  // its window rect so we can convert a window-absolute tap into container
+  // coordinates — robust across web/native, where a gesture's view-relative
+  // x/y on the *transformed* inner view can't be trusted.
+  const wrapRef = useRef<View>(null);
   // Seed shared values from the cache so the first render already
   // shows the saved zoom — avoids a flicker at 1× before the effect
   // restores it.
@@ -241,25 +236,31 @@ export function ZoomableImage({
     ty.value = withTiming(0, { duration: 180 });
   }
 
-  // Map a tap (in container coordinates, from the gesture) to a normalized
-  // [0,1] point on the source image. Two inversions: undo the center-anchored
-  // zoom transform (q = center + translate + scale·(p − center)), then undo the
-  // contain-fit letterbox. Runs on the JS thread (shared values passed in) so
-  // it can read containerRef + tapAspectRatio without worklet gymnastics.
-  function handleTap(ex: number, ey: number, s: number, txv: number, tyv: number) {
+  // Map a tap to a normalized [0,1] point on the source image. We take the tap
+  // in WINDOW-absolute coords and measure the wrapper's window rect, so the
+  // container-relative point is correct regardless of the inner view's
+  // transform. Then two inversions: undo the center-anchored zoom transform
+  // (q = center + translate + scale·(p − center)), then undo the contain-fit
+  // letterbox. measureInWindow is async; the marker lands a tick later.
+  function handleTap(absX: number, absY: number, s: number, txv: number, tyv: number) {
     if (!onTapPoint) return;
-    const { w: W, h: H } = containerRef.current;
-    if (!W || !H) return;
-    const cx = W / 2 + (ex - W / 2 - txv) / s;
-    const cy = H / 2 + (ey - H / 2 - tyv) / s;
-    const drawn = computeDrawnRect(W, H, tapAspectRatio ?? null);
-    if (drawn.w === 0 || drawn.h === 0) return;
-    const nx = (cx - drawn.ox) / drawn.w;
-    const ny = (cy - drawn.oy) / drawn.h;
-    onTapPoint(
-      { x: Math.max(0, Math.min(1, nx)), y: Math.max(0, Math.min(1, ny)) },
-      s,
-    );
+    const node = wrapRef.current;
+    if (!node) return;
+    node.measureInWindow((winX, winY, W, H) => {
+      if (!W || !H) return;
+      const ex = absX - winX; // container-relative
+      const ey = absY - winY;
+      const cx = W / 2 + (ex - W / 2 - txv) / s;
+      const cy = H / 2 + (ey - H / 2 - tyv) / s;
+      const drawn = computeDrawnRect(W, H, tapAspectRatio ?? null);
+      if (drawn.w === 0 || drawn.h === 0) return;
+      const nx = (cx - drawn.ox) / drawn.w;
+      const ny = (cy - drawn.oy) / drawn.h;
+      onTapPoint(
+        { x: Math.max(0, Math.min(1, nx)), y: Math.max(0, Math.min(1, ny)) },
+        s,
+      );
+    });
   }
 
   // External reset trigger (PDF page-turn). Skip the initial value so we don't
@@ -341,7 +342,7 @@ export function ZoomableImage({
     .maxDuration(260)
     .onEnd((e) => {
       'worklet';
-      runOnJS(handleTap)(e.x, e.y, scale.value, tx.value, ty.value);
+      runOnJS(handleTap)(e.absoluteX, e.absoluteY, scale.value, tx.value, ty.value);
     })
     .requireExternalGestureToFail(doubleTap);
 
@@ -355,15 +356,8 @@ export function ZoomableImage({
     ],
   }));
 
-  function handleLayout(e: LayoutChangeEvent) {
-    const { width, height } = e.nativeEvent.layout;
-    containerRef.current = { w: width, h: height };
-  }
-
   return (
-    <View
-      style={[styles.wrap, aspectRatio ? { aspectRatio } : null, style]}
-      onLayout={handleLayout}>
+    <View ref={wrapRef} style={[styles.wrap, aspectRatio ? { aspectRatio } : null, style]}>
       <GestureDetector gesture={composed}>
         <Animated.View style={[StyleSheet.absoluteFill, animStyle]}>
           {children ?? (

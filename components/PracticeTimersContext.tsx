@@ -16,7 +16,17 @@ import { isSerialPracticeActive } from '@/lib/sessions/serialPractice';
 // ── Config types ────────────────────────────────────────────────────────────
 
 export type MoveOnConfig = { enabled: boolean; intervalMin: number };
-export type MicrobreakConfig = { enabled: boolean; breakSeconds: number };
+export type MicrobreakConfig = {
+  enabled: boolean;
+  breakSeconds: number;
+  // Per-strategy cadence — how much work between rests. Units differ by
+  // strategy (clean reps / patterns / notes / steps); Interleaved Click-Up
+  // fires at phase boundaries and has no count here.
+  tempoLadderReps: number;
+  rhythmicPatterns: number;
+  microChainNotes: number;
+  macroChainSteps: number;
+};
 export type PlayItColdConfig = {
   enabled: boolean;
   intervalMin: number;
@@ -32,6 +42,10 @@ const DEFAULT_MOVE_ON: MoveOnConfig = { enabled: false, intervalMin: 3 };
 const DEFAULT_MICROBREAK: MicrobreakConfig = {
   enabled: false,
   breakSeconds: 12,
+  tempoLadderReps: 3,
+  rhythmicPatterns: 4,
+  microChainNotes: 3,
+  macroChainSteps: 1,
 };
 const DEFAULT_PLAY_IT_COLD: PlayItColdConfig = {
   enabled: false,

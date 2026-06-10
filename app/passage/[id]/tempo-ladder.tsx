@@ -558,7 +558,8 @@ export default function TempoLadderScreen() {
   // (isPhone is derived once at the top of the component — see above.)
 
   function onEndPress() {
-    if (completedSets > 0) setNotePromptVisible(true);
+    // Tools-only mode has no piece to log against — just end, no log prompt.
+    if (!toolsOnly && completedSets > 0) setNotePromptVisible(true);
     else endSession();
   }
 
@@ -783,25 +784,34 @@ export default function TempoLadderScreen() {
       </View>
 
       <CelebrationModal
-        visible={celebrating !== null && !reachedGoal}
+        // Tools-only mode never shows the log prompt, so the celebration also
+        // covers the goal-reached case here (and its End just exits).
+        visible={celebrating !== null && (toolsOnly || !reachedGoal)}
         title={
-          progress.mode === 'custom'
-            ? 'Pattern clean!'
-            : `${progress.target_reps} clean in a row!`
+          reachedGoal
+            ? `Goal tempo reached — ${progress.goal_tempo} BPM!`
+            : progress.mode === 'custom'
+              ? 'Pattern clean!'
+              : `${progress.target_reps} clean in a row!`
         }
         body={celebrationBody}
         primary={{
-          label: 'End session',
+          label: toolsOnly ? 'Done' : 'End session',
           onPress: () => {
             dismissCelebration();
-            setNotePromptVisible(true);
+            if (toolsOnly) endSession();
+            else setNotePromptVisible(true);
           },
         }}
-        secondary={{ label: 'Step up tempo', onPress: advanceAfterCelebration }}
+        secondary={
+          reachedGoal
+            ? undefined
+            : { label: 'Step up tempo', onPress: advanceAfterCelebration }
+        }
       />
 
       <PracticeLogNotePrompt
-        visible={(celebrating !== null && reachedGoal) || notePromptVisible}
+        visible={!toolsOnly && ((celebrating !== null && reachedGoal) || notePromptVisible)}
         emoji={reachedGoal && celebrating ? '🎉' : undefined}
         title={
           reachedGoal && celebrating

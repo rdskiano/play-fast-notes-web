@@ -155,6 +155,10 @@ export default function RootLayout() {
                   options={IS_WEB ? { headerShown: false } : { title: 'Micro-Chaining' }}
                 />
                 <Stack.Screen
+                  name="passage/[id]/macro-chaining"
+                  options={IS_WEB ? { headerShown: false } : { title: 'Macro-Chaining' }}
+                />
+                <Stack.Screen
                   name="passage/[id]/rhythmic"
                   options={IS_WEB ? { headerShown: false } : { title: 'Rhythmic Variation' }}
                 />
@@ -192,7 +196,7 @@ export default function RootLayout() {
                 />
                 <Stack.Screen name="library-log" options={{ headerShown: false }} />
                 <Stack.Screen name="document-log" options={{ headerShown: false }} />
-                <Stack.Screen name="settings" options={{ headerShown: false }} />
+                <Stack.Screen name="account" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="interleaved"
                   options={{ headerShown: false, title: 'Serial Practice' }}

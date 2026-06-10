@@ -1,7 +1,8 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Image as RNImage,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -29,14 +30,19 @@ import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
-import { MIN_MICRO_MARKS, useMicroChainSession } from '@/hooks/useMicroChainSession';
+import { MIN_MACRO_MARKS, useMacroChainSession } from '@/hooks/useMacroChainSession';
 import { useScreenTour } from '@/components/tour/TourContext';
 import { tourTag, type TourStep } from '@/components/tour/types';
+import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import {
-  activeSpanMarks,
-  formatActiveNotes,
-  type MicroMode,
-} from '@/lib/strategies/microChain';
+  chunkBoundaryMarks,
+  formatMacroInfo,
+  formatMacroInfoTitle,
+  formatMacroInstruction,
+  generateMacroSteps,
+  isolateChunkMarks,
+  macroInfoKey,
+} from '@/lib/strategies/macroChain';
 import {
   actionButtonStyle,
   configColumnStyle,
@@ -46,45 +52,27 @@ import {
   SCORE_FRAME_BG,
 } from '@/lib/layout/configForm';
 
-const MODE_CARDS: { key: MicroMode; title: string; subtitle: string }[] = [
-  {
-    key: 'forward',
-    title: 'Forward',
-    subtitle: 'Start on note 1, add one note to the end each step.',
-  },
-  {
-    key: 'backward',
-    title: 'Backward',
-    subtitle: 'Start on the last note, add one note to the front each step.',
-  },
-  {
-    key: 'problem',
-    title: 'Problem chaining',
-    subtitle: 'Start on a muddy transition, expand outward both ways.',
-  },
-];
+// Persisted set of step-kind keys whose ⓘ has auto-opened once already.
+const MACRO_INFO_SEEN_KEY = 'macro_info_seen';
 
-// Web-only guided tour of the marking screen (no-op on native, where the
-// TutorialStep modal covers it instead).
 const MC_MARKING_STEPS: TourStep[] = [
   {
-    target: 'mc-score',
-    title: 'Mark each note',
+    target: 'mac-score',
+    title: 'Mark each beat',
     body:
-      'Micro-Chaining builds a short, muddy fragment back up one note at a time — always at your performance tempo — so each connection gets clean reps in context.\n\n' +
-      'Tap just above each note to add a link to the chain. Pinch to zoom in so you can place each mark accurately. Use UNDO / CLEAR up top to fix a mistake.\n\n' +
-      'This works best on short fragments — a lick, a hard turn, a two-bar run.',
+      'Macro-Chaining works the passage in chunks at your goal tempo. At each chunk size you first drill each chunk on its own, then chain them together with full beats of rest between — and you remove those rests, then grow the chunks, until it\'s continuous.\n\n' +
+      'First, tap just above the start of each beat, and add one mark at the very end. Pinch to zoom in for accuracy. Tap a mark again to remove it.',
   },
   {
-    target: 'mc-next',
-    title: 'Choose how to build',
+    target: 'mac-next',
+    title: 'Set your goal tempo',
     hideDot: true,
     body:
-      `Once you have at least ${MIN_MICRO_MARKS} notes marked, NEXT → lights up — tap it to pick Forward, Backward, or Problem chaining and set your tempo.`,
+      `Once you have at least ${MIN_MACRO_MARKS} marks, NEXT → lights up — tap it to set your goal tempo and start.`,
   },
 ];
 
-export default function MicroChainingScreen() {
+export default function MacroChainingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -96,7 +84,8 @@ export default function MicroChainingScreen() {
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
-  const session = useMicroChainSession(id);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const session = useMacroChainSession(id);
 
   useEffect(() => {
     if (session.passage?.source_uri) {
@@ -114,21 +103,15 @@ export default function MicroChainingScreen() {
     phase,
     passage,
     marks,
-    mode,
-    problemA,
-    problemB,
-    performanceTempo,
+    goalTempo,
     storedConfig,
     currentIndex,
     celebrating,
     loadError,
     metronome,
-    setMode,
-    setPerformanceTempo,
-    selectProblemNote,
-    undoProblemNote,
-    goToProblemSelect,
+    setGoalTempo,
     placeMark,
+    removeMark,
     undoMark,
     clearMarks,
     commitMarksAndConfigure,
@@ -145,22 +128,68 @@ export default function MicroChainingScreen() {
 
   const ann = useScoreAnnotation(passage);
 
-  useScreenTour(
-    'micro-chaining-marking',
-    phase === 'marking' ? MC_MARKING_STEPS : null,
-  );
+  // Tutorial temporarily disabled (it was misbehaving on web). The marking
+  // spotlight tour is off for now — re-enable by restoring:
+  //   phase === 'marking' ? MC_MARKING_STEPS : null
+  useScreenTour('macro-chaining-marking', null);
 
-  // Note marks sit close together, so every tap PLACES a mark — there's no
-  // tap-to-remove here (it kept erasing the previous mark when two notes were
-  // close). UNDO / CLEAR up top handle mistakes instead.
-  function onMarkTap(point: { x: number; y: number }) {
-    placeMark(point);
+  // Auto-open the ⓘ the first time (ever) the user reaches each KIND of step,
+  // like the tutorials. Two layers of dedup:
+  //  - persistedSeenRef: keys seen in a PAST session (loaded from settings) —
+  //    so it never auto-fires again after the first real attempt.
+  //  - openedThisSessionRef: keys auto-opened THIS session, mutated
+  //    synchronously so rapid re-renders / async state can't double-fire it.
+  const persistedSeenRef = useRef<Set<string>>(new Set());
+  const openedThisSessionRef = useRef<Set<string>>(new Set());
+  const [seenLoaded, setSeenLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    getSetting(MACRO_INFO_SEEN_KEY).then((raw) => {
+      if (cancelled) return;
+      try {
+        if (raw) for (const k of JSON.parse(raw) as string[]) persistedSeenRef.current.add(k);
+      } catch {
+        // ignore malformed
+      }
+      setSeenLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const liveStep =
+    phase === 'playing' && storedConfig ? storedConfig.steps[currentIndex] : undefined;
+  const liveInfoKey = liveStep ? macroInfoKey(liveStep) : null;
+  useEffect(() => {
+    if (!seenLoaded || !liveInfoKey || celebrating) return;
+    if (
+      openedThisSessionRef.current.has(liveInfoKey) ||
+      persistedSeenRef.current.has(liveInfoKey)
+    )
+      return;
+    // Tutorial temporarily disabled — the per-step Quick Tip no longer
+    // auto-pops. The manual "i" button in the playing header still opens it
+    // on demand. To re-enable the auto-popup, restore the block below:
+    //   openedThisSessionRef.current.add(liveInfoKey); // synchronous — no double-fire
+    //   persistedSeenRef.current.add(liveInfoKey);
+    //   setSetting(MACRO_INFO_SEEN_KEY, JSON.stringify([...persistedSeenRef.current])).catch(() => {});
+    //   setInfoOpen(true);
+    return;
+  }, [seenLoaded, liveInfoKey, celebrating]);
+
+  // Beats are spaced well apart, so tap-to-place AND tap-to-remove both work
+  // here (like Click-Up's beat marking, unlike Micro's close notes).
+  function onMarkTap(point: { x: number; y: number }, scale: number) {
+    const hit = nearestMarkerNormalized(marks, point, 0.04 / scale);
+    if (hit != null) removeMark(hit);
+    else placeMark(point);
   }
 
   // ── MARKING ────────────────────────────────────────────────────────────
   if (phase === 'marking') {
     if (!passage) return <ThemedView style={{ flex: 1 }} />;
-    const canContinue = marks.length >= MIN_MICRO_MARKS;
+    const canContinue = marks.length >= MIN_MACRO_MARKS;
     return (
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -168,7 +197,7 @@ export default function MicroChainingScreen() {
           onExit={exitSession}
           center={
             <ThemedText style={styles.topCenter} numberOfLines={1}>
-              Mark notes — {marks.length} placed
+              Mark beats — {marks.length} placed
             </ThemedText>
           }
           right={
@@ -191,7 +220,7 @@ export default function MicroChainingScreen() {
                 onPress={canContinue ? commitMarksAndConfigure : undefined}
                 hitSlop={6}
                 disabled={!canContinue}
-                {...tourTag('mc-next')}
+                {...tourTag('mac-next')}
                 style={[
                   styles.topBtn,
                   { backgroundColor: canContinue ? '#2ecc71' : C.icon + '55' },
@@ -203,11 +232,12 @@ export default function MicroChainingScreen() {
         />
         <ScrollView contentContainerStyle={styles.markingContent}>
           <ThemedText style={styles.helper}>
-            Tap just above each note to add a link to the chain. Pinch to zoom in for
-            accuracy. You need at least {MIN_MICRO_MARKS} notes. Use UNDO to fix a mistake.
+            Tap just above the start of each beat, and add one mark at the very end.
+            Pinch to zoom in for accuracy. You need at least {MIN_MACRO_MARKS} marks. Tap
+            a mark to remove it.
           </ThemedText>
           <View
-            {...tourTag('mc-score')}
+            {...tourTag('mac-score')}
             style={{
               height: imageAspect ? (winWidth - 32) / imageAspect : 500,
               borderRadius: 8,
@@ -222,23 +252,21 @@ export default function MicroChainingScreen() {
                 markers={marks}
                 mode="place"
                 captureTaps={false}
-                compact
               />
             </ZoomableImage>
           </View>
         </ScrollView>
 
         <TutorialStep
-          id="micro-chaining-marking"
+          id="macro-chaining-marking"
           visible={Platform.OS !== 'web'}
-          title="Micro-Chaining — mark each note"
+          title="Macro-Chaining — mark each beat"
           body={
-            'Micro-Chaining builds a short, muddy fragment back up one note at a time, always at your performance tempo. Each connection gets clean, in-context reps so the whole fragment locks in.\n\n' +
-            'Mark each note: tap just above each note head to add a link to the chain. Pinch to zoom in so you can place each mark accurately. You need at least ' +
-            String(MIN_MICRO_MARKS) +
-            ' notes.\n\n' +
-            'Fixing marks: tap UNDO to remove the last one, or CLEAR to start over. When you\'re done, tap NEXT → to choose Forward, Backward, or Problem chaining.\n\n' +
-            'Best for short fragments — a lick, a hard turn, a two-bar run.'
+            'Macro-Chaining works the passage in chunks at your goal tempo. At each chunk size you first drill each chunk on its own, then chain them together with full beats of rest between, removing the rests one at a time. Then the chunks grow and you repeat — until the whole passage is continuous. High-quality reps at speed without fatigue.\n\n' +
+            'First, mark the beats: tap just above the start of each beat, and drop one mark at the very end. Pinch to zoom in for accuracy. You need at least ' +
+            String(MIN_MACRO_MARKS) +
+            ' marks.\n\n' +
+            'Fixing marks: tap a mark to remove it, UNDO for the last one, or CLEAR to start over. When you\'re done, tap NEXT → to set your goal tempo.'
           }
         />
       </ThemedView>
@@ -247,9 +275,9 @@ export default function MicroChainingScreen() {
 
   // ── CONFIG ─────────────────────────────────────────────────────────────
   if (phase === 'config') {
-    const isProblem = mode === 'problem';
-    const canPickProblem = marks.length >= 3;
-    const canStart = marks.length >= MIN_MICRO_MARKS;
+    const beatCount = Math.max(0, marks.length - 1);
+    const stepCount = generateMacroSteps(beatCount).length;
+    const canStart = marks.length >= MIN_MACRO_MARKS;
     const resuming = !!storedConfig && currentIndex > 0;
     return (
       <ThemedView style={{ flex: 1 }}>
@@ -260,43 +288,21 @@ export default function MicroChainingScreen() {
             configColumnStyle,
             { paddingTop: insets.top + 10 },
           ]}>
-          {!isPhone && <ThemedText type="title">How should it build?</ThemedText>}
+          {!isPhone && <ThemedText type="title">Set your goal tempo</ThemedText>}
           <ThemedText style={{ opacity: 0.7 }}>
-            {marks.length} notes marked.
+            {beatCount} beats marked → {stepCount} steps (drill each chunk, then chain with
+            rests; chunks double up to the whole passage).
           </ThemedText>
-
-          <View style={styles.modeGrid}>
-            {MODE_CARDS.map((m) => (
-              <ModeCard
-                key={m.key}
-                title={m.title}
-                subtitle={m.subtitle}
-                selected={mode === m.key}
-                onPress={() => setMode(m.key)}
-              />
-            ))}
-          </View>
-
-          {isProblem && (
-            <ThemedText style={styles.subLabel}>
-              {canPickProblem
-                ? 'Next you’ll pick the two notes of the problem spot on the music, then it expands outward from there.'
-                : 'Problem chaining needs at least 3 notes — go back to marking and add more.'}
-            </ThemedText>
-          )}
 
           <ThemedText style={[styles.label, { marginTop: Spacing.sm }]}>
-            Performance Tempo
+            Goal Tempo
           </ThemedText>
           <ThemedText style={styles.subLabel}>
-            Micro-Chaining stays at one tempo — your performance tempo. This sets the
-            metronome; you can still adjust it during practice.
+            Macro-Chaining is practiced at your goal tempo throughout — the inserted rests
+            are what make that sustainable. This sets the metronome; you stay in control of
+            it during practice.
           </ThemedText>
-          <BpmStepper
-            value={performanceTempo}
-            onChange={setPerformanceTempo}
-            metronome={metronome}
-          />
+          <BpmStepper value={goalTempo} onChange={setGoalTempo} metronome={metronome} />
         </ScrollView>
 
         <View style={{ padding: 20, gap: 10 }}>
@@ -307,28 +313,19 @@ export default function MicroChainingScreen() {
           )}
           {resuming && (
             <Button
-              label={`Resume — Step ${currentIndex + 1} of ${storedConfig!.steps.length}`}
+              label={`Resume — Level ${currentIndex + 1} of ${storedConfig!.steps.length}`}
               onPress={resumePlaying}
               style={actionButtonStyle}
             />
           )}
           <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
-            {isProblem ? (
-              <Button
-                label="Pick problem notes →"
-                onPress={goToProblemSelect}
-                disabled={!canPickProblem}
-                style={[actionButtonStyle, { opacity: canPickProblem ? 1 : 0.4 }]}
-              />
-            ) : (
-              <Button
-                label={resuming ? 'Start over from Step 1' : 'Start practicing'}
-                variant={resuming ? 'outline' : 'primary'}
-                onPress={startPlaying}
-                disabled={!canStart}
-                style={[actionButtonStyle, { opacity: canStart ? 1 : 0.4 }]}
-              />
-            )}
+            <Button
+              label={resuming ? 'Start over from Level 1' : 'Start practicing'}
+              variant={resuming ? 'outline' : 'primary'}
+              onPress={startPlaying}
+              disabled={!canStart}
+              style={[actionButtonStyle, { opacity: canStart ? 1 : 0.4 }]}
+            />
           </View>
           <Button
             label="← Back to marking"
@@ -341,97 +338,20 @@ export default function MicroChainingScreen() {
     );
   }
 
-  // ── PROBLEM SELECT ─────────────────────────────────────────────────────
-  if (phase === 'problem') {
-    if (!passage) return <ThemedView style={{ flex: 1 }} />;
-    const bothPicked = problemA != null && problemB != null;
-    const lo = bothPicked ? Math.min(problemA!, problemB!) : null;
-    const hi = bothPicked ? Math.max(problemA!, problemB!) : null;
-    const prompt = bothPicked
-      ? `Problem spot: notes ${lo}–${hi}. Tap a note to change it, or Start practicing.`
-      : problemA != null
-        ? 'Now tap the second note of the problem spot (next to it, or further along).'
-        : 'Tap the first note of the muddy spot.';
-    const highlights = [problemA, problemB].filter((n): n is number => n != null);
-    return (
-      <ThemedView style={{ flex: 1 }}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <SessionTopBar
-          onExit={exitSession}
-          center={
-            <ThemedText style={styles.topCenter} numberOfLines={1}>
-              Pick the problem spot
-            </ThemedText>
-          }
-          right={
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Pressable
-                onPress={undoProblemNote}
-                hitSlop={6}
-                disabled={highlights.length === 0}
-                style={[styles.topBtn, { opacity: highlights.length === 0 ? 0.35 : 1 }]}>
-                <ThemedText style={[styles.topBtnText, { color: C.tint }]}>UNDO</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={goBackToConfig}
-                hitSlop={6}
-                accessibilityLabel="Back to setup"
-                style={styles.topBtn}>
-                <ThemedText style={[styles.topBtnText, { color: C.tint }]}>← Setup</ThemedText>
-              </Pressable>
-            </View>
-          }
-        />
-        <ScrollView contentContainerStyle={styles.markingContent}>
-          <ThemedText style={styles.helper}>{prompt}</ThemedText>
-          <View
-            style={{
-              height: imageAspect ? (winWidth - 32) / imageAspect : 500,
-              borderRadius: 8,
-            }}>
-            <ZoomableImage
-              style={StyleSheet.absoluteFill}
-              persistKey={`${passage.id}:mark`}
-              tapAspectRatio={imageAspect ?? undefined}
-              onTapPoint={(point, scale) => {
-                const hit = nearestMarkerNormalized(marks, point, 0.05 / scale);
-                if (hit != null) selectProblemNote(hit);
-              }}>
-              <ScoreWithMarkers
-                uri={passage.source_uri}
-                markers={marks}
-                mode="place"
-                captureTaps={false}
-                compact
-                highlightIndices={highlights}
-              />
-            </ZoomableImage>
-          </View>
-        </ScrollView>
-        <View style={{ padding: 20, gap: 10 }}>
-          {loadError && (
-            <ThemedText style={{ color: Status.danger, textAlign: 'center' }}>
-              {loadError}
-            </ThemedText>
-          )}
-          <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
-            <Button
-              label="Start practicing"
-              onPress={startPlaying}
-              disabled={!bothPicked}
-              style={[actionButtonStyle, { opacity: bothPicked ? 1 : 0.4 }]}
-            />
-          </View>
-        </View>
-      </ThemedView>
-    );
-  }
-
   // ── PLAYING ────────────────────────────────────────────────────────────
   if (!storedConfig || !passage) return <ThemedView style={{ flex: 1 }} />;
+  const beatCount = storedConfig.marks.length - 1;
   const step = storedConfig.steps[currentIndex];
-  const activeMarks = activeSpanMarks(marks, step);
-  const noteLabel = formatActiveNotes(step);
+  const instruction = formatMacroInstruction(step);
+  const info = formatMacroInfo(step, beatCount);
+  const infoTitle = formatMacroInfoTitle(step);
+  // Isolate steps bracket the one chunk being drilled; chain steps flag every
+  // chunk boundary so the grouping/sequence shows.
+  const scoreMarks = !step
+    ? marks
+    : step.kind === 'isolate'
+      ? isolateChunkMarks(marks, step.chunkSize, step.chunkIndex)
+      : chunkBoundaryMarks(marks, step.chunkSize);
 
   return (
     <ThemedView style={{ flex: 1 }}>
@@ -440,18 +360,20 @@ export default function MicroChainingScreen() {
         onExit={exitSession}
         exitLabel="EXIT"
         center={
-          isPhoneLandscape ? (
-            <ThemedText style={styles.topCenter} numberOfLines={1}>
-              {currentIndex + 1}/{storedConfig.steps.length}
-              <ThemedText style={styles.topCenterHint}>
-                {'   ·   Play from the first ▼ to the last.'}
-              </ThemedText>
+          <View style={styles.instructionRow}>
+            <ThemedText style={styles.topInstruction} numberOfLines={2}>
+              {instruction}
             </ThemedText>
-          ) : (
-            <ThemedText style={styles.topCenter} numberOfLines={1}>
-              {noteLabel} · {currentIndex + 1}/{storedConfig.steps.length}
-            </ThemedText>
-          )
+            {info ? (
+              <Pressable
+                onPress={() => setInfoOpen(true)}
+                hitSlop={10}
+                accessibilityLabel="More about this step"
+                style={[styles.infoBtn, { backgroundColor: C.tint }]}>
+                <ThemedText style={styles.infoBtnText}>i</ThemedText>
+              </Pressable>
+            ) : null}
+          </View>
         }
         right={
           isPhone ? (
@@ -490,12 +412,6 @@ export default function MicroChainingScreen() {
         }
       />
 
-      {!isPhoneLandscape && (
-        <ThemedText style={styles.playHelper}>
-          Play from the first arrow ▼ to the last, then tap NEXT → to extend the chain.
-        </ThemedText>
-      )}
-
       <PedalCatcher
         active={!notePromptVisible && !celebrating}
         onAdvance={onNext}
@@ -514,28 +430,16 @@ export default function MicroChainingScreen() {
         <View style={{ flex: 1, width: '100%', position: 'relative' }}>
           {isTouch ? (
             <ZoomableImage style={StyleSheet.absoluteFill} persistKey={passage.id}>
-              <ScoreWithMarkers
-                uri={passage.source_uri}
-                markers={activeMarks}
-                mode="play"
-                compact
-                phoneArrows={isPhone}
-              />
+              <ScoreWithMarkers uri={passage.source_uri} markers={scoreMarks} mode="play" compact phoneArrows={isPhone} />
             </ZoomableImage>
           ) : (
-            <ScoreWithMarkers
-              uri={passage.source_uri}
-              markers={activeMarks}
-              mode="play"
-              compact
-              phoneArrows={isPhone}
-            />
+            <ScoreWithMarkers uri={passage.source_uri} markers={scoreMarks} mode="play" compact phoneArrows={isPhone} />
           )}
           {ann.canvas}
         </View>
         <PracticeToolsLayer
           metronome={metronome}
-          metronomeNote="Micro-Chaining stays at your performance tempo — play the highlighted notes, then tap Next."
+          metronomeNote="Macro-Chaining stays at your goal tempo — set the metronome, play the chunk, rest the beats, then tap Next."
           pencil={ann.pencil}
           recorderPassageId={passage?.id}
         />
@@ -565,10 +469,10 @@ export default function MicroChainingScreen() {
         emoji={celebrating ? '🎉' : undefined}
         title={
           celebrating
-            ? `Chain complete — all ${storedConfig.steps.length} steps!`
+            ? `Macro-Chaining complete — all ${storedConfig.steps.length} levels!`
             : 'How did that go?'
         }
-        subtitle={passage?.title ?? 'Micro-Chaining'}
+        subtitle={passage?.title ?? 'Macro-Chaining'}
         submitLabel="Save & finish"
         cancelLabel="Skip"
         onSubmit={({ mood, note, remindNext }) => {
@@ -597,57 +501,40 @@ export default function MicroChainingScreen() {
         onCancel={() => setPhoneMenuOpen(false)}
       />
 
+      <Modal
+        visible={infoOpen}
+        transparent
+        animationType="fade"
+        supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+        onRequestClose={() => setInfoOpen(false)}>
+        <Pressable style={styles.infoBackdrop} onPress={() => setInfoOpen(false)}>
+          <Pressable style={styles.infoCard} onPress={(e) => e.stopPropagation()}>
+            <ThemedText style={styles.infoEyebrow}>QUICK TIP</ThemedText>
+            <ThemedText style={styles.infoTitle}>{infoTitle}</ThemedText>
+            <ThemedText style={styles.infoBody}>{info}</ThemedText>
+            <Pressable
+              onPress={() => setInfoOpen(false)}
+              style={styles.gotItBtn}
+              accessibilityLabel="Dismiss tip">
+              <ThemedText style={styles.gotItText}>Got it</ThemedText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <TutorialStep
-        id="micro-chaining-play"
+        id="macro-chaining-play"
         visible={false}
-        title="Running a Micro-Chain"
+        title="Running a Macro-Chain"
         body={
-          'The score marks the span you play right now with two arrows ▼ — the first note and the current end note. Play from the first to the last at your performance tempo, then tap NEXT → to extend the chain by one note.\n\n' +
-          'Forward grows from the first note; Backward grows from the last; Problem starts on the muddy transition and expands both ways. ← BACK shrinks the chain one link (handy if you advanced too soon).\n\n' +
-          'Run your own metronome from the tools — Micro-Chaining keeps you at one tempo on purpose. The session logs when you reach the last step; tap DONE to log it early, or EXIT to leave without logging.' +
+          'Work through the passage in chunks that grow over time. At each chunk size there are two phases:\n\n' +
+          'ISOLATE — the top bar names one chunk and the green arrows on the score bracket it. Play just that chunk (into the first note of the next beat) and repeat until it\'s comfortable, then tap NEXT → for the next chunk.\n\n' +
+          'CHAIN — once you\'ve drilled each chunk, you play them in a row with rest beats between. NEXT → removes a rest beat (2 → 1 → 0). When you reach the whole passage with no rests, you\'re playing it continuously at goal tempo.\n\n' +
+          'The chunk size doubles each round (1 → 2 → 4 → …). ← BACK steps back. Run your own metronome from the tools. The session logs at the last step; tap DONE to log early, or EXIT to leave without logging.' +
           `\n\n${PRACTICE_TOOLS_HELP}`
         }
       />
     </ThemedView>
-  );
-}
-
-function ModeCard({
-  title,
-  subtitle,
-  selected,
-  onPress,
-}: {
-  title: string;
-  subtitle: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.modeCard,
-        {
-          borderColor: selected ? C.tint : C.icon + '55',
-          backgroundColor: selected
-            ? C.tint + '11'
-            : pressed
-              ? C.icon + '11'
-              : 'transparent',
-        },
-      ]}>
-      <ThemedText
-        style={[styles.modeCardTitle, { color: selected ? C.tint : C.text }]}
-        numberOfLines={2}>
-        {title}
-      </ThemedText>
-      <ThemedText style={[styles.modeCardSubtitle, { color: C.icon }]} numberOfLines={3}>
-        {subtitle}
-      </ThemedText>
-    </Pressable>
   );
 }
 
@@ -656,7 +543,13 @@ const styles = StyleSheet.create({
   topBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radii.md },
   topBtnText: { fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
   topCenter: { textAlign: 'center', fontWeight: Type.weight.bold, fontSize: Type.size.sm },
-  topCenterHint: { fontWeight: '400', opacity: Opacity.muted },
+  topInstruction: {
+    flexShrink: 1,
+    textAlign: 'center',
+    fontWeight: Type.weight.semibold,
+    fontSize: Type.size.sm,
+    lineHeight: 18,
+  },
   markingContent: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing['2xl'] },
   helper: {
     textAlign: 'center',
@@ -665,17 +558,62 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
   },
-  playHelper: {
-    textAlign: 'center',
-    fontSize: Type.size.sm,
-    opacity: Opacity.muted,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: 6,
-    lineHeight: 18,
-  },
   label: { opacity: 0.7, fontWeight: Type.weight.bold },
   subLabel: { opacity: Opacity.muted, fontSize: Type.size.sm, lineHeight: 18 },
   doneBtn: { backgroundColor: Status.danger },
+  instructionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  infoBtn: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    lineHeight: 16,
+    fontStyle: 'italic',
+    fontWeight: Type.weight.bold,
+  },
+  infoBackdrop: {
+    flex: 1,
+    backgroundColor: '#0008',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  // Matches the guided-tour coachmark card (slate-800 + site orange).
+  infoCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: Radii['2xl'],
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+    backgroundColor: '#1e293b',
+  },
+  infoEyebrow: {
+    color: '#e67e22',
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.heavy,
+    letterSpacing: 1,
+  },
+  infoTitle: { color: '#f8fafc', fontSize: Type.size.lg, fontWeight: Type.weight.bold },
+  infoBody: { color: '#cbd5e1', fontSize: Type.size.md, lineHeight: 22 },
+  gotItBtn: {
+    alignSelf: 'flex-end',
+    marginTop: Spacing.xs,
+    backgroundColor: '#e67e22',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radii.md,
+  },
+  gotItText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.md },
   bottomBar: {
     paddingHorizontal: HELP_CLEARANCE,
     paddingTop: Spacing.sm,
@@ -711,19 +649,4 @@ const styles = StyleSheet.create({
   },
   backBtnText: { fontWeight: Type.weight.heavy, fontSize: Type.size.lg },
   contentArea: { flex: 1 },
-  // ── Mode picker card grid (mirrors Tempo Ladder) ─────────────────
-  modeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  modeCard: {
-    flexGrow: 1,
-    flexBasis: '47%',
-    minWidth: 140,
-    minHeight: 84,
-    borderWidth: 1.5,
-    borderRadius: Radii.lg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    gap: 4,
-  },
-  modeCardTitle: { fontSize: Type.size.sm, fontWeight: Type.weight.heavy },
-  modeCardSubtitle: { fontSize: Type.size.xs, lineHeight: 16 },
 });

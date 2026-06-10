@@ -32,7 +32,7 @@ const TIMER_INFO: { icon: string; title: string; body: string }[] = [
     icon: '🧠',
     title: 'Micro Timer',
     body:
-      "New motor skills consolidate during short rests, not during playing. When you pause, your brain replays the passage up to 20× faster and actually locks in the improvement. In Tempo Ladder, micro-rests fire every 3 clean reps. In Interleaved Click-Up, every 10 reps.",
+      "New motor skills consolidate during short rests, not during playing. When you pause, your brain replays the passage up to 20× faster and actually locks in the improvement. Each strategy rests on its own cadence — you can tune them below: Tempo Ladder by clean reps, Rhythmic Variation by patterns, Micro-Chaining by notes, Macro-Chaining by steps. Interleaved Click-Up rests at each phase boundary.",
   },
   {
     icon: '❄️',
@@ -291,6 +291,11 @@ export function PracticeTimersPill({
 const MOVE_ON_INTERVAL_OPTS = [1, 2, 3, 5, 10] as const;
 const BODY_MOVE_INTERVAL_OPTS = [15, 20, 30, 45, 60] as const;
 const MICROBREAK_SECONDS_OPTS = [8, 12, 20, 30] as const;
+// Per-strategy cadence options for the Micro timer.
+const TL_REPS_OPTS = [2, 3, 4, 5] as const;
+const RHY_PATTERNS_OPTS = [2, 4, 6, 8] as const;
+const MICRO_NOTES_OPTS = [2, 3, 4, 5] as const;
+const MACRO_STEPS_OPTS = [1, 2, 3, 4] as const;
 // Cold's interval range, as compact chip sets. The Library Settings page
 // keeps fine-grained Steppers; these are the quick presets for the in-tool
 // sheet.
@@ -470,6 +475,53 @@ function TimerSettingsModal({
                   prefix="Rest for"
                   disabled={!microbreak.config.enabled}
                 />
+                <ChipRow
+                  options={TL_REPS_OPTS}
+                  value={
+                    (TL_REPS_OPTS.find((v) => v === microbreak.config.tempoLadderReps) ??
+                      TL_REPS_OPTS[1]) as (typeof TL_REPS_OPTS)[number]
+                  }
+                  onChange={(v) => microbreak.setConfig({ tempoLadderReps: v })}
+                  unit=" reps"
+                  prefix="Tempo Ladder — every"
+                  disabled={!microbreak.config.enabled}
+                />
+                <ChipRow
+                  options={RHY_PATTERNS_OPTS}
+                  value={
+                    (RHY_PATTERNS_OPTS.find((v) => v === microbreak.config.rhythmicPatterns) ??
+                      RHY_PATTERNS_OPTS[1]) as (typeof RHY_PATTERNS_OPTS)[number]
+                  }
+                  onChange={(v) => microbreak.setConfig({ rhythmicPatterns: v })}
+                  unit=" patterns"
+                  prefix="Rhythmic Variation — every"
+                  disabled={!microbreak.config.enabled}
+                />
+                <ChipRow
+                  options={MICRO_NOTES_OPTS}
+                  value={
+                    (MICRO_NOTES_OPTS.find((v) => v === microbreak.config.microChainNotes) ??
+                      MICRO_NOTES_OPTS[1]) as (typeof MICRO_NOTES_OPTS)[number]
+                  }
+                  onChange={(v) => microbreak.setConfig({ microChainNotes: v })}
+                  unit=" notes"
+                  prefix="Micro-Chaining — every"
+                  disabled={!microbreak.config.enabled}
+                />
+                <ChipRow
+                  options={MACRO_STEPS_OPTS}
+                  value={
+                    (MACRO_STEPS_OPTS.find((v) => v === microbreak.config.macroChainSteps) ??
+                      MACRO_STEPS_OPTS[0]) as (typeof MACRO_STEPS_OPTS)[number]
+                  }
+                  onChange={(v) => microbreak.setConfig({ macroChainSteps: v })}
+                  unit=" steps"
+                  prefix="Macro-Chaining — every"
+                  disabled={!microbreak.config.enabled}
+                />
+                <ThemedText style={[styles.chipPrefix, { color: C.icon, opacity: 0.7 }]}>
+                  Interleaved Click-Up rests at each phase boundary.
+                </ThemedText>
               </View>
 
               {/* Cold now lives in-tool too — no more round-trip to the
