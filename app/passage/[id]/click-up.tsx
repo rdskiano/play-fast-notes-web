@@ -17,7 +17,7 @@ import { ClickUpCoach } from '@/components/ClickUpCoach';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
-import { ScoreWithMarkers } from '@/components/ScoreWithMarkers';
+import { ScoreWithMarkers, nearestMarkerNormalized } from '@/components/ScoreWithMarkers';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { TempoConfigFields } from '@/components/TempoConfigFields';
@@ -230,26 +230,37 @@ export default function ClickUpScreen() {
               (auto-opens for first-timers); no inline panel here. */}
 
           <ThemedText style={styles.helper}>
-            Tap just above the music to mark the beginning of each unit. You need at
-            least {MIN_MARKERS} marks. Tap an existing mark to remove it.
+            Tap just above the music to mark the beginning of each unit. Pinch to
+            zoom in for accuracy. You need at least {MIN_MARKERS} marks. Tap an
+            existing mark to remove it.
           </ThemedText>
-          {/* No overflow:hidden here — a tightly-cropped passage with a marker
-              near the top edge would otherwise clip the marker. Play-mode
-              triangles don't have a clipping wrapper, so we drop it here too
-              to keep the two phases visually consistent. */}
+          {/* Pinch-zoomable marking surface. ZoomableImage owns the tap gesture
+              and reports a normalized image point (inverting its zoom + the
+              contain letterbox); ScoreWithMarkers just renders the numbered
+              marks (captureTaps=false so it doesn't fight the gesture). The
+              per-passage zoom persists and carries into the playing phase. */}
           <View
             {...tourTag('cu-score')}
             style={{
               height: imageAspect ? (winWidth - 32) / imageAspect : 500,
               borderRadius: 8,
             }}>
-            <ScoreWithMarkers
-              uri={passage.source_uri}
-              markers={markers}
-              mode="place"
-              onTap={placeMarker}
-              onRemoveMarker={removeMarker}
-            />
+            <ZoomableImage
+              style={StyleSheet.absoluteFill}
+              persistKey={passage.id}
+              tapAspectRatio={imageAspect ?? undefined}
+              onTapPoint={(point, scale) => {
+                const hit = nearestMarkerNormalized(markers, point, 0.04 / scale);
+                if (hit != null) removeMarker(hit);
+                else placeMarker(point);
+              }}>
+              <ScoreWithMarkers
+                uri={passage.source_uri}
+                markers={markers}
+                mode="place"
+                captureTaps={false}
+              />
+            </ZoomableImage>
           </View>
         </ScrollView>
 

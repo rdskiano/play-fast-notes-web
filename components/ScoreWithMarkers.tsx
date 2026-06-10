@@ -9,6 +9,7 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { Borders, Radii, Status, Type } from '@/constants/tokens';
+import { computeDrawnRect } from '@/lib/layout/containFit';
 import type { Marker } from '@/lib/db/repos/passages';
 
 type Props = {
@@ -18,30 +19,21 @@ type Props = {
   activePair?: [number, number] | null;
   onTap?: (point: { x: number; y: number }) => void;
   onRemoveMarker?: (index: number) => void;
+  // When false, the component stops capturing touches itself — used when it
+  // sits inside a ZoomableImage that owns the tap gesture and feeds normalized
+  // points back via onTapPoint. Defaults to true so existing callers (the
+  // non-zoom marking path) keep their tap-to-place / tap-to-remove behavior.
+  captureTaps?: boolean;
+  // Smaller marks + arrows for note-level marking (Micro-Chaining), where the
+  // links sit close together and the standard beat/measure markers (sized for
+  // Click-Up) overlap and bury each other. Defaults to the standard size.
+  compact?: boolean;
+  // Place-mode only: indices drawn in the highlight color (orange) instead of
+  // the default green — used to show the two chosen notes of a problem span.
+  highlightIndices?: number[];
 };
 
 const MARKER_HIT_RADIUS = 24;
-
-type DrawnRect = { w: number; h: number; ox: number; oy: number };
-
-function computeDrawnRect(
-  containerW: number,
-  containerH: number,
-  aspect: number | null,
-): DrawnRect {
-  if (!aspect || !containerW || !containerH) {
-    return { w: containerW, h: containerH, ox: 0, oy: 0 };
-  }
-  const containerAspect = containerW / containerH;
-  if (aspect > containerAspect) {
-    const w = containerW;
-    const h = w / aspect;
-    return { w, h, ox: 0, oy: (containerH - h) / 2 };
-  }
-  const h = containerH;
-  const w = h * aspect;
-  return { w, h, ox: (containerW - w) / 2, oy: 0 };
-}
 
 export function ScoreWithMarkers({
   uri,
@@ -49,7 +41,18 @@ export function ScoreWithMarkers({
   mode,
   onTap,
   onRemoveMarker,
+  captureTaps = true,
+  compact = false,
+  highlightIndices,
 }: Props) {
+  const highlightSet = new Set(highlightIndices ?? []);
+  // Marker geometry — compact for note-level chains, standard for beats.
+  const mSize = compact ? 18 : 28;
+  const mHalf = mSize / 2;
+  const mLift = compact ? 22 : 28; // px the circle sits above the tapped point
+  const mFont = compact ? 10 : 12;
+  const arrowFont = compact ? 20 : 28;
+  const arrowLift = compact ? 26 : 34;
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [aspect, setAspect] = useState<number | null>(null);
 
@@ -90,7 +93,7 @@ export function ScoreWithMarkers({
     <View
       style={styles.container}
       onLayout={handleLayout}
-      onStartShouldSetResponder={() => mode === 'place'}
+      onStartShouldSetResponder={() => captureTaps && mode === 'place'}
       onResponderRelease={handleRelease}>
       <Image
         source={{ uri }}
@@ -106,8 +109,9 @@ export function ScoreWithMarkers({
               style={[
                 styles.arrow,
                 {
-                  left: drawn.ox + m.x * drawn.w - 14,
-                  top: drawn.oy + m.y * drawn.h - 34,
+                  fontSize: arrowFont,
+                  left: drawn.ox + m.x * drawn.w - arrowFont / 2,
+                  top: drawn.oy + m.y * drawn.h - arrowLift,
                   pointerEvents: 'none',
                 },
               ]}>
@@ -115,18 +119,26 @@ export function ScoreWithMarkers({
             </ThemedText>
           );
         }
+        const isHi = highlightSet.has(m.index);
         return (
           <View
             key={m.index}
             style={[
               styles.marker,
               {
-                left: drawn.ox + m.x * drawn.w - 14,
-                top: drawn.oy + m.y * drawn.h - 28,
+                width: mSize,
+                height: mSize,
+                borderRadius: mHalf,
+                borderWidth: compact ? Borders.medium : Borders.thick,
+                left: drawn.ox + m.x * drawn.w - mHalf,
+                top: drawn.oy + m.y * drawn.h - mLift,
                 pointerEvents: 'none',
               },
+              isHi && styles.markerHighlight,
             ]}>
-            <ThemedText style={styles.markerText}>{m.index}</ThemedText>
+            <ThemedText style={[styles.markerText, { fontSize: mFont }]}>
+              {m.index}
+            </ThemedText>
           </View>
         );
       })}
@@ -153,6 +165,28 @@ function nearestMarkerIndex(
   return best?.idx ?? null;
 }
 
+// Hit-test in normalized [0,1] image space, for callers that own the tap
+// gesture (a ZoomableImage marking surface). `radius` is the catch distance
+// in normalized image units — pass a value that shrinks with zoom (e.g.
+// 0.04 / scale) so closely-spaced note marks stay individually tappable when
+// the user pinches in. Returns the index of the nearest mark within range, or
+// null to place a new one.
+export function nearestMarkerNormalized(
+  markers: Marker[],
+  point: { x: number; y: number },
+  radius: number,
+): number | null {
+  let best: { idx: number; d2: number } | null = null;
+  const r2 = radius * radius;
+  for (const m of markers) {
+    const dx = m.x - point.x;
+    const dy = m.y - point.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < r2 && (best === null || d2 < best.d2)) best = { idx: m.index, d2 };
+  }
+  return best?.idx ?? null;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -174,6 +208,7 @@ const styles = StyleSheet.create({
     backgroundColor: Status.success,
     borderColor: '#145a32',
   },
+  markerHighlight: { backgroundColor: '#e67e22', borderColor: '#a04000' },
   markerText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: 12 },
   arrow: {
     position: 'absolute',

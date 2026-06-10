@@ -170,4 +170,30 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE pieces ADD COLUMN annotation_image_uri TEXT;
   ALTER TABLE practice_log ADD COLUMN document_id TEXT;
   `,
+  `
+  -- Micro-Chaining + Macro-Chaining strategies. SQLite can't ALTER a CHECK
+  -- constraint inline, so rebuild the exercises table with the widened set —
+  -- same copy-through-a-temp-table dance used for tempo_ladder_progress above.
+  -- Foreign keys are not enforced on this connection (no PRAGMA foreign_keys),
+  -- so dropping the parent table is safe even though sessions / *_progress
+  -- reference exercises(id).
+  CREATE TABLE exercises_new (
+    id TEXT PRIMARY KEY NOT NULL,
+    piece_id TEXT NOT NULL REFERENCES pieces(id),
+    strategy TEXT NOT NULL CHECK (strategy IN ('tempo_ladder', 'click_up', 'rhythmic', 'chunking', 'micro_chaining', 'macro_chaining')),
+    config_json TEXT NOT NULL,
+    name TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER
+  );
+  INSERT INTO exercises_new
+    (id, piece_id, strategy, config_json, name, sort_order, created_at, updated_at, deleted_at)
+  SELECT id, piece_id, strategy, config_json, name, sort_order, created_at, updated_at, deleted_at
+  FROM exercises;
+  DROP TABLE exercises;
+  ALTER TABLE exercises_new RENAME TO exercises;
+  CREATE INDEX IF NOT EXISTS idx_exercises_piece ON exercises(piece_id);
+  `,
 ];

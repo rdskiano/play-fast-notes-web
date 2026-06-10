@@ -46,7 +46,7 @@ create table if not exists exercises (
   id text primary key,
   user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
   piece_id text not null references pieces(id),
-  strategy text not null check (strategy in ('tempo_ladder', 'click_up', 'rhythmic', 'chunking')),
+  strategy text not null check (strategy in ('tempo_ladder', 'click_up', 'rhythmic', 'chunking', 'micro_chaining', 'macro_chaining')),
   config_json text not null default '{}',
   name text,
   sort_order integer not null default 0,
@@ -237,3 +237,12 @@ alter table tempo_ladder_progress add column if not exists custom_pattern_id uui
   references custom_patterns(id) on delete set null;
 alter table tempo_ladder_progress add column if not exists custom_block_index integer;
 alter table tempo_ladder_progress add column if not exists custom_rep_in_block integer;
+
+-- Micro-Chaining + Macro-Chaining strategies. Widen the exercises.strategy
+-- CHECK to permit the two new step-based methods. Their per-exercise config
+-- (note/beat marks + mode + tempo) lives in exercises.config_json and their
+-- step index reuses click_up_progress, so no new tables are needed.
+-- practice_log.strategy is free text (no CHECK), so logging needs no change.
+alter table exercises drop constraint if exists exercises_strategy_check;
+alter table exercises add constraint exercises_strategy_check
+  check (strategy in ('tempo_ladder', 'click_up', 'rhythmic', 'chunking', 'micro_chaining', 'macro_chaining'));

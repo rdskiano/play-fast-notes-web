@@ -38,14 +38,19 @@ const STRATEGY_LABELS: Record<StrategyKey, string> = {
   tempo_ladder: 'Tempo Ladder',
   click_up: 'Interleaved Click-Up',
   rhythmic: 'Rhythmic Variation',
+  micro_chaining: 'Micro-Chaining',
+  macro_chaining: 'Macro-Chaining',
   interleaved: 'Rep Rotator',
   rep_rotator: 'Rep Rotator',
 };
 
+// Display order for the color customizer. macro_chaining is omitted until that
+// strategy ships its UI (the label above keeps the StrategyKey record complete).
 const STRATEGY_ORDER: StrategyKey[] = [
   'tempo_ladder',
   'click_up',
   'rhythmic',
+  'micro_chaining',
   'rep_rotator',
 ];
 

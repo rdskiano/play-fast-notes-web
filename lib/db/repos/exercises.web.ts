@@ -5,6 +5,8 @@ export type Strategy =
   | 'click_up'
   | 'rhythmic'
   | 'chunking'
+  | 'micro_chaining'
+  | 'macro_chaining'
   | 'interleaved';
 
 export type Exercise = {

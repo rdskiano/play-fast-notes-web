@@ -151,6 +151,10 @@ export default function RootLayout() {
                   options={IS_WEB ? { headerShown: false } : { title: 'Interleaved Click-Up' }}
                 />
                 <Stack.Screen
+                  name="passage/[id]/micro-chaining"
+                  options={IS_WEB ? { headerShown: false } : { title: 'Micro-Chaining' }}
+                />
+                <Stack.Screen
                   name="passage/[id]/rhythmic"
                   options={IS_WEB ? { headerShown: false } : { title: 'Rhythmic Variation' }}
                 />

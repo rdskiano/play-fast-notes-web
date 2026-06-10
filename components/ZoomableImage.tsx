@@ -19,8 +19,16 @@
 
 import { Image } from 'expo-image';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  type LayoutChangeEvent,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+
+import { computeDrawnRect } from '@/lib/layout/containFit';
 import Animated, {
   runOnJS,
   useAnimatedReaction,
@@ -98,6 +106,16 @@ type Props = {
    *  to reset a page's zoom on every page-turn, so a page left zoomed-in can't
    *  block the next turn. The initial value is ignored; only changes reset. */
   resetSignal?: number;
+  /** Opt into tap-to-place. When set, a single tap is converted to a
+   *  normalized [0,1] image point (inverting the zoom transform + contain
+   *  letterbox) and reported here, along with the current scale so the caller
+   *  can size its hit-test radius. Used by the marking screens so the user can
+   *  pinch in close and still drop a mark exactly on a note. Requires
+   *  `tapAspectRatio` for the letterbox inverse. */
+  onTapPoint?: (point: { x: number; y: number }, scale: number) => void;
+  /** Image aspect (width / height). Needed alongside onTapPoint to undo the
+   *  contain-fit letterbox when mapping a tap to image space. */
+  tapAspectRatio?: number;
 };
 
 export function ZoomableImage({
@@ -111,7 +129,13 @@ export function ZoomableImage({
   drawMode = false,
   onZoomedChange,
   resetSignal,
+  onTapPoint,
+  tapAspectRatio,
 }: Props) {
+  // Container size, captured on layout. The tap→image-space inverse needs it
+  // (the transform is anchored on the container's center), so we read it on
+  // the JS thread when a tap lands rather than threading it through a worklet.
+  const containerRef = useRef({ w: 0, h: 0 });
   // Seed shared values from the cache so the first render already
   // shows the saved zoom — avoids a flicker at 1× before the effect
   // restores it.
@@ -217,6 +241,27 @@ export function ZoomableImage({
     ty.value = withTiming(0, { duration: 180 });
   }
 
+  // Map a tap (in container coordinates, from the gesture) to a normalized
+  // [0,1] point on the source image. Two inversions: undo the center-anchored
+  // zoom transform (q = center + translate + scale·(p − center)), then undo the
+  // contain-fit letterbox. Runs on the JS thread (shared values passed in) so
+  // it can read containerRef + tapAspectRatio without worklet gymnastics.
+  function handleTap(ex: number, ey: number, s: number, txv: number, tyv: number) {
+    if (!onTapPoint) return;
+    const { w: W, h: H } = containerRef.current;
+    if (!W || !H) return;
+    const cx = W / 2 + (ex - W / 2 - txv) / s;
+    const cy = H / 2 + (ey - H / 2 - tyv) / s;
+    const drawn = computeDrawnRect(W, H, tapAspectRatio ?? null);
+    if (drawn.w === 0 || drawn.h === 0) return;
+    const nx = (cx - drawn.ox) / drawn.w;
+    const ny = (cy - drawn.oy) / drawn.h;
+    onTapPoint(
+      { x: Math.max(0, Math.min(1, nx)), y: Math.max(0, Math.min(1, ny)) },
+      s,
+    );
+  }
+
   // External reset trigger (PDF page-turn). Skip the initial value so we don't
   // animate on mount; only an actual change snaps the page back to full size.
   const resetSignalRef = useRef(resetSignal);
@@ -287,7 +332,20 @@ export function ZoomableImage({
       runOnJS(reset)();
     });
 
-  const composed = Gesture.Simultaneous(pinch, pan, doubleTap);
+  // Single tap → place a mark. Only active when a caller opted into tap-to-place.
+  // Must wait for the double-tap (reset) to fail so a quick double-tap doesn't
+  // also drop a mark. Drawing mode disables it so finger strokes reach the canvas.
+  const singleTap = Gesture.Tap()
+    .enabled(gesturesEnabled && !drawMode && !!onTapPoint)
+    .numberOfTaps(1)
+    .maxDuration(260)
+    .onEnd((e) => {
+      'worklet';
+      runOnJS(handleTap)(e.x, e.y, scale.value, tx.value, ty.value);
+    })
+    .requireExternalGestureToFail(doubleTap);
+
+  const composed = Gesture.Simultaneous(pinch, pan, doubleTap, singleTap);
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [
@@ -297,8 +355,15 @@ export function ZoomableImage({
     ],
   }));
 
+  function handleLayout(e: LayoutChangeEvent) {
+    const { width, height } = e.nativeEvent.layout;
+    containerRef.current = { w: width, h: height };
+  }
+
   return (
-    <View style={[styles.wrap, aspectRatio ? { aspectRatio } : null, style]}>
+    <View
+      style={[styles.wrap, aspectRatio ? { aspectRatio } : null, style]}
+      onLayout={handleLayout}>
       <GestureDetector gesture={composed}>
         <Animated.View style={[StyleSheet.absoluteFill, animStyle]}>
           {children ?? (

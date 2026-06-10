@@ -49,7 +49,12 @@ import {
   SCORE_FRAME_BG,
 } from '@/lib/layout/configForm';
 
-type StrategyKey = 'tempo_ladder' | 'click_up' | 'rhythmic' | 'rep_rotator';
+type StrategyKey =
+  | 'tempo_ladder'
+  | 'click_up'
+  | 'rhythmic'
+  | 'micro_chaining'
+  | 'rep_rotator';
 
 type StrategyDef = {
   key: StrategyKey;
@@ -61,6 +66,7 @@ const STRATEGIES: StrategyDef[] = [
   { key: 'tempo_ladder', label: 'Tempo Ladder', enabled: true },
   { key: 'click_up', label: 'Interleaved Click-Up', enabled: true },
   { key: 'rhythmic', label: 'Rhythmic Variation', enabled: true },
+  { key: 'micro_chaining', label: 'Micro-Chaining', enabled: true },
   { key: 'rep_rotator', label: 'Rep Rotator', enabled: true },
 ];
 
@@ -297,6 +303,8 @@ export default function PassageDetailScreen() {
       guardedNav(() => router.push(`/passage/${passage.id}/tempo-ladder`));
     } else if (key === 'click_up') {
       guardedNav(() => router.push(`/passage/${passage.id}/click-up`));
+    } else if (key === 'micro_chaining') {
+      guardedNav(() => router.push(`/passage/${passage.id}/micro-chaining`));
     } else if (key === 'rhythmic') {
       setRhythmicStep('mode');
       setRhythmicSheetOpen(true);

@@ -25,6 +25,8 @@ const STRATEGY_LABELS: Record<string, string> = {
   click_up: 'Interleaved Click-Up',
   rhythmic: 'Rhythmic Variation',
   chunking: 'Chunking',
+  micro_chaining: 'Micro-Chaining',
+  macro_chaining: 'Macro-Chaining',
   add_a_note: 'Add a Note',
   pitch: 'Pitch',
   phrasing: 'Phrasing',
