@@ -79,7 +79,7 @@ const MC_MARKING_STEPS: TourStep[] = [
     title: 'Choose how to build',
     hideDot: true,
     body:
-      `Once you have at least ${MIN_MICRO_MARKS} notes marked, NEXT → lights up — tap it to pick Forward, Backward, or Problem chaining and set your tempo.`,
+      `When you've marked your notes, tap NEXT → to pick Forward, Backward, or Problem chaining and set your tempo.`,
   },
 ];
 
@@ -203,7 +203,7 @@ export default function MicroChainingScreen() {
         <ScrollView contentContainerStyle={styles.markingContent}>
           <ThemedText style={styles.helper}>
             Tap just above each note to add a link to the chain. Pinch to zoom in for
-            accuracy. You need at least {MIN_MICRO_MARKS} notes. Use UNDO to fix a mistake.
+            accuracy. Use UNDO to fix a mistake.
           </ThemedText>
           <View
             {...tourTag('mc-score')}
@@ -233,9 +233,7 @@ export default function MicroChainingScreen() {
           title="Micro-Chaining — mark each note"
           body={
             'Micro-Chaining builds a short, muddy fragment back up one note at a time, always at your performance tempo. Each connection gets clean, in-context reps so the whole fragment locks in.\n\n' +
-            'Mark each note: tap just above each note head to add a link to the chain. Pinch to zoom in so you can place each mark accurately. You need at least ' +
-            String(MIN_MICRO_MARKS) +
-            ' notes.\n\n' +
+            'Mark each note: tap just above each note head to add a link to the chain. Pinch to zoom in so you can place each mark accurately.\n\n' +
             'Fixing marks: tap UNDO to remove the last one, or CLEAR to start over. When you\'re done, tap NEXT → to choose Forward, Backward, or Problem chaining.'
           }
         />

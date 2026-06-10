@@ -353,6 +353,11 @@ function TourOverlay() {
           top: cardTop + drag.dy,
           left: cardLeft + drag.dx,
           width: cardW,
+          // Include padding + border in `width` so the off-screen clamp on
+          // cardLeft (which only knows cardW) actually keeps the card on
+          // screen. Without this the 18px padding pushed right-anchored steps
+          // (e.g. the "NEXT" step) ~36px off the right edge.
+          boxSizing: 'border-box',
           background: CARD_BG,
           border: `1px solid ${ACCENT}55`,
           borderRadius: 14,

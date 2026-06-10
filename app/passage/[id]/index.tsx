@@ -362,7 +362,7 @@ export default function PassageDetailScreen() {
               floating ‹ › on the score handle moving between sibling passages,
               so the top button is unambiguously "back to the whole part." A
               standalone passage keeps a plain back chevron. */}
-          <View style={styles.titleSide}>
+          <View style={[styles.titleSide, !isPhone && styles.titleSideFlex]}>
             {passage.document_id ? (
               <Pressable
                 onPress={() =>
@@ -399,7 +399,7 @@ export default function PassageDetailScreen() {
               centered title stays balanced. Tablet / desktop see the full pill
               row below instead. The labelled "Strategies" button pairs with the
               ☰ menu (History / Crop) — the ☰ alone would be unguessable. */}
-          <View style={[styles.titleSide, styles.titleSideRight]}>
+          <View style={[styles.titleSide, styles.titleSideRight, !isPhone && styles.titleSideFlex]}>
             {isPhone ? (
               <View style={styles.phoneMenuRow}>
                 <Pressable
@@ -848,6 +848,10 @@ const styles = StyleSheet.create({
   // so a long title truncates instead of overlapping the Strategies button.
   titleSide: { flexDirection: 'row', alignItems: 'center' },
   titleSideRight: { justifyContent: 'flex-end' },
+  // On tablet/desktop both side cells flex equally (1:1) so the flex:1 title
+  // between them lands on the true page center, not just centered in the gap
+  // left over after a narrow back button + wide History/Crop actions.
+  titleSideFlex: { flex: 1 },
   // Tablet/desktop History + Crop buttons, kept on the title line.
   titleActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backBtn: { paddingHorizontal: Spacing.sm, paddingVertical: 6 },

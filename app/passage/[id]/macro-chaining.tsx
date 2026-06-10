@@ -68,7 +68,7 @@ const MC_MARKING_STEPS: TourStep[] = [
     title: 'Set your goal tempo',
     hideDot: true,
     body:
-      `Once you have at least ${MIN_MACRO_MARKS} marks, NEXT → lights up — tap it to set your goal tempo and start.`,
+      `When you've marked your beats, tap NEXT → to set your goal tempo and start.`,
   },
 ];
 
@@ -232,8 +232,7 @@ export default function MacroChainingScreen() {
         <ScrollView contentContainerStyle={styles.markingContent}>
           <ThemedText style={styles.helper}>
             Tap just above the start of each beat, and add one mark at the very end.
-            Pinch to zoom in for accuracy. You need at least {MIN_MACRO_MARKS} marks. Tap
-            a mark to remove it.
+            Pinch to zoom in for accuracy. Tap a mark to remove it.
           </ThemedText>
           <View
             {...tourTag('mac-score')}
@@ -265,9 +264,7 @@ export default function MacroChainingScreen() {
           title="Macro-Chaining — mark each beat"
           body={
             'Macro-Chaining works the passage in chunks at your goal tempo. At each chunk size you first drill each chunk on its own, then chain them together with full beats of rest between, removing the rests one at a time. Then the chunks grow and you repeat — until the whole passage is continuous. High-quality reps at speed without fatigue.\n\n' +
-            'First, mark the beats: tap just above the start of each beat, and drop one mark at the very end. Pinch to zoom in for accuracy. You need at least ' +
-            String(MIN_MACRO_MARKS) +
-            ' marks.\n\n' +
+            'First, mark the beats: tap just above the start of each beat, and drop one mark at the very end. Pinch to zoom in for accuracy.\n\n' +
             'Fixing marks: tap a mark to remove it, UNDO for the last one, or CLEAR to start over. When you\'re done, tap NEXT → to set your goal tempo.'
           }
         />
