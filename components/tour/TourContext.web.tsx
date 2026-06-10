@@ -244,12 +244,17 @@ function TourOverlay() {
   // User-dragged offset of the card from its auto-placed position. Resets
   // on each step so every step starts anchored to its control.
   const [drag, setDrag] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  // Whether the example image is expanded into a full-screen lightbox. The
+  // in-card thumbnail is small (the card caps at 320px); tapping it opens the
+  // image big so the user can actually read it.
+  const [zoomed, setZoomed] = useState(false);
   const dragStart = useRef<{ x: number; y: number; dx: number; dy: number } | null>(
     null,
   );
 
   useEffect(() => {
     setDrag({ dx: 0, dy: 0 });
+    setZoomed(false); // a new step's image starts collapsed
   }, [activeIndex]);
 
   const onCardPointerDown = (e: { target: EventTarget | null; clientX: number; clientY: number }) => {
@@ -405,26 +410,45 @@ function TourOverlay() {
         </div>
         {step.image && (
           <div style={{ marginBottom: 16 }}>
-            {/* RN <Image> resolves the asset cross-platform. aspectRatio
-                on RN-Web Image is unreliable, so a View carries it and the
-                Image fills it (same pattern as HelpModal). */}
-            <View
-              style={{
-                width: '100%',
-                aspectRatio: step.image.aspectRatio,
-                borderRadius: 8,
-                overflow: 'hidden',
-                backgroundColor: '#fff',
-                borderWidth: 1,
-                borderColor: ACCENT + '55',
-              }}>
-              <Image
-                source={step.image.source}
-                resizeMode="contain"
-                style={{ width: '100%', height: '100%' }}
-                accessibilityLabel={step.image.caption ?? 'Example'}
-              />
-            </View>
+            {/* Tap to enlarge. The in-card thumbnail is small (the card caps
+                at ~320px), so the example is hard to read; tapping opens the
+                full-screen lightbox below. stopPropagation on pointer-down so
+                the tap opens the image instead of starting a card drag.
+                RN <Image> resolves the asset cross-platform; aspectRatio on
+                RN-Web Image is unreliable, so a View carries it. */}
+            <div
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setZoomed(true)}
+              title="Tap to enlarge"
+              style={{ cursor: 'zoom-in' }}>
+              <View
+                style={{
+                  width: '100%',
+                  aspectRatio: step.image.aspectRatio,
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  backgroundColor: '#fff',
+                  borderWidth: 1,
+                  borderColor: ACCENT + '55',
+                }}>
+                <Image
+                  source={step.image.source}
+                  resizeMode="contain"
+                  style={{ width: '100%', height: '100%' }}
+                  accessibilityLabel={step.image.caption ?? 'Example'}
+                />
+              </View>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: ACCENT,
+                  textAlign: 'center',
+                  marginTop: 6,
+                  fontWeight: 700,
+                }}>
+                🔍 Tap to enlarge
+              </div>
+            </div>
             {step.image.caption && (
               <div
                 style={{
@@ -474,6 +498,44 @@ function TourOverlay() {
           </div>
         )}
       </div>
+      {/* Full-screen lightbox for the example image. Sits above the card
+          (zIndex 10000) so it covers the whole screen; tap anywhere to close. */}
+      {zoomed && step.image && (
+        <div
+          onClick={() => setZoomed(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10002,
+            background: 'rgba(2, 6, 23, 0.92)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            cursor: 'zoom-out',
+          }}>
+          <View style={{ width: '92%', height: '86%' }}>
+            <Image
+              source={step.image.source}
+              resizeMode="contain"
+              style={{ width: '100%', height: '100%' }}
+              accessibilityLabel={step.image.caption ?? 'Example'}
+            />
+          </View>
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 20,
+              left: 0,
+              right: 0,
+              textAlign: 'center',
+              color: CARD_MUTED,
+              fontSize: 13,
+            }}>
+            Tap anywhere to close
+          </div>
+        </div>
+      )}
     </>
   );
 }

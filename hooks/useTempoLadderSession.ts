@@ -9,6 +9,7 @@ import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import {
   advanceClusterWindow,
+  deleteTempoLadderProgress,
   getTempoLadder,
   updateCustomPosition,
   updateTempoLadderConfigBounds,
@@ -94,6 +95,14 @@ export function useTempoLadderSession(
   // Cleared the moment a step-up is taken live (advanceAfterCelebration) or a
   // new set begins (startSession / onMiss).
   const earnedStepUpRef = useRef(false);
+  // True once the user has logged a single rep (Clean or Miss) this session.
+  // Lets endSession tell "actually practiced" from "opened and bailed".
+  const touchedRef = useRef(false);
+  // True when a durable progress row already existed on load (i.e. the user
+  // practiced this ladder before). Guards endSession's cleanup so it only ever
+  // deletes a row that startPlaying freshly created this session, never one
+  // carrying real prior progress.
+  const hadDurableRowRef = useRef(false);
 
   const [mode, setMode] = useState<Mode>('step');
   const [startTempo, setStartTempo] = useState('60');
@@ -153,6 +162,9 @@ export function useTempoLadderSession(
       setExerciseId(ex.id);
       const existing = await getTempoLadder(ex.id);
       if (cancelled || !existing) return;
+      // A row already exists → real prior progress. Never let endSession's
+      // untouched-session cleanup delete it.
+      hadDurableRowRef.current = true;
       setProgress(existing);
       setMode(existing.mode);
       if (existing.mode === 'cluster') {
@@ -275,6 +287,7 @@ export function useTempoLadderSession(
     lastHitTempoRef.current = null;
     reachedGoalRef.current = false;
     earnedStepUpRef.current = false;
+    touchedRef.current = false;
     setCompletedSets(0);
 
     if (mode === 'custom') {
@@ -376,6 +389,7 @@ export function useTempoLadderSession(
 
   async function onClean() {
     if (!progress || (!toolsOnly && (!exerciseId || !id))) return;
+    touchedRef.current = true; // a rep happened → this is a real session
 
     // ── Custom mode ──────────────────────────────────────────────────
     // One full execution of the pattern with no misses = one clean set,
@@ -490,6 +504,7 @@ export function useTempoLadderSession(
 
   async function onMiss() {
     if (!progress || (!toolsOnly && !exerciseId)) return;
+    touchedRef.current = true; // a rep happened → this is a real session
     // A miss starts a fresh attempt, so any unbanked completed-set advance is
     // no longer owed.
     earnedStepUpRef.current = false;
@@ -591,6 +606,17 @@ export function useTempoLadderSession(
       return;
     }
     if (!exerciseId || !id) {
+      router.back();
+      return;
+    }
+    // Opened but never played: the user hit "Start practicing" (which makes
+    // startPlaying create a fresh progress row) and then exited without a
+    // single Clean/Miss. Delete that freshly-created row so the library doesn't
+    // show a "Tempo X%" badge for a session where nothing was practiced. Guarded
+    // by hadDurableRowRef so a row carrying real prior progress is never touched.
+    if (!touchedRef.current && !hadDurableRowRef.current) {
+      await deleteTempoLadderProgress(exerciseId);
+      metronome.stop();
       router.back();
       return;
     }

@@ -72,8 +72,7 @@ const MC_MARKING_STEPS: TourStep[] = [
     title: 'Mark each note',
     body:
       'Micro-Chaining builds a short, muddy fragment back up one note at a time — always at your performance tempo — so each connection gets clean reps in context.\n\n' +
-      'Tap just above each note to add a link to the chain. Pinch to zoom in so you can place each mark accurately. Use UNDO / CLEAR up top to fix a mistake.\n\n' +
-      'This works best on short fragments — a lick, a hard turn, a two-bar run.',
+      'Tap just above each note to add a link to the chain. Pinch to zoom in so you can place each mark accurately. Use UNDO / CLEAR up top to fix a mistake.',
   },
   {
     target: 'mc-next',
@@ -237,8 +236,7 @@ export default function MicroChainingScreen() {
             'Mark each note: tap just above each note head to add a link to the chain. Pinch to zoom in so you can place each mark accurately. You need at least ' +
             String(MIN_MICRO_MARKS) +
             ' notes.\n\n' +
-            'Fixing marks: tap UNDO to remove the last one, or CLEAR to start over. When you\'re done, tap NEXT → to choose Forward, Backward, or Problem chaining.\n\n' +
-            'Best for short fragments — a lick, a hard turn, a two-bar run.'
+            'Fixing marks: tap UNDO to remove the last one, or CLEAR to start over. When you\'re done, tap NEXT → to choose Forward, Backward, or Problem chaining.'
           }
         />
       </ThemedView>

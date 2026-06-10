@@ -103,20 +103,32 @@ function macroCountAlong(chunkSize: number, restBeats: number, beatCount: number
 }
 
 // Key for auto-opening the ⓘ once-ever the first time the user reaches each new
-// explanation. Deliberately coarse so it doesn't nag: ONE isolate tip (same for
-// every chunk position/size), and the chain tip keyed only by the REST COUNT —
-// so "chain with 2 beats of rest" fires once, then "…1 beat", then "…no rest",
-// and NOT again when later (bigger) chunk sizes repeat those same rest counts.
+// teaching beat of the method. Keyed by CHUNK SIZE so the instructions re-show
+// the first time through each newly-doubled size — the user re-learns the loop
+// at every chunk size, just like at the original size (the count-along example
+// reflects the current chunk size). Within a given size each card still fires
+// only once:
+//   - 'isolate'              — the very first rep (drill the first single beat)
+//   - 'chain-<size>-<rest>'  — chaining at each rest count, per chunk size:
+//                              chain with rests, then the rest gets dropped,
+//                              and dropped again, down to none
+//   - 'chunk-doubled-<size>' — the first isolate at each newly-doubled size
+//   - 'isolate-whole'        — the final whole-passage step
 export function macroInfoKey(step: MacroStep): string {
-  if (step.kind === 'isolate') return step.chunkCount === 1 ? 'isolate-whole' : 'isolate';
-  return `chain-${step.restBeats}`;
+  if (step.kind === 'isolate') {
+    if (step.chunkCount === 1) return 'isolate-whole';
+    if (step.chunkSize === 1) return 'isolate';
+    return `chunk-doubled-${step.chunkSize}`;
+  }
+  return `chain-${step.chunkSize}-${step.restBeats}`;
 }
 
 /** Short title for the ⓘ tip card. */
 export function formatMacroInfoTitle(step: MacroStep | undefined): string {
   if (!step) return '';
   if (step.kind === 'isolate') {
-    return step.chunkCount === 1 ? 'The whole passage' : 'Drill this chunk';
+    if (step.chunkCount === 1) return 'The whole passage';
+    return step.chunkSize === 1 ? 'Drill this chunk' : 'The chunks just doubled';
   }
   return step.restBeats === 0 ? 'No full rests' : 'Chain it together';
 }
@@ -129,14 +141,17 @@ export function formatMacroInfo(step: MacroStep | undefined, beatCount: number):
     if (step.chunkCount === 1) {
       return 'It may not be perfect, but hopefully as the days go by, this step should feel better and better.';
     }
+    if (step.chunkSize > 1) {
+      return `The chunks just doubled — you're now drilling bigger pieces, ${step.chunkSize} beats at a time. Drill each one until it's comfortable, then you'll chain them with rests again, just like before. The chunks keep doubling until you're playing the whole passage in one piece.`;
+    }
     return 'Repeat this chunk until it feels comfortable — but the moment you feel your autopilot kicking in, move on to the next.';
   }
 
   const intro =
     step.restBeats === 0
-      ? 'No full rests now — just a quick breath between chunks. Counting in 16ths it goes:'
-      : 'Play through the passage chunk by chunk, resting the given beats between each. Counting in 16ths it goes:';
-  return `${intro}\n\n${macroCountAlong(step.chunkSize, step.restBeats, beatCount)}`;
+      ? 'No full rests now — just a quick breath between chunks. As an example, for running 16ths, the pattern would be:'
+      : 'Play through the passage chunk by chunk, resting the given beats between each. As an example, for running 16ths, the pattern would be:';
+  return `${intro}\n\n${macroCountAlong(step.chunkSize, step.restBeats, beatCount)}\n\nRepeat this until it feels relatively easy before moving to the next step.`;
 }
 
 /** Short label for headers / logs: "Isolate · chunk 2" or "Chain · rest 1". */

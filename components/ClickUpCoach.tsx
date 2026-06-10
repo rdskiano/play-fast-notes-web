@@ -7,6 +7,10 @@
 // thing changing is the BPM number. This one-shot modal teaches the
 // loop on first entry to the playing phase.
 //
+// Styled to match the rest of the coaching layer (guided tour + the "?"
+// help modal): a dark slate panel with the site-orange accent, so all the
+// onboarding surfaces read as one family.
+//
 // Persistence is via the cross-platform settings repo, so dismissing
 // on web also dismisses on iPad (and vice versa) for the same user.
 
@@ -14,16 +18,18 @@ import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Colors } from '@/constants/theme';
-import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Radii, Spacing, Type } from '@/constants/tokens';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 
 const COACH_KEY = 'clickUp.coachSeen';
 
+// Shared coaching palette (matches HelpModal + TourContext).
+const CARD_BG = '#1e293b';
+const CARD_TITLE = '#f8fafc';
+const CARD_BODY = '#cbd5e1';
+const ACCENT = '#e67e22'; // site orange
+
 export function ClickUpCoach() {
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -58,24 +64,19 @@ export function ClickUpCoach() {
       animationType="fade"
       onRequestClose={close}>
       <View style={styles.backdrop}>
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: C.background, borderColor: C.icon },
-          ]}>
-          <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
+        <View style={styles.card}>
+          <ThemedText type="subtitle" style={styles.title}>
             How Click-Up works
           </ThemedText>
-          <ThemedText style={[styles.body, { color: C.text }]}>
+          <ThemedText style={styles.body}>
             Play the unit (between the two triangles ▼), then tap Next. The
-            tempo climbs each rep. Keep playing the same unit until you reach
-            performance tempo — then the tempo resets and the triangles move.
-            Tap Back if you need to redo the previous step. The session logs
-            automatically when you finish, or tap DONE to log early.
+            tempo climbs each rep. Keep playing between the green arrows as they
+            move. Tap Back if you need to redo the previous step. The session
+            logs automatically when you finish, or tap DONE to log early.
           </ThemedText>
           <Pressable
             onPress={close}
-            style={[styles.btn, { backgroundColor: C.tint }]}
+            style={styles.btn}
             accessibilityRole="button">
             <ThemedText style={styles.btnText}>Got it</ThemedText>
           </Pressable>
@@ -97,14 +98,21 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 420,
     borderRadius: Radii.xl,
-    borderWidth: Borders.thin,
+    borderWidth: 1,
+    backgroundColor: CARD_BG,
+    borderColor: ACCENT + '55',
     padding: Spacing.lg,
     gap: Spacing.md,
+  },
+  title: {
+    textAlign: 'center',
+    color: CARD_TITLE,
   },
   body: {
     fontSize: Type.size.md,
     textAlign: 'center',
     lineHeight: 22,
+    color: CARD_BODY,
   },
   btn: {
     paddingHorizontal: Spacing.lg,
@@ -113,6 +121,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     minWidth: 140,
     alignItems: 'center',
+    backgroundColor: ACCENT,
   },
   btnText: {
     color: '#fff',

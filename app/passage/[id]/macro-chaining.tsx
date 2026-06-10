@@ -168,14 +168,13 @@ export default function MacroChainingScreen() {
       persistedSeenRef.current.has(liveInfoKey)
     )
       return;
-    // Tutorial temporarily disabled — the per-step Quick Tip no longer
-    // auto-pops. The manual "i" button in the playing header still opens it
-    // on demand. To re-enable the auto-popup, restore the block below:
-    //   openedThisSessionRef.current.add(liveInfoKey); // synchronous — no double-fire
-    //   persistedSeenRef.current.add(liveInfoKey);
-    //   setSetting(MACRO_INFO_SEEN_KEY, JSON.stringify([...persistedSeenRef.current])).catch(() => {});
-    //   setInfoOpen(true);
-    return;
+    // Auto-open the tip the first time (ever) the user reaches each new KIND
+    // of step: the first rep, chaining at each rest count (rest dropped, …),
+    // and when the chunk size doubles. macroInfoKey() defines those kinds.
+    openedThisSessionRef.current.add(liveInfoKey); // synchronous — no double-fire
+    persistedSeenRef.current.add(liveInfoKey);
+    setSetting(MACRO_INFO_SEEN_KEY, JSON.stringify([...persistedSeenRef.current])).catch(() => {});
+    setInfoOpen(true);
   }, [seenLoaded, liveInfoKey, celebrating]);
 
   // Beats are spaced well apart, so tap-to-place AND tap-to-remove both work
@@ -257,9 +256,12 @@ export default function MacroChainingScreen() {
           </View>
         </ScrollView>
 
+        {/* The web spotlight tour is disabled for Macro-Chaining (it was
+            misbehaving), so this modal is the first-run tutorial on BOTH web
+            and native — auto-fire it once on the marking phase. */}
         <TutorialStep
           id="macro-chaining-marking"
-          visible={Platform.OS !== 'web'}
+          visible
           title="Macro-Chaining — mark each beat"
           body={
             'Macro-Chaining works the passage in chunks at your goal tempo. At each chunk size you first drill each chunk on its own, then chain them together with full beats of rest between, removing the rests one at a time. Then the chunks grow and you repeat — until the whole passage is continuous. High-quality reps at speed without fatigue.\n\n' +

@@ -109,6 +109,17 @@ export async function updateTempoLadderState(
   if (error) throw error;
 }
 
+// Remove the progress row entirely. Used when a session ends without the user
+// practicing a single rep, so the library doesn't show a "Tempo X%" badge for
+// an exercise that was opened but never actually played.
+export async function deleteTempoLadderProgress(exerciseId: string): Promise<void> {
+  const { error } = await supabase
+    .from('tempo_ladder_progress')
+    .delete()
+    .eq('exercise_id', exerciseId);
+  if (error) throw error;
+}
+
 // Used after a successful session (goal reached) to raise the floor of the
 // ladder so the next session starts a notch higher.
 export async function updateTempoLadderConfigBounds(

@@ -512,9 +512,12 @@ export default function RhythmicScreen() {
           body={TOOLS_RHYTHMIC_HELP.body}
         />
       ) : phase === 'config' ? (
+        // Rhythmic Variation has no guided web tour, so (unlike Click-Up /
+        // Tempo Ladder) this setup card is the first-run tutorial on BOTH
+        // web and native. Auto-fire it once on the grouping-pick phase.
         <TutorialStep
           id="rhythmic-config"
-          visible={false}
+          visible
           title="Rhythmic Variation — pick a grouping"
           body={
             "How many notes are in each rhythmic unit of your passage? Count the notes in one beat or one measure — whatever feels like a natural repeating chunk — then pick that number.\n\n" +
@@ -522,9 +525,12 @@ export default function RhythmicScreen() {
           }
         />
       ) : (
+        // The real-passage flow picks a grouping in the passage sheet and lands
+        // straight here in the playing phase, so this is the first screen the
+        // user sees — and Rhythmic Variation has no web tour. Auto-fire it once.
         <TutorialStep
           id="rhythmic-play"
-          visible={false}
+          visible
           title="Rhythmic Variation"
           body={
             "Play the passage with a different rhythm pattern each time — dotted, swung, reversed, anything that breaks your default groove. Strengthens internal pulse and exposes weak spots that playing as written can hide.\n\n" +

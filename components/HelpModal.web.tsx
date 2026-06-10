@@ -14,6 +14,7 @@
 // is intentional: forcing every screen to either have help OR show
 // "coming soon" makes blank-help screens visible as a to-do list.
 
+import { useEffect, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -36,62 +37,96 @@ const PLACEHOLDER: HelpContent = {
 export function HelpModal() {
   const { active, isOpen, close } = useHelpContext();
   const content = active ?? PLACEHOLDER;
+  // The in-card example image is small; tapping it opens a full-screen
+  // lightbox so the detail is actually readable.
+  const [zoomed, setZoomed] = useState(false);
+  // Reset the lightbox whenever the modal closes so it never reopens zoomed.
+  useEffect(() => {
+    if (!isOpen) setZoomed(false);
+  }, [isOpen]);
 
   return (
-    <Modal
-      visible={isOpen}
-      transparent
-      animationType="fade"
-      onRequestClose={close}>
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          {/* Scrolls when the body is taller than the capped card so the
-              Close button below always stays reachable. */}
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}>
-            <ThemedText type="subtitle" style={styles.title}>
-              {content.title}
-            </ThemedText>
-            <ThemedText style={styles.body}>{content.body}</ThemedText>
+    <>
+      <Modal
+        visible={isOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={close}>
+        <View style={styles.backdrop}>
+          <View style={styles.card}>
+            {/* Scrolls when the body is taller than the capped card so the
+                Close button below always stays reachable. */}
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.scrollContent}>
+              <ThemedText type="subtitle" style={styles.title}>
+                {content.title}
+              </ThemedText>
+              <ThemedText style={styles.body}>{content.body}</ThemedText>
 
-            {content.image && (
-              <View style={styles.imageWrap}>
-                {/* aspectRatio on RN-Web Image is unreliable — it gets
-                    overridden by the asset's natural dimensions. Wrap a
-                    View with the aspectRatio and let the Image fill it. */}
-                <View
-                  style={[
-                    styles.imageFrame,
-                    { aspectRatio: content.image.aspectRatio },
-                  ]}>
-                  <Image
-                    source={content.image.source}
-                    resizeMode="contain"
-                    style={styles.imageFill}
-                    accessibilityLabel={content.image.caption ?? 'Help example image'}
-                  />
+              {content.image && (
+                <View style={styles.imageWrap}>
+                  {/* Tap to enlarge. aspectRatio on RN-Web Image is unreliable
+                      — it gets overridden by the asset's natural dimensions —
+                      so a View carries the aspectRatio and the Image fills it. */}
+                  <Pressable
+                    onPress={() => setZoomed(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Enlarge example image">
+                    <View
+                      style={[
+                        styles.imageFrame,
+                        { aspectRatio: content.image.aspectRatio },
+                      ]}>
+                      <Image
+                        source={content.image.source}
+                        resizeMode="contain"
+                        style={styles.imageFill}
+                        accessibilityLabel={content.image.caption ?? 'Help example image'}
+                      />
+                    </View>
+                    <ThemedText style={styles.enlargeHint}>🔍 Tap to enlarge</ThemedText>
+                  </Pressable>
+                  {content.image.caption && (
+                    <ThemedText style={styles.imageCaption}>
+                      {content.image.caption}
+                    </ThemedText>
+                  )}
                 </View>
-                {content.image.caption && (
-                  <ThemedText style={styles.imageCaption}>
-                    {content.image.caption}
-                  </ThemedText>
-                )}
-              </View>
-            )}
-          </ScrollView>
+              )}
+            </ScrollView>
 
-          <View style={styles.buttonRow}>
-            <Pressable
-              onPress={close}
-              style={styles.btnPrimary}
-              accessibilityRole="button">
-              <ThemedText style={styles.btnPrimaryText}>Close</ThemedText>
-            </Pressable>
+            <View style={styles.buttonRow}>
+              <Pressable
+                onPress={close}
+                style={styles.btnPrimary}
+                accessibilityRole="button">
+                <ThemedText style={styles.btnPrimaryText}>Close</ThemedText>
+              </Pressable>
+            </View>
           </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+
+      {/* Full-screen lightbox for the example image — tap anywhere to close. */}
+      <Modal
+        visible={zoomed && !!content.image}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setZoomed(false)}>
+        <Pressable style={styles.lightboxBackdrop} onPress={() => setZoomed(false)}>
+          {content.image && (
+            <Image
+              source={content.image.source}
+              resizeMode="contain"
+              style={styles.lightboxImage}
+              accessibilityLabel={content.image.caption ?? 'Help example image'}
+            />
+          )}
+          <ThemedText style={styles.lightboxHint}>Tap anywhere to close</ThemedText>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -145,10 +180,34 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  enlargeHint: {
+    fontSize: Type.size.sm,
+    textAlign: 'center',
+    color: ACCENT,
+    fontWeight: Type.weight.bold,
+    marginTop: Spacing.xs,
+  },
   imageCaption: {
     fontSize: Type.size.sm,
     textAlign: 'center',
     color: CARD_BODY,
+  },
+  lightboxBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(2, 6, 23, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  lightboxImage: {
+    width: '92%',
+    height: '86%',
+  },
+  lightboxHint: {
+    position: 'absolute',
+    bottom: Spacing.lg,
+    color: CARD_BODY,
+    fontSize: Type.size.sm,
   },
   buttonRow: {
     flexDirection: 'row',
