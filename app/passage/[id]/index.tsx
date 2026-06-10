@@ -400,7 +400,7 @@ export default function PassageDetailScreen() {
               row below instead. The labelled "Strategies" button pairs with the
               ☰ menu (History / Crop) — the ☰ alone would be unguessable. */}
           <View style={[styles.titleSide, styles.titleSideRight]}>
-            {isPhone && (
+            {isPhone ? (
               <View style={styles.phoneMenuRow}>
                 <Pressable
                   onPress={() => setPhoneMenuOpen(true)}
@@ -419,6 +419,37 @@ export default function PassageDetailScreen() {
                   </ThemedText>
                 </Pressable>
               </View>
+            ) : (
+              // Tablet / desktop: History + Crop sit on the title line so the
+              // strategy pills below get the full width (they wrap as more
+              // strategies are added; keeping these out of that row stops Crop
+              // from being pushed to its own line).
+              <View style={styles.titleActions}>
+                <Pressable
+                  onPress={() =>
+                    guardedNav(() => router.push(`/passage/${passage.id}/history`))
+                  }
+                  style={[styles.outlinePill, { borderColor: C.icon }]}>
+                  <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
+                    Practice History
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={() =>
+                    guardedNav(() =>
+                      passage.document_id
+                        ? router.push(
+                            `/document/${passage.document_id}?resize=${passage.id}`,
+                          )
+                        : router.push(`/passage/${passage.id}/crop`),
+                    )
+                  }
+                  style={[styles.outlinePill, { borderColor: C.icon }]}>
+                  <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
+                    Crop
+                  </ThemedText>
+                </Pressable>
+              </View>
             )}
           </View>
         </View>
@@ -426,32 +457,8 @@ export default function PassageDetailScreen() {
           <View style={styles.pillRow}>
             {STRATEGIES.map(renderPill)}
             {/* Self-Led pill hidden for now (unused). The SelfLedSheet + routes
-                stay mounted so it can be restored by re-adding this trigger. */}
-            <View style={{ flex: 1 }} />
-            <Pressable
-              onPress={() =>
-                guardedNav(() => router.push(`/passage/${passage.id}/history`))
-              }
-              style={[styles.outlinePill, { borderColor: C.icon }]}>
-              <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
-                Practice History
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={() =>
-                guardedNav(() =>
-                  passage.document_id
-                    ? router.push(
-                        `/document/${passage.document_id}?resize=${passage.id}`,
-                      )
-                    : router.push(`/passage/${passage.id}/crop`),
-                )
-              }
-              style={[styles.outlinePill, { borderColor: C.icon }]}>
-              <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
-                Crop
-              </ThemedText>
-            </Pressable>
+                stay mounted so it can be restored by re-adding this trigger.
+                History + Crop moved up to the title row (see titleActions). */}
           </View>
         )}
         <PassageReminders passageId={passage.id} />
@@ -841,6 +848,8 @@ const styles = StyleSheet.create({
   // so a long title truncates instead of overlapping the Strategies button.
   titleSide: { flexDirection: 'row', alignItems: 'center' },
   titleSideRight: { justifyContent: 'flex-end' },
+  // Tablet/desktop History + Crop buttons, kept on the title line.
+  titleActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backBtn: { paddingHorizontal: Spacing.sm, paddingVertical: 6 },
   backArrow: { fontSize: 30, fontWeight: '400', lineHeight: 32 },
   backLabel: { fontSize: 16, fontWeight: '600', lineHeight: 24 },
@@ -877,6 +886,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
   },
   stratPill: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: Radii.xl },
