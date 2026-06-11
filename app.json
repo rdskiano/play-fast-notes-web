@@ -70,7 +70,12 @@
           "cameraPermission": "Allow the camera to scan sheet music."
         }
       ],
-      "react-native-audio-api",
+      [
+        "react-native-audio-api",
+        {
+          "iosBackgroundMode": false
+        }
+      ],
       "expo-asset",
       "./plugins/withPencilKitFramework.js"
     ],

@@ -22,10 +22,16 @@
       "channel": "preview"
     },
     "production": {
-      "channel": "production"
+      "channel": "production",
+      "autoIncrement": true
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6777245595",
+        "appleTeamId": "6CQN9H4659"
+      }
+    }
   }
 }
