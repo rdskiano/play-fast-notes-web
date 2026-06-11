@@ -130,7 +130,12 @@ export function formatMacroInfoTitle(step: MacroStep | undefined): string {
     if (step.chunkCount === 1) return 'The whole passage';
     return step.chunkSize === 1 ? 'Drill this chunk' : 'The chunks just doubled';
   }
-  return step.restBeats === 0 ? 'No full rests' : 'Chain it together';
+  if (step.restBeats === 0) return 'No full rests';
+  // First chain (full rests) reads "Chain it together"; each later rest-drop
+  // reads "Now one less rest".
+  return step.restBeats === initialRests(step.chunkSize)
+    ? 'Chain it together'
+    : 'Now one less rest';
 }
 
 /** Expanded "ⓘ" explanation for the current step (on-demand popup). */
@@ -142,9 +147,9 @@ export function formatMacroInfo(step: MacroStep | undefined, beatCount: number):
       return 'It may not be perfect, but hopefully as the days go by, this step should feel better and better.';
     }
     if (step.chunkSize > 1) {
-      return `The chunks just doubled — you're now drilling bigger pieces, ${step.chunkSize} beats at a time. Drill each one until it's comfortable, then you'll chain them with rests again, just like before. The chunks keep doubling until you're playing the whole passage in one piece.`;
+      return `The chunks just doubled — you're now drilling bigger pieces, ${step.chunkSize} beats at a time. Drill each one until it's comfortable, then you'll chain them with rests again, just like before.`;
     }
-    return 'Repeat this chunk until it feels comfortable — but the moment you feel your autopilot kicking in, move on to the next.';
+    return 'Play from the beginning of the chunk to the first note of the next. Repeat this chunk until it feels comfortable — but the moment you feel your autopilot kicking in, move on to the next.';
   }
 
   const intro =
