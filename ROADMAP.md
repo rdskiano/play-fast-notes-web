@@ -1,6 +1,6 @@
 # Play Fast Notes — Roadmap (unified)
 
-_Last updated: 2026-06-08_
+_Last updated: 2026-06-10_
 
 This roadmap covers **both surfaces** (iOS/iPad + web) of the unified Play Fast Notes app, which lives in this directory (`play-fast-notes/`). The two older repos (`../learn-fast-notes/` for iPad and `../play-fast-notes-web/` for web) are read-only archives and their roadmaps are historical only.
 
@@ -24,7 +24,7 @@ A **🛠 Tools** button in the library header (phone icon cluster + desktop butt
 
 **Verified:** tsc clean (except the 2 known self-led pre-existing errors); `expo export --platform web` compiles all routes incl. `/tools`, `/tools/metronome`, `/tools/stepper`. **Authenticated click-through still pending** (needs the user's Supabase login). Not pushed.
 
-## ✅ 2026-06-08 — Metronome: drone revived + GAPS random dropper; Click-Up setup safe-area fix (LIVE)
+## ✅ 2026-06-10 — Metronome: drone revived + GAPS random dropper; Click-Up setup safe-area fix (LIVE)
 
 Two web pushes (live on playfastnotes.com). Memory: `[[metronome-sound-future-work]]`.
 
