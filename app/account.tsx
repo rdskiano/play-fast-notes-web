@@ -1,9 +1,10 @@
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { PaywallModal } from '@/components/PaywallModal';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -11,6 +12,11 @@ import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Opacity, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useEntitlement } from '@/lib/billing/entitlements';
+import {
+  countPracticeLogOlderThan,
+  deletePracticeLogOlderThan,
+} from '@/lib/db/repos/practiceLog';
 import { deleteAccount, wipeUserData } from '@/lib/supabase/account';
 import { signOut, useSession } from '@/lib/supabase/auth';
 import { useSubscription } from '@/lib/supabase/subscription';
@@ -32,12 +38,53 @@ export default function AccountScreen() {
   const session = useSession();
   const userEmail = session?.user.email ?? null;
   const subscription = useSubscription();
+  const entitlement = useEntitlement();
 
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  // Practice-history trimming. trimConfirm holds the pending choice while
+  // the confirm dialog is up; trimNote is the post-action feedback line.
+  const [trimConfirm, setTrimConfirm] = useState<{
+    cutoffMs: number;
+    label: string;
+    count: number;
+  } | null>(null);
+  const [trimming, setTrimming] = useState(false);
+  const [trimNote, setTrimNote] = useState<string | null>(null);
   const [wipeConfirmOpen, setWipeConfirmOpen] = useState(false);
   const [wiping, setWiping] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function pickTrim(months: number, label: string) {
+    const cutoffMs =
+      months === 0
+        ? Date.now()
+        : Date.now() - months * 30 * 24 * 60 * 60 * 1000;
+    setTrimNote(null);
+    const count = await countPracticeLogOlderThan(cutoffMs).catch(() => 0);
+    if (count === 0) {
+      setTrimNote('Nothing that old in your history — nothing to delete.');
+      return;
+    }
+    setTrimConfirm({ cutoffMs, label, count });
+  }
+
+  async function onConfirmTrim() {
+    if (!trimConfirm) return;
+    setTrimming(true);
+    try {
+      const n = await deletePracticeLogOlderThan(trimConfirm.cutoffMs);
+      setTrimNote(
+        `Deleted ${n} practice ${n === 1 ? 'entry' : 'entries'}.`,
+      );
+    } catch {
+      setTrimNote('Could not trim history — check your connection and try again.');
+    } finally {
+      setTrimming(false);
+      setTrimConfirm(null);
+    }
+  }
 
   async function onSignOut() {
     try {
@@ -105,6 +152,94 @@ export default function AccountScreen() {
           </ThemedText>
         )}
 
+        {/* Practice Pro status + the paywall preview/upgrade entry point.
+            While PAYWALL_ENABLED is false everyone reads as Pro and the
+            button just previews the sheet. */}
+        <ThemedText style={[styles.sectionHint, { color: C.tint }]}>
+          {entitlement.reason === 'founding'
+            ? 'Practice Pro — yours free for life as a Founding Member. Thank you for believing early.'
+            : entitlement.reason === 'subscription'
+              ? 'Practice Pro subscription active.'
+              : entitlement.reason === 'trial'
+                ? `Practice Pro trial — ${entitlement.trialDaysLeft} day${entitlement.trialDaysLeft === 1 ? '' : 's'} left.`
+                : entitlement.reason === 'none'
+                  ? 'Free plan.'
+                  : null}
+        </ThemedText>
+        {entitlement.reason !== 'founding' &&
+          entitlement.reason !== 'subscription' && (
+            <View style={styles.accountActions}>
+              <Button
+                label={
+                  entitlement.reason === 'paywall-off'
+                    ? 'Preview Practice Pro'
+                    : 'Get Practice Pro'
+                }
+                size="sm"
+                onPress={() => setPaywallOpen(true)}
+              />
+            </View>
+          )}
+
+        {/* Native only: friendly entry to the web→device import that used to
+            hide behind the /import-supabase URL. */}
+        {Platform.OS !== 'web' && (
+          <>
+            <ThemedText style={[styles.sectionHint, { marginTop: Spacing.md }]}>
+              Web account
+            </ThemedText>
+            <View style={styles.accountActions}>
+              <Button
+                label="Download my web library"
+                variant="outline"
+                size="sm"
+                onPress={() => router.push('/import-supabase' as never)}
+              />
+            </View>
+            <ThemedText style={styles.sectionHint}>
+              Signs in to your playfastnotes.com account and copies its music,
+              practice history, and photos onto this device.
+            </ThemedText>
+          </>
+        )}
+
+        <ThemedText style={[styles.sectionHint, { marginTop: Spacing.md }]}>
+          Practice history
+        </ThemedText>
+        <View style={styles.accountActions}>
+          <Button
+            label="Keep last 6 months"
+            variant="outline"
+            size="sm"
+            disabled={trimming}
+            onPress={() => pickTrim(6, 'logged more than 6 months ago')}
+          />
+          <Button
+            label="Keep last month"
+            variant="outline"
+            size="sm"
+            disabled={trimming}
+            onPress={() => pickTrim(1, 'logged more than a month ago')}
+          />
+          <Button
+            label="Clear all history"
+            variant="danger"
+            size="sm"
+            disabled={trimming}
+            onPress={() => pickTrim(0, 'in your history')}
+          />
+        </View>
+        <ThemedText style={styles.sectionHint}>
+          Trimming permanently deletes older practice-log entries, including
+          any recordings saved with them. Your passages and exercises are not
+          touched.
+        </ThemedText>
+        {trimNote && (
+          <ThemedText style={[styles.sectionHint, { color: C.tint }]}>
+            {trimNote}
+          </ThemedText>
+        )}
+
         <View style={styles.accountActions}>
           <Button
             label="Sign out"
@@ -143,6 +278,24 @@ export default function AccountScreen() {
           </ThemedText>
         )}
       </ScrollView>
+
+      <PaywallModal
+        visible={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+      />
+
+      <ConfirmModal
+        visible={trimConfirm !== null}
+        title="Trim practice history?"
+        message={`${trimConfirm?.count ?? 0} practice ${
+          (trimConfirm?.count ?? 0) === 1 ? 'entry' : 'entries'
+        } ${trimConfirm?.label ?? ''} will be permanently deleted, including any recordings in them. This cannot be undone.`}
+        confirmLabel={trimming ? 'Deleting…' : 'Delete them'}
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={onConfirmTrim}
+        onCancel={() => setTrimConfirm(null)}
+      />
 
       <ConfirmModal
         visible={wipeConfirmOpen}

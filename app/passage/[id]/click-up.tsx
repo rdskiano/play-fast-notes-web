@@ -17,7 +17,11 @@ import { ClickUpCoach } from '@/components/ClickUpCoach';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
-import { ScoreWithMarkers, nearestMarkerNormalized } from '@/components/ScoreWithMarkers';
+import {
+  ScoreWithMarkers,
+  markerTapRadius,
+  nearestMarkerNormalized,
+} from '@/components/ScoreWithMarkers';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { TempoConfigFields } from '@/components/TempoConfigFields';
@@ -250,7 +254,11 @@ export default function ClickUpScreen() {
               persistKey={passage.id}
               tapAspectRatio={imageAspect ?? undefined}
               onTapPoint={(point, scale) => {
-                const hit = nearestMarkerNormalized(markers, point, 0.04 / scale);
+                const hit = nearestMarkerNormalized(
+                  markers,
+                  point,
+                  markerTapRadius(winWidth - 32, scale),
+                );
                 if (hit != null) removeMarker(hit);
                 else placeMarker(point);
               }}>

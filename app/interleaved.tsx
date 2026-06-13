@@ -471,7 +471,9 @@ function InterleavedScreenInner() {
         <Stack.Screen options={{ headerShown: false }} />
         <SessionTopBar
           onExit={() => setPhase('select')}
-          exitLabel="BACK"
+          // Navigation back to the picker, not ending a session — so it reads
+          // "‹ Back" like every other navigation bar, not all-caps EXIT.
+          exitLabel="‹ Back"
           center={
             <ThemedText style={styles.topCenter} numberOfLines={1}>
               Rep Rotator

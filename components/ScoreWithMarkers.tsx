@@ -172,6 +172,21 @@ function nearestMarkerIndex(
   return best?.idx ?? null;
 }
 
+// Finger-sized tap tolerance in normalized image units. Guarantees the hit
+// circle is at least `px` screen pixels on the unzoomed score (the dominant
+// case on phones, where a fixed 0.04–0.05 fraction of a ~350 px-wide image
+// is smaller than a fingertip), while keeping the old fraction as the floor
+// on wide screens. The divide-by-scale keeps the on-screen radius constant
+// while zoomed — same contract callers already relied on.
+export function markerTapRadius(
+  containerWidth: number,
+  scale: number,
+  minNorm = 0.04,
+  px = 28,
+): number {
+  return Math.max(minNorm, px / Math.max(1, containerWidth)) / scale;
+}
+
 // Hit-test in normalized [0,1] image space, for callers that own the tap
 // gesture (a ZoomableImage marking surface). `radius` is the catch distance
 // in normalized image units — pass a value that shrinks with zoom (e.g.

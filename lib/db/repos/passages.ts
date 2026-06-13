@@ -119,6 +119,16 @@ export async function listPassages(): Promise<Passage[]> {
   );
 }
 
+// How many live photo passages the user has (PDF-derived passages excluded —
+// PDFs are gated separately). Drives the free tier's passage limit.
+export async function countActivePhotoPassages(): Promise<number> {
+  const db = getDb();
+  const row = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM pieces WHERE deleted_at IS NULL AND document_id IS NULL;`,
+  );
+  return row?.n ?? 0;
+}
+
 // Document-derived passages live under their document, not in the folder/library
 // list — so this query filters them out. Use listPassagesInDocument to enumerate
 // the passages marked inside a specific document.

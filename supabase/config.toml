@@ -14,3 +14,12 @@ verify_jwt = false
 # so a user can only ever delete their own account.
 [functions.delete-account]
 verify_jwt = true
+
+# Checkout requires a signed-in user (the function derives the buyer from the
+# JWT); the webhook is called by Stripe, which has no Supabase JWT — it
+# authenticates with the Stripe signature instead.
+[functions.create-checkout-session]
+verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = false

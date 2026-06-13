@@ -817,7 +817,9 @@ export default function DocumentScreen() {
     <ThemedView style={styles.container}>
       <SessionTopBar
         onExit={() => router.back()}
-        exitLabel={isPhone ? '←' : 'LIBRARY'}
+        // Navigation, not a session exit — match the "‹ Destination" family
+        // used by every other navigation bar (all-caps is reserved for EXIT).
+        exitLabel={isPhone ? '‹' : '‹ Library'}
         center={
           // minWidth: 0 lets this flex child shrink below its content's
           // natural width so a long title ellipsizes instead of overflowing

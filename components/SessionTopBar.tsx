@@ -58,8 +58,12 @@ const styles = StyleSheet.create({
   },
   exitBtn: { paddingHorizontal: 6, paddingVertical: Spacing.xs },
   exitText: { fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  right: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // minWidth: 0 — RN-Web flex items default to min-width:auto and refuse to
+  // shrink below their content, so without this a long title plows into the
+  // right-slot buttons instead of ellipsizing (B-023, seen on iPad PDFs).
+  // flexShrink: 0 keeps the action buttons whole; the title yields.
+  center: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
+  right: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
   sub: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

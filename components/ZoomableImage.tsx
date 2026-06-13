@@ -339,7 +339,12 @@ export function ZoomableImage({
   const singleTap = Gesture.Tap()
     .enabled(gesturesEnabled && !drawMode && !!onTapPoint)
     .numberOfTaps(1)
-    .maxDuration(260)
+    // Generous press window + drift: a deliberate finger press on a phone
+    // routinely runs past 260 ms and wobbles past the ~10 px default, which
+    // made marker taps silently fail. Pan only engages when zoomed, so the
+    // looser thresholds don't fight it.
+    .maxDuration(500)
+    .maxDistance(22)
     .onEnd((e) => {
       'worklet';
       runOnJS(handleTap)(e.absoluteX, e.absoluteY, scale.value, tx.value, ty.value);

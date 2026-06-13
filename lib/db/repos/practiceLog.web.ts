@@ -31,19 +31,46 @@ export type LibraryPracticeLogEntry = PracticeLogWithTitle & {
   folder_name: string | null;
 };
 
-export async function logPractice(
-  piece_id: string,
-  strategy: string,
-  data?: Record<string, unknown>,
-  exercise_id?: string | null,
-): Promise<number> {
-  const row = {
-    piece_id,
-    strategy,
-    practiced_at: Date.now(),
-    data_json: data ? JSON.stringify(data) : null,
-    exercise_id: exercise_id ?? null,
-  };
+// ---------------------------------------------------------------------------
+// Save resilience. A finished practice session is the one thing this app must
+// never lose, and a flaky connection at the moment the user taps "finish" used
+// to lose it silently. logPractice now retries transient failures, and if the
+// insert still fails it parks the row in localStorage and syncs it on the next
+// opportunity (next log attempt or next library visit). The caller gets a
+// negative id back so the session flow (stop metronome, navigate home)
+// continues normally.
+
+const PENDING_LOGS_KEY = 'pfn:pending-practice-log:v1';
+const PENDING_LOGS_MAX = 200;
+
+type PendingLogRow = {
+  piece_id: string;
+  strategy: string;
+  practiced_at: number;
+  data_json: string | null;
+  exercise_id: string | null;
+};
+
+function readPendingLogs(): PendingLogRow[] {
+  try {
+    const raw = localStorage.getItem(PENDING_LOGS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? (parsed as PendingLogRow[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePendingLogs(rows: PendingLogRow[]) {
+  try {
+    if (rows.length === 0) localStorage.removeItem(PENDING_LOGS_KEY);
+    else localStorage.setItem(PENDING_LOGS_KEY, JSON.stringify(rows.slice(-PENDING_LOGS_MAX)));
+  } catch {
+    // localStorage full or unavailable — nothing more we can do.
+  }
+}
+
+async function insertLogRow(row: PendingLogRow): Promise<number> {
   const { data: inserted, error } = await supabase
     .from('practice_log')
     .insert(row)
@@ -53,11 +80,76 @@ export async function logPractice(
   return (inserted as { id: number }).id;
 }
 
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  const delays = [500, 1500];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (attempt >= delays.length) throw e;
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+    }
+  }
+}
+
+/** Re-attempt any practice-log rows that were parked while offline.
+ *  Rows keep their original practiced_at, so synced sessions land on the
+ *  right day in the log. Stops at the first failure (still offline). */
+export async function flushPendingPracticeLogs(): Promise<void> {
+  let pending = readPendingLogs();
+  while (pending.length > 0) {
+    try {
+      await insertLogRow(pending[0]);
+    } catch {
+      break;
+    }
+    pending = pending.slice(1);
+    writePendingLogs(pending);
+  }
+}
+
+// Tell the user once per visit, not once per failed save.
+let warnedPendingThisLoad = false;
+
+export async function logPractice(
+  piece_id: string,
+  strategy: string,
+  data?: Record<string, unknown>,
+  exercise_id?: string | null,
+): Promise<number> {
+  // Opportunistic sync of anything parked by an earlier failure.
+  flushPendingPracticeLogs().catch(() => {});
+  const row: PendingLogRow = {
+    piece_id,
+    strategy,
+    practiced_at: Date.now(),
+    data_json: data ? JSON.stringify(data) : null,
+    exercise_id: exercise_id ?? null,
+  };
+  try {
+    return await withRetry(() => insertLogRow(row));
+  } catch (e) {
+    writePendingLogs([...readPendingLogs(), row]);
+    console.warn('practice_log insert failed; parked for retry', e);
+    if (!warnedPendingThisLoad && typeof window !== 'undefined') {
+      warnedPendingThisLoad = true;
+      window.alert(
+        "Couldn't reach the server, so this session is saved on this device. " +
+          'It will sync automatically the next time the app connects.',
+      );
+    }
+    return -1;
+  }
+}
+
 // Total number of practice-log entries for the signed-in user. Mirrors the
 // native sibling — used by the library to gate the Serial Practice button.
 // `head: true` + `count: 'exact'` returns ONLY the count, no row payload.
 // RLS already scopes practice_log to the signed-in user.
 export async function countPracticeLogEntries(): Promise<number> {
+  // The library calls this on every visit — a natural moment to sync any
+  // sessions parked while offline.
+  flushPendingPracticeLogs().catch(() => {});
   const { count, error } = await supabase
     .from('practice_log')
     .select('id', { count: 'exact', head: true });
@@ -377,6 +469,58 @@ export async function clearReminder(id: number): Promise<void> {
 export async function deletePracticeLog(id: number): Promise<void> {
   const { error } = await supabase.from('practice_log').delete().eq('id', id);
   if (error) throw error;
+}
+
+// ── History trimming ────────────────────────────────────────────────────────
+// "Keep my log from becoming a never-ending scroll." Entries strictly older
+// than the cutoff are permanently deleted. RLS scopes everything to the
+// signed-in user.
+
+export async function countPracticeLogOlderThan(cutoffMs: number): Promise<number> {
+  const { count, error } = await supabase
+    .from('practice_log')
+    .select('id', { count: 'exact', head: true })
+    .lt('practiced_at', cutoffMs);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function deletePracticeLogOlderThan(cutoffMs: number): Promise<number> {
+  // Recording entries own audio files in Storage. Delete those files first,
+  // or trimming history strands megabytes of orphaned audio — the same leak
+  // the 2026-06 storage purge cleaned up. The file path is recovered from
+  // the public URL ( .../recordings/<userId>/<recordingId>.<ext> ).
+  const { data: recRows, error: recErr } = await supabase
+    .from('practice_log')
+    .select('id, data_json')
+    .eq('strategy', 'recording')
+    .lt('practiced_at', cutoffMs);
+  if (recErr) throw recErr;
+  const paths: string[] = [];
+  for (const r of (recRows ?? []) as Array<{ data_json: string | null }>) {
+    if (!r.data_json) continue;
+    try {
+      const d = JSON.parse(r.data_json) as { recording_uri?: string };
+      const m = d.recording_uri?.match(/\/recordings\/(.+)$/);
+      if (m) paths.push(decodeURIComponent(m[1]));
+    } catch {
+      // corrupt row — its DB entry still gets deleted below
+    }
+  }
+  if (paths.length > 0) {
+    const { error: rmErr } = await supabase.storage.from('recordings').remove(paths);
+    // Storage failure shouldn't block the trim — orphans are recoverable by
+    // a later purge; half-deleted history is more confusing.
+    if (rmErr) console.warn('recording cleanup during trim failed', rmErr);
+  }
+
+  const { data: deleted, error } = await supabase
+    .from('practice_log')
+    .delete()
+    .lt('practiced_at', cutoffMs)
+    .select('id');
+  if (error) throw error;
+  return (deleted ?? []).length;
 }
 
 export async function getPracticeLogForDocument(

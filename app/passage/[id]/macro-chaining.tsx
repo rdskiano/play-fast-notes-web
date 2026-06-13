@@ -18,7 +18,11 @@ import { Button } from '@/components/Button';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
-import { ScoreWithMarkers, nearestMarkerNormalized } from '@/components/ScoreWithMarkers';
+import {
+  ScoreWithMarkers,
+  markerTapRadius,
+  nearestMarkerNormalized,
+} from '@/components/ScoreWithMarkers';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';

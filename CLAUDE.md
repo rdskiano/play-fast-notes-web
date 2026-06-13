@@ -297,6 +297,34 @@ A **🛠 Tools** library-header button → a hub (`/tools`) of practice tools us
 
 **Key pattern — sentinel id, not a parallel route tree.** `lib/strategies/toolsMode.ts` (`TOOLS_ONLY_ID = '__tools__'`, `isToolsOnly(id)`). Tempo Ladder + Rhythm Variations **reuse their real `app/passage/[id]/*` screens** — the hub pushes `/passage/__tools__/<tool>`, the screen detects the sentinel and skips the passage fetch + score backdrop + all passage-keyed writes. `useTempoLadderSession(id, toolsOnly)` threads a `toolsOnly` flag (loads only the Custom-pattern library; gates every DB write `if (!toolsOnly && exerciseId)`; synthesizes progress in memory). Metronome + Click-Up are dedicated screens under `app/tools/`. Tutorials: `constants/toolsHelp.ts` + a `<TutorialStep>` per tool (ids `tools-hub` / `tools-metronome` / `tools-tempo-ladder` / `tools-rhythmic` / `tools-click-up`), all auto-fire once. **When extending a passage strategy, remember the tools path** — guard new passage-keyed reads/writes with `isToolsOnly`/`toolsOnly` so they don't run on the sentinel id (a real Supabase write with `piece_id='__tools__'` would error).
 
+## ✅ 2026-06-12 — Practice Pro scaffold (DARK) + funnel & save fixes (NOT committed/pushed yet)
+
+Monetization decisions (researched + user-confirmed): **$39/yr or $4.99/mo**, 14-day full trial from account creation (no card), free tier = **3 photo passages** with all strategies, **PDF parts are Pro-only**, accounts created before `FOUNDING_MEMBER_CUTOFF_MS` are Pro free for life ("Founding Members"), beta testers get 50% off year one via a Stripe promotion code.
+
+- **`constants/billing.ts`** — master switch `PAYWALL_ENABLED = false` (everything ships dark), founding cutoff, trial length, passage limit, price labels, PRO_FEATURES copy. **Flip day checklist lives in the comments there.**
+- **`lib/billing/entitlements.ts`** (shared) — `useEntitlement()`: paywall-off → founding → subscription (via existing `useSubscription`) → 14-day trial (from `user.created_at`) → free.
+- **`lib/billing/checkout.{web,native}.ts`** — web invokes `create-checkout-session` and redirects; native throws (IAP later; US-only link-out note inside).
+- **`components/PaywallModal.tsx`** — upgrade sheet; previewable from Account ("Preview Practice Pro" while dark).
+- **Gates** — library `AddChooserModal` handlers: 4th photo passage (`countActivePhotoPassages()` added to both passages repos) and any PDF upload → paywall. Inert while dark.
+- **Edge functions written, NOT yet deployed**: `supabase/functions/create-checkout-session` + `stripe-webhook` (signature-verified, sole writer of `subscriptions`). `config.toml` updated (webhook `verify_jwt = false`). Need secrets: `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ANNUAL`, `STRIPE_PRICE_MONTHLY`, `STRIPE_WEBHOOK_SECRET`.
+- **Silent-save fix** — web `logPractice` now retries (0.5s/1.5s), then parks the row in `localStorage` (`pfn:pending-practice-log:v1`) + one-time alert; flushes on next log attempt or library visit (`flushPendingPracticeLogs`, no-op native sibling). Web `stampLastUsed` is best-effort (warn, don't throw) so it can't abort the session save behind it.
+- **Onboarding** — library root empty state is now a "Let's set up your first passage" hero (📷 straight to `/upload`, or 🛠 tools) instead of "create a folder" copy. Data: 61% of signups never added a piece.
+- **EXIT/back unification finished** — convention: all-caps **EXIT** = inside a practice session; **"‹ Destination"** = navigation. Fixed the two stragglers (Rep Rotator config "BACK"→"‹ Back"; document viewer "LIBRARY"/"←" → "‹ Library"/"‹").
+- **Type fix** — `stampLastUsed` now takes `StampableStrategy` (= `Strategy | SelfLedKey | 'recording'`); the two pre-existing self-led TS errors are gone. `npx tsc --noEmit` is fully clean; web + ios `expo export` both pass.
+- Launch-day human-task drafts (Noa email, Reddit beta post, Apple Small Business Program / TestFlight / Stripe walkthroughs) live OUTSIDE the repo at `../LAUNCH_DAY/`.
+
+## ✅ 2026-06-12 (later) — pre-smoke-test fix batch (NOT committed/pushed)
+
+Seven user-reported items, same session as the Pro scaffold:
+- **Marker taps on phone** — ZoomableImage singleTap loosened (`maxDuration 500`, `maxDistance 22`; was 260 ms / ~10 px — deliberate finger presses were failing). New `markerTapRadius()` in ScoreWithMarkers guarantees a ≥28 px screen hit circle; wired into micro-chaining's problem-spot SELECT (selection-only, safe to be generous), macro-chaining, and Click-Up. Micro's dense note-PLACEMENT phase intentionally kept the tight radius.
+- **Long titles vs header buttons** — root cause was SessionTopBar's `center` slot missing `minWidth: 0` (RN-Web min-width:auto refuses to shrink). Fixed in the shared component + `flexShrink: 0` on `right`; benefits every screen (B-023 follow-through).
+- **Practice-history trimming** — Account screen "Practice history" section: Keep last 6 months / Keep last month / Clear all, with count-aware ConfirmModal. New repo fns `countPracticeLogOlderThan` / `deletePracticeLogOlderThan` (both platforms). Web version ALSO deletes the Storage audio for trimmed `recording` rows (path parsed from `recording_uri`) — do not regress this, it's the storage-leak lesson.
+- **Native sync affordance** — Account (native only): "Download my web library" button → `/import-supabase`, replacing the URL-only dev route as the discovery path.
+- **Pedal indicator — built then REMOVED same day.** A "🦶 Pedal detected" chip fired on the first captured pedal/hardware-key press, but browsers can't tell a pedal from a keyboard, so the laptop spacebar triggered it too; the user found that misleading and chose no indicator at all. Don't rebuild without a way to distinguish actual pedals (native could; web can't). Note the older lesson still stands: no "pedal NOT detected" nagging either.
+- **Strategy colors** — DEFAULT_STRATEGY_COLORS reworked to one color family per strategy (green/blue/orange/violet/raspberry/brown/teal) + NEW `chunking` (olive) and `recording` (slate) keys so they stop falling back to gray in the log. Saved `strategy_colors` settings still override.
+
+tsc + web/ios exports clean. Authenticated click-through still pending (the user is the verifier).
+
 ## Where to pick up next
 
 In rough priority order:

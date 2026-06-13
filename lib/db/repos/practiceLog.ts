@@ -21,6 +21,11 @@ type PieceDocFields = {
   document_sections_json: string | null;
 };
 
+// Web parks failed inserts in localStorage and syncs them later; SQLite
+// writes are local and can't fail transiently, so this is a no-op kept for
+// signature parity with the .web sibling.
+export async function flushPendingPracticeLogs(): Promise<void> {}
+
 export async function logPractice(
   piece_id: string,
   strategy: string,
@@ -299,6 +304,29 @@ export async function clearReminder(id: number): Promise<void> {
 export async function deletePracticeLog(id: number): Promise<void> {
   const db = getDb();
   await db.runAsync('DELETE FROM practice_log WHERE id = ?;', id);
+}
+
+// ── History trimming ────────────────────────────────────────────────────────
+// Local SQLite rows only. Recording entries live in Supabase (merged into
+// the views at read time), so they're untouched here — trimming on the web
+// account is what cleans those up, audio files included.
+
+export async function countPracticeLogOlderThan(cutoffMs: number): Promise<number> {
+  const db = getDb();
+  const row = await db.getFirstAsync<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM practice_log WHERE practiced_at < ?;',
+    cutoffMs,
+  );
+  return row?.n ?? 0;
+}
+
+export async function deletePracticeLogOlderThan(cutoffMs: number): Promise<number> {
+  const db = getDb();
+  const result = await db.runAsync(
+    'DELETE FROM practice_log WHERE practiced_at < ?;',
+    cutoffMs,
+  );
+  return result.changes;
 }
 
 export async function getPracticeLogForDocument(

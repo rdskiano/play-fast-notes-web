@@ -1,9 +1,19 @@
+import type { SelfLedKey } from '@/lib/strategies/selfLed';
+
 import { getDb } from '../client';
 import type { Strategy } from './exercises';
 
-export type StalenessRow = { strategy: Strategy; last_used_at: number };
+// The last-used stamp covers more than the app-driven exercise strategies:
+// self-led methods and recordings stamp it too, so the practice-log views
+// can show "last touched" for every kind of session.
+export type StampableStrategy = Strategy | SelfLedKey | 'recording';
 
-export async function stampLastUsed(piece_id: string, strategy: Strategy): Promise<void> {
+export type StalenessRow = { strategy: StampableStrategy; last_used_at: number };
+
+export async function stampLastUsed(
+  piece_id: string,
+  strategy: StampableStrategy,
+): Promise<void> {
   const db = getDb();
   const now = Date.now();
   await db.runAsync(
