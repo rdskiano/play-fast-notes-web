@@ -146,28 +146,24 @@ export default function AccountScreen() {
             Signed in as {userEmail}.
           </ThemedText>
         )}
-        {subscription.isActive && subscription.expiresAt && (
-          <ThemedText style={[styles.sectionHint, { color: C.tint }]}>
-            Free access is active through {formatExpiry(subscription.expiresAt)}.
-          </ThemedText>
-        )}
-
         {/* Practice Pro status + the paywall preview/upgrade entry point.
             While PAYWALL_ENABLED is false everyone reads as Pro and the
-            button just previews the sheet. */}
+            button just previews the sheet. A 'comp' tier is the 6-month
+            reward for pre-launch users and tester codes; 'pro' is paid. */}
         <ThemedText style={[styles.sectionHint, { color: C.tint }]}>
-          {entitlement.reason === 'founding'
-            ? 'Practice Pro — yours free for life as a Founding Member. Thank you for believing early.'
-            : entitlement.reason === 'subscription'
-              ? 'Practice Pro subscription active.'
-              : entitlement.reason === 'trial'
-                ? `Practice Pro trial — ${entitlement.trialDaysLeft} day${entitlement.trialDaysLeft === 1 ? '' : 's'} left.`
-                : entitlement.reason === 'none'
-                  ? 'Free plan.'
-                  : null}
+          {entitlement.reason === 'subscription'
+            ? subscription.tier === 'comp'
+              ? subscription.expiresAt
+                ? `Practice Pro — free through ${formatExpiry(subscription.expiresAt)}. Thank you for being here early.`
+                : 'Practice Pro — on the house. Thank you for being here early.'
+              : 'Practice Pro subscription active.'
+            : entitlement.reason === 'trial'
+              ? `Practice Pro trial — ${entitlement.trialDaysLeft} day${entitlement.trialDaysLeft === 1 ? '' : 's'} left.`
+              : entitlement.reason === 'none'
+                ? 'Free plan.'
+                : null}
         </ThemedText>
-        {entitlement.reason !== 'founding' &&
-          entitlement.reason !== 'subscription' && (
+        {entitlement.reason !== 'subscription' && (
             <View style={styles.accountActions}>
               <Button
                 label={

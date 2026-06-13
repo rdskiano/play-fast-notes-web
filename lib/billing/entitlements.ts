@@ -4,30 +4,21 @@
 //
 // Precedence, first match wins:
 //   1. PAYWALL_ENABLED off            → pro ('paywall-off')
-//   2. account older than the cutoff  → pro ('founding') — free for life
-//   3. active subscription / comp row → pro ('subscription')
-//   4. account younger than 14 days   → pro ('trial'), with days remaining
-//   5. otherwise                      → free
+//   2. active subscription / comp row → pro ('subscription')   [paid OR the
+//        6-month comp granted to pre-launch users and tester promo codes]
+//   3. account younger than 30 days   → pro ('trial'), with days remaining
+//   4. otherwise                      → free
 //
 // No session at all (native before sign-in) counts as free ONLY when the
 // paywall is on; while it's off, rule 1 keeps everything open.
 
 import { useEffect, useState } from 'react';
 
-import {
-  FOUNDING_MEMBER_CUTOFF_MS,
-  PAYWALL_ENABLED,
-  TRIAL_DAYS,
-} from '@/constants/billing';
+import { PAYWALL_ENABLED, TRIAL_DAYS } from '@/constants/billing';
 import { supabase } from '@/lib/supabase/client';
 import { useSubscription } from '@/lib/supabase/subscription';
 
-export type ProReason =
-  | 'paywall-off'
-  | 'founding'
-  | 'subscription'
-  | 'trial'
-  | 'none';
+export type ProReason = 'paywall-off' | 'subscription' | 'trial' | 'none';
 
 export type Entitlement = {
   /** Still resolving auth — treat as Pro to avoid flashing locks. */
@@ -47,9 +38,6 @@ export function deriveEntitlement(
 ): Entitlement {
   if (!PAYWALL_ENABLED) {
     return { loading: false, isPro: true, reason: 'paywall-off' };
-  }
-  if (createdAtMs !== null && createdAtMs < FOUNDING_MEMBER_CUTOFF_MS) {
-    return { loading: false, isPro: true, reason: 'founding' };
   }
   if (subscriptionActive) {
     return { loading: false, isPro: true, reason: 'subscription' };

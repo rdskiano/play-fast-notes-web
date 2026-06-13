@@ -98,7 +98,7 @@ export function PaywallModal({ visible, contextLine, onClose }: Props) {
           <ThemedText style={[styles.finePrint, { color: C.icon }]}>
             New accounts start with {TRIAL_DAYS} days of full Pro, free. Cancel
             anytime — your music stays; extra passages just lock until you
-            return.
+            return. Beta tester? Add your code at checkout.
           </ThemedText>
 
           {error && (

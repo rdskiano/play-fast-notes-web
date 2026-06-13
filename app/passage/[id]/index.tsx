@@ -20,7 +20,9 @@ import { Button } from '@/components/Button';
 import type { Grouping } from '@/lib/strategies/rhythmPatterns';
 
 import { PassageReminders } from '@/components/PassageReminders';
+import { PaywallModal } from '@/components/PaywallModal';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
+import { useEntitlement } from '@/lib/billing/entitlements';
 import { SelfLedSheet } from '@/components/SelfLedSheet';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
@@ -103,6 +105,10 @@ export default function PassageDetailScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { colors: strategyColors } = useStrategyColors();
+  const entitlement = useEntitlement();
+  // Exercise Builder is Pro (the paid creation hook); "Rhythm patterns only"
+  // stays free. Non-null = the builder paywall is showing.
+  const [builderPaywall, setBuilderPaywall] = useState(false);
   // Safe-area top inset feeds the hand-rolled top bar below — this
   // screen doesn't use SessionTopBar so it has to pad manually, else
   // the back button + ⋯ on iPhone sit under the status bar.
@@ -615,6 +621,13 @@ export default function PassageDetailScreen() {
                         label="Exercise Builder"
                         onPress={() => {
                           setRhythmicSheetOpen(false);
+                          // Pro hook: the Builder is the paid feature; the
+                          // free "Rhythm patterns only" path above is the
+                          // taste. Inert while PAYWALL_ENABLED is false.
+                          if (!entitlement.isPro) {
+                            setBuilderPaywall(true);
+                            return;
+                          }
                           guardedNav(() =>
                             router.push({
                               pathname: '/passage/[id]/rhythm-list',
@@ -770,6 +783,12 @@ export default function PassageDetailScreen() {
           "Notes for next time — a reminders banner near the top; tap to expand, or dismiss when done.\n\n" +
           PRACTICE_TOOLS_HELP
         }
+      />
+
+      <PaywallModal
+        visible={builderPaywall}
+        contextLine="The Exercise Builder is a Practice Pro feature — “Rhythm patterns only” stays free."
+        onClose={() => setBuilderPaywall(false)}
       />
     </ThemedView>
   );
