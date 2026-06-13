@@ -62,6 +62,13 @@ export default function ToolsHubScreen() {
       color: colors.click_up ?? '#154360',
       route: '/tools/stepper',
     },
+    {
+      emoji: '🌐',
+      title: 'Community Library',
+      subtitle: 'Browse and download rhythm exercises shared by other players.',
+      color: '#0a7ea4',
+      route: '/community',
+    },
   ];
 
   return (

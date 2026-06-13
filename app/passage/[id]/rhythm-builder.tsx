@@ -1,6 +1,7 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Modal,
   Platform,
   Pressable,
@@ -23,6 +24,7 @@ import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { TutorialStep } from '@/components/TutorialStep';
+import { ShareExerciseModal } from '@/components/ShareExerciseModal';
 import { useScreenTour } from '@/components/tour/TourContext';
 import { tourTag, type TourStep } from '@/components/tour/types';
 import { ZoomableImage } from '@/components/ZoomableImage';
@@ -38,6 +40,8 @@ import {
   type Exercise,
 } from '@/lib/db/repos/exercises';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
+import { getFolder } from '@/lib/db/repos/folders';
+import { getDocument } from '@/lib/db/repos/documents';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
@@ -190,6 +194,8 @@ export default function RhythmBuilderScreen() {
   // gave the exercise its in-app name; for a printable/shareable PDF the user
   // often wants something more descriptive (e.g. "Daily warm-up — C major").
   const [pdfTitleModalOpen, setPdfTitleModalOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [workTitle, setWorkTitle] = useState('');
   const [pdfTitleDraft, setPdfTitleDraft] = useState('');
   const pdfTitleInputRef = useRef<TextInput>(null);
   // `autoFocus` alone doesn't reliably raise the keyboard on iPad Safari
@@ -209,8 +215,23 @@ export default function RhythmBuilderScreen() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    getPassage(id).then((p) => {
-      if (!cancelled) setPassage(p);
+    getPassage(id).then(async (p) => {
+      if (cancelled) return;
+      setPassage(p);
+      // Resolve the WORK title for the publish form: the parent PDF document's
+      // title, else the containing folder's name, else the passage title.
+      if (!p) return;
+      try {
+        if (p.document_id) {
+          const doc = await getDocument(p.document_id);
+          if (!cancelled && doc?.title) setWorkTitle(doc.title);
+        } else if (p.folder_id) {
+          const folder = await getFolder(p.folder_id);
+          if (!cancelled && folder?.name) setWorkTitle(folder.name);
+        }
+      } catch {
+        // Fall back to the passage title (handled at the call site).
+      }
     });
     async function applyLastInstrumentFallback() {
       const lastId = await getSetting(LAST_INSTRUMENT_KEY).catch(() => null);
@@ -557,6 +578,14 @@ export default function RhythmBuilderScreen() {
                   style={[styles.pdfBtn, { borderColor: '#2980b9' }]}>
                   <ThemedText style={[styles.pdfBtnText, { color: '#2980b9' }]}>
                     PDF
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={() => setShareOpen(true)}
+                  hitSlop={6}
+                  style={[styles.pdfBtn, { borderColor: '#0a7ea4' }]}>
+                  <ThemedText style={[styles.pdfBtnText, { color: '#0a7ea4' }]}>
+                    Share
                   </ThemedText>
                 </Pressable>
                 <Button
@@ -936,6 +965,31 @@ export default function RhythmBuilderScreen() {
         </View>
       </Modal>
 
+      <ShareExerciseModal
+        visible={shareOpen}
+        config={{
+          instrumentId: instrument.id,
+          keyId: keySignature.id,
+          clefId: clef.id,
+          grouping,
+          pitches,
+          useSharps,
+        }}
+        defaultTitle={exercise?.name?.trim() || passage.title || 'Rhythmic exercise'}
+        defaultWorkTitle={workTitle || passage.title}
+        defaultComposer={passage.composer ?? ''}
+        onPublished={() => {
+          setShareOpen(false);
+          const msg =
+            'Published to the community library. Thank you for contributing!';
+          if (Platform.OS === 'web') {
+            if (typeof window !== 'undefined') window.alert(msg);
+          } else {
+            Alert.alert('Published', msg);
+          }
+        }}
+        onCancel={() => setShareOpen(false)}
+      />
     </ThemedView>
   );
 }

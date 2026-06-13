@@ -197,6 +197,8 @@ export default function RootLayout() {
                 <Stack.Screen name="library-log" options={{ headerShown: false }} />
                 <Stack.Screen name="document-log" options={{ headerShown: false }} />
                 <Stack.Screen name="account" options={{ headerShown: false }} />
+                <Stack.Screen name="community" options={{ headerShown: false }} />
+                <Stack.Screen name="community/[id]" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="interleaved"
                   options={{ headerShown: false, title: 'Serial Practice' }}

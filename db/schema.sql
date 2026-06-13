@@ -246,3 +246,43 @@ alter table tempo_ladder_progress add column if not exists custom_rep_in_block i
 alter table exercises drop constraint if exists exercises_strategy_check;
 alter table exercises add constraint exercises_strategy_check
   check (strategy in ('tempo_ladder', 'click_up', 'rhythmic', 'chunking', 'micro_chaining', 'macro_chaining'));
+
+-- Community Rhythm Library (Phase 1). A browsable, searchable shelf of
+-- rhythm-builder exercises: free to read (the funnel), Pro to publish. Stores
+-- a COPY of the exercise config_json (never an uploaded file — the app
+-- generates the artifact, so only the contributor's own notation is ever
+-- shared, no copyrighted scans). Web/cloud only; native reaches it via the
+-- web Supabase client like recordings, so no SQLite mirror.
+create table if not exists community_exercises (
+  id uuid primary key default gen_random_uuid(),
+  contributor_user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  contributor_name text not null,
+  title text not null,
+  config_json jsonb not null,
+  instrument_id text,
+  repertoire_type text,
+  piece_title text,
+  composer text,
+  time_signature text,
+  notes text,
+  download_count integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_community_exercises_instrument on community_exercises(instrument_id);
+create index if not exists idx_community_exercises_reptype on community_exercises(repertoire_type);
+alter table community_exercises enable row level security;
+-- Anyone signed in may READ (browsing is free — the funnel).
+drop policy if exists community_exercises_read on community_exercises;
+create policy community_exercises_read on community_exercises for select using (true);
+-- Only the contributor may write/edit/remove their own rows (publish is
+-- Pro-gated in the app UI before this insert ever runs).
+drop policy if exists community_exercises_owner_write on community_exercises;
+create policy community_exercises_owner_write on community_exercises
+  for all using (auth.uid() = contributor_user_id) with check (auth.uid() = contributor_user_id);
+
+-- Let a non-owner bump download_count without write access to the row.
+create or replace function increment_community_download(ex_id uuid)
+returns void language sql security definer set search_path = public as $$
+  update community_exercises set download_count = download_count + 1 where id = ex_id;
+$$;

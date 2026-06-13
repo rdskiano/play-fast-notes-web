@@ -1,6 +1,16 @@
 # Community Rhythm Library — plan (Phase 1)
 
-Status: PLANNED, not built. Decided 2026-06-12. Deliberately small.
+Status: **BUILT 2026-06-12** (tsc + web/ios exports clean; live click-through
+pending; NOT pushed). The `community_exercises` table + RLS + the
+`increment_community_download` RPC are already applied to the LIVE Supabase
+project (an empty unused table until the code ships). Files: `db/schema.sql`,
+`lib/community/{exercises,exerciseConfig,exerciseExport[.web]}.ts`,
+`components/ShareExerciseModal.tsx`, `app/community.tsx`,
+`app/community/[id].tsx`, plus wiring in `app/passage/[id]/rhythm-builder.tsx`
+(a "Share" button on the generate-phase top bar, next to PDF — the natural
+"I just finished an exercise" moment), `app/(tabs)/library.tsx` (My Library | Community
+scope segments), `app/tools/index.tsx` (Community card), and route
+registration in `app/_layout.tsx`. Decided + built 2026-06-12.
 
 ## What it is
 
