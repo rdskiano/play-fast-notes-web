@@ -25,15 +25,17 @@ import { addScannedDocument } from '@/lib/scan/addScannedDocument';
 // Both save on-device and sync to the user's account when signed in.
 export default function DocumentUploadScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ folder?: string }>();
+  const params = useLocalSearchParams<{ folder?: string; title?: string; composer?: string; imslp?: string }>();
   const folderId = params.folder ? params.folder : null;
+  const fromImslp = params.imslp === '1';
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
 
   const [picked, setPicked] = useState<{ uri: string; name: string } | null>(null);
   const [scanned, setScanned] = useState<string[] | null>(null);
-  const [title, setTitle] = useState('');
-  const [composer, setComposer] = useState('');
+  // Prefilled when arriving from IMSLP, so the imported part is labeled right.
+  const [title, setTitle] = useState(typeof params.title === 'string' ? params.title : '');
+  const [composer, setComposer] = useState(typeof params.composer === 'string' ? params.composer : '');
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,10 +110,18 @@ export default function DocumentUploadScreen() {
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <ThemedText type="title">Add a full part</ThemedText>
-        <ThemedText style={{ opacity: 0.6, fontSize: Type.size.sm }}>
-          Choose a PDF, or scan pages with the camera (auto-cropped and cleaned to
-          black &amp; white). After it&apos;s added you can mark passages inside it.
-        </ThemedText>
+        {fromImslp ? (
+          <ThemedText style={{ fontSize: Type.size.sm, color: C.tint }}>
+            IMSLP opened so you can accept their disclaimer and download the PDF
+            (free — non-members wait ~15 seconds). Save it to Files, then choose
+            it below. Title and composer are filled in for you.
+          </ThemedText>
+        ) : (
+          <ThemedText style={{ opacity: 0.6, fontSize: Type.size.sm }}>
+            Choose a PDF, or scan pages with the camera (auto-cropped and cleaned to
+            black &amp; white). After it&apos;s added you can mark passages inside it.
+          </ThemedText>
+        )}
 
         <View style={styles.btnRow}>
           <Pressable

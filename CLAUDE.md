@@ -340,6 +340,20 @@ In rough priority order:
 8. **Optional: push exercise time-sig to the metronome panel.** Today (2026-05-28) the rhythm-builder ▶ playback uses the exercise's denominator for its own duration math, but the user-facing metronome panel still shows whatever meter the user set. If a 3/8 exercise plays while the metronome panel shows 4/4, the first note still aligns to the panel's downbeat but the two streams unfold in their own meters thereafter. Pushing the exercise's `pattern.timeSig` onto the panel on ▶ press would make the experience feel fully linked. Skipped today because the user didn't ask for it — revisit if confusion shows up in friend-testing.
 9. **Optional: shorten the downbeat sync wait.** At slow tempos in 4/4 it can take up to one measure (~4 s at 60 BPM) for an exercise's first note to fire after pressing ▶ because we wait for the next downbeat. Could switch to "next beat" (any click) for responsiveness, or add a small "Sync" toggle. Wait and see whether users actually find the lag bothersome.
 
+## Edge functions: CORS must allow `x-client-info`
+
+Any edge function called from the **web** app via `supabase.functions.invoke`
+MUST list `x-client-info` (and `x-supabase-api-version`) in its
+`access-control-allow-headers`, e.g.
+`"authorization, x-client-info, apikey, content-type, x-supabase-api-version"`.
+supabase-js sends `x-client-info` on every browser request; if the function's
+OPTIONS preflight doesn't allow it, the browser fails the preflight and the
+call dies with **"Failed to send a request to the Edge Function"** (a network
+error, NOT a 4xx — logs stay empty because the function is never reached).
+Bit imslp-search, delete-account, and create-checkout-session on first deploy
+(2026-06-13); all fixed. Native (`fetch` has no CORS) doesn't hit this, so it's
+a web-only, easy-to-miss trap.
+
 ## Debugging the merged repo
 
 This repo was built by porting the web codebase to *also* target native, which creates two recurring failure classes. When you hit either, fix the whole class — not just the one instance:

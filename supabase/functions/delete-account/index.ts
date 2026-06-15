@@ -22,7 +22,8 @@ const BUCKETS = ["pieces", "recordings"];
 
 const CORS = {
   "access-control-allow-origin": "*",
-  "access-control-allow-headers": "authorization, content-type, apikey",
+  "access-control-allow-headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-api-version",
   "access-control-allow-methods": "POST, OPTIONS",
 };
 

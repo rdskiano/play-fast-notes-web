@@ -12,14 +12,17 @@ import { uploadPdfDocument, type UploadProgress } from '@/lib/pdf/upload';
 
 export default function DocumentUploadScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ folder?: string }>();
+  const params = useLocalSearchParams<{ folder?: string; title?: string; composer?: string; imslp?: string }>();
   const targetFolderId = params.folder ? params.folder : null;
+  const fromImslp = params.imslp === '1';
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
 
   const [picked, setPicked] = useState<File | null>(null);
-  const [title, setTitle] = useState('');
-  const [composer, setComposer] = useState('');
+  // Prefilled when arriving from IMSLP (the work title + composer of the score
+  // being downloaded), so the imported document is labeled correctly.
+  const [title, setTitle] = useState(typeof params.title === 'string' ? params.title : '');
+  const [composer, setComposer] = useState(typeof params.composer === 'string' ? params.composer : '');
   const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,10 +67,18 @@ export default function DocumentUploadScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <ThemedView style={{ gap: Spacing.md }}>
           <ThemedText type="title">Add a full part</ThemedText>
-          <ThemedText style={{ opacity: 0.6, fontSize: Type.size.sm }}>
-            Upload the full PDF — typically your part for an orchestral work or a
-            multi-page solo. After upload, you can mark passages directly inside it.
-          </ThemedText>
+          {fromImslp ? (
+            <ThemedText style={{ fontSize: Type.size.sm, color: C.tint }}>
+              IMSLP opened in another tab. Accept their disclaimer, download the
+              PDF (it&apos;s free — non-members wait ~15 seconds), then pick it
+              below. The title and composer are filled in for you.
+            </ThemedText>
+          ) : (
+            <ThemedText style={{ opacity: 0.6, fontSize: Type.size.sm }}>
+              Upload the full PDF — typically your part for an orchestral work or a
+              multi-page solo. After upload, you can mark passages directly inside it.
+            </ThemedText>
+          )}
 
           {/* Native <label htmlFor=...> so the OS file picker is triggered by the
               browser directly, not via a JS .click() round-trip. More reliable

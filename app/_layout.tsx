@@ -199,6 +199,7 @@ export default function RootLayout() {
                 <Stack.Screen name="account" options={{ headerShown: false }} />
                 <Stack.Screen name="community" options={{ headerShown: false }} />
                 <Stack.Screen name="community/[id]" options={{ headerShown: false }} />
+                <Stack.Screen name="imslp" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="interleaved"
                   options={{ headerShown: false, title: 'Serial Practice' }}

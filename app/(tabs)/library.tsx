@@ -1111,8 +1111,8 @@ export default function LibraryScreen() {
 
       {/* Search scope — answers the first-time-user expectation that the
           search bar reaches beyond their own shelf. "My Library" filters
-          locally (this screen); "Community" launches the community library,
-          carrying whatever's typed. (IMSLP is the planned third scope.) */}
+          locally (this screen); "Community" and "IMSLP" launch those
+          libraries, carrying whatever's typed. */}
       <View style={styles.scopeRow}>
         <View style={[styles.scopeSeg, styles.scopeSegActive, { borderColor: C.tint, backgroundColor: C.tint }]}>
           <ThemedText style={[styles.scopeSegText, { color: '#fff' }]}>My Library</ThemedText>
@@ -1123,6 +1123,13 @@ export default function LibraryScreen() {
           }
           style={[styles.scopeSeg, { borderColor: C.icon + '66' }]}>
           <ThemedText style={[styles.scopeSegText, { color: C.text }]}>Community</ThemedText>
+        </Pressable>
+        <Pressable
+          onPress={() =>
+            router.push({ pathname: '/imslp', params: { q: searchQuery } })
+          }
+          style={[styles.scopeSeg, { borderColor: C.icon + '66' }]}>
+          <ThemedText style={[styles.scopeSegText, { color: C.text }]}>IMSLP</ThemedText>
         </Pressable>
       </View>
 
@@ -1426,7 +1433,7 @@ export default function LibraryScreen() {
           '🔀 Rep Rotator — drill several passages in shuffled order.\n' +
           '🛠 Tools — the metronome, tempo ladder, rhythm variations, and Interleaved Click-Up on their own, without uploading any music.\n' +
           '✎ Edit — reorder with ↑ ↓, plus rename, move, or delete each item; tap Done to leave.\n\n' +
-          'Search — pick a scope above the box: My Library filters your own folders and passages by title or composer; Community searches rhythm exercises shared by other players (free to browse and download).\n\n' +
+          'Search — pick a scope above the box: My Library filters your own folders and passages by title or composer; Community searches rhythm exercises shared by other players; IMSLP searches the public-domain sheet-music library so you can pull a score straight into your library (all free to browse).\n\n' +
           'Account — at the bottom of this page: sign out, reset your data, or delete your account.\n\n' +
           'On any folder, passage, or PDF card: tap to open it, or long-press for quick actions (rename, move, edit/crop, delete).'
         }

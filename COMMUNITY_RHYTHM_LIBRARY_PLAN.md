@@ -139,9 +139,27 @@ Empty until filled; ~6 active users today. Seed with Ralph's own exercises,
 recruit a few power users. Best surfaced AFTER the paid tier grows the base;
 can be built earlier behind the dark paywall flag and seeded quietly.
 
-## Phase 2 (deferred — needs IMSLP)
+## Phase 2 — IMSLP search + guided import (BUILT 2026-06-12)
 
-Anchor a submission to a specific public-domain IMSLP edition; everyone then
-loads identical pages, so score-MARKINGS (click-up units, chaining problem
-spots, chunking) become shareable too, legally. Adds IMSLP as the third search
-scope. IMSLP has no clean public API → its own research/design pass.
+**Shipped** the IMSLP third search scope. Research finding (decisive): IMSLP's
+MediaWiki `api.php` search is open + robots-permitted but CORS-blocked for
+browsers; their PDF downloads are deliberately bot-gated (`friendlyredirect.html`
+JS gate + ~15s timer) and robots-disallowed, so automated byte-fetching is
+infeasible AND against ToS. forScore/Newzik both hand the download to the user.
+
+So we built the **Newzik pattern**: in-app search via a `imslp-search` edge
+proxy (deployed, `verify_jwt=true`); tapping a result opens the IMSLP work page
+(user accepts disclaimer + downloads) AND routes to "Add a full part" with
+title/composer **prefilled** (`?imslp=1&title=&composer=`), so the downloaded
+PDF imports cleanly through the existing pipeline. Search is free; the import
+handoff is Pro (it's a PDF document). Files: `supabase/functions/imslp-search`,
+`lib/imslp/search.ts`, `app/imslp.tsx`, prefill in `app/document-upload[.web].tsx`,
+IMSLP scope segment in `app/(tabs)/library.tsx`, route in `_layout`.
+
+DO NOT try to auto-fetch IMSLP PDF bytes server-side — verified infeasible
+(JS gate) and against robots.txt. The user-driven handoff is the correct design.
+
+### Still future (needs the IMSLP import to be in wide use first)
+Anchor a community submission to a specific public-domain IMSLP edition; everyone
+then loads identical pages, so score-MARKINGS (click-up units, chaining, chunking)
+become shareable too, legally. Not built.

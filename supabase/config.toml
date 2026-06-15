@@ -23,3 +23,8 @@ verify_jwt = true
 
 [functions.stripe-webhook]
 verify_jwt = false
+
+# IMSLP search proxy: signed-in users only (not an open proxy). Only hits
+# IMSLP's robots-permitted api.php; never the gated download pages.
+[functions.imslp-search]
+verify_jwt = true
