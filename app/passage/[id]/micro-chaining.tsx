@@ -719,7 +719,19 @@ export default function MicroChainingScreen() {
           )}
           {ann.canvas}
         </View>
-        {!isGuided && (
+        {isGuided ? (
+          // Guided: a collapsed metronome tab (no note → starts closed) so a
+          // first-timer can pop it open for a steady pulse at the performance
+          // tempo. No pencil/timer/recorder chrome.
+          <PracticeToolsLayer
+            metronome={metronome}
+            tools={
+              isPhone
+                ? { left: [], right: ['metronome'] }
+                : { left: ['metronome'], right: [] }
+            }
+          />
+        ) : (
           <PracticeToolsLayer
             metronome={metronome}
             metronomeNote="Micro-Chaining stays at your performance tempo — play the highlighted notes, then tap Next."

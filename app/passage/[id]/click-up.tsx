@@ -865,7 +865,19 @@ export default function ClickUpScreen() {
           )}
           {ann.canvas}
         </View>
-        {!isGuided && (
+        {isGuided ? (
+          // Guided: just a collapsed metronome tab (no note → starts closed),
+          // so a first-timer can tap it open to watch the tempo climb. No
+          // pencil/timer/recorder chrome.
+          <PracticeToolsLayer
+            metronome={metronome}
+            tools={
+              isPhone
+                ? { left: [], right: ['metronome'] }
+                : { left: ['metronome'], right: [] }
+            }
+          />
+        ) : (
           <PracticeToolsLayer
             metronome={metronome}
             metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."

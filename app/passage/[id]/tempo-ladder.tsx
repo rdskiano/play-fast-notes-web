@@ -791,9 +791,19 @@ export default function TempoLadderScreen() {
           )}
           {ann.canvas}
         </View>
-        {/* Guided onboarding keeps the surface minimal — no edge tool tabs.
-            The metronome auto-runs (startGuidedPlaying), so audio is fine. */}
-        {!isGuided && (
+        {/* Guided onboarding keeps the surface minimal — only a collapsed
+            metronome tab (no note → starts closed) so a first-timer can peek
+            at the climbing tempo. No pencil/timer/recorder. */}
+        {isGuided ? (
+          <PracticeToolsLayer
+            metronome={metronome}
+            tools={
+              isPhone
+                ? { left: [], right: ['metronome'] }
+                : { left: ['metronome'], right: [] }
+            }
+          />
+        ) : (
           <PracticeToolsLayer
             metronome={metronome}
             metronomeNote="Tempo Ladder controls the tempo — no need to adjust it. Just press play."

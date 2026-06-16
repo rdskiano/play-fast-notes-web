@@ -527,15 +527,26 @@ export default function RhythmicScreen() {
               seeing notes clearly, not annotating in this flow. */}
           {!isPhone && !toolsOnly && ann.canvas}
         </View>
-        {/* Guided onboarding keeps the surface minimal — no edge tool tabs.
-            The RhythmBar's ▶ Loop is all the audio a first session needs. */}
-        {phase === 'playing' && !isGuided && (
-          <PracticeToolsLayer
-            metronome={metronome}
-            pencil={ann.pencil}
-            recorderPassageId={passage?.id}
-          />
-        )}
+        {/* Guided onboarding keeps the surface minimal — only a collapsed
+            metronome tab (no note → starts closed) so the user can add a
+            steady pulse alongside the RhythmBar's ▶ Loop if they want. */}
+        {phase === 'playing' &&
+          (isGuided ? (
+            <PracticeToolsLayer
+              metronome={metronome}
+              tools={
+                isPhone
+                  ? { left: [], right: ['metronome'] }
+                  : { left: ['metronome'], right: [] }
+              }
+            />
+          ) : (
+            <PracticeToolsLayer
+              metronome={metronome}
+              pencil={ann.pencil}
+              recorderPassageId={passage?.id}
+            />
+          ))}
       </View>
 
       {(phase === 'config' || pickerOpen) && (
