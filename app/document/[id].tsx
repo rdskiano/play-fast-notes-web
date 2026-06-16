@@ -38,6 +38,7 @@ import { PromptModal } from '@/components/PromptModal';
 import { SectionMarkerCapturer } from '@/components/SectionMarkerCapturer';
 import { SectionsModal } from '@/components/SectionsModal';
 import { SessionTopBar } from '@/components/SessionTopBar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
@@ -102,6 +103,7 @@ export default function DocumentScreen() {
   // off ?passageId=<id> regardless of how the passage was made.
   const coach = coachParam === '1';
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const C = Colors[useColorScheme() ?? 'light'];
   // Phone density: tight icon-only header so the title + tool buttons
   // don't pile on top of each other in narrow viewports.
@@ -573,6 +575,16 @@ export default function DocumentScreen() {
     setMode('draw');
   }
 
+  // Guided onboarding (?coach=1): there's no top bar to tap "+ Mark passage",
+  // so drop the user straight into box-drawing on the photo once it's loaded.
+  const coachDrawStartedRef = useRef(false);
+  useEffect(() => {
+    if (!coach || pages.length === 0 || coachDrawStartedRef.current) return;
+    coachDrawStartedRef.current = true;
+    startDraw();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coach, pages.length]);
+
   function cancelDraw() {
     setDrafts(new Map());
     setMarkingSection(false);
@@ -827,7 +839,12 @@ export default function DocumentScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SessionTopBar
+      {/* Guided onboarding wears the quiz's minimal clothes: no app chrome, no
+          tool tabs, no wall-of-text tutorial — just a light instruction banner
+          over the photo + box-drawing surface. Everything below is gated on the
+          coach flag so the normal photo/PDF flow is untouched. */}
+      {!coach && (
+        <SessionTopBar
         onExit={() => router.back()}
         // Navigation, not a session exit — match the "‹ Destination" family
         // used by every other navigation bar (all-caps is reserved for EXIT).
@@ -977,7 +994,35 @@ export default function DocumentScreen() {
           onCancelResize: cancelResize,
           onCommitResize: commitResize,
         })}
-      />
+        />
+      )}
+
+      {coach && (
+        <View
+          style={[
+            styles.coachBar,
+            {
+              paddingTop: insets.top + 12,
+              backgroundColor: C.background,
+              borderBottomColor: C.icon + '22',
+            },
+          ]}>
+          <Pressable onPress={() => router.back()} hitSlop={10}>
+            <ThemedText style={[styles.coachBack, { color: C.tint }]}>‹ Back</ThemedText>
+          </Pressable>
+          <ThemedText numberOfLines={2} style={styles.coachInstruction}>
+            {drafts.size > 0
+              ? 'Looks good — tap Continue when the box frames the spot.'
+              : 'Drag a box around the spot you want to drill.'}
+          </ThemedText>
+          <Button
+            label={savingDraft ? 'Saving…' : 'Continue →'}
+            size="sm"
+            onPress={() => onNamePromptSubmit('Untitled')}
+            disabled={drafts.size === 0 || savingDraft}
+          />
+        </View>
+      )}
       <View style={styles.pagerWrap} onLayout={onPagerLayout}>
         {pages.length === 0 ? (
           <View style={styles.emptyWrap}>
@@ -1231,7 +1276,7 @@ export default function DocumentScreen() {
             )}
           </>
         )}
-        {mode === 'idle' && (
+        {mode === 'idle' && !coach && (
           <PracticeToolsLayer pencil={pencilProp} recorderDocumentId={id} />
         )}
       </View>
@@ -1277,7 +1322,7 @@ export default function DocumentScreen() {
           workflow before they touch anything. Complements the existing
           `pdfBoxCoachVisible` toast, which only fires on PDFs that
           ALREADY have passages. */}
-      {doc?.source_kind === 'images' ? (
+      {!coach && (doc?.source_kind === 'images' ? (
         <TutorialStep
           id="images-viewer-overview"
           visible={passages.length === 0 && practiceLogCount === 0}
@@ -1309,7 +1354,7 @@ export default function DocumentScreen() {
             PRACTICE_TOOLS_HELP
           }
         />
-      )}
+      ))}
 
       <ActionSheet
         visible={selectedPassage !== null}
@@ -1572,6 +1617,23 @@ function renderSubRow(args: {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  // Guided-onboarding instruction banner — light surface that replaces the app
+  // chrome so the quiz's minimal look carries through the box-marking step.
+  coachBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  coachBack: { fontSize: Type.size.md, fontWeight: Type.weight.semibold },
+  coachInstruction: {
+    flex: 1,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.semibold,
+    textAlign: 'center',
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: Type.size.md, fontWeight: Type.weight.bold },
   // Phone-density title — shorter font + reserved for one line of text.
