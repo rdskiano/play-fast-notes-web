@@ -1228,7 +1228,7 @@ export default function LibraryScreen() {
                   maxWidth: 420,
                 }}>
                 Snap a photo of the page you're working on, mark the spots you
-                want to drill — one tricky spot is all it takes — and the
+                want to practice — one tricky spot is all it takes — and the
                 practice strategies do the rest.
               </ThemedText>
               <Button
@@ -1447,13 +1447,13 @@ export default function LibraryScreen() {
         visible={false}
         title="Add your first piece"
         body={
-          '+ Add (top right) — snap a photo of a page, upload a PDF of the full part, or make a folder. The easiest first move: a photo of the page, then mark the spots you want to drill right on it.\n\n' +
+          '+ Add (top right) — snap a photo of a page, upload a PDF of the full part, or make a folder. The easiest first move: a photo of the page, then mark the spots you want to practice right on it.\n\n' +
           'Header buttons:\n' +
           (Platform.OS === 'web'
             ? '☕ — buy me a coffee, if the app helps you.\n'
             : '') +
           '📋 Practice Log — every session you\'ve logged, for this folder or the whole library.\n' +
-          '🔀 Rep Rotator — drill several passages in shuffled order.\n' +
+          '🔀 Rep Rotator — practice several passages in shuffled order.\n' +
           '🛠 Tools — the metronome, tempo ladder, rhythm variations, and Interleaved Click-Up on their own, without uploading any music.\n' +
           '✎ Edit — reorder with ↑ ↓, plus rename, move, or delete each item; tap Done to leave.\n\n' +
           'Search — pick a scope above the box: My Library filters your own folders and passages by title or composer; Community searches rhythm exercises shared by other players; IMSLP searches the public-domain sheet-music library so you can pull a score straight into your library (all free to browse).\n\n' +

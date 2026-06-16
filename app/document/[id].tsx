@@ -1012,13 +1012,13 @@ export default function DocumentScreen() {
           </Pressable>
           <ThemedText numberOfLines={2} style={styles.coachInstruction}>
             {drafts.size > 0
-              ? 'Looks good — tap Continue when the box frames the spot.'
-              : 'Drag a box around the spot you want to drill.'}
+              ? 'Looks good — tap Continue to name it.'
+              : 'Drag a box around the spot you want to practice.'}
           </ThemedText>
           <Button
             label={savingDraft ? 'Saving…' : 'Continue →'}
             size="sm"
-            onPress={() => onNamePromptSubmit('Untitled')}
+            onPress={onSaveDraftClick}
             disabled={drafts.size === 0 || savingDraft}
           />
         </View>
@@ -1328,8 +1328,8 @@ export default function DocumentScreen() {
           visible={passages.length === 0 && practiceLogCount === 0}
           title="Working with your photo"
           body={
-            'Your photo is one page — mark as many "passages" on it as you want to drill independently.\n\n' +
-            '+ Mark passage — drag a box around a spot you want to drill. After you name it, it shows up in your library.\n\n' +
+            'Your photo is one page — mark as many "passages" on it as you want to practice independently.\n\n' +
+            '+ Mark passage — drag a box around a spot you want to practice. After you name it, it shows up in your library.\n\n' +
             'Tap any box to practice that passage, or pick Edit to rename, resize, or delete it.\n\n' +
             'Sections — tap the page to mark where a movement or section begins; each marker runs until the next one (you only mark starts, not ends). This makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
             'Hide boxes — a clean read of the full page without the gray rectangles.\n\n' +
@@ -1343,10 +1343,10 @@ export default function DocumentScreen() {
           visible={passages.length === 0 && practiceLogCount === 0}
           title="Working with a PDF"
           body={
-            'Each page can hold as many "passages" as you want to drill independently.\n\n' +
+            'Each page can hold as many "passages" as you want to practice independently.\n\n' +
             'Turn pages — tap the ‹ › chevrons at the edges, swipe sideways, or use the arrow keys.\n\n' +
             'Single / Spread (landscape only) — toggle between one page and a two-page spread.\n\n' +
-            '+ Mark passage — drag a box around the music you want to drill. After you name it, it shows up in your library.\n\n' +
+            '+ Mark passage — drag a box around the music you want to practice. After you name it, it shows up in your library.\n\n' +
             'Tap any box to practice that passage, or pick Edit to rename, resize, or delete it.\n\n' +
             'Sections — tap the page to mark where a movement or section begins; each marker runs until the next one (you only mark starts, not ends). This makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
             'Hide boxes — clean read of the score without the gray rectangles.\n\n' +

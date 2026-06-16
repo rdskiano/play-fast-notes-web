@@ -320,7 +320,7 @@ export default function UploadScreen() {
         title="Add a photo of the page"
         body={
           "Snap or upload a photo of the whole page. Drop an image onto the box, or tap it to choose a file. On phone, \"Take a photo\" opens the camera directly — point at the music and shoot.\n\n" +
-          "You'll land on the page itself; tap \"+ Mark passage\" and draw a box around each spot you want to drill — mark as many as you like. \"Hide boxes\" shows the clean full page anytime.\n\n" +
+          "You'll land on the page itself; tap \"+ Mark passage\" and draw a box around each spot you want to practice — mark as many as you like. \"Hide boxes\" shows the clean full page anytime.\n\n" +
           "If a spot runs across the bottom of one page and onto the next, tap \"Passage spans two pages?\" to photograph both halves and stitch them into one continuous score."
         }
       />
