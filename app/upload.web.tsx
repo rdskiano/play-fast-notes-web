@@ -46,13 +46,34 @@ function defaultTitleFromFile(file: File): string {
   return base.slice(0, 80);
 }
 
-// Re-encode the picked photo to a JPEG at the document reference scale, and
-// read its dimensions in the same pass. Re-encoding (vs. uploading the raw
-// File) guarantees the page renders in every browser — iPhone photos are often
-// HEIC, which Chrome/Firefox can't display; the old flow converted via the crop
-// canvas, and now there's no crop step.
+// Detect HEIC/HEIF. iOS sometimes reports an empty file.type for HEIC, so the
+// filename extension is the reliable signal.
+function isHeic(file: File): boolean {
+  return /image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
+}
+
+const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i;
+
+// Chrome and Firefox have no HEIC codec, so new Image()/canvas can't decode an
+// iPhone HEIC at all — re-encoding can't help because the DECODE itself fails.
+// Convert HEIC to JPEG first with the libheif WASM decoder, lazily imported so
+// its ~1.5 MB only loads when a HEIC is actually picked. (Safari decodes HEIC
+// natively, so this branch is for everyone else.)
+async function toDisplayableBlob(file: File): Promise<Blob> {
+  if (!isHeic(file)) return file;
+  const heic2any = (await import('heic2any')).default;
+  const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+  return Array.isArray(out) ? out[0] : out;
+}
+
+// Produce a JPEG page image at the document reference scale, and read its
+// dimensions in the same pass. HEIC is decoded to JPEG first (above); then the
+// browser-decodable blob is drawn to a canvas so the stored page renders
+// everywhere (the old flow re-encoded via the crop canvas; there's no crop step
+// now).
 async function fileToPageImage(file: File): Promise<{ blob: Blob; w: number; h: number }> {
-  const url = URL.createObjectURL(file);
+  const displayable = await toDisplayableBlob(file);
+  const url = URL.createObjectURL(displayable);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const im = new window.Image();
@@ -113,7 +134,9 @@ export default function UploadScreen() {
   // mint an image-backed `documents` row and open the document viewer — no
   // crop step. The viewer's "+ Mark passage" creates each passage from a box.
   async function ingestAsDocument(file: File) {
-    if (!file.type.startsWith('image/')) {
+    // iOS often hands HEIC files with an empty file.type, so fall back to the
+    // extension before rejecting.
+    if (!file.type.startsWith('image/') && !IMAGE_EXT_RE.test(file.name)) {
       setError('That file isn’t an image. Drop a PNG, JPG, or HEIC.');
       return;
     }
@@ -139,7 +162,12 @@ export default function UploadScreen() {
       // quiz after the user marks their first box. Non-coach: just open it.
       router.replace((coach ? `/document/${docId}?coach=1` : `/document/${docId}`) as never);
     } catch (e) {
-      setError(errToMessage(e));
+      const msg = errToMessage(e);
+      setError(
+        isHeic(file)
+          ? `Couldn't read that HEIC photo (${msg}). Try a JPG or PNG, or retake it.`
+          : msg,
+      );
       setSaving(false);
     }
   }
