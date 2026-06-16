@@ -183,14 +183,15 @@ export default function OnboardingScreen() {
         {step === 'photo' && (
           <View style={styles.centered}>
             <ThemedText style={styles.h1}>
-              Snap the passage you want to work on.
+              Take a photo of the whole page.
             </ThemedText>
             <ThemedText style={[styles.lead, { color: C.icon }]}>
-              A fast or technical spot — 1 to 10 measures, the hardest bit.
+              Get the full page in frame — next you’ll mark the fast or technical
+              spot you want to drill.
             </ThemedText>
-            {/* Photo / screenshot capture wires through the real upload flow
-                in a later build step. For now this advances to the questions
-                so the flow can be felt end to end. */}
+            {/* Both options route to /upload?coach=1, which (in the coach flow)
+                sends the photo into the document viewer to mark a passage box,
+                then hands back to /onboarding?passageId=<id> to resume the quiz. */}
             <View style={styles.actions}>
               <Option
                 title="📷  Photo of your sheet music"
