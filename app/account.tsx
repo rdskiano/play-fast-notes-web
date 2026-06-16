@@ -20,6 +20,7 @@ import {
 import { deleteAccount, wipeUserData } from '@/lib/supabase/account';
 import { signOut, useSession } from '@/lib/supabase/auth';
 import { useSubscription } from '@/lib/supabase/subscription';
+import { DEMO_TUTORIAL_EMAIL } from '@/lib/tutorials/demoMode';
 
 function formatExpiry(unixMs: number): string {
   const d = new Date(unixMs);
@@ -88,7 +89,15 @@ export default function AccountScreen() {
 
   async function onSignOut() {
     try {
-      await signOut();
+      // The QA / onboarding test account (newbie@newbie.com) is meant to be
+      // "forever new": wipe all its data on the way out so the next sign-in
+      // always re-enters onboarding with an empty library. wipeUserData()
+      // clears every user-scoped table + storage file, then signs out itself.
+      if (userEmail === DEMO_TUTORIAL_EMAIL) {
+        await wipeUserData();
+      } else {
+        await signOut();
+      }
     } catch (e) {
       console.warn('[account] sign-out failed', e);
     }
