@@ -92,10 +92,15 @@ type ViewMode = 'single' | 'spread';
 
 export default function DocumentScreen() {
   const router = useRouter();
-  const { id, resize: resizeParam } = useLocalSearchParams<{
+  const { id, resize: resizeParam, coach: coachParam } = useLocalSearchParams<{
     id: string;
     resize?: string;
+    coach?: string;
   }>();
+  // Guided onboarding lands a photo here (?coach=1). After the user marks their
+  // first passage box we hand that passage id back to the quiz, which resumes
+  // off ?passageId=<id> regardless of how the passage was made.
+  const coach = coachParam === '1';
   const { width, height } = useWindowDimensions();
   const C = Colors[useColorScheme() ?? 'light'];
   // Phone density: tight icon-only header so the title + tool buttons
@@ -646,6 +651,12 @@ export default function DocumentScreen() {
       setDrafts(new Map());
       setMode('idle');
       pendingFirstDrawnPageRef.current = null;
+      if (coach) {
+        // Guided onboarding: skip the "Mark another?" sheet and resume the quiz
+        // with this passage. (One marked spot is enough to start practicing.)
+        router.replace(`/onboarding?passageId=${passageId}` as never);
+        return;
+      }
       setPostSaveTitle(title);
       // Refresh in background so the new gray box appears when user picks "Mark another".
       refresh();
@@ -1266,22 +1277,39 @@ export default function DocumentScreen() {
           workflow before they touch anything. Complements the existing
           `pdfBoxCoachVisible` toast, which only fires on PDFs that
           ALREADY have passages. */}
-      <TutorialStep
-        id="pdf-viewer-overview"
-        visible={passages.length === 0 && practiceLogCount === 0}
-        title="Working with a PDF"
-        body={
-          'Each page can hold as many "passages" as you want to drill independently.\n\n' +
-          'Turn pages — tap the ‹ › chevrons at the edges, swipe sideways, or use the arrow keys.\n\n' +
-          'Single / Spread (landscape only) — toggle between one page and a two-page spread.\n\n' +
-          '+ Mark passage — drag a box around the music you want to drill. After you name it, it shows up in your library.\n\n' +
-          'Tap any box to practice that passage, or pick Edit to rename, resize, or delete it.\n\n' +
-          'Sections — tap the page to mark where a movement or section begins; each marker runs until the next one (you only mark starts, not ends). This makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
-          'Hide boxes — clean read of the score without the gray rectangles.\n\n' +
-          'Practice Log — every session you\'ve done on this PDF, across all passages.\n\n' +
-          PRACTICE_TOOLS_HELP
-        }
-      />
+      {doc?.source_kind === 'images' ? (
+        <TutorialStep
+          id="images-viewer-overview"
+          visible={passages.length === 0 && practiceLogCount === 0}
+          title="Working with your photo"
+          body={
+            'Your photo is one page — mark as many "passages" on it as you want to drill independently.\n\n' +
+            '+ Mark passage — drag a box around a spot you want to drill. After you name it, it shows up in your library.\n\n' +
+            'Tap any box to practice that passage, or pick Edit to rename, resize, or delete it.\n\n' +
+            'Sections — tap the page to mark where a movement or section begins; each marker runs until the next one (you only mark starts, not ends). This makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
+            'Hide boxes — a clean read of the full page without the gray rectangles.\n\n' +
+            'Practice Log — every session you\'ve done on this photo, across all passages.\n\n' +
+            PRACTICE_TOOLS_HELP
+          }
+        />
+      ) : (
+        <TutorialStep
+          id="pdf-viewer-overview"
+          visible={passages.length === 0 && practiceLogCount === 0}
+          title="Working with a PDF"
+          body={
+            'Each page can hold as many "passages" as you want to drill independently.\n\n' +
+            'Turn pages — tap the ‹ › chevrons at the edges, swipe sideways, or use the arrow keys.\n\n' +
+            'Single / Spread (landscape only) — toggle between one page and a two-page spread.\n\n' +
+            '+ Mark passage — drag a box around the music you want to drill. After you name it, it shows up in your library.\n\n' +
+            'Tap any box to practice that passage, or pick Edit to rename, resize, or delete it.\n\n' +
+            'Sections — tap the page to mark where a movement or section begins; each marker runs until the next one (you only mark starts, not ends). This makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
+            'Hide boxes — clean read of the score without the gray rectangles.\n\n' +
+            'Practice Log — every session you\'ve done on this PDF, across all passages.\n\n' +
+            PRACTICE_TOOLS_HELP
+          }
+        />
+      )}
 
       <ActionSheet
         visible={selectedPassage !== null}

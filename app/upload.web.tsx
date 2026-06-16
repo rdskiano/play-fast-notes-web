@@ -14,11 +14,74 @@ import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { insertPassage, updatePassageAssets } from '@/lib/db/repos/passages';
-import { uploadPassageImage } from '@/lib/supabase/storage';
+import { insertDocument } from '@/lib/db/repos/documents';
+import { supabase } from '@/lib/supabase/client';
+import { uploadDocumentPageImage } from '@/lib/supabase/storage';
 
-function newPassageId(): string {
-  return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+// Match the document/PDF reference render scale so a photo page lives in the
+// same coordinate space as PDF pages (regions_json boxes are in these pixels).
+const MAX_PAGE_EDGE = 2000;
+
+function newDocId(): string {
+  return `d_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// Pull a readable string out of any thrown value. Supabase/Postgres errors are
+// plain objects, so String(e) gives a useless "[object Object]".
+function errToMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === 'object') {
+    const o = e as { message?: unknown; error_description?: unknown; details?: unknown };
+    if (typeof o.message === 'string' && o.message) return o.message;
+    if (typeof o.error_description === 'string' && o.error_description) return o.error_description;
+    if (typeof o.details === 'string' && o.details) return o.details;
+  }
+  return String(e);
+}
+
+// Camera files (IMG_1234, image, photo) aren't meaningful titles; fall back.
+function defaultTitleFromFile(file: File): string {
+  const base = (file.name || '').replace(/\.[^/.]+$/, '').trim();
+  if (!base || /^(img[_\- ]?\d+|image|photo|untitled|scan)$/i.test(base)) return 'Untitled photo';
+  return base.slice(0, 80);
+}
+
+// Re-encode the picked photo to a JPEG at the document reference scale, and
+// read its dimensions in the same pass. Re-encoding (vs. uploading the raw
+// File) guarantees the page renders in every browser — iPhone photos are often
+// HEIC, which Chrome/Firefox can't display; the old flow converted via the crop
+// canvas, and now there's no crop step.
+async function fileToPageImage(file: File): Promise<{ blob: Blob; w: number; h: number }> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const im = new window.Image();
+      im.onload = () => resolve(im);
+      im.onerror = () => reject(new Error('Could not read that image.'));
+      im.src = url;
+    });
+    const natW = img.naturalWidth || 1;
+    const natH = img.naturalHeight || 1;
+    const scale = Math.min(1, MAX_PAGE_EDGE / Math.max(natW, natH));
+    const w = Math.max(1, Math.round(natW * scale));
+    const h = Math.max(1, Math.round(natH * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D context not available.');
+    ctx.drawImage(img, 0, 0, w, h);
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error('Could not process the image.'))),
+        'image/jpeg',
+        0.9,
+      ),
+    );
+    return { blob, w, h };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 export default function UploadScreen() {
@@ -45,41 +108,38 @@ export default function UploadScreen() {
     cameraInputRef.current?.click();
   }
 
-  // The previous flow required two taps: pick the file → see a preview →
-  // tap "Next: Crop" to save and navigate. The preview added no value
-  // (the crop screen is the natural next step), so we now save and
-  // navigate as soon as a file is in hand — one tap from camera shutter
-  // to the crop view.
-  async function ingestAndCrop(file: File) {
+  // A photo is now a one-PAGE image document: we store the whole page and the
+  // user marks as many passage boxes on it as they like (the PDF flow). So we
+  // mint an image-backed `documents` row and open the document viewer — no
+  // crop step. The viewer's "+ Mark passage" creates each passage from a box.
+  async function ingestAsDocument(file: File) {
     if (!file.type.startsWith('image/')) {
       setError('That file isn’t an image. Drop a PNG, JPG, or HEIC.');
       return;
     }
     setSaving(true);
     setError(null);
-    const id = newPassageId();
+    const docId = newDocId();
     try {
-      await insertPassage({
-        id,
-        title: 'Untitled',
+      const { blob, w, h } = await fileToPageImage(file);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) throw new Error('Not signed in');
+      const publicUrl = await uploadDocumentPageImage(userId, docId, 1, blob);
+      await insertDocument({
+        id: docId,
+        title: defaultTitleFromFile(file),
         composer: null,
-        source_kind: 'image',
-        source_uri: '',
-        thumbnail_uri: null,
+        source_kind: 'images',
+        page_count: 1,
+        pages: [{ index: 1, image_uri: publicUrl, w, h }],
         folder_id: targetFolderId,
       });
-      const publicUrl = await uploadPassageImage(id, file);
-      await updatePassageAssets(id, publicUrl, publicUrl);
-      if (coach) {
-        // Guided onboarding: crop first (a tight crop makes the score look
-        // right on both the marking and practice screens), and the crop screen
-        // returns to the quiz with the cropped passage.
-        router.replace(`/passage/${id}/crop?coach=1` as never);
-      } else {
-        router.replace(`/passage/${id}/crop`);
-      }
+      // Coach (guided onboarding): the viewer hands a passage id back to the
+      // quiz after the user marks their first box. Non-coach: just open it.
+      router.replace((coach ? `/document/${docId}?coach=1` : `/document/${docId}`) as never);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errToMessage(e));
       setSaving(false);
     }
   }
@@ -87,7 +147,7 @@ export default function UploadScreen() {
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    await ingestAndCrop(file);
+    await ingestAsDocument(file);
     // Reset so re-picking the same file re-fires onChange.
     e.target.value = '';
   }
@@ -102,7 +162,7 @@ export default function UploadScreen() {
       e.preventDefault();
       setDragOver(false);
       const file = e.dataTransfer?.files?.[0];
-      if (file) void ingestAndCrop(file);
+      if (file) void ingestAsDocument(file);
     }
     function handleOver(e: DragEvent) {
       e.preventDefault();
@@ -127,7 +187,7 @@ export default function UploadScreen() {
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <ThemedView style={{ gap: 14 }}>
-          <ThemedText type="title">Add a passage</ThemedText>
+          <ThemedText type="title">Add a photo</ThemedText>
 
           {/* The drop zone IS the picker — click it to open the OS file
               picker, or drag a file from Finder/Explorer onto it. Drag-and-
@@ -147,7 +207,7 @@ export default function UploadScreen() {
               },
             ]}>
             <ThemedText style={styles.dropTitle}>
-              Drop an image here
+              Drop a photo of the page here
             </ThemedText>
             <ThemedText style={[styles.dropSub, { color: C.icon }]}>
               or click to choose a file
@@ -175,8 +235,8 @@ export default function UploadScreen() {
 
           <ThemedText style={{ opacity: 0.55, fontSize: 12, textAlign: 'center' }}>
             {coach
-              ? 'A photo or screenshot of just the tricky passage you want to drill.'
-              : 'A photo or screenshot of your sheet music — you’ll crop it to just the passage you want to practice next.'}
+              ? 'A photo or screenshot of the full page with the spot you want to work on — you’ll mark it right on the page next.'
+              : 'A photo or screenshot of the full page — then you’ll mark the spots you want to practice right on it (as many as you like).'}
           </ThemedText>
 
           <Pressable
@@ -197,7 +257,7 @@ export default function UploadScreen() {
             <View style={styles.savingRow}>
               <ActivityIndicator color={C.tint} />
               <ThemedText style={[styles.savingText, { color: C.icon }]}>
-                {coach ? 'Saving your passage…' : 'Saving photo — opening crop tool…'}
+                {coach ? 'Saving your photo…' : 'Saving photo — opening it up…'}
               </ThemedText>
             </View>
           )}
@@ -229,11 +289,11 @@ export default function UploadScreen() {
       <TutorialStep
         id="upload-passage"
         visible={false}
-        title="Add a passage photo"
+        title="Add a photo of the page"
         body={
-          "Snap or upload a photo of one passage you want to drill. Drop an image onto the box, or tap it to choose a file. On phone, \"Take a photo\" opens the camera directly — point at the music and shoot.\n\n" +
-          "You'll land on the crop screen right away; trim it to just the bars you want to practice.\n\n" +
-          "If the passage runs across the bottom of one page and onto the next, tap \"Passage spans two pages?\" to photograph both halves and stitch them into one continuous score."
+          "Snap or upload a photo of the whole page. Drop an image onto the box, or tap it to choose a file. On phone, \"Take a photo\" opens the camera directly — point at the music and shoot.\n\n" +
+          "You'll land on the page itself; tap \"+ Mark passage\" and draw a box around each spot you want to drill — mark as many as you like. \"Hide boxes\" shows the clean full page anytime.\n\n" +
+          "If a spot runs across the bottom of one page and onto the next, tap \"Passage spans two pages?\" to photograph both halves and stitch them into one continuous score."
         }
       />
     </ThemedView>

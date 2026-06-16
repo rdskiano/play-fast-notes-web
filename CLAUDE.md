@@ -340,6 +340,41 @@ Three user-reported bugs from Izumi (clarinet teacher, web build on iPad Safari 
 
 `tsc --noEmit` clean; `expo export -p web` clean. **Authenticated click-through still pending (user is the verifier):** upload a photo → crop → save → try all three "What next?" options; on a PDF, mark a section on iPad Safari + confirm the naming dialog appears and the section saves. Note: "Crop another passage" bypasses the library's future photo-count paywall gate (paywall is dark today) — revisit when billing flips.
 
+## ✅ 2026-06-16 — Photos become page-and-boxes (image-documents) (web; committed, NOT pushed)
+
+Photos now work like PDFs. "Add a photo" mints a **1-page image-document** and opens
+the document viewer; the user marks **multiple** passage boxes on the full page
+(reusing the entire existing PDF flow — draw/crop/persist/hide-boxes/edit/sections/
+post-save). **No new viewer code.** Driven by Izumi's feedback (she wanted many drill
+spots from one page + recall the full page in context); supersedes the single-photo
+crop model for NEW photos. Plan: `~/.claude/plans/binary-booping-hare.md`.
+
+- `app/upload.web.tsx` — `ingestAsDocument`: re-encode the photo to JPEG at the doc
+  reference scale (maxEdge 2000, also fixes HEIC since there's no crop canvas now) +
+  read dims, `uploadDocumentPageImage(userId, docId, 1, blob)`, `insertDocument({
+  source_kind:'images', page_count:1, pages:[{index:1,image_uri,w,h}] })`, →
+  `/document/<id>`. Capture copy updated; owns ALL of upload.web.tsx.
+- `app/document/[id].tsx` — coach seam: `?coach=1` → after the user marks & names
+  their first box, `router.replace('/onboarding?passageId=<id>')` instead of the
+  post-save sheet (onboarding quiz resumes off passageId, unchanged). Plus a
+  `source_kind`-aware tutorial (`images-viewer-overview`, photo wording).
+- Billing — `countActivePhotoPassages()` (both passages repos) now counts **non-PDF
+  marked passages** (legacy document_id-null photos + image-document passages; PDF
+  parts excluded → still Pro). Free-tier unit = marked passages (Ralph's call).
+  `constants/billing.ts` comment updated. Paywall still dark.
+- `app/(tabs)/library.tsx` — AddChooser "Add a photo" label; DocumentCard shows
+  "Photo" for `source_kind:'images'`; empty-state + add-hint + first-piece tutorial
+  copy → "photo of the page, mark the spots".
+
+UNTOUCHED: legacy single-photo crop screen `app/passage/[id]/crop.web.tsx` (the
+onboarding session owns it; still used by the 401 existing photo passages' Crop
+button) and all practice screens. `app/passage/[id]/index.tsx` keeps its "Full photo /
+Show crop" toggle (now only relevant to legacy cropped photos). NATIVE is a
+fast-follow — native `app/upload.tsx` still mints single passages (web is the live
+surface). `tsc --noEmit` + `expo export -p web` clean. **NEEDS authed click-through
+(user testing 2026-06-17).** Onboarding session (separate) updates `app/onboarding.tsx`
+capture copy to match.
+
 ## Where to pick up next
 
 In rough priority order:

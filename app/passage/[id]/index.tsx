@@ -128,6 +128,11 @@ export default function PassageDetailScreen() {
   // pill row, which doesn't fit alongside the title on a phone, into a
   // single ⋯ button that opens a labeled ActionSheet.
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
+  // Photo passages only: flip between the cropped excerpt and the full,
+  // uncropped photo (the equivalent of a PDF's "hide boxes"). Lets the user
+  // practice a wider section without re-cropping. Resets when the passage
+  // changes; no DB write — purely which image we display here.
+  const [viewFull, setViewFull] = useState(false);
   // Separate "more actions" (☰) menu — History / Crop — split off from the
   // Strategies menu so each button does one obvious thing.
   const [phoneMoreOpen, setPhoneMoreOpen] = useState(false);
@@ -239,6 +244,11 @@ export default function PassageDetailScreen() {
 
   // Keyboard arrows on desktop. Skip while a sheet is open or focus is in
   // an input — otherwise we steal text-cursor movement.
+  // Reset the full-photo view when switching to a different passage.
+  useEffect(() => {
+    setViewFull(false);
+  }, [id]);
+
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     if (rhythmicSheetOpen || selfLedOpen) return;
@@ -304,6 +314,11 @@ export default function PassageDetailScreen() {
     tempoLadder && tempoLadder.goal_tempo > 0
       ? Math.max(0, Math.min(1, tempoLadder.current_tempo / tempoLadder.goal_tempo))
       : null;
+
+  // Photo passages that have a preserved full original can flip between the
+  // crop and the whole photo (see the header / ☰ "View full photo" control).
+  const hasFull = !!passage.original_uri && passage.original_uri !== passage.source_uri;
+  const displayUri = viewFull && hasFull ? passage.original_uri! : passage.source_uri;
 
   function openStrategy(key: StrategyKey) {
     if (!passage) return;
@@ -431,6 +446,23 @@ export default function PassageDetailScreen() {
               // strategies are added; keeping these out of that row stops Crop
               // from being pushed to its own line).
               <View style={styles.titleActions}>
+                {hasFull && (
+                  <Pressable
+                    onPress={() => setViewFull((v) => !v)}
+                    style={[
+                      styles.outlinePill,
+                      { borderColor: C.tint },
+                      viewFull && { backgroundColor: C.tint },
+                    ]}>
+                    <ThemedText
+                      style={[
+                        styles.outlinePillText,
+                        { color: viewFull ? '#fff' : C.tint },
+                      ]}>
+                      {viewFull ? 'Show crop' : 'Full photo'}
+                    </ThemedText>
+                  </Pressable>
+                )}
                 <Pressable
                   onPress={() =>
                     guardedNav(() => router.push(`/passage/${passage.id}/history`))
@@ -514,9 +546,11 @@ export default function PassageDetailScreen() {
                   // the writing pinch-zooms/pans together with the image instead
                   // of floating on a fixed layer above it.
                   <ZoomableImage
-                    uri={passage.source_uri}
+                    uri={displayUri}
                     style={StyleSheet.absoluteFill}
-                    persistKey={passage.id}
+                    // Distinct key per view so the crop and the full photo each
+                    // keep their own zoom instead of sharing one.
+                    persistKey={`${passage.id}:${viewFull && hasFull ? 'full' : 'crop'}`}
                     overlay={ann.canvas}
                     // Phone: while annotating, one finger draws (pan off) but
                     // two fingers still pinch-zoom. iPad keeps normal gestures
@@ -526,7 +560,7 @@ export default function PassageDetailScreen() {
                 ) : (
                   <>
                     <Image
-                      source={{ uri: passage.source_uri }}
+                      source={{ uri: displayUri }}
                       style={StyleSheet.absoluteFill}
                       contentFit="contain"
                     />
@@ -734,6 +768,17 @@ export default function PassageDetailScreen() {
         visible={phoneMoreOpen}
         title={passage.title}
         items={[
+          ...(hasFull
+            ? [
+                {
+                  label: viewFull ? 'Show crop' : 'View full photo',
+                  onPress: () => {
+                    setPhoneMoreOpen(false);
+                    setViewFull((v) => !v);
+                  },
+                },
+              ]
+            : []),
           {
             label: 'Practice History',
             onPress: () => {

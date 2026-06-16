@@ -387,7 +387,9 @@ function DocumentCard({
           <ThemedText style={{ opacity: Opacity.muted }}>{document.composer}</ThemedText>
         )}
         <ThemedText style={{ opacity: Opacity.muted, fontSize: 12 }}>
-          Full part · {document.page_count} page{document.page_count === 1 ? '' : 's'}
+          {document.source_kind === 'images'
+            ? `Photo${document.page_count > 1 ? ` · ${document.page_count} pages` : ''}`
+            : `Full part · ${document.page_count} page${document.page_count === 1 ? '' : 's'}`}
         </ThemedText>
         {breadcrumb ? (
           <ThemedText style={[styles.breadcrumb, { color: moreColor }]} numberOfLines={1}>
@@ -1124,7 +1126,7 @@ export default function LibraryScreen() {
           next action without scanning options. */}
       {isAtRoot && !editMode && (
         <ThemedText style={[styles.addHint, { color: C.icon }]}>
-          Add full parts, or take a photo of a difficult passage. Or tap 🛠 Tools
+          Add full parts, or take a photo of a page and mark the spots. Or tap 🛠 Tools
           to practice without uploading music.
         </ThemedText>
       )}
@@ -1225,8 +1227,9 @@ export default function LibraryScreen() {
                   textAlign: 'center',
                   maxWidth: 420,
                 }}>
-                Snap a photo of a few measures you're working on — one tricky
-                spot is all it takes — and the practice strategies do the rest.
+                Snap a photo of the page you're working on, mark the spots you
+                want to drill — one tricky spot is all it takes — and the
+                practice strategies do the rest.
               </ThemedText>
               <Button
                 label="📷 Add your first passage"
@@ -1458,7 +1461,7 @@ export default function LibraryScreen() {
         }
         title="Add your first piece"
         body={
-          '+ Add (top right) — snap a photo of a tricky measure, upload a PDF of the full part, or make a folder. The easiest first move: a photo of one passage you want to drill.\n\n' +
+          '+ Add (top right) — snap a photo of a page, upload a PDF of the full part, or make a folder. The easiest first move: a photo of the page, then mark the spots you want to drill right on it.\n\n' +
           'Header buttons:\n' +
           (Platform.OS === 'web'
             ? '☕ — buy me a coffee, if the app helps you.\n'
@@ -1562,7 +1565,7 @@ function AddChooserModal({
           <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
             Add
           </ThemedText>
-          <Button label="Add image of passage" onPress={onPickPassage} fullWidth />
+          <Button label="Add a photo" onPress={onPickPassage} fullWidth />
           <Button label="Add PDF" variant="outline" onPress={onPickDocument} fullWidth />
           <Button label="Add folder" variant="outline" onPress={onPickFolder} fullWidth />
           <Button label="Cancel" variant="ghost" onPress={onClose} fullWidth />

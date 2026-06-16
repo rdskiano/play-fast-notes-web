@@ -116,14 +116,29 @@ export async function listPassages(): Promise<Passage[]> {
   return (data ?? []) as Passage[];
 }
 
-// How many live photo passages the user has (PDF-derived passages excluded —
-// PDFs are gated separately). Drives the free tier's passage limit.
+// How many live photo passages the user has, for the free-tier limit. A "photo
+// passage" = any marked passage that isn't from a PDF: legacy standalone photos
+// (document_id null) PLUS passages marked on image-documents (photos are now
+// one-page image-documents you mark boxes on). PDF "parts" are gated separately
+// (Pro), so they're excluded here.
 export async function countActivePhotoPassages(): Promise<number> {
-  const { count, error } = await supabase
+  const { data: pdfDocs, error: docErr } = await supabase
+    .from('documents')
+    .select('id')
+    .is('deleted_at', null)
+    .eq('source_kind', 'pdf');
+  if (docErr) throw docErr;
+  const pdfIds = (pdfDocs ?? []).map((d) => d.id);
+
+  let query = supabase
     .from('pieces')
     .select('id', { count: 'exact', head: true })
-    .is('deleted_at', null)
-    .is('document_id', null);
+    .is('deleted_at', null);
+  if (pdfIds.length > 0) {
+    // Keep rows whose document_id is null OR is not one of the PDF documents.
+    query = query.or(`document_id.is.null,document_id.not.in.(${pdfIds.join(',')})`);
+  }
+  const { count, error } = await query;
   if (error) throw error;
   return count ?? 0;
 }
