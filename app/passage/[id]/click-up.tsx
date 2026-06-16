@@ -391,6 +391,24 @@ export default function ClickUpScreen() {
               />
             </ZoomableImage>
           </View>
+          {/* Soft nudge: ICU's step count multiplies with markers, so a
+              first-timer who marks the whole passage builds a session they'll
+              never finish. Don't block — just suggest keeping it small. */}
+          {markers.length >= 8 && (
+            <View style={{ paddingHorizontal: 20, paddingTop: Spacing.sm }}>
+              <ThemedText
+                style={{
+                  fontSize: Type.size.sm,
+                  color: C.tint,
+                  textAlign: 'center',
+                  lineHeight: 18,
+                }}>
+                That’s plenty for a first try. Each extra mark makes the session
+                longer — feel free to stop here, or mark just part of the passage
+                to get a feel for it.
+              </ThemedText>
+            </View>
+          )}
           <View style={{ paddingHorizontal: 20, paddingTop: Spacing.sm, paddingBottom: 20 }}>
             <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
               <Button
@@ -662,9 +680,26 @@ export default function ClickUpScreen() {
             styles.guidedBar,
             { paddingTop: insets.top + 10, borderBottomColor: C.icon + '33' },
           ]}>
-          <ThemedText style={styles.guidedBarText} numberOfLines={2}>
-            Play from one green arrow ▼ to the next.
-          </ThemedText>
+          <View style={{ flex: 1, gap: 1 }}>
+            <ThemedText
+              style={{
+                fontSize: Type.size.xs,
+                fontWeight: Type.weight.bold,
+                color: C.tint,
+                opacity: 0.9,
+              }}>
+              Step {currentIndex + 1} of {storedConfig.steps.length}
+            </ThemedText>
+            <ThemedText
+              style={{
+                fontSize: Type.size.sm,
+                fontWeight: Type.weight.semibold,
+                lineHeight: 18,
+              }}
+              numberOfLines={2}>
+              Play from one green arrow ▼ to the next.
+            </ThemedText>
+          </View>
           <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={8}>
             <ThemedText style={[styles.guidedBarDone, { color: C.tint }]}>
               Done
