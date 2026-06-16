@@ -394,7 +394,7 @@ export default function ClickUpScreen() {
           {/* Soft nudge: ICU's step count multiplies with markers, so a
               first-timer who marks the whole passage builds a session they'll
               never finish. Don't block — just suggest keeping it small. */}
-          {markers.length >= 8 && (
+          {markers.length >= 5 && (
             <View style={{ paddingHorizontal: 20, paddingTop: Spacing.sm }}>
               <ThemedText
                 style={{
