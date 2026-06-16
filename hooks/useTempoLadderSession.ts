@@ -716,6 +716,9 @@ export function useTempoLadderSession(
     setStartTempo(String(start));
     setIncrement(5);
     setTargetReps(5);
+    // Switch on the micro-break timer so the guided session demonstrates the
+    // rest-every-few-reps habit (the 'ready' screen tells the user we did).
+    microbreak.setConfig({ enabled: true });
     setPhase('ready');
   }
 

@@ -297,6 +297,12 @@ export default function TempoLadderScreen() {
             </ThemedText>{' '}
             and you’ve done it — the metronome climbs from there.
           </ThemedText>
+          <ThemedText style={{ opacity: 0.85, lineHeight: 22, marginTop: Spacing.xs }}>
+            One more thing: this is repetitive on purpose — and a quick pause
+            every few reps helps your brain lock it in faster. I’ve turned on a{' '}
+            <ThemedText style={{ fontWeight: Type.weight.heavy }}>micro-break</ThemedText>{' '}
+            timer so you can feel it.
+          </ThemedText>
         </ScrollView>
         <View style={{ padding: 20, gap: 10 }}>
           <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
