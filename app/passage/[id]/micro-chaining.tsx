@@ -88,7 +88,8 @@ const MC_MARKING_STEPS: TourStep[] = [
 ];
 
 export default function MicroChainingScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, guided } = useLocalSearchParams<{ id: string; guided?: string }>();
+  const isGuided = guided === '1';
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { width: winWidth, height: winHeight } = useWindowDimensions();
@@ -99,7 +100,7 @@ export default function MicroChainingScreen() {
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
-  const session = useMicroChainSession(id);
+  const session = useMicroChainSession(id, isGuided);
 
   useEffect(() => {
     if (session.passage?.source_uri) {
@@ -144,13 +145,16 @@ export default function MicroChainingScreen() {
     goBackToMarking,
     goBackToConfig,
     resumePlaying,
+    confirmPerformanceTempo,
+    goBackToTempo,
+    finishGuidedToLibrary,
   } = session;
 
   const ann = useScoreAnnotation(passage);
 
   useScreenTour(
     'micro-chaining-marking',
-    phase === 'marking' ? MC_MARKING_STEPS : null,
+    phase === 'marking' && !isGuided ? MC_MARKING_STEPS : null,
   );
 
   // Note marks sit close together, so every tap PLACES a mark — there's no
@@ -160,10 +164,152 @@ export default function MicroChainingScreen() {
     placeMark(point);
   }
 
+  // ── PERFORMANCE TEMPO (guided onboarding only) ──────────────────────────
+  // The quiz drops a brand-new user straight here. One question — how fast the
+  // spot ultimately needs to be (micro-chaining is full-speed) — then marking.
+  if (isGuided && phase === 'tempo') {
+    return (
+      <ThemedView style={{ flex: 1 }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
+          <Pressable onPress={exitSession} hitSlop={8}>
+            <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
+              ‹ Back
+            </ThemedText>
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={[
+            styles.configContainer,
+            configColumnStyle,
+            { paddingTop: Spacing.md },
+          ]}>
+          <ThemedText type="title">How fast does it need to be?</ThemedText>
+          <ThemedText style={{ opacity: 0.7 }}>
+            Micro-chaining rebuilds your tricky spot one note at a time, always at
+            full speed. Set that target speed — press ▶ to hear it.
+          </ThemedText>
+          <BpmStepper
+            value={performanceTempo}
+            onChange={setPerformanceTempo}
+            metronome={metronome}
+          />
+        </ScrollView>
+        <View style={{ padding: 20, gap: 10 }}>
+          <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
+            <Button
+              label="Next: mark the notes →"
+              onPress={confirmPerformanceTempo}
+              style={actionButtonStyle}
+            />
+          </View>
+        </View>
+      </ThemedView>
+    );
+  }
+
   // ── MARKING ────────────────────────────────────────────────────────────
   if (phase === 'marking') {
     if (!passage) return <ThemedView style={{ flex: 1 }} />;
     const canContinue = marks.length >= MIN_MICRO_MARKS;
+
+    // Guided onboarding: a clean, quiz-consistent marking screen — only the
+    // user's score, light chrome, marks placed by tapping. Start practicing
+    // jumps straight into play (Forward mode), skipping the config + problem
+    // screens.
+    if (isGuided) {
+      return (
+        <ThemedView style={{ flex: 1 }}>
+          <Stack.Screen options={{ headerShown: false }} />
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingTop: insets.top + 10,
+              paddingHorizontal: Spacing.lg,
+              paddingBottom: Spacing.sm,
+              borderBottomWidth: StyleSheet.hairlineWidth,
+              borderBottomColor: C.icon + '33',
+            }}>
+            <Pressable onPress={goBackToTempo} hitSlop={8}>
+              <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
+                ‹ Back
+              </ThemedText>
+            </Pressable>
+            <View style={{ flexDirection: 'row', gap: Spacing.lg }}>
+              <Pressable onPress={undoMark} hitSlop={6} disabled={marks.length === 0}>
+                <ThemedText
+                  style={{
+                    color: C.tint,
+                    fontWeight: Type.weight.bold,
+                    opacity: marks.length === 0 ? 0.35 : 1,
+                  }}>
+                  Undo
+                </ThemedText>
+              </Pressable>
+              <Pressable onPress={clearMarks} hitSlop={6} disabled={marks.length === 0}>
+                <ThemedText
+                  style={{
+                    color: '#c0392b',
+                    fontWeight: Type.weight.bold,
+                    opacity: marks.length === 0 ? 0.35 : 1,
+                  }}>
+                  Clear
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+          <View style={{ paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm }}>
+            <ThemedText style={{ fontSize: Type.size.lg, fontWeight: Type.weight.bold }}>
+              Mark the notes to lock in
+            </ThemedText>
+            <ThemedText style={{ opacity: 0.7, fontSize: Type.size.sm, lineHeight: 18 }}>
+              Tap just above each note in your tricky spot. Pinch to zoom for
+              accuracy.
+            </ThemedText>
+          </View>
+          <View
+            style={{
+              flex: 1,
+              marginHorizontal: Spacing.lg,
+              marginBottom: Spacing.sm,
+              borderRadius: 8,
+              overflow: 'hidden',
+            }}>
+            <ZoomableImage
+              style={StyleSheet.absoluteFill}
+              persistKey={`${passage.id}:mark`}
+              tapAspectRatio={imageAspect ?? undefined}
+              onTapPoint={onMarkTap}>
+              <ScoreWithMarkers
+                uri={passage.source_uri}
+                markers={marks}
+                mode="place"
+                captureTaps={false}
+                compact
+              />
+            </ZoomableImage>
+          </View>
+          <View style={{ padding: 20 }}>
+            <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
+              <Button
+                label={
+                  canContinue
+                    ? 'Start practicing →'
+                    : `Mark ${MIN_MICRO_MARKS - marks.length} more to start`
+                }
+                onPress={() => {
+                  if (canContinue) void startPlaying();
+                }}
+                disabled={!canContinue}
+                style={actionButtonStyle}
+              />
+            </View>
+          </View>
+        </ThemedView>
+      );
+    }
     return (
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -443,7 +589,37 @@ export default function MicroChainingScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SessionTopBar
+      {/* Guided onboarding: light, quiz-consistent banner instead of the full
+          session chrome. The user plays the highlighted notes and taps NEXT. */}
+      {isGuided && (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: Spacing.md,
+            paddingTop: insets.top + 10,
+            paddingHorizontal: Spacing.lg,
+            paddingBottom: Spacing.sm,
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: C.icon + '33',
+          }}>
+          <ThemedText
+            style={{ flex: 1, fontSize: Type.size.sm, fontWeight: Type.weight.semibold }}
+            numberOfLines={2}>
+            Play from the first arrow ▼ to the last.
+          </ThemedText>
+          <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={8}>
+            <ThemedText
+              style={{ color: C.tint, fontWeight: Type.weight.bold, fontSize: Type.size.md }}>
+              Done
+            </ThemedText>
+          </Pressable>
+        </View>
+      )}
+      {!isGuided && (
+        <>
+          <SessionTopBar
         onExit={exitSession}
         exitLabel="EXIT"
         center={
@@ -497,10 +673,12 @@ export default function MicroChainingScreen() {
         }
       />
 
-      {!isPhoneLandscape && (
-        <ThemedText style={styles.playHelper}>
-          Play from the first arrow ▼ to the last, then tap NEXT → to extend the chain.
-        </ThemedText>
+          {!isPhoneLandscape && (
+            <ThemedText style={styles.playHelper}>
+              Play from the first arrow ▼ to the last, then tap NEXT → to extend the chain.
+            </ThemedText>
+          )}
+        </>
       )}
 
       <PedalCatcher
@@ -540,12 +718,14 @@ export default function MicroChainingScreen() {
           )}
           {ann.canvas}
         </View>
-        <PracticeToolsLayer
-          metronome={metronome}
-          metronomeNote="Micro-Chaining stays at your performance tempo — play the highlighted notes, then tap Next."
-          pencil={ann.pencil}
-          recorderPassageId={passage?.id}
-        />
+        {!isGuided && (
+          <PracticeToolsLayer
+            metronome={metronome}
+            metronomeNote="Micro-Chaining stays at your performance tempo — play the highlighted notes, then tap Next."
+            pencil={ann.pencil}
+            recorderPassageId={passage?.id}
+          />
+        )}
       </View>
 
       <View style={styles.bottomBar}>
@@ -567,8 +747,55 @@ export default function MicroChainingScreen() {
         </View>
       </View>
 
+      {/* Guided onboarding: a single celebratory overlay (no mood/note form)
+          that logs the session and lands the first-timer in their library. */}
+      {isGuided && (celebrating || notePromptVisible) && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            zIndex: 100,
+          }}>
+          <ThemedView
+            style={{
+              borderRadius: Radii.xl,
+              padding: 24,
+              width: '100%',
+              maxWidth: 360,
+              alignItems: 'center',
+              gap: 10,
+            }}>
+            <ThemedText style={{ fontSize: 40 }}>🎉</ThemedText>
+            <ThemedText
+              style={{ fontSize: 20, fontWeight: Type.weight.bold, textAlign: 'center' }}>
+              You rebuilt the whole spot!
+            </ThemedText>
+            <ThemedText style={{ textAlign: 'center', opacity: 0.8 }}>
+              Note by note, at full speed — your first session is saved to your
+              practice log.
+            </ThemedText>
+            <View style={{ width: '100%', marginTop: 8 }}>
+              <Button
+                label="See my library →"
+                onPress={() => {
+                  void finishGuidedToLibrary();
+                }}
+                style={actionButtonStyle}
+              />
+            </View>
+          </ThemedView>
+        </View>
+      )}
+
       <PracticeLogNotePrompt
-        visible={celebrating || notePromptVisible}
+        visible={!isGuided && (celebrating || notePromptVisible)}
         emoji={celebrating ? '🎉' : undefined}
         title={
           celebrating
@@ -604,6 +831,7 @@ export default function MicroChainingScreen() {
         onCancel={() => setPhoneMenuOpen(false)}
       />
 
+      {!isGuided && (
       <TutorialStep
         id="micro-chaining-play"
         visible={false}
@@ -615,6 +843,7 @@ export default function MicroChainingScreen() {
           `\n\n${PRACTICE_TOOLS_HELP}`
         }
       />
+      )}
     </ThemedView>
   );
 }
