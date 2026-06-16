@@ -57,11 +57,30 @@ export function SectionMarkerCapturer({
           touchAction: 'manipulation',
           userSelect: 'none',
           zIndex: 11,
-          // Subtle striped tint so the user knows the page is "armed" for marking.
-          background:
-            'repeating-linear-gradient(135deg, rgba(0,200,255,0.06) 0 12px, rgba(0,200,255,0.10) 12px 24px)',
-        }}
-      />
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'center',
+          // Very faint wash + dashed outline so the page reads as "tap me",
+          // NOT as content that's already been selected. (Users mistook the
+          // old heavier stripes for an existing selection.)
+          background: 'rgba(0,150,200,0.04)',
+          outline: '2px dashed rgba(0,150,200,0.5)',
+          outlineOffset: '-6px',
+        }}>
+        <span
+          style={{
+            marginTop: 10,
+            padding: '4px 10px',
+            borderRadius: 999,
+            background: 'rgba(0,120,170,0.92)',
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 600,
+            pointerEvents: 'none',
+          }}>
+          Tap where this section starts
+        </span>
+      </div>
     </View>
   );
 }

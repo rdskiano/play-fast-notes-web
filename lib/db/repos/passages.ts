@@ -19,6 +19,10 @@ export type Passage = {
   source_kind: SourceKind;
   source_uri: string;
   thumbnail_uri: string | null;
+  // Full, uncropped photo this passage was first created from. Null until the
+  // passage is cropped (or for PDF-derived passages). Lets the Crop screen
+  // always re-open the full image so cropping is non-destructive.
+  original_uri: string | null;
   units_json: string | null;
   folder_id: string | null;
   document_id: string | null;
@@ -83,6 +87,7 @@ export async function insertPassage(p: NewPassage): Promise<Passage> {
     source_kind: p.source_kind,
     source_uri: p.source_uri,
     thumbnail_uri: p.thumbnail_uri ?? null,
+    original_uri: null,
     units_json: null,
     folder_id: p.folder_id ?? null,
     document_id: p.document_id ?? null,
@@ -207,6 +212,26 @@ export async function updatePassageAssets(
     `UPDATE pieces SET source_uri = ?, thumbnail_uri = ?, updated_at = ? WHERE id = ?;`,
     source_uri,
     thumbnail_uri,
+    Date.now(),
+    id,
+  );
+}
+
+// Save a crop without destroying the original. Writes the cropped image to
+// source_uri + thumbnail_uri while recording the full, uncropped photo in
+// original_uri so the Crop screen can always re-open the full image.
+export async function updatePassageCrop(
+  id: string,
+  source_uri: string,
+  thumbnail_uri: string,
+  original_uri: string,
+): Promise<void> {
+  const db = getDb();
+  await db.runAsync(
+    `UPDATE pieces SET source_uri = ?, thumbnail_uri = ?, original_uri = ?, updated_at = ? WHERE id = ?;`,
+    source_uri,
+    thumbnail_uri,
+    original_uri,
     Date.now(),
     id,
   );

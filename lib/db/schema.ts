@@ -196,4 +196,10 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE exercises_new RENAME TO exercises;
   CREATE INDEX IF NOT EXISTS idx_exercises_piece ON exercises(piece_id);
   `,
+  `
+  -- Preserve the full, uncropped photo so cropping a photo passage is
+  -- non-destructive: the crop goes to source_uri, the original stays here, and
+  -- Crop can always re-open the full image (re-frame, or crop another passage).
+  ALTER TABLE pieces ADD COLUMN original_uri TEXT;
+  `,
 ];

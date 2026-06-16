@@ -29,6 +29,11 @@ create table if not exists pieces (
   source_kind text not null check (source_kind in ('pdf', 'image')),
   source_uri text not null,
   thumbnail_uri text,
+  -- The full, uncropped photo a passage was first created from. Cropping a
+  -- photo passage writes the crop to source_uri but preserves the original
+  -- here, so the user can always re-open Crop on the full image (re-frame
+  -- wider/narrower) or crop a second passage from the same photo.
+  original_uri text,
   units_json text,
   folder_id text references folders(id),
   sort_order integer default 0,
@@ -37,6 +42,9 @@ create table if not exists pieces (
   deleted_at bigint
 );
 create index if not exists idx_pieces_folder on pieces(folder_id);
+-- Migration for existing deployments (added 2026-06-15): preserve the full
+-- photo so cropping is non-destructive. Safe to run repeatedly.
+alter table pieces add column if not exists original_uri text;
 alter table pieces enable row level security;
 create policy pieces_owner_all on pieces
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);

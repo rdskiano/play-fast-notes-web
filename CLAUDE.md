@@ -325,6 +325,21 @@ Seven user-reported items, same session as the Pro scaffold:
 
 tsc + web/ios exports clean. Authenticated click-through still pending (the user is the verifier).
 
+## ✅ 2026-06-15 — Izumi feedback: non-destructive photo crop + iPad section marking (NOT committed/pushed)
+
+Three user-reported bugs from Izumi (clarinet teacher, web build on iPad Safari + MacBook):
+
+1. **Photo crop was destructive.** Web crop overwrote `source_uri` with the crop AND `uploadPassageImage` upserts to the same storage path, so the full original photo was gone — re-opening Crop only re-cropped the crop, and the user had to re-upload to widen. Native already preserved the original + offered a "Re-crop / Crop another / Done" sheet (`crop.tsx`); web had none of it. **Fix = web parity with native, non-destructively:**
+   - New nullable `pieces.original_uri` column (Supabase + SQLite migration in `db/schema.sql` + `lib/db/schema.ts`). **⚠️ Run this in Supabase Studio before/at deploy — the new code writes the column and will error without it:** `alter table pieces add column if not exists original_uri text;` (the MCP migration was blocked as a prod write; user runs it.)
+   - `uploadPassageImage(pieceId, file, variant?)` — a `'crop'` variant lands at `<userId>/<id>-crop.<ext>` so the crop never overwrites the original at `<userId>/<id>.<ext>`.
+   - New `updatePassageCrop(id, source, thumb, original)` in both passages repos: writes the crop to source/thumbnail, preserves the full image in `original_uri`. `softDeletePassage` (web) now also frees `original_uri` from Storage.
+   - `crop.web.tsx`: crops from + displays `original_uri ?? source_uri` (so Crop always reframes the FULL photo), and after a save shows an `ActionSheet` — **Re-crop this passage** (reset box on the full image), **Crop another passage from this photo** (fetch the full image → new passage → its crop screen; this is the thing Izumi actually wanted — keep a small AND a wide crop), **Done**.
+   - **Existing already-cropped passages can't be recovered** (their original was overwritten in Storage before this fix). Going forward only.
+2. **iPad couldn't mark sections.** `onCaptureSection` used `window.prompt`, which iPad Safari silently blocks → mark discarded → "tap does nothing." Replaced with the in-app `PromptModal` (`pendingSectionMark` state in `app/document/[id].tsx`).
+3. **"Section" mental model + armed-state read as a selection.** Sections are dividers (start only; run to the next marker) — there is no "end page". Clarified the marking banner, the section-name modal message, `SectionsModal` empty state, and the PDF tutorial copy. Softened `SectionMarkerCapturer.web.tsx`'s armed tint (heavy stripes → faint wash + dashed outline + a "Tap where this section starts" pill) so it no longer looks pre-selected.
+
+`tsc --noEmit` clean; `expo export -p web` clean. **Authenticated click-through still pending (user is the verifier):** upload a photo → crop → save → try all three "What next?" options; on a PDF, mark a section on iPad Safari + confirm the naming dialog appears and the section saves. Note: "Crop another passage" bypasses the library's future photo-count paywall gate (paywall is dark today) — revisit when billing flips.
+
 ## Where to pick up next
 
 In rough priority order:

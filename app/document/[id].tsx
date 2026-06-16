@@ -195,6 +195,12 @@ export default function DocumentScreen() {
   // wouldn't fit alongside the title.
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
   const [markingSection, setMarkingSection] = useState(false);
+  // Where the user tapped to start a section, held while they name it. Drives
+  // the section-name PromptModal (an in-app dialog — window.prompt is silently
+  // blocked on iPad Safari, which was eating section marks entirely there).
+  const [pendingSectionMark, setPendingSectionMark] = useState<{ page: number; y: number } | null>(
+    null,
+  );
 
   // Save-flow flag — freezes the dimensions used by viewMode derivation so
   // the iPad on-screen keyboard's viewport resize can't trigger a spurious
@@ -334,29 +340,24 @@ export default function DocumentScreen() {
     setMarkingSection(false);
   }
 
-  async function onCaptureSection(page: number, y: number) {
-    // Use the browser-native window.prompt() — no React Modal in the way, so
-    // there's no Modal mount/unmount triggering layout reflow on the
-    // underlying ScrollView. iPad Safari's native dialog (when not blocked)
-    // is rendered by the browser chrome, not React.
-    const defaultName = `Section ${sections.length + 1}`;
-    let name: string | null = defaultName;
-    if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
-      // Empty default — let the user type fresh; we fall back to "Section N"
-      // only if they leave it blank.
-      name = window.prompt('Name this section');
-    }
-    if (name === null) {
-      // User canceled.
-      setMarkingSection(false);
-      return;
-    }
-    const finalName = name.trim() || defaultName;
-    const next: DocumentSection[] = [
-      ...sections.filter((s) => !(s.start_page === page && s.start_y === y)),
-      { name: finalName, start_page: page, start_y: y },
-    ];
+  function onCaptureSection(page: number, y: number) {
+    // Exit marking mode (removes the armed overlay) and open an in-app name
+    // dialog. We use a React PromptModal instead of window.prompt because iPad
+    // Safari silently blocks window.prompt, which used to discard the mark and
+    // leave the user thinking the tap did nothing.
     setMarkingSection(false);
+    setPendingSectionMark({ page, y });
+  }
+
+  async function submitSectionName(name: string) {
+    const mark = pendingSectionMark;
+    setPendingSectionMark(null);
+    if (!mark) return;
+    const finalName = name.trim() || `Section ${sections.length + 1}`;
+    const next: DocumentSection[] = [
+      ...sections.filter((s) => !(s.start_page === mark.page && s.start_y === mark.y)),
+      { name: finalName, start_page: mark.page, start_y: mark.y },
+    ];
     await onSectionsChange(next);
   }
 
@@ -1228,7 +1229,8 @@ export default function DocumentScreen() {
         <View pointerEvents="box-none" style={styles.markBanner}>
           <View style={styles.markBannerInner}>
             <ThemedText style={styles.markBannerText}>
-              Tap a page where the section starts
+              Tap where this section starts — it runs until the next marker, so
+              there's no end to set.
             </ThemedText>
             <Button label="Cancel" variant="ghost" size="sm" onPress={cancelSectionMark} />
           </View>
@@ -1274,7 +1276,7 @@ export default function DocumentScreen() {
           'Single / Spread (landscape only) — toggle between one page and a two-page spread.\n\n' +
           '+ Mark passage — drag a box around the music you want to drill. After you name it, it shows up in your library.\n\n' +
           'Tap any box to practice that passage, or pick Edit to rename, resize, or delete it.\n\n' +
-          'Sections — tap the page to mark movement divisions or sections in the music; this makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
+          'Sections — tap the page to mark where a movement or section begins; each marker runs until the next one (you only mark starts, not ends). This makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
           'Hide boxes — clean read of the score without the gray rectangles.\n\n' +
           'Practice Log — every session you\'ve done on this PDF, across all passages.\n\n' +
           PRACTICE_TOOLS_HELP
@@ -1363,6 +1365,17 @@ export default function DocumentScreen() {
         submitLabel="Save"
         onSubmit={onNamePromptSubmit}
         onCancel={() => setNamePromptOpen(false)}
+      />
+
+      <PromptModal
+        visible={pendingSectionMark !== null}
+        title="Name this section"
+        message="A section starts here and runs until your next section marker — there's no need to mark an end."
+        initialValue=""
+        placeholder={`e.g. Movement II, Development, Section ${sections.length + 1}`}
+        submitLabel="Add section"
+        onSubmit={submitSectionName}
+        onCancel={() => setPendingSectionMark(null)}
       />
 
 

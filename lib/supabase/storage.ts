@@ -76,13 +76,18 @@ export async function uploadDocumentPageImage(
 export async function uploadPassageImage(
   pieceId: string,
   file: File,
+  variant?: 'crop',
 ): Promise<string> {
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData.session?.user.id;
   if (!userId) throw new Error('Not signed in');
 
   const ext = inferExt(file);
-  const path = `${userId}/${pieceId}.${ext}`;
+  // The full upload lives at `<userId>/<pieceId>.<ext>`. A crop goes to a
+  // SEPARATE path (`…-crop.<ext>`) so saving a crop never overwrites the
+  // original photo file — the Crop screen can always re-open the full image.
+  const base = variant ? `${pieceId}-${variant}` : pieceId;
+  const path = `${userId}/${base}.${ext}`;
 
   // Hash the bytes before upload so the URL we return is content-addressed.
   // Stable bytes ⇒ stable URL ⇒ CDN + service-worker cache hits. Re-cropping

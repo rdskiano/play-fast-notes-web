@@ -102,9 +102,10 @@ export function SectionsModal({
 
           {sections.length === 0 ? (
             <ThemedText style={[styles.empty, { color: C.icon }]}>
-              No sections yet. Tap "+ Add section" then tap a page where the
-              section starts. Sections show up in the practice log next to each
-              passage.
+              No sections yet. Tap "+ Add section" then tap the spot where a
+              section or movement begins — each marker runs until the next one,
+              so you only mark starts, never ends. Sections show up in the
+              practice log next to each passage.
             </ThemedText>
           ) : (
             <ScrollView style={styles.list} contentContainerStyle={{ gap: Spacing.xs }}>

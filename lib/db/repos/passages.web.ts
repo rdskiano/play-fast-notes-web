@@ -18,6 +18,10 @@ export type Passage = {
   source_kind: SourceKind;
   source_uri: string;
   thumbnail_uri: string | null;
+  // Full, uncropped photo this passage was first created from. Null until the
+  // passage is cropped (or for PDF-derived passages). Lets the Crop screen
+  // always re-open the full image so cropping is non-destructive.
+  original_uri: string | null;
   units_json: string | null;
   folder_id: string | null;
   document_id: string | null;
@@ -76,6 +80,7 @@ export async function insertPassage(p: NewPassage): Promise<Passage> {
   if (error) throw error;
   return {
     ...row,
+    original_uri: null,
     units_json: null,
     deleted_at: null,
   };
@@ -204,6 +209,23 @@ export async function updatePassageAssets(
   if (error) throw error;
 }
 
+// Save a crop without destroying the original. Writes the cropped image to
+// source_uri + thumbnail_uri (what every practice screen displays) while
+// recording the full, uncropped photo in original_uri. The Crop screen reads
+// original_uri so it can always re-open the full image.
+export async function updatePassageCrop(
+  id: string,
+  source_uri: string,
+  thumbnail_uri: string,
+  original_uri: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('pieces')
+    .update({ source_uri, thumbnail_uri, original_uri, updated_at: Date.now() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
 export async function updatePassageRegions(id: string, regions: PassageRegion[]): Promise<void> {
   const { error } = await supabase
     .from('pieces')
@@ -240,12 +262,17 @@ export async function softDeletePassage(id: string): Promise<void> {
   // this passage; the practice log never loads these files.
   const { data: row } = await supabase
     .from('pieces')
-    .select('source_uri, thumbnail_uri, annotation_image_uri')
+    .select('source_uri, thumbnail_uri, original_uri, annotation_image_uri')
     .eq('id', id)
     .maybeSingle();
   if (row) {
     try {
-      await removePublicUrls([row.source_uri, row.thumbnail_uri, row.annotation_image_uri]);
+      await removePublicUrls([
+        row.source_uri,
+        row.thumbnail_uri,
+        row.original_uri,
+        row.annotation_image_uri,
+      ]);
     } catch {
       // ignore — keep going with the soft-delete
     }

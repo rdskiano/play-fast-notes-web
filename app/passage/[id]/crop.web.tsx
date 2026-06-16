@@ -1,24 +1,41 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ActionSheet } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
 import { PromptModal } from '@/components/PromptModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Spacing, Type } from '@/constants/tokens';
+import { Opacity, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getPassage, renamePassage, updatePassageAssets, type Passage } from '@/lib/db/repos/passages';
+import {
+  getPassage,
+  insertPassage,
+  renamePassage,
+  updatePassageAssets,
+  updatePassageCrop,
+  type Passage,
+} from '@/lib/db/repos/passages';
 import { uploadPassageImage } from '@/lib/supabase/storage';
 
 type Rect = { x: number; y: number; w: number; h: number };
 type Handle = 'move' | 'tl' | 'tr' | 'bl' | 'br';
 
+function newPassageId(): string {
+  return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 const HANDLE_SIZE = 24;
 const MIN_CROP = 40;
+// Margin reserved around the fitted image inside the (overflow:hidden)
+// container so the resize handles — which overhang the crop box by
+// HANDLE_SIZE/2 — are never clipped at an image edge. Acute in landscape,
+// where the image otherwise fills the full height and the top handles get cut.
+const FIT_PAD = 18;
 
 async function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -67,6 +84,12 @@ export default function CropScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [namePromptVisible, setNamePromptVisible] = useState(false);
+  // After a crop saves, offer the same choices the iPad app does: re-crop the
+  // full image, crop another passage from it, or finish.
+  const [whatNextVisible, setWhatNextVisible] = useState(false);
+  // Whether the name prompt was opened after a real crop (→ show "What next?")
+  // vs. after skipping the crop (→ go straight to the passage).
+  const [nameThenWhatNext, setNameThenWhatNext] = useState(false);
 
   // The img's displayed rect, in CSS px relative to its container.
   const [imgRect, setImgRect] = useState<Rect | null>(null);
@@ -74,13 +97,34 @@ export default function CropScreen() {
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
   // The crop rectangle, in CSS px relative to the displayed img rect.
   const [crop, setCrop] = useState<Rect | null>(null);
+  // The crop area's laid-out size, from onLayout (reliable across rotation;
+  // getBoundingClientRect on image-load / window-resize read stale sizes).
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
 
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  // Last measured displayed-image rect. Used to rescale the crop when the
+  // image rect changes (e.g. the phone rotates) so the crop keeps its
+  // relative position/size instead of flying off the re-fit image.
+  const imgRectRef = useRef<Rect | null>(null);
+
+  const { width: winW, height: winH } = useWindowDimensions();
+  const tightLandscape = winW > winH && Math.min(winW, winH) < 600;
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
+    // Reset per-passage geometry so navigating from one passage's crop to
+    // another's (via "Crop another passage") starts clean instead of briefly
+    // showing the previous passage's crop box over the new image.
+    setLoading(true);
+    setPassage(null);
+    setCrop(null);
+    setNaturalSize(null);
+    setImgRect(null);
+    imgRectRef.current = null;
+    setWhatNextVisible(false);
+    setSaving(false);
+    setError(null);
     getPassage(id)
       .then((p) => {
         if (!cancelled) setPassage(p);
@@ -94,55 +138,66 @@ export default function CropScreen() {
     };
   }, [id]);
 
-  // Compute the displayed rect of the <img> within its container so we can
-  // position the crop overlay correctly. object-fit:contain pads with letterbox
-  // bars; we need to know the actual painted rect.
-  const measureImg = useCallback(() => {
-    const img = imgRef.current;
-    const container = containerRef.current;
-    if (!img || !container) return;
-    const containerRect = container.getBoundingClientRect();
-    const natW = img.naturalWidth || 1;
-    const natH = img.naturalHeight || 1;
-    const containerRatio = containerRect.width / containerRect.height;
-    const imgRatio = natW / natH;
+  // The image the crop operates on: the full original if we have it, else the
+  // current source (first-ever crop, or an uncropped passage). Cropping reads
+  // and displays THIS, so re-opening Crop always reframes the full photo
+  // instead of cropping further into a previous crop.
+  const displaySrc = passage?.original_uri ?? passage?.source_uri ?? '';
+
+  function resetCropToDefault() {
+    const r = imgRectRef.current;
+    if (r) setCrop({ x: r.w * 0.1, y: r.h * 0.1, w: r.w * 0.8, h: r.h * 0.8 });
+    else setCrop(null);
+  }
+
+  // Derive the displayed image rect from the laid-out container size + the
+  // image's natural size. object-fit:contain on the <img> handles the actual
+  // painting; this just mirrors that geometry so the crop overlay lines up.
+  // We fit inside an inset area (FIT_PAD) so the resize handles at the image
+  // edges aren't clipped by the container's overflow:hidden. Recomputes on
+  // rotation because onLayout updates containerSize.
+  useEffect(() => {
+    if (!containerSize || !naturalSize) return;
+    const { w: cw, h: ch } = containerSize;
+    const availW = Math.max(1, cw - FIT_PAD * 2);
+    const availH = Math.max(1, ch - FIT_PAD * 2);
+    const containerRatio = availW / availH;
+    const imgRatio = naturalSize.w / naturalSize.h;
     let dispW: number;
     let dispH: number;
     if (imgRatio > containerRatio) {
-      dispW = containerRect.width;
-      dispH = containerRect.width / imgRatio;
+      dispW = availW;
+      dispH = availW / imgRatio;
     } else {
-      dispH = containerRect.height;
-      dispW = containerRect.height * imgRatio;
+      dispH = availH;
+      dispW = availH * imgRatio;
     }
-    const x = (containerRect.width - dispW) / 2;
-    const y = (containerRect.height - dispH) / 2;
+    const x = (cw - dispW) / 2;
+    const y = (ch - dispH) / 2;
     const newRect: Rect = { x, y, w: dispW, h: dispH };
+    const prevRect = imgRectRef.current;
+    imgRectRef.current = newRect;
     setImgRect(newRect);
-    setNaturalSize({ w: natW, h: natH });
-    // Initialize the crop rect to 80% of the image, centered.
-    setCrop((prev) =>
-      prev ?? {
-        x: dispW * 0.1,
-        y: dispH * 0.1,
-        w: dispW * 0.8,
-        h: dispH * 0.8,
-      },
-    );
-  }, []);
-
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    if (!passage?.source_uri) return;
-    function onResize() {
-      measureImg();
-    }
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [passage?.source_uri, measureImg]);
+    setCrop((prev) => {
+      // Image rect changed under an existing crop (rotation / resize): rescale
+      // the crop proportionally and clamp it back inside the new rect.
+      if (prev && prevRect && prevRect.w > 0 && prevRect.h > 0) {
+        const sx = dispW / prevRect.w;
+        const sy = dispH / prevRect.h;
+        const w = Math.min(prev.w * sx, dispW);
+        const h = Math.min(prev.h * sy, dispH);
+        const cx = clamp(prev.x * sx, 0, dispW - w);
+        const cy = clamp(prev.y * sy, 0, dispH - h);
+        return { x: cx, y: cy, w, h };
+      }
+      // First fit: start at 80% of the image, centered.
+      return { x: dispW * 0.1, y: dispH * 0.1, w: dispW * 0.8, h: dispH * 0.8 };
+    });
+  }, [containerSize, naturalSize]);
 
   function onImgLoad() {
-    measureImg();
+    const img = imgRef.current;
+    if (img) setNaturalSize({ w: img.naturalWidth || 1, h: img.naturalHeight || 1 });
   }
 
   // Drag/resize handler. We use pointer events for unified mouse + touch.
@@ -212,6 +267,7 @@ export default function CropScreen() {
     if (isCoach) {
       router.replace(`/onboarding?passageId=${id}` as never);
     } else if (passage?.title === 'Untitled') {
+      setNameThenWhatNext(false);
       setNamePromptVisible(true);
     } else {
       router.replace(`/passage/${id}`);
@@ -231,20 +287,59 @@ export default function CropScreen() {
         w: crop.w * ratio,
         h: crop.h * ratio,
       };
-      const blob = await getCroppedBlob(passage.source_uri, area);
+      // Crop from the full image (displaySrc) and save the crop WITHOUT
+      // overwriting the original: the crop goes to a separate storage path and
+      // the full image is preserved in original_uri.
+      const original = passage.original_uri ?? passage.source_uri;
+      const blob = await getCroppedBlob(displaySrc, area);
       const file = new File([blob], `${passage.id}.jpg`, { type: 'image/jpeg' });
-      const publicUrl = await uploadPassageImage(passage.id, file);
-      await updatePassageAssets(passage.id, publicUrl, publicUrl);
+      const publicUrl = await uploadPassageImage(passage.id, file, 'crop');
+      await updatePassageCrop(passage.id, publicUrl, publicUrl, original);
+      // Reflect the preserved original locally so a "Re-crop" right away still
+      // reframes the full image.
+      setPassage({ ...passage, source_uri: publicUrl, thumbnail_uri: publicUrl, original_uri: original });
       if (isCoach) {
         router.replace(`/onboarding?passageId=${passage.id}` as never);
       } else if (passage.title === 'Untitled') {
+        setNameThenWhatNext(true);
         setNamePromptVisible(true);
       } else {
-        router.replace(`/passage/${passage.id}`);
+        setWhatNextVisible(true);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      setSaving(false);
+    }
+  }
+
+  // Create a new passage from the same full photo and jump to its Crop screen —
+  // lets the user keep a small crop AND a wider one from one upload.
+  async function cropAnotherPassage() {
+    if (!passage) return;
+    setWhatNextVisible(false);
+    setSaving(true);
+    setError(null);
+    try {
+      const fullUrl = passage.original_uri ?? passage.source_uri;
+      const resp = await fetch(fullUrl);
+      const blob = await resp.blob();
+      const newId = newPassageId();
+      const file = new File([blob], `${newId}.jpg`, { type: blob.type || 'image/jpeg' });
+      await insertPassage({
+        id: newId,
+        title: 'Untitled',
+        composer: null,
+        source_kind: 'image',
+        source_uri: '',
+        thumbnail_uri: null,
+        folder_id: passage.folder_id,
+      });
+      const publicUrl = await uploadPassageImage(newId, file);
+      await updatePassageAssets(newId, publicUrl, publicUrl);
+      router.replace(`/passage/${newId}/crop`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
       setSaving(false);
     }
   }
@@ -256,11 +351,16 @@ export default function CropScreen() {
     if (trimmed) {
       try {
         await renamePassage(passage.id, trimmed);
+        setPassage({ ...passage, title: trimmed });
       } catch {
         // ignore
       }
     }
-    router.replace(`/passage/${passage.id}`);
+    if (nameThenWhatNext) {
+      setWhatNextVisible(true);
+    } else {
+      router.replace(`/passage/${passage.id}`);
+    }
   }
 
   if (loading) {
@@ -299,14 +399,22 @@ export default function CropScreen() {
         />
       </View>
 
-      <ThemedText style={[styles.hint, { color: C.icon }]}>
-        Drag the rectangle or its corners to select just the passage you want to
-        practice.
+      <ThemedText
+        style={[styles.hint, { color: C.icon }, tightLandscape && styles.hintTight]}>
+        {tightLandscape
+          ? 'Drag the box or its corners to frame the passage.'
+          : 'Drag the rectangle or its corners to select just the passage you want to practice. Your full photo is kept — after saving you can re-crop or crop another passage from it.'}
       </ThemedText>
 
-      <View style={styles.cropOuter}>
+      <View
+        style={styles.cropOuter}
+        onLayout={(e) =>
+          setContainerSize({
+            w: e.nativeEvent.layout.width,
+            h: e.nativeEvent.layout.height,
+          })
+        }>
         <div
-          ref={containerRef}
           style={{
             position: 'relative',
             width: '100%',
@@ -318,17 +426,22 @@ export default function CropScreen() {
           }}>
           <img
             ref={imgRef}
-            src={passage.source_uri}
+            src={displaySrc}
             alt=""
             onLoad={onImgLoad}
             crossOrigin="anonymous"
             draggable={false}
             style={{
+              // Explicit width/height inset by FIT_PAD (NOT auto — on a
+              // replaced <img>, auto means the intrinsic/natural size, which
+              // renders zoomed in). object-fit:contain fits the whole image
+              // into this inset box, matching the imgRect overlay math and
+              // leaving edge room for the handles.
               position: 'absolute',
-              left: 0,
-              top: 0,
-              width: '100%',
-              height: '100%',
+              left: FIT_PAD,
+              top: FIT_PAD,
+              width: `calc(100% - ${FIT_PAD * 2}px)`,
+              height: `calc(100% - ${FIT_PAD * 2}px)`,
               objectFit: 'contain',
               pointerEvents: 'none',
               userSelect: 'none',
@@ -433,9 +546,36 @@ export default function CropScreen() {
         </View>
       )}
 
-      <View style={[styles.bottomBar, { borderTopColor: C.icon + '44' }]}>
-        <Button label="Skip cropping" variant="outline" onPress={onSkip} fullWidth />
-      </View>
+      <ActionSheet
+        visible={whatNextVisible}
+        title="Saved! What next?"
+        items={[
+          {
+            label: 'Re-crop this passage',
+            onPress: () => {
+              setWhatNextVisible(false);
+              resetCropToDefault();
+            },
+          },
+          {
+            label: 'Crop another passage from this photo',
+            primary: true,
+            onPress: cropAnotherPassage,
+          },
+          {
+            label: 'Done',
+            onPress: () => {
+              setWhatNextVisible(false);
+              router.replace(`/passage/${id}`);
+            },
+          },
+        ]}
+        cancelLabel="Done"
+        onCancel={() => {
+          setWhatNextVisible(false);
+          router.replace(`/passage/${id}`);
+        }}
+      />
 
       <PromptModal
         visible={namePromptVisible}
@@ -488,15 +628,14 @@ const styles = StyleSheet.create({
     opacity: Opacity.muted,
     textAlign: 'center',
   },
+  hintTight: {
+    paddingVertical: 2,
+    fontSize: Type.size.xs,
+    lineHeight: 15,
+  },
   cropOuter: {
     flex: 1,
     overflow: 'hidden',
-  },
-  bottomBar: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
-    borderTopWidth: Borders.thin,
   },
   errorWrap: {
     paddingHorizontal: Spacing.lg,
