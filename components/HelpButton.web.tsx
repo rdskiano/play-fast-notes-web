@@ -23,7 +23,7 @@ import { Radii, Type } from '@/constants/tokens';
 const HELP_BLUE = '#0a7ea4';
 
 export function HelpButton() {
-  const { openManually } = useHelpContext();
+  const { openManually, active } = useHelpContext();
   const { screen } = useTour();
 
   // Screens with a guided tour carry their own help (the first-run tour +
@@ -31,6 +31,11 @@ export function HelpButton() {
   // and we hide it. On every other screen it's still the help entry point
   // and opens the modal.
   if (screen) return null;
+
+  // No screen has registered help content (e.g. the onboarding quiz, which
+  // IS the guide). Don't show a button that would only say "No help here
+  // yet" — hide it entirely until a screen registers something.
+  if (!active) return null;
 
   return (
     <Pressable
