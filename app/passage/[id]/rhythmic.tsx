@@ -527,7 +527,9 @@ export default function RhythmicScreen() {
               seeing notes clearly, not annotating in this flow. */}
           {!isPhone && !toolsOnly && ann.canvas}
         </View>
-        {phase === 'playing' && (
+        {/* Guided onboarding keeps the surface minimal — no edge tool tabs.
+            The RhythmBar's ▶ Loop is all the audio a first session needs. */}
+        {phase === 'playing' && !isGuided && (
           <PracticeToolsLayer
             metronome={metronome}
             pencil={ann.pencil}

@@ -653,7 +653,28 @@ export default function ClickUpScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SessionTopBar
+      {/* Guided onboarding: replace the full session chrome with a light,
+          quiz-consistent banner. The metronome auto-runs, so the user just
+          plays along and taps NEXT — no top bar, tool tabs, or coach modal. */}
+      {isGuided && (
+        <View
+          style={[
+            styles.guidedBar,
+            { paddingTop: insets.top + 10, borderBottomColor: C.icon + '33' },
+          ]}>
+          <ThemedText style={styles.guidedBarText} numberOfLines={2}>
+            Play from one green arrow ▼ to the next.
+          </ThemedText>
+          <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={8}>
+            <ThemedText style={[styles.guidedBarDone, { color: C.tint }]}>
+              Done
+            </ThemedText>
+          </Pressable>
+        </View>
+      )}
+      {!isGuided && (
+        <>
+          <SessionTopBar
         onExit={exitSession}
         // "EXIT" on every size — matches the other practice screens; a bare
         // back-arrow here read as "undo", not "leave the session".
@@ -726,10 +747,12 @@ export default function ClickUpScreen() {
 
       {/* Phone LANDSCAPE folds this into the header line above (scarce vertical
           space); portrait + larger screens keep the standalone reminder. */}
-      {!isPhoneLandscape && (
-        <ThemedText style={styles.playHelper}>
-          Play from one green arrow ▼ to the next.
-        </ThemedText>
+          {!isPhoneLandscape && (
+            <ThemedText style={styles.playHelper}>
+              Play from one green arrow ▼ to the next.
+            </ThemedText>
+          )}
+        </>
       )}
 
       {/* Keyboard / pedal capture is always live during the playing phase
@@ -807,12 +830,14 @@ export default function ClickUpScreen() {
           )}
           {ann.canvas}
         </View>
-        <PracticeToolsLayer
-          metronome={metronome}
-          metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."
-          pencil={ann.pencil}
-          recorderPassageId={passage?.id}
-        />
+        {!isGuided && (
+          <PracticeToolsLayer
+            metronome={metronome}
+            metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."
+            pencil={ann.pencil}
+            recorderPassageId={passage?.id}
+          />
+        )}
       </View>
 
       <View style={styles.bottomBar}>
@@ -922,7 +947,7 @@ export default function ClickUpScreen() {
         onCancel={() => setPhoneMenuOpen(false)}
       />
 
-      <ClickUpCoach />
+      {!isGuided && <ClickUpCoach />}
 
       <TutorialStep
         id="click-up-play"
@@ -982,6 +1007,25 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   doneBtn: { backgroundColor: Status.danger },
+  // Guided-onboarding playing header: a light, quiz-consistent bar that
+  // replaces the full SessionTopBar so the first session never drops into
+  // app chrome. Just the instruction + a Done escape hatch.
+  guidedBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  guidedBarText: {
+    flex: 1,
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    lineHeight: 18,
+  },
+  guidedBarDone: { fontSize: Type.size.md, fontWeight: Type.weight.bold },
   // Symmetric side padding (= the help-button corner reserve) keeps the
   // centred NEXT/BACK row clear of the bottom-right "?" button on a narrow
   // viewport while staying centred on the window.

@@ -791,15 +791,19 @@ export default function TempoLadderScreen() {
           )}
           {ann.canvas}
         </View>
-        <PracticeToolsLayer
-          metronome={metronome}
-          metronomeNote="Tempo Ladder controls the tempo — no need to adjust it. Just press play."
-          pencil={ann.pencil}
-          recorderPassageId={passage?.id}
-          // Tools mode renders the metronome inline (above), so drop it from
-          // the edge tabs to avoid two; keep just the practice timers.
-          tools={toolsOnly ? { left: [], right: ['timer'] } : undefined}
-        />
+        {/* Guided onboarding keeps the surface minimal — no edge tool tabs.
+            The metronome auto-runs (startGuidedPlaying), so audio is fine. */}
+        {!isGuided && (
+          <PracticeToolsLayer
+            metronome={metronome}
+            metronomeNote="Tempo Ladder controls the tempo — no need to adjust it. Just press play."
+            pencil={ann.pencil}
+            recorderPassageId={passage?.id}
+            // Tools mode renders the metronome inline (above), so drop it from
+            // the edge tabs to avoid two; keep just the practice timers.
+            tools={toolsOnly ? { left: [], right: ['timer'] } : undefined}
+          />
+        )}
 
         {/* Phone overlays — float on top of the score so the practice
             controls don't steal vertical space. */}
