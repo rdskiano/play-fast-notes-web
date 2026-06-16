@@ -607,7 +607,8 @@ export default function MicroChainingScreen() {
           <ThemedText
             style={{ flex: 1, fontSize: Type.size.sm, fontWeight: Type.weight.semibold }}
             numberOfLines={2}>
-            Play from the first arrow ▼ to the last.
+            Play from the first arrow ▼ to the last, and repeat until it feels
+            comfortable.
           </ThemedText>
           <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={8}>
             <ThemedText
