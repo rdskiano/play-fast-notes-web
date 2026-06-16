@@ -1,6 +1,7 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
@@ -57,8 +58,13 @@ function groupingCounts(): Record<Grouping, number> {
 }
 
 export default function RhythmicScreen() {
-  const params = useLocalSearchParams<{ id: string; grouping?: string }>();
+  const params = useLocalSearchParams<{ id: string; grouping?: string; guided?: string }>();
   const id = params.id;
+  // Guided onboarding: the quiz routes "even & running" passages here with
+  // ?guided=1. The flow is an intro screen → play with a sensible default
+  // grouping (4-note / even sixteenths) → a single guided celebration → library.
+  const rawGuided = Array.isArray(params.guided) ? params.guided[0] : params.guided;
+  const isGuided = rawGuided === '1';
   // Tools mode: reached from the library Tools hub via the sentinel id, no
   // piece attached. The rhythm patterns come from a built-in library, so the
   // tool runs identically; we just skip the score backdrop and the
@@ -67,6 +73,7 @@ export default function RhythmicScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
   // Phone density flag — drives the scrollable score below.
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
@@ -80,8 +87,8 @@ export default function RhythmicScreen() {
   const initialGrouping =
     parsedGrouping >= 3 && parsedGrouping <= 8 ? (parsedGrouping as Grouping) : null;
 
-  const [phase, setPhase] = useState<'config' | 'playing'>(
-    initialGrouping ? 'playing' : 'config',
+  const [phase, setPhase] = useState<'intro' | 'group' | 'config' | 'playing'>(
+    isGuided ? 'intro' : initialGrouping ? 'playing' : 'config',
   );
   const [passage, setPassage] = useState<Passage | null>(null);
   const [grouping, setGrouping] = useState<Grouping | null>(initialGrouping);
@@ -173,6 +180,19 @@ export default function RhythmicScreen() {
     router.back();
   }
 
+  // Guided onboarding finish: log the session, then land the first-timer in
+  // their library (with the one-time orientation overlay) instead of
+  // router.back() into the murky replace-stack.
+  async function finishGuidedToLibrary() {
+    if (id && !toolsOnly) {
+      await stampLastUsed(id, 'rhythmic');
+      await logPractice(id, 'rhythmic', undefined);
+    }
+    metronome.stop();
+    metronome.stopRhythmLoop();
+    router.replace('/(tabs)/library?welcome=1' as never);
+  }
+
   function onPrev() {
     const next = Math.max(0, currentIndex - 1);
     if (next === currentIndex) return;
@@ -210,6 +230,110 @@ export default function RhythmicScreen() {
 
   // In Tools mode there's no passage to wait for — render straight through.
   if (!passage && !toolsOnly) return <ThemedView style={{ flex: 1 }} />;
+
+  // ── INTRO (guided onboarding only) ──────────────────────────────────────
+  // A clean quiz-style framing screen for the alien-but-powerful idea, then
+  // straight to play with a sensible default grouping. All the how-to lives
+  // here so the playing screen needs no modal.
+  if (isGuided && phase === 'intro') {
+    return (
+      <ThemedView style={{ flex: 1 }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
+          <Pressable onPress={() => router.back()} hitSlop={8}>
+            <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
+              ‹ Back
+            </ThemedText>
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={{
+            padding: Spacing.lg,
+            gap: Spacing.md,
+            maxWidth: 480,
+            width: '100%',
+            alignSelf: 'center',
+            flexGrow: 1,
+          }}>
+          <ThemedText type="title">A trick for evening it out</ThemedText>
+          <ThemedText style={{ opacity: 0.85, lineHeight: 22 }}>
+            When a fast run sounds lumpy, practicing it in lopsided rhythms —
+            long-short, short-long, and stranger ones — forces every note to be
+            even. It’s one of the quickest ways to clean up a passage.
+          </ThemedText>
+          <ThemedText style={{ opacity: 0.85, lineHeight: 22 }}>
+            You’ll get a new rhythm each time. Tap{' '}
+            <ThemedText style={{ fontWeight: Type.weight.heavy }}>▶ Loop</ThemedText>{' '}
+            to hear it, play your passage that way a few times, then tap{' '}
+            <ThemedText style={{ fontWeight: Type.weight.heavy }}>Next</ThemedText>{' '}
+            for another.
+          </ThemedText>
+        </ScrollView>
+        <View style={{ padding: 20, gap: 10 }}>
+          <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
+            <Button
+              label="Next: choose a grouping →"
+              onPress={() => setPhase('group')}
+              fullWidth
+            />
+          </View>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  // ── CHOOSE A GROUPING (guided onboarding only) ──────────────────────────
+  // Grouping is passage-dependent (sixteenths = 4, sextuplets = 6, triplets =
+  // 3…), so it can't be defaulted — the user has to match it to their music.
+  // Present the same illustrated chips as the normal picker, but as a clean
+  // full-screen step with plainer language.
+  if (isGuided && phase === 'group') {
+    return (
+      <ThemedView style={{ flex: 1 }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
+          <Pressable onPress={() => setPhase('intro')} hitSlop={8}>
+            <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
+              ‹ Back
+            </ThemedText>
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={{
+            padding: Spacing.lg,
+            gap: Spacing.md,
+            maxWidth: 480,
+            width: '100%',
+            alignSelf: 'center',
+          }}>
+          <ThemedText type="title">How are the notes grouped?</ThemedText>
+          <ThemedText style={{ opacity: 0.85, lineHeight: 22 }}>
+            Look at your fast run — how many notes are beamed together in one
+            group? Tap the picture that matches. Most fast passages are{' '}
+            <ThemedText style={{ fontWeight: Type.weight.heavy }}>4</ThemedText>{' '}
+            (even sixteenth notes).
+          </ThemedText>
+          <View style={styles.groupingGrid}>
+            {GROUPING_CHOICES.map(({ n, abc, w }) => (
+              <Pressable
+                key={n}
+                onPress={() => startWithGrouping(n)}
+                style={[styles.groupingChip, { borderColor: C.icon }]}>
+                <AbcStaffView
+                  abc={abc}
+                  width={w}
+                  height={isPhone ? 44 : 60}
+                  hideStaffLines
+                  centered
+                />
+                <ThemedText style={styles.groupingNum}>{n}</ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+      </ThemedView>
+    );
+  }
 
   const counts = groupingCounts();
 
@@ -492,7 +616,7 @@ export default function RhythmicScreen() {
       />
 
       <PracticeLogNotePrompt
-        visible={notePromptVisible}
+        visible={notePromptVisible && !isGuided}
         emoji="🎉"
         title="Rhythmic Variation — session complete"
         subtitle={passage?.title ?? undefined}
@@ -501,6 +625,54 @@ export default function RhythmicScreen() {
         onSubmit={({ mood, note, remindNext }) => finishLog(mood, note, remindNext)}
         onSkip={() => finishLog(null, null)}
       />
+
+      {/* Guided onboarding: DONE fires a single celebratory overlay (no
+          mood/note form) that logs the session and lands the first-timer in
+          their library. */}
+      {isGuided && notePromptVisible && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            zIndex: 700,
+          }}>
+          <ThemedView
+            style={{
+              borderRadius: Radii.xl,
+              padding: 24,
+              width: '100%',
+              maxWidth: 360,
+              alignItems: 'center',
+              gap: 10,
+            }}>
+            <ThemedText style={{ fontSize: 40 }}>🎉</ThemedText>
+            <ThemedText
+              style={{ fontSize: 20, fontWeight: Type.weight.bold, textAlign: 'center' }}>
+              Nice — you tried Rhythm Variations!
+            </ThemedText>
+            <ThemedText style={{ textAlign: 'center', opacity: 0.8 }}>
+              That’s one of the fastest ways to clean up a passage. Your first
+              session is saved to your practice log.
+            </ThemedText>
+            <View style={{ width: '100%', marginTop: 8 }}>
+              <Button
+                label="See my library →"
+                fullWidth
+                onPress={() => {
+                  void finishGuidedToLibrary();
+                }}
+              />
+            </View>
+          </ThemedView>
+        </View>
+      )}
 
       {toolsOnly ? (
         // Tools mode: one tools-specific tutorial, auto-firing once on the
@@ -527,10 +699,12 @@ export default function RhythmicScreen() {
       ) : (
         // The real-passage flow picks a grouping in the passage sheet and lands
         // straight here in the playing phase, so this is the first screen the
-        // user sees — and Rhythmic Variation has no web tour. Auto-fire it once.
+        // user sees — and Rhythmic Variation has no web tour. Auto-fire it once
+        // (but NOT in the guided flow, where the intro screen already taught it;
+        // still registered so the ? button works).
         <TutorialStep
           id="rhythmic-play"
-          visible
+          visible={!isGuided}
           title="Rhythmic Variation"
           body={
             "Play the passage with a different rhythm pattern each time — dotted, swung, reversed, anything that breaks your default groove. Strengthens internal pulse and exposes weak spots that playing as written can hide.\n\n" +

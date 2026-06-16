@@ -99,7 +99,8 @@ const TL_SETUP_STEPS: TourStep[] = [
 ];
 
 export default function TempoLadderScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, guided } = useLocalSearchParams<{ id: string; guided?: string }>();
+  const isGuided = guided === '1';
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme() ?? 'light';
@@ -133,7 +134,7 @@ export default function TempoLadderScreen() {
   // when `passage?.source_uri` exists); the hook handles skipping all
   // passage-keyed persistence.
   const toolsOnly = isToolsOnly(id);
-  const session = useTempoLadderSession(id, toolsOnly);
+  const session = useTempoLadderSession(id, toolsOnly, isGuided);
   const {
     phase,
     passage,
@@ -169,6 +170,10 @@ export default function TempoLadderScreen() {
     advanceAfterCelebration,
     dismissCelebration,
     endSession,
+    confirmPerformanceTempo,
+    goBackToTempo,
+    startGuidedPlaying,
+    finishGuidedToLibrary,
   } = session;
 
   const ann = useScoreAnnotation(passage);
@@ -180,7 +185,7 @@ export default function TempoLadderScreen() {
   // mode we show a plain tutorial modal instead (no score, different copy).
   useScreenTour(
     'tempo-ladder-setup',
-    phase === 'config' && !toolsOnly ? TL_SETUP_STEPS : null,
+    phase === 'config' && !toolsOnly && !isGuided ? TL_SETUP_STEPS : null,
   );
 
   // Live validation for the setup form, so the Start button can say WHY it
@@ -211,6 +216,102 @@ export default function TempoLadderScreen() {
     if (goal <= start) return 'Goal BPM must be above Start BPM.';
     return null;
   })();
+
+  // ── PERFORMANCE TEMPO (guided onboarding only) ──────────────────────────
+  // The quiz drops a brand-new user straight here. One friendly question —
+  // how fast it ultimately needs to be — with a hear-it preview; start tempo
+  // auto-sets to half and the rest of the setup is skipped.
+  if (isGuided && phase === 'tempo') {
+    return (
+      <ThemedView style={{ flex: 1 }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
+          <Pressable onPress={() => router.back()} hitSlop={8}>
+            <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
+              ‹ Back
+            </ThemedText>
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={[
+            styles.configContainer,
+            configColumnStyle,
+            { paddingTop: Spacing.md },
+          ]}>
+          <ThemedText type="title">How fast does it need to be?</ThemedText>
+          <ThemedText style={{ opacity: 0.7 }}>
+            Set your performance tempo — the speed you’ll play it for real. Press
+            ▶ to hear it. We’ll start you well below that and climb from there.
+          </ThemedText>
+          <BpmStepper value={goalTempo} onChange={setGoalTempo} metronome={metronome} />
+        </ScrollView>
+        <View style={{ padding: 20, gap: 10 }}>
+          <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
+            <Button
+              label="Next →"
+              onPress={confirmPerformanceTempo}
+              style={actionButtonStyle}
+            />
+          </View>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  // ── HERE'S THE PLAN (guided onboarding only) ────────────────────────────
+  // A short framing screen between the tempo question and play. It also lets
+  // the start/goal state settle before startSession reads it.
+  if (isGuided && phase === 'ready') {
+    const startBpm = parseInt(startTempo, 10) || 60;
+    const goalBpm = parseInt(goalTempo, 10) || 120;
+    return (
+      <ThemedView style={{ flex: 1 }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
+          <Pressable onPress={goBackToTempo} hitSlop={8}>
+            <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
+              ‹ Back
+            </ThemedText>
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={[
+            styles.configContainer,
+            configColumnStyle,
+            { paddingTop: Spacing.md },
+          ]}>
+          <ThemedText type="title">Here’s the plan</ThemedText>
+          <ThemedText style={{ opacity: 0.85, lineHeight: 22 }}>
+            You’ll start at{' '}
+            <ThemedText style={{ fontWeight: Type.weight.heavy }}>{startBpm} BPM</ThemedText>{' '}
+            — comfortably below your {goalBpm} target. Play the passage along with
+            the metronome and mark each try:
+          </ThemedText>
+          <ThemedText style={{ opacity: 0.85, lineHeight: 22 }}>
+            ✓ Clean if you nailed it · ✗ Miss if you didn’t.
+          </ThemedText>
+          <ThemedText style={{ opacity: 0.85, lineHeight: 22 }}>
+            Get{' '}
+            <ThemedText style={{ fontWeight: Type.weight.heavy }}>
+              5 clean in a row
+            </ThemedText>{' '}
+            and you’ve done it — the metronome climbs from there.
+          </ThemedText>
+        </ScrollView>
+        <View style={{ padding: 20, gap: 10 }}>
+          <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
+            <Button
+              label="Start practicing →"
+              onPress={() => {
+                void startGuidedPlaying();
+              }}
+              style={actionButtonStyle}
+            />
+          </View>
+        </View>
+      </ThemedView>
+    );
+  }
 
   if (phase === 'config') {
     return (
@@ -783,10 +884,57 @@ export default function TempoLadderScreen() {
         )}
       </View>
 
+      {/* Guided onboarding: completing one clean set IS the finish line. Show
+          a single celebratory overlay (no "step up" / log-note forms) that
+          logs the session and lands the first-timer in their library. */}
+      {isGuided && (celebrating !== null || notePromptVisible) && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            zIndex: 100,
+          }}>
+          <ThemedView
+            style={{
+              borderRadius: Radii.xl,
+              padding: 24,
+              width: '100%',
+              maxWidth: 360,
+              alignItems: 'center',
+              gap: 10,
+            }}>
+            <ThemedText style={{ fontSize: 40 }}>🎉</ThemedText>
+            <ThemedText
+              style={{ fontSize: 20, fontWeight: Type.weight.bold, textAlign: 'center' }}>
+              {progress.target_reps} clean in a row — you did it!
+            </ThemedText>
+            <ThemedText style={{ textAlign: 'center', opacity: 0.8 }}>
+              Nice work — your first session is saved to your practice log.
+            </ThemedText>
+            <View style={{ width: '100%', marginTop: 8 }}>
+              <Button
+                label="See my library →"
+                onPress={() => {
+                  void finishGuidedToLibrary();
+                }}
+                style={actionButtonStyle}
+              />
+            </View>
+          </ThemedView>
+        </View>
+      )}
+
       <CelebrationModal
         // Tools-only mode never shows the log prompt, so the celebration also
         // covers the goal-reached case here (and its End just exits).
-        visible={celebrating !== null && (toolsOnly || !reachedGoal)}
+        visible={!isGuided && celebrating !== null && (toolsOnly || !reachedGoal)}
         title={
           reachedGoal
             ? `Goal tempo reached — ${progress.goal_tempo} BPM!`
@@ -811,7 +959,11 @@ export default function TempoLadderScreen() {
       />
 
       <PracticeLogNotePrompt
-        visible={!toolsOnly && ((celebrating !== null && reachedGoal) || notePromptVisible)}
+        visible={
+          !toolsOnly &&
+          !isGuided &&
+          ((celebrating !== null && reachedGoal) || notePromptVisible)
+        }
         emoji={reachedGoal && celebrating ? '🎉' : undefined}
         title={
           reachedGoal && celebrating
