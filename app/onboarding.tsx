@@ -187,7 +187,7 @@ export default function OnboardingScreen() {
             </ThemedText>
             <ThemedText style={[styles.lead, { color: C.icon }]}>
               Get the full page in frame — next you’ll mark the fast or technical
-              spot you want to drill.
+              spot you want to practice.
             </ThemedText>
             {/* Both options route to /upload?coach=1, which (in the coach flow)
                 sends the photo into the document viewer to mark a passage box,
