@@ -396,17 +396,20 @@ export default function ClickUpScreen() {
               never finish. Don't block — just suggest keeping it small. */}
           {markers.length >= 5 && (
             <View style={{ paddingHorizontal: 20, paddingTop: Spacing.sm }}>
-              <ThemedText
-                style={{
-                  fontSize: Type.size.sm,
-                  color: C.tint,
-                  textAlign: 'center',
-                  lineHeight: 18,
-                }}>
-                That’s plenty for a first try. Each extra mark makes the session
-                longer — feel free to stop here, or mark just part of the passage
-                to get a feel for it.
-              </ThemedText>
+              <View
+                style={{ backgroundColor: C.tint, borderRadius: Radii.lg, padding: 14 }}>
+                <ThemedText
+                  style={{
+                    color: '#fff',
+                    fontWeight: Type.weight.bold,
+                    fontSize: 15,
+                    lineHeight: 20,
+                  }}>
+                  That’s plenty for a first try! Every extra mark makes this
+                  session longer — stop here, or mark just part of the passage to
+                  get a feel for it.
+                </ThemedText>
+              </View>
             </View>
           )}
           <View style={{ paddingHorizontal: 20, paddingTop: Spacing.sm, paddingBottom: 20 }}>
