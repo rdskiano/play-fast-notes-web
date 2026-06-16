@@ -23,7 +23,7 @@ import { generateSteps, type ClickUpStep } from '@/lib/strategies/clickUp';
 
 export const MIN_MARKERS = 3;
 
-export type ClickUpPhase = 'marking' | 'config' | 'playing';
+export type ClickUpPhase = 'tempo' | 'example' | 'marking' | 'config' | 'playing';
 
 export type StoredConfig = {
   N: number;
@@ -33,12 +33,12 @@ export type StoredConfig = {
   steps: ClickUpStep[];
 };
 
-export function useClickUpSession(id: string | undefined) {
+export function useClickUpSession(id: string | undefined, guided = false) {
   const router = useRouter();
   const metronome = useMetronome(60);
   const microbreak = useMicrobreakTimer();
 
-  const [phase, setPhase] = useState<ClickUpPhase>('marking');
+  const [phase, setPhase] = useState<ClickUpPhase>(guided ? 'tempo' : 'marking');
   const [passage, setPassage] = useState<Passage | null>(null);
   const [exerciseId, setExerciseId] = useState<string | null>(null);
   const [storedConfig, setStoredConfig] = useState<StoredConfig | null>(null);
@@ -207,8 +207,39 @@ export function useClickUpSession(id: string | undefined) {
     router.back();
   }
 
+  // Guided onboarding finish: log the session like doneSession, but land the
+  // first-timer in their library (their new passage + freshly-logged session)
+  // rather than router.back() into the murky replace-stack.
+  async function finishGuidedToLibrary() {
+    if (id && exerciseId) {
+      await setClickUpIndex(exerciseId, currentIndex);
+      await stampLastUsed(id, 'click_up');
+      await logPractice(
+        id,
+        'click_up',
+        {
+          step: currentIndex,
+          totalSteps: storedConfig?.steps.length,
+          tempo: metronome.bpm,
+        },
+        exerciseId,
+      );
+    }
+    metronome.stop();
+    setCelebrating(false);
+    router.replace('/(tabs)/library?welcome=1' as never);
+  }
+
   function goBackToMarking() {
     setPhase('marking');
+  }
+
+  function goBackToTempo() {
+    setPhase('tempo');
+  }
+
+  function goBackToExample() {
+    setPhase('example');
   }
 
   // Return to the tempo-setup screen from inside a practice session. Stops
@@ -229,6 +260,35 @@ export function useClickUpSession(id: string | undefined) {
     const step = storedConfig.steps[currentIndex];
     if (step) metronome.setBpm(step.tempo);
     setPhase('playing');
+  }
+
+  // ── guided (onboarding) helpers ─────────────────────────────────────────
+  // The quiz routes a brand-new user here with ?guided=1. Instead of the
+  // normal marking → config(fields) → play, the guided flow is:
+  //   tempo (one friendly slider) → marking (with the example image) → play.
+  // Performance tempo is the only number we ask; start auto-sets to half and
+  // the increment keeps its default, so there's no setup screen to face.
+  function confirmPerformanceTempo() {
+    const goal = parseInt(goalTempo, 10) || 120;
+    setStartTempo(String(Math.max(30, Math.round(goal / 2))));
+    setPhase('example');
+  }
+
+  function proceedToMarking() {
+    setPhase('marking');
+  }
+
+  async function commitMarkersAndStart() {
+    if (!id) return;
+    if (markers.length < MIN_MARKERS) return;
+    await updatePassageUnits(id, markers);
+    if (passage) setPassage({ ...passage, units_json: JSON.stringify(markers) });
+    await startPlaying();
+    // Guided onboarding: start the click immediately so a first-timer on a
+    // small phone just hears the tempo and plays along — no hunting for the
+    // metronome's play button (which barely fits the screen). The tap on
+    // "Start practicing" is the user gesture that unlocks audio on iOS.
+    metronome.start();
   }
 
   return {
@@ -259,5 +319,11 @@ export function useClickUpSession(id: string | undefined) {
     goBackToMarking,
     goBackToConfig,
     resumePlaying,
+    confirmPerformanceTempo,
+    commitMarkersAndStart,
+    goBackToTempo,
+    proceedToMarking,
+    goBackToExample,
+    finishGuidedToLibrary,
   };
 }

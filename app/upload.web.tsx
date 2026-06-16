@@ -23,8 +23,9 @@ function newPassageId(): string {
 
 export default function UploadScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ folder?: string }>();
+  const params = useLocalSearchParams<{ folder?: string; coach?: string }>();
   const targetFolderId = params.folder ? params.folder : null;
+  const coach = params.coach === '1';
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
 
@@ -69,7 +70,14 @@ export default function UploadScreen() {
       });
       const publicUrl = await uploadPassageImage(id, file);
       await updatePassageAssets(id, publicUrl, publicUrl);
-      router.replace(`/passage/${id}/crop`);
+      if (coach) {
+        // Guided onboarding: crop first (a tight crop makes the score look
+        // right on both the marking and practice screens), and the crop screen
+        // returns to the quiz with the cropped passage.
+        router.replace(`/passage/${id}/crop?coach=1` as never);
+      } else {
+        router.replace(`/passage/${id}/crop`);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setSaving(false);
@@ -166,8 +174,9 @@ export default function UploadScreen() {
           </Pressable>
 
           <ThemedText style={{ opacity: 0.55, fontSize: 12, textAlign: 'center' }}>
-            A photo or screenshot of your sheet music — you&apos;ll crop it to
-            just the passage you want to practice next.
+            {coach
+              ? 'A photo or screenshot of just the tricky passage you want to drill.'
+              : 'A photo or screenshot of your sheet music — you’ll crop it to just the passage you want to practice next.'}
           </ThemedText>
 
           <Pressable
@@ -188,7 +197,7 @@ export default function UploadScreen() {
             <View style={styles.savingRow}>
               <ActivityIndicator color={C.tint} />
               <ThemedText style={[styles.savingText, { color: C.icon }]}>
-                Saving photo — opening crop tool…
+                {coach ? 'Saving your passage…' : 'Saving photo — opening crop tool…'}
               </ThemedText>
             </View>
           )}

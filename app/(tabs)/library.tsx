@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -430,8 +430,23 @@ function DocumentCard({
   );
 }
 
+// First-run redirect guard. Module-level (not a ref) so it survives the
+// remount that router.replace into the quiz causes — a ref would reset and
+// loop the user straight back into the quiz. Resets on a full page reload,
+// which is exactly right for the newbie demo account (re-onboards each fresh
+// load). TODO before prod: swap for a persisted "seen onboarding" setting so
+// real users see the quiz exactly once, not once per session.
+let didRedirectToOnboarding = false;
+
 export default function LibraryScreen() {
   const router = useRouter();
+  // One-time orientation overlay when the user lands here straight from
+  // finishing their first guided session (finishGuidedToLibrary appends
+  // ?welcome=1). NOT the big first-run "Add your first piece" tutorial — that's
+  // gated on never-practiced + empty library, so it stays silent now that they
+  // have a passage and a logged session.
+  const welcomeParam = useLocalSearchParams<{ welcome?: string }>().welcome;
+  const [showWelcome, setShowWelcome] = useState(welcomeParam === '1');
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { colors: strategyColors } = useStrategyColors();
@@ -593,6 +608,25 @@ export default function LibraryScreen() {
     ...filteredDocuments.map((document) => ({ kind: 'document' as const, document })),
     ...filteredPassages.map((passage) => ({ kind: 'passage' as const, passage })),
   ];
+
+  // First run = the very first thing a brand-new user sees is the guided
+  // quiz, not an empty library. Fire only once data has loaded
+  // (practiceCount !== null) and the top-level library is genuinely empty
+  // (no error, not searching, not inside a folder). The module-level guard
+  // keeps the replace()-driven remount from looping back in.
+  useEffect(() => {
+    if (
+      !didRedirectToOnboarding &&
+      practiceCount !== null &&
+      !error &&
+      !q &&
+      !currentFolderId &&
+      rows.length === 0
+    ) {
+      didRedirectToOnboarding = true;
+      router.replace('/onboarding' as never);
+    }
+  }, [practiceCount, error, q, currentFolderId, rows.length, router]);
 
   function goUp() {
     const parent = path.length >= 2 ? path[path.length - 2].id : null;
@@ -1438,6 +1472,52 @@ export default function LibraryScreen() {
           'On any folder, passage, or PDF card: tap to open it, or long-press for quick actions (rename, move, edit/crop, delete).'
         }
       />
+
+      {showWelcome && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            zIndex: 200,
+          }}>
+          <ThemedView
+            style={{ borderRadius: 16, padding: 24, width: '100%', maxWidth: 380, gap: 12 }}>
+            <ThemedText style={{ fontSize: 22, fontWeight: Type.weight.bold, textAlign: 'center' }}>
+              This is your library 🎉
+            </ThemedText>
+            <ThemedText style={{ opacity: 0.85, textAlign: 'center' }}>
+              Your passage is saved here. From now on you can:
+            </ThemedText>
+            <View style={{ gap: 8 }}>
+              <ThemedText style={{ lineHeight: 22 }}>
+                •{' '}
+                <ThemedText style={{ fontWeight: Type.weight.bold }}>
+                  Practice it again
+                </ThemedText>{' '}
+                — tap your passage, then pick any strategy.
+              </ThemedText>
+              <ThemedText style={{ lineHeight: 22 }}>
+                •{' '}
+                <ThemedText style={{ fontWeight: Type.weight.bold }}>Add another</ThemedText>{' '}
+                — tap ＋ Add at the top.
+              </ThemedText>
+              <ThemedText style={{ lineHeight: 22 }}>
+                •{' '}
+                <ThemedText style={{ fontWeight: Type.weight.bold }}>Your account</ThemedText>{' '}
+                — at the very bottom (sign out, settings).
+              </ThemedText>
+            </View>
+            <Button label="Got it" onPress={() => setShowWelcome(false)} />
+          </ThemedView>
+        </View>
+      )}
 
       {undoMove && (
         <View pointerEvents="box-none" style={styles.toastAnchor}>

@@ -55,7 +55,8 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 export default function CropScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, coach } = useLocalSearchParams<{ id: string; coach?: string }>();
+  const isCoach = coach === '1';
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -208,7 +209,9 @@ export default function CropScreen() {
   );
 
   function onSkip() {
-    if (passage?.title === 'Untitled') {
+    if (isCoach) {
+      router.replace(`/onboarding?passageId=${id}` as never);
+    } else if (passage?.title === 'Untitled') {
       setNamePromptVisible(true);
     } else {
       router.replace(`/passage/${id}`);
@@ -232,7 +235,9 @@ export default function CropScreen() {
       const file = new File([blob], `${passage.id}.jpg`, { type: 'image/jpeg' });
       const publicUrl = await uploadPassageImage(passage.id, file);
       await updatePassageAssets(passage.id, publicUrl, publicUrl);
-      if (passage.title === 'Untitled') {
+      if (isCoach) {
+        router.replace(`/onboarding?passageId=${passage.id}` as never);
+      } else if (passage.title === 'Untitled') {
         setNamePromptVisible(true);
       } else {
         router.replace(`/passage/${passage.id}`);
