@@ -1438,27 +1438,13 @@ export default function LibraryScreen() {
         onCancel={() => setActionTarget(null)}
       />
 
-      {/* Gate on practiceCount !== null so the modal only appears AFTER
-          the first refresh completes — otherwise existing users see it
-          flash during the brief loading window before their items
-          populate. */}
-      {/* Gates:
-          - practiceCount !== null: wait for the first refresh so the
-            modal doesn't flash during the loading window.
-          - practiceCount === 0: only fire for true first-timers. Once
-            the user has practiced anything (anywhere), they know how
-            to add pieces — deleting their library shouldn't re-coach.
-          - rows.length === 0 / !q / !currentFolderId: the trigger
-            condition itself (empty library at root, not a search). */}
+      {/* The guided onboarding (the empty-library redirect to /onboarding)
+          is now the first-run experience, so this no longer auto-fires — it
+          would just flash in front of the quiz. It stays registered
+          (visible={false}) so the ? button can still open it on demand. */}
       <TutorialStep
         id="library-add"
-        visible={
-          practiceCount === 0 &&
-          !error &&
-          rows.length === 0 &&
-          !q &&
-          !currentFolderId
-        }
+        visible={false}
         title="Add your first piece"
         body={
           '+ Add (top right) — snap a photo of a page, upload a PDF of the full part, or make a folder. The easiest first move: a photo of the page, then mark the spots you want to drill right on it.\n\n' +
