@@ -71,6 +71,30 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
+// Pull a readable string out of any thrown value. Supabase/Postgres errors are
+// plain objects (not Error instances), so String(e) gives a useless
+// "[object Object]" — dig out .message / .details / .error_description instead.
+function errToMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === 'object') {
+    const o = e as {
+      message?: unknown;
+      error_description?: unknown;
+      details?: unknown;
+    };
+    if (typeof o.message === 'string' && o.message) return o.message;
+    if (typeof o.error_description === 'string' && o.error_description)
+      return o.error_description;
+    if (typeof o.details === 'string' && o.details) return o.details;
+    try {
+      return JSON.stringify(e);
+    } catch {
+      return String(e);
+    }
+  }
+  return String(e);
+}
+
 export default function CropScreen() {
   const { id, coach } = useLocalSearchParams<{ id: string; coach?: string }>();
   const isCoach = coach === '1';
@@ -129,7 +153,7 @@ export default function CropScreen() {
       .then((p) => {
         if (!cancelled) setPassage(p);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .catch((e) => setError(errToMessage(e)))
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -307,7 +331,7 @@ export default function CropScreen() {
         setWhatNextVisible(true);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errToMessage(e));
     } finally {
       setSaving(false);
     }
@@ -339,7 +363,7 @@ export default function CropScreen() {
       await updatePassageAssets(newId, publicUrl, publicUrl);
       router.replace(`/passage/${newId}/crop`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errToMessage(e));
       setSaving(false);
     }
   }
