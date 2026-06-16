@@ -309,9 +309,7 @@ export default function RhythmicScreen() {
           <ThemedText type="title">How are the notes grouped?</ThemedText>
           <ThemedText style={{ opacity: 0.85, lineHeight: 22 }}>
             Look at your fast run — how many notes are beamed together in one
-            group? Tap the picture that matches. Most fast passages are{' '}
-            <ThemedText style={{ fontWeight: Type.weight.heavy }}>4</ThemedText>{' '}
-            (even sixteenth notes).
+            group? Tap the picture that matches.
           </ThemedText>
           <View style={styles.groupingGrid}>
             {GROUPING_CHOICES.map(({ n, abc, w }) => (
