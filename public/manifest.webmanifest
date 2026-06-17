@@ -1,6 +1,6 @@
 {
   "name": "Play Fast Notes",
-  "short_name": "PlayFast",
+  "short_name": "Play Fast",
   "description": "Crop the passages you struggle with, pick a practice strategy, and drill them with built-in metronome, recorder, and timer.",
   "start_url": "/library",
   "scope": "/",

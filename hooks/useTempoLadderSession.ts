@@ -93,6 +93,13 @@ export function useTempoLadderSession(
   const [celebrating, setCelebrating] = useState<Celebration>(null);
   const [completedSets, setCompletedSets] = useState(0);
   const lastHitTempoRef = useRef<number | null>(null);
+  // Guided onboarding auto-enables the micro-break timer to demonstrate the
+  // habit (see confirmPerformanceTempo). Timers are global + persisted, so we
+  // remember what the setting was BEFORE we flipped it and restore it when the
+  // user leaves onboarding (finish OR bail, via the unmount cleanup below) —
+  // a brand-new user shouldn't be left with a timer they never chose. null =
+  // we never touched it; true/false = the captured prior state.
+  const microbreakPriorEnabledRef = useRef<boolean | null>(null);
   // True once the user has reached goal at any point this session. Drives
   // the start-tempo bump on endSession.
   const reachedGoalRef = useRef(false);
@@ -111,6 +118,22 @@ export function useTempoLadderSession(
   // deletes a row that startPlaying freshly created this session, never one
   // carrying real prior progress.
   const hadDurableRowRef = useRef(false);
+
+  // Latest micro-break API, read by the unmount cleanup below (avoids a stale
+  // closure on setConfig).
+  const microbreakRef = useRef(microbreak);
+  microbreakRef.current = microbreak;
+  // On leaving the guided session (finish→replace OR any EXIT/back), put the
+  // micro-break timer back the way we found it — but only if confirmPerformance-
+  // Tempo actually flipped it on (captured prior state === false). Restores via
+  // the GlobalTimer provider, which stays mounted, so this is safe at unmount.
+  useEffect(() => {
+    return () => {
+      if (guided && microbreakPriorEnabledRef.current === false) {
+        microbreakRef.current.setConfig({ enabled: false });
+      }
+    };
+  }, [guided]);
 
   const [mode, setMode] = useState<Mode>('step');
   const [startTempo, setStartTempo] = useState('60');
@@ -718,6 +741,11 @@ export function useTempoLadderSession(
     setTargetReps(5);
     // Switch on the micro-break timer so the guided session demonstrates the
     // rest-every-few-reps habit (the 'ready' screen tells the user we did).
+    // Remember the prior state first so the unmount cleanup can restore it —
+    // we only ever turn it back off if WE turned it on.
+    if (microbreakPriorEnabledRef.current === null) {
+      microbreakPriorEnabledRef.current = microbreak.config.enabled;
+    }
     microbreak.setConfig({ enabled: true });
     setPhase('ready');
   }

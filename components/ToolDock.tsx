@@ -31,6 +31,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { TopLayer } from '@/components/TopLayer';
 
 export type DockEdge = 'left' | 'right';
 
@@ -339,21 +340,48 @@ export function ToolDock({
 
   return (
     <>
-      {/* Docked (phone): render the panel in a full-screen Modal so it overlays
-          the header and the global help button — escaping the content box it
-          would otherwise be clipped to. Non-docked stays an in-layer draggable
-          card. The transparent, box-none backdrop leaves the rest of the
-          screen visible and (on web) interactive. */}
+      {/* Docked (phone): the panel must overlay the header + global help button,
+          escaping the content box it would otherwise be clipped to. Non-docked
+          stays an in-layer draggable card. */}
       {docked ? (
-        <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
-          visible={modalShown}
-          transparent
-          animationType="none"
-          onRequestClose={() => setOpen(false)}>
-          <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-            {card}
-          </View>
-        </Modal>
+        Platform.OS === 'web' ? (
+          // Web: a transparent react-native-web Modal still captures pointer
+          // events across the WHOLE viewport, so controls behind the panel
+          // (e.g. the ICU NEXT button) stopped responding while a tool was open
+          // — closing it freed them again. Render the panel as a viewport-fixed,
+          // box-none overlay instead: position:'fixed' anchors it to the window
+          // (matching the dockedOpenX / dockedTopY window coords) and escapes
+          // the content box the same way the Modal did, while box-none lets every
+          // tap that misses the card fall through to the screen underneath. Only
+          // mounted while shown (kept through the slide-out, like the Modal).
+          modalShown ? (
+            // Portal to document.body so the panel clears the per-screen card
+            // (which carries a transform) AND the app-root help button — a
+            // z-index alone can't, which left the panel rendering *under* the
+            // NEXT / "i" buttons. box-none keeps everything behind it tappable.
+            <TopLayer>
+              <View
+                pointerEvents="box-none"
+                style={[
+                  StyleSheet.absoluteFill,
+                  // 'fixed' anchors to the window (react-native-web); native uses the Modal branch.
+                  { position: 'fixed', zIndex: 1000 },
+                ]}>
+                {card}
+              </View>
+            </TopLayer>
+          ) : null
+        ) : (
+          <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+            visible={modalShown}
+            transparent
+            animationType="none"
+            onRequestClose={() => setOpen(false)}>
+            <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+              {card}
+            </View>
+          </Modal>
+        )
       ) : (
         <GestureDetector gesture={composed}>{card}</GestureDetector>
       )}

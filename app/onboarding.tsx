@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
@@ -73,6 +73,10 @@ export default function OnboardingScreen() {
   const [step, setStep] = useState<Step>(params.passageId ? 'feel' : 'entry');
   const [feel, setFeel] = useState<Feel | null>(null);
   const [character, setCharacter] = useState<Character | null>(null);
+  // What the user is working on — asked before the photo so the page is named
+  // up front and the first marked spot can auto-name off it ("<piece> 1").
+  // Travels to /upload?coach=1 as ?piece=.
+  const [pieceName, setPieceName] = useState('');
 
   function go(next: Step) {
     setHistory((h) => [...h, step]);
@@ -105,19 +109,23 @@ export default function OnboardingScreen() {
     title,
     sub,
     onPress,
+    disabled,
   }: {
     title: string;
     sub?: string;
     onPress: () => void;
+    disabled?: boolean;
   }) {
     return (
       <Pressable
-        onPress={onPress}
+        onPress={disabled ? undefined : onPress}
+        disabled={disabled}
         style={({ pressed }) => [
           styles.option,
           {
             borderColor: C.icon + '66',
             backgroundColor: pressed ? C.icon + '18' : 'transparent',
+            opacity: disabled ? 0.4 : 1,
           },
         ]}>
         <ThemedText style={styles.optionTitle}>{title}</ThemedText>
@@ -165,14 +173,15 @@ export default function OnboardingScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         {step === 'entry' && (
           <View style={styles.centered}>
-            <ThemedText style={styles.h1}>Let’s work one passage.</ThemedText>
+            <ThemedText style={styles.h1}>Let’s get you practicing.</ThemedText>
             <ThemedText style={[styles.lead, { color: C.icon }]}>
-              Two quick questions and you’re practicing — nothing to set up.
+              Add a passage and I’ll guide you through it — or jump straight to the
+              practice tools.
             </ThemedText>
             <View style={styles.actions}>
-              <Button label="Help me get started" onPress={() => go('photo')} />
+              <Button label="Add my music & get some guidance" onPress={() => go('photo')} />
               <Button
-                label="I know my way around — just the tools"
+                label="Just the tools — I’ll read my own music"
                 variant="ghost"
                 onPress={() => router.replace('/tools' as never)}
               />
@@ -182,26 +191,44 @@ export default function OnboardingScreen() {
 
         {step === 'photo' && (
           <View style={styles.centered}>
-            <ThemedText style={styles.h1}>
-              Take a photo of the whole page.
-            </ThemedText>
+            <ThemedText style={styles.h1}>What are you working on?</ThemedText>
             <ThemedText style={[styles.lead, { color: C.icon }]}>
-              Get the full page in frame — next you’ll mark the fast or technical
-              spot you want to practice.
+              Name the piece, then snap a photo of the page — you’ll mark the fast
+              or technical spot you want to practice on it.
             </ThemedText>
-            {/* Both options route to /upload?coach=1, which (in the coach flow)
-                sends the photo into the document viewer to mark a passage box,
-                then hands back to /onboarding?passageId=<id> to resume the quiz. */}
+            <TextInput
+              value={pieceName}
+              onChangeText={setPieceName}
+              placeholder="e.g. Mozart Concerto"
+              placeholderTextColor={C.icon + '99'}
+              style={[styles.nameInput, { borderColor: C.icon + '66', color: C.text }]}
+              returnKeyType="done"
+            />
+            {/* Both options route to /upload?coach=1&piece=<name>: the upload
+                names the photo/page the piece, opens the document viewer to mark
+                a passage box (auto-named "<piece> 1"), then hands back to
+                /onboarding?passageId=<id> to resume the quiz. Gated on a name so
+                the page + first spot are always titled. */}
             <View style={styles.actions}>
               <Option
                 title="📷  Photo of your sheet music"
                 sub="paper on the stand"
-                onPress={() => router.push('/upload?coach=1' as never)}
+                disabled={!pieceName.trim()}
+                onPress={() =>
+                  router.push(
+                    `/upload?coach=1&piece=${encodeURIComponent(pieceName.trim())}` as never,
+                  )
+                }
               />
               <Option
                 title="🖼  Screenshot of your PDF"
                 sub="from Forscore or your files"
-                onPress={() => router.push('/upload?coach=1' as never)}
+                disabled={!pieceName.trim()}
+                onPress={() =>
+                  router.push(
+                    `/upload?coach=1&piece=${encodeURIComponent(pieceName.trim())}` as never,
+                  )
+                }
               />
             </View>
           </View>
@@ -316,6 +343,14 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', gap: Spacing.sm },
   h1: { fontSize: 24, fontWeight: Type.weight.bold, lineHeight: 30 },
   lead: { fontSize: Type.size.md, lineHeight: 22 },
+  nameInput: {
+    borderWidth: 1,
+    borderRadius: Radii.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    fontSize: Type.size.md,
+    marginTop: Spacing.sm,
+  },
   kicker: {
     fontSize: 12,
     fontWeight: Type.weight.bold,

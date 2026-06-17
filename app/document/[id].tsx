@@ -619,18 +619,28 @@ export default function DocumentScreen() {
   }
 
   async function onSaveDraftClick() {
-    if (drafts.size === 0) return;
+    if (drafts.size === 0 || !doc) return;
+    if (coach) {
+      // Guided onboarding: the page is already titled the piece (asked up front,
+      // set at upload), so the FIRST spot auto-names off it ("<piece> 1") with no
+      // popup — keeps the marking step interruption-free. Every spot AFTER the
+      // first (added later, non-coach) is named by the user via the prompt below.
+      void commitDraft(`${doc.title} ${passages.length + 1}`);
+      return;
+    }
     setNamePromptOpen(true);
   }
 
-  async function onNamePromptSubmit(value: string) {
+  function onNamePromptSubmit(value: string) {
     setNamePromptOpen(false);
     const title = value.trim();
-    if (!title) {
-      // Empty name = cancel the save but keep drafts so user can retry.
-      return;
-    }
-    if (drafts.size === 0 || !doc) return;
+    // Empty name = cancel the save but keep drafts so user can retry.
+    if (!title) return;
+    void commitDraft(title);
+  }
+
+  async function commitDraft(title: string) {
+    if (!title || drafts.size === 0 || !doc) return;
     setSavingDraft(true);
     try {
       // Sort drafts by page so the composite stacks top-to-bottom in document order.
@@ -664,8 +674,9 @@ export default function DocumentScreen() {
       setMode('idle');
       pendingFirstDrawnPageRef.current = null;
       if (coach) {
-        // Guided onboarding: skip the "Mark another?" sheet and resume the quiz
-        // with this passage. (One marked spot is enough to start practicing.)
+        // The page is already titled the piece (set at upload from the name the
+        // user gave up front), and this spot auto-named "<piece> 1" — so no
+        // rename needed. Skip the "Mark another?" sheet and resume the quiz.
         router.replace(`/onboarding?passageId=${passageId}` as never);
         return;
       }
@@ -1012,7 +1023,7 @@ export default function DocumentScreen() {
           </Pressable>
           <ThemedText numberOfLines={2} style={styles.coachInstruction}>
             {drafts.size > 0
-              ? 'Looks good — tap Continue to name it.'
+              ? 'Looks good — tap Continue.'
               : 'Drag a box around the spot you want to practice.'}
           </ThemedText>
           <Button
@@ -1306,7 +1317,9 @@ export default function DocumentScreen() {
           <Pressable
             onPress={dismissPdfBoxCoach}
             accessibilityLabel="Dismiss tip"
-            style={styles.coachToast}>
+            // Clear the notch / status bar AND the header — a flat top offset
+            // tucked the toast under the phone's speaker / Dynamic Island.
+            style={[styles.coachToast, { top: insets.top + 56 }]}>
             <View style={styles.coachToastInner}>
               <ThemedText style={styles.coachToastText}>
                 ▶ Tap a box to practice that passage

@@ -107,9 +107,12 @@ async function fileToPageImage(file: File): Promise<{ blob: Blob; w: number; h: 
 
 export default function UploadScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ folder?: string; coach?: string }>();
+  const params = useLocalSearchParams<{ folder?: string; coach?: string; piece?: string }>();
   const targetFolderId = params.folder ? params.folder : null;
   const coach = params.coach === '1';
+  // Onboarding asks the piece name up front and passes it here so the photo/page
+  // is titled the piece (and the first marked spot can auto-name "<piece> 1").
+  const pieceTitle = params.piece?.trim();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
 
@@ -151,7 +154,7 @@ export default function UploadScreen() {
       const publicUrl = await uploadDocumentPageImage(userId, docId, 1, blob);
       await insertDocument({
         id: docId,
-        title: defaultTitleFromFile(file),
+        title: pieceTitle || defaultTitleFromFile(file),
         composer: null,
         source_kind: 'images',
         page_count: 1,

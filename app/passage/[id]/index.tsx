@@ -641,7 +641,9 @@ export default function PassageDetailScreen() {
                       <Button
                         label="Rhythm patterns only"
                         onPress={() => setRhythmicStep('grouping')}
-                        style={{ backgroundColor: '#4a235a' }}
+                        // Match the Rhythmic Variation pill (its strategy color),
+                        // not the old purple this strategy used to be.
+                        style={{ backgroundColor: strategyColors.rhythmic ?? '#d07b1f' }}
                         fullWidth
                       />
                       <ThemedText style={styles.sheetHint}>
@@ -669,7 +671,9 @@ export default function PassageDetailScreen() {
                             }),
                           );
                         }}
-                        style={{ backgroundColor: '#9b59b6' }}
+                        // A deeper amber so the Pro Builder stays distinct from
+                        // the free "Rhythm patterns only" above, same gold family.
+                        style={{ backgroundColor: '#9c5a14' }}
                         fullWidth
                       />
                       <ThemedText style={styles.sheetHint}>

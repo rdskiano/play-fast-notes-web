@@ -37,7 +37,7 @@ export default function ToolsHubScreen() {
     {
       emoji: '🥁',
       title: 'Metronome',
-      subtitle: 'Tempo, meter, subdivisions, and drum grooves.',
+      subtitle: 'Tempo, meter, subdivisions, drum grooves, drone, and random gaps.',
       color: '#3a3f44',
       route: '/tools/metronome',
     },
@@ -56,13 +56,6 @@ export default function ToolsHubScreen() {
       route: `/passage/${TOOLS_ONLY_ID}/rhythmic`,
     },
     {
-      emoji: '⏱',
-      title: 'Interleaved Click-Up',
-      subtitle: 'Drill units at climbing tempos, guided by text — no music needed.',
-      color: colors.click_up ?? '#154360',
-      route: '/tools/stepper',
-    },
-    {
       emoji: '🌐',
       title: 'Community Library',
       subtitle: 'Browse and download rhythm exercises shared by other players.',
@@ -75,7 +68,11 @@ export default function ToolsHubScreen() {
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
       <SessionTopBar
-        onExit={() => router.back()}
+        onExit={() =>
+          router.canGoBack()
+            ? router.back()
+            : router.replace('/(tabs)/library' as never)
+        }
         exitLabel="‹ Library"
         center={
           <ThemedText style={styles.topCenter} numberOfLines={1}>
@@ -84,9 +81,25 @@ export default function ToolsHubScreen() {
         }
       />
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Headline on-ramp: the free tools below are the hook; bringing your
+            own music in (coached, with saved progress) is the upgrade in
+            engagement — and eventually the paid tier. Keep this first so the
+            tools room is a door INTO the app, not a dead end. */}
+        <Pressable
+          onPress={() => router.push('/upload?coach=1' as never)}
+          style={[styles.hero, { backgroundColor: colors.tempo_ladder ?? '#2ecc71' }]}>
+          <ThemedText style={styles.heroEmoji}>🎵</ThemedText>
+          <View style={styles.heroBody}>
+            <ThemedText style={styles.heroTitle}>Add my music &amp; get some guidance</ThemedText>
+            <ThemedText style={styles.heroSubtitle}>
+              Snap a photo, mark the spot, and I’ll guide you through it and
+              remember your progress.
+            </ThemedText>
+          </View>
+          <ThemedText style={styles.heroArrow}>›</ThemedText>
+        </Pressable>
         <ThemedText style={[styles.intro, { color: C.icon }]}>
-          Practice tools you can use on their own — no piece of music required.
-          Nothing here is saved to your practice log.
+          Or just grab a tool — nothing to set up, nothing saved.
         </ThemedText>
         <View style={[styles.grid, isPhone && styles.gridPhone]}>
           {cards.map((card) => (
@@ -126,6 +139,21 @@ export default function ToolsHubScreen() {
 const styles = StyleSheet.create({
   topCenter: { textAlign: 'center', fontWeight: Type.weight.bold, fontSize: Type.size.sm },
   content: { padding: Spacing.lg, gap: Spacing.lg },
+  hero: {
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.lg,
+    borderRadius: Radii.xl,
+  },
+  heroEmoji: { fontSize: 32 },
+  heroBody: { flex: 1, gap: 4 },
+  heroTitle: { fontSize: Type.size.lg, fontWeight: Type.weight.heavy, color: '#fff' },
+  heroSubtitle: { fontSize: Type.size.sm, lineHeight: 18, color: '#ffffffe6' },
+  heroArrow: { fontSize: 28, color: '#fff', fontWeight: Type.weight.bold },
   intro: { fontSize: Type.size.sm, lineHeight: 20, textAlign: 'center' },
   grid: {
     flexDirection: 'row',

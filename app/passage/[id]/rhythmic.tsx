@@ -12,6 +12,7 @@ import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ScoreWithMarkers } from '@/components/ScoreWithMarkers';
 import { SessionTopBar } from '@/components/SessionTopBar';
+import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
@@ -73,6 +74,7 @@ export default function RhythmicScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const { colors } = useStrategyColors();
   const insets = useSafeAreaInsets();
   // Phone density flag — drives the scrollable score below.
   const { width: vpW, height: vpH } = useWindowDimensions();
@@ -512,6 +514,9 @@ export default function RhythmicScreen() {
                   style={[
                     styles.toolsNavBtn,
                     styles.toolsNextBtn,
+                    // Match the Rhythm Variations strategy color (the pill), not
+                    // the old hardcoded purple.
+                    { backgroundColor: colors.rhythmic, borderColor: colors.rhythmic },
                     { opacity: currentIndex >= patterns.length - 1 ? 0.4 : 1 },
                   ]}>
                   <ThemedText style={[styles.toolsNavText, { color: '#fff' }]}>Next →</ThemedText>
@@ -758,7 +763,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toolsNextBtn: { backgroundColor: '#9b59b6', borderColor: '#6c3483' },
+  // Color applied inline from the rhythmic strategy color; amber default here
+  // so there's no purple fallback.
+  toolsNextBtn: { backgroundColor: '#d07b1f', borderColor: '#d07b1f' },
   toolsNavText: { fontWeight: Type.weight.heavy, fontSize: Type.size.md },
   overlay: {
     ...StyleSheet.absoluteFillObject,

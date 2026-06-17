@@ -484,10 +484,23 @@ export default function RhythmBuilderScreen() {
   // the user may want something more descriptive.
   function openPdfTitlePrompt() {
     if (!passage) return;
-    const defaultTitle =
+    // The "spot" name — the exercise's own name, else the passage title.
+    const spot =
       exercise?.name && exercise.name.trim().length > 0
-        ? exercise.name
-        : (passage.title ?? 'Exercises');
+        ? exercise.name.trim()
+        : (passage.title?.trim() || 'Exercises');
+    // Prefix the WORK (parent piece/document, e.g. "Mozart Concerto") so the
+    // exported PDF reads as part of the larger work, not a bare fragment like
+    // "measure 52". Users expected the work to be added automatically — make it
+    // visible + editable in the prefill instead. Skip the prefix when there's no
+    // work title, or when the spot already is / contains it (avoid "X — X").
+    const work = workTitle.trim();
+    const defaultTitle =
+      work &&
+      work.toLowerCase() !== spot.toLowerCase() &&
+      !spot.toLowerCase().includes(work.toLowerCase())
+        ? `${work} — ${spot}`
+        : spot;
     setPdfTitleDraft(defaultTitle);
     setPdfTitleModalOpen(true);
   }

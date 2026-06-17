@@ -241,10 +241,13 @@ export function PracticeToolsLayer({
             accent={DEVICE.body}
             panelBg={DEVICE.body}
             borderColor={DEVICE.rim}
-            // Phone is score-first: tools start collapsed even when a
-            // strategy supplied a metronomeNote (the user can still tap
-            // the tab to pop it out).
-            defaultOpen={!!metronomeNote && !isPhone}
+            // Tablet/laptop have room, so any practice strategy that DRIVES the
+            // metronome (passes its own `metronome` — incl. the guided ones and
+            // Rhythm Variations, which don't supply a metronomeNote) pops it out
+            // on load. Phone stays score-first (collapsed; tap the tab to open),
+            // and non-strategy screens that don't pass a metronome (passage hub,
+            // chunking, self-led) stay collapsed everywhere.
+            defaultOpen={!!metronome && !isPhone}
             tabTop={tabTop}
             tabSpan={span}
             // Phone gets a tighter card — the instructional `note` is

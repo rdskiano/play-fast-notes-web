@@ -67,6 +67,7 @@ import {
   type DocumentRow,
 } from '@/lib/db/repos/documents';
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
+import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { getTempoLadderProgressForPassages } from '@/lib/db/repos/tempoLadder';
 import { bmacUrl } from '@/lib/links';
 
@@ -432,14 +433,6 @@ function DocumentCard({
   );
 }
 
-// First-run redirect guard. Module-level (not a ref) so it survives the
-// remount that router.replace into the quiz causes — a ref would reset and
-// loop the user straight back into the quiz. Resets on a full page reload,
-// which is exactly right for the newbie demo account (re-onboards each fresh
-// load). TODO before prod: swap for a persisted "seen onboarding" setting so
-// real users see the quiz exactly once, not once per session.
-let didRedirectToOnboarding = false;
-
 export default function LibraryScreen() {
   const router = useRouter();
   // One-time orientation overlay when the user lands here straight from
@@ -504,6 +497,33 @@ export default function LibraryScreen() {
   const [undoMove, setUndoMove] = useState<UndoMove | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Persisted "this account has already been through the first-run quiz" flag,
+  // read from the per-user settings table. `null` = still loading. The demo
+  // account (newbie@newbie.com) always reads null and never writes it, so it
+  // re-onboards on every fresh load. Loaded per mount, so signing out and back
+  // in re-evaluates it (the old module-level guard didn't — that's why the
+  // demo account stopped firing the quiz until a full reload).
+  const [onboardingSeen, setOnboardingSeen] = useState<boolean | null>(null);
+  // Guards against a double-fire of the redirect within a single mount. Resets
+  // on remount, which is correct — the persisted flag governs from then on.
+  const redirectingToOnboarding = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSetting('onboarding.seen')
+      .then((v) => {
+        if (!cancelled) setOnboardingSeen(v === 'true');
+      })
+      .catch(() => {
+        // On a read error, assume seen so a flaky network can't trap the user on
+        // a blank screen or loop them into onboarding — the empty-library hero
+        // still guides a genuinely new user to add their first piece.
+        if (!cancelled) setOnboardingSeen(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -611,24 +631,29 @@ export default function LibraryScreen() {
     ...filteredPassages.map((passage) => ({ kind: 'passage' as const, passage })),
   ];
 
-  // First run = the very first thing a brand-new user sees is the guided
-  // quiz, not an empty library. Fire only once data has loaded
-  // (practiceCount !== null) and the top-level library is genuinely empty
-  // (no error, not searching, not inside a folder). The module-level guard
-  // keeps the replace()-driven remount from looping back in.
+  // First run = the very first thing a brand-new user sees is the guided quiz,
+  // not an empty library. Fire once the persisted flag says "not seen", the data
+  // has loaded, and the top-level library is genuinely empty + un-practiced
+  // (no error, not searching, not inside a folder). We mark the flag seen
+  // (best-effort) and flip local state BEFORE navigating, so the user sees the
+  // quiz exactly once across sessions and devices — and a mid-quiz bail doesn't
+  // restart them. The ref blocks a double-fire while this mount tears down.
   useEffect(() => {
     if (
-      !didRedirectToOnboarding &&
-      practiceCount !== null &&
+      !redirectingToOnboarding.current &&
+      onboardingSeen === false &&
+      practiceCount === 0 &&
       !error &&
       !q &&
       !currentFolderId &&
       rows.length === 0
     ) {
-      didRedirectToOnboarding = true;
+      redirectingToOnboarding.current = true;
+      setOnboardingSeen(true);
+      setSetting('onboarding.seen', 'true').catch(() => {});
       router.replace('/onboarding' as never);
     }
-  }, [practiceCount, error, q, currentFolderId, rows.length, router]);
+  }, [onboardingSeen, practiceCount, error, q, currentFolderId, rows.length, router]);
 
   function goUp() {
     const parent = path.length >= 2 ? path[path.length - 2].id : null;
@@ -961,6 +986,25 @@ export default function LibraryScreen() {
       />
     </View>
   );
+
+  // Hold a blank canvas (no empty-library chrome) while we're still deciding
+  // whether to send a brand-new user straight into the quiz — either the flag
+  // is still loading or it says "not seen" and the library is empty and about
+  // to redirect. This is what kills the empty-library flash before the quiz.
+  // Returning users with content fall through immediately (rows.length > 0),
+  // and a user who already finished onboarding (onboardingSeen === true) sees
+  // the normal empty-state hero if they later delete everything.
+  const decidingFirstRun =
+    !q &&
+    !currentFolderId &&
+    !error &&
+    rows.length === 0 &&
+    ((onboardingSeen === false && practiceCount === 0) ||
+      (onboardingSeen === null && (practiceCount === null || practiceCount === 0)));
+
+  if (decidingFirstRun) {
+    return <ThemedView style={[styles.container, { paddingTop: headerTopPad }]} />;
+  }
 
   return (
     <ThemedView style={[styles.container, { paddingTop: headerTopPad }]}>
@@ -1445,7 +1489,7 @@ export default function LibraryScreen() {
       <TutorialStep
         id="library-add"
         visible={false}
-        title="Add your first piece"
+        title="Your library"
         body={
           '+ Add (top right) — snap a photo of a page, upload a PDF of the full part, or make a folder. The easiest first move: a photo of the page, then mark the spots you want to practice right on it.\n\n' +
           'Header buttons:\n' +
@@ -1454,7 +1498,7 @@ export default function LibraryScreen() {
             : '') +
           '📋 Practice Log — every session you\'ve logged, for this folder or the whole library.\n' +
           '🔀 Rep Rotator — practice several passages in shuffled order.\n' +
-          '🛠 Tools — the metronome, tempo ladder, rhythm variations, and Interleaved Click-Up on their own, without uploading any music.\n' +
+          '🛠 Tools — the metronome, tempo ladder, and rhythm variations on their own, without uploading any music.\n' +
           '✎ Edit — reorder with ↑ ↓, plus rename, move, or delete each item; tap Done to leave.\n\n' +
           'Search — pick a scope above the box: My Library filters your own folders and passages by title or composer; Community searches rhythm exercises shared by other players; IMSLP searches the public-domain sheet-music library so you can pull a score straight into your library (all free to browse).\n\n' +
           'Account — at the bottom of this page: sign out, reset your data, or delete your account.\n\n' +

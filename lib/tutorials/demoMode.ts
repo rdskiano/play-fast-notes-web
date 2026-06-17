@@ -27,6 +27,7 @@ export function isTutorialSeenKey(key: string): boolean {
     key.startsWith('help.autoSeen.') || // TutorialStep "?" modals
     key === 'clickUp.coachSeen' || // Click-Up first-run coach
     key === 'macro_info_seen' || // Macro-Chaining per-step Quick Tips
-    key === 'pdfBox.coached' // PDF box-drawing coach (document viewer)
+    key === 'pdfBox.coached' || // PDF box-drawing coach (document viewer)
+    key === 'onboarding.seen' // first-run guided quiz (library redirect)
   );
 }
