@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { logOnboardingStep } from '@/lib/onboarding/telemetry';
 
 // The guided "Coach me" front door. Two observable questions — how the
 // passage FEELS and what it LOOKS like — route to exactly one practice
@@ -78,6 +79,14 @@ export default function OnboardingScreen() {
   // Travels to /upload?coach=1 as ?piece=.
   const [pieceName, setPieceName] = useState('');
 
+  // First-run funnel logging. Cold start = landed at the entry screen; resume =
+  // came back from the photo round-trip with a fresh passage (?passageId).
+  useEffect(() => {
+    void logOnboardingStep(params.passageId ? 'quiz_resumed' : 'started');
+    // Fire once per mount; passageId is stable for the life of this screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function go(next: Step) {
     setHistory((h) => [...h, step]);
     setStep(next);
@@ -93,6 +102,7 @@ export default function OnboardingScreen() {
 
   function begin() {
     const target = routeFor(feel!, character!);
+    void logOnboardingStep('quiz_answered', { feel, character, tool: target });
     if (params.passageId) {
       // Pre-config params travel on the URL; the tool screen reads them.
       router.replace(
@@ -179,11 +189,20 @@ export default function OnboardingScreen() {
               practice tools.
             </ThemedText>
             <View style={styles.actions}>
-              <Button label="Add my music & get some guidance" onPress={() => go('photo')} />
+              <Button
+                label="Add my music & get some guidance"
+                onPress={() => {
+                  void logOnboardingStep('chose_help');
+                  go('photo');
+                }}
+              />
               <Button
                 label="Just the tools — I’ll read my own music"
                 variant="ghost"
-                onPress={() => router.replace('/tools' as never)}
+                onPress={() => {
+                  void logOnboardingStep('chose_tools');
+                  router.replace('/tools' as never);
+                }}
               />
             </View>
           </View>

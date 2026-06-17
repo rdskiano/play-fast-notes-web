@@ -70,6 +70,7 @@ import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { getTempoLadderProgressForPassages } from '@/lib/db/repos/tempoLadder';
 import { bmacUrl } from '@/lib/links';
+import { logOnboardingStep } from '@/lib/onboarding/telemetry';
 
 type ListRow =
   | { kind: 'folder'; folder: Folder }
@@ -442,6 +443,11 @@ export default function LibraryScreen() {
   // have a passage and a logged session.
   const welcomeParam = useLocalSearchParams<{ welcome?: string }>().welcome;
   const [showWelcome, setShowWelcome] = useState(welcomeParam === '1');
+  // Final funnel milestone: landing here with ?welcome=1 means they finished a
+  // full guided first session. Logged once per arrival (best-effort).
+  useEffect(() => {
+    if (welcomeParam === '1') void logOnboardingStep('completed');
+  }, [welcomeParam]);
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { colors: strategyColors } = useStrategyColors();

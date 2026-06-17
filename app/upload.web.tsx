@@ -15,6 +15,7 @@ import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { insertDocument } from '@/lib/db/repos/documents';
+import { logOnboardingStep } from '@/lib/onboarding/telemetry';
 import { supabase } from '@/lib/supabase/client';
 import { uploadDocumentPageImage } from '@/lib/supabase/storage';
 
@@ -163,6 +164,7 @@ export default function UploadScreen() {
       });
       // Coach (guided onboarding): the viewer hands a passage id back to the
       // quiz after the user marks their first box. Non-coach: just open it.
+      if (coach) void logOnboardingStep('photo_uploaded');
       router.replace((coach ? `/document/${docId}?coach=1` : `/document/${docId}`) as never);
     } catch (e) {
       const msg = errToMessage(e);
