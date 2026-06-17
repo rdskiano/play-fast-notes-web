@@ -17,7 +17,12 @@ import { Radii, Type } from '@/constants/tokens';
 const HELP_BLUE = '#0a7ea4';
 
 export function HelpButton() {
-  const { openManually } = useHelpContext();
+  const { openManually, active } = useHelpContext();
+
+  // No screen has registered help content (e.g. the onboarding quiz, which IS
+  // the guide). Hide the button rather than show one that only says "No help
+  // here yet". Mirrors the web sibling.
+  if (!active) return null;
 
   return (
     <Pressable

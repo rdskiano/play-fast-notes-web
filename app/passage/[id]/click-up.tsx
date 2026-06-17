@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionSheet } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
+import { BpmStepper } from '@/components/BpmStepper';
 import { ClickUpCoach } from '@/components/ClickUpCoach';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
@@ -61,7 +62,7 @@ const CU_MARKING_STEPS: TourStep[] = [
     target: 'cu-score',
     title: 'Mark your units',
     body:
-      'Interleaved Click-Up — developed by researcher Molly Gebrian — breaks your passage into small units and drills them at shuffled tempos, and in changing contexts, which builds more reliable playing under pressure.\n\n' +
+      'Interleaved Click-Up — developed by researcher Molly Gebrian — breaks your passage into small units and practices them at shuffled tempos, and in changing contexts, which builds more reliable playing under pressure.\n\n' +
       'The passage needs to be broken down into small, manageable units. You can decide to go by the single beat (usually a beat plus the first note of the next beat), or by the measure. If a single beat contains too many notes (like six to eight) and is too difficult, you should break it down further into half or a quarter of a beat. As you get better over multiple days, this can expand to every two bars or an entire line.\n\n' +
       'Tap just above the music to mark where each unit begins (a beat or a measure), and add one extra mark at the very end. Pinch to zoom in for accuracy. Tap a mark again to remove it, or use UNDO / CLEAR up top.',
     image: {
@@ -101,7 +102,8 @@ const CU_CONFIG_STEPS: TourStep[] = [
 ];
 
 export default function ClickUpScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, guided } = useLocalSearchParams<{ id: string; guided?: string }>();
+  const isGuided = guided === '1';
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { width: winWidth, height: winHeight } = useWindowDimensions();
@@ -114,7 +116,7 @@ export default function ClickUpScreen() {
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
-  const session = useClickUpSession(id);
+  const session = useClickUpSession(id, isGuided);
 
   useEffect(() => {
     if (session.passage?.source_uri) {
@@ -156,25 +158,279 @@ export default function ClickUpScreen() {
     goBackToMarking,
     goBackToConfig,
     resumePlaying,
+    confirmPerformanceTempo,
+    commitMarkersAndStart,
+    goBackToTempo,
+    proceedToMarking,
+    goBackToExample,
+    finishGuidedToLibrary,
   } = session;
 
   const ann = useScoreAnnotation(passage);
+
+  // Guided onboarding: a one-time reassurance the first time they tap Next in
+  // the playing phase — confirms the button did something (the tempo climbed)
+  // so a first-timer isn't left wondering whether it worked.
+  const [firstNextSeen, setFirstNextSeen] = useState(false);
+  const [nextCoachVisible, setNextCoachVisible] = useState(false);
+  function handleNext() {
+    onNext();
+    if (isGuided && !firstNextSeen) {
+      setFirstNextSeen(true);
+      setNextCoachVisible(true);
+    }
+  }
 
   // Web-only guided tour of the marking screen. No-op on native, where the
   // help modal still covers Click-Up.
   useScreenTour(
     phase === 'config' ? 'click-up-config' : 'click-up-marking',
-    phase === 'marking'
-      ? CU_MARKING_STEPS
-      : phase === 'config'
-        ? CU_CONFIG_STEPS
-        : null,
+    // Guided onboarding suppresses the tour entirely — the quiz teaches
+    // marking inline with the example picture, so the coachmark popups
+    // (which were reading as "the wrong passage") never fire.
+    isGuided
+      ? null
+      : phase === 'marking'
+        ? CU_MARKING_STEPS
+        : phase === 'config'
+          ? CU_CONFIG_STEPS
+          : null,
   );
 
+  // ── PERFORMANCE TEMPO (guided onboarding only) ──────────────────────────
+  // The quiz drops a brand-new user straight here. One friendly question —
+  // how fast it ultimately needs to be — with a hear-it preview; start tempo
+  // auto-sets to half and there's no other setup to face.
+  if (phase === 'tempo') {
+    return (
+      <ThemedView style={{ flex: 1 }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
+          <Pressable onPress={exitSession} hitSlop={8}>
+            <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
+              ‹ Back
+            </ThemedText>
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={[
+            styles.configContainer,
+            configColumnStyle,
+            { paddingTop: Spacing.md },
+          ]}>
+          <ThemedText type="title">How fast does it need to be?</ThemedText>
+          <ThemedText style={{ opacity: 0.7 }}>
+            Set your performance tempo — the speed you’ll play it for real. Press
+            ▶ to hear it. We’ll start you at half that and climb from there.
+          </ThemedText>
+          <BpmStepper
+            value={goalTempo}
+            onChange={setGoalTempo}
+            metronome={metronome}
+          />
+        </ScrollView>
+        <View style={{ padding: 20, gap: 10 }}>
+          <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
+            <Button
+              label="Next: mark the beats →"
+              onPress={confirmPerformanceTempo}
+              style={actionButtonStyle}
+            />
+          </View>
+        </View>
+      </ThemedView>
+    );
+  }
+
   // ── MARKING ────────────────────────────────────────────────────────────
+  // ── HOW-TO / EXAMPLE (guided onboarding only) ───────────────────────────
+  // A standalone teaching screen: a direction + the marked example image +
+  // "Got it →". Keeping it separate from the marking screen means the user's
+  // own score is the only thing on the marking screen (no layout fight).
+  if (phase === 'example') {
+    return (
+      <ThemedView style={{ flex: 1 }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
+          <Pressable onPress={goBackToTempo} hitSlop={8}>
+            <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
+              ‹ Back
+            </ThemedText>
+          </Pressable>
+        </View>
+        <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, gap: Spacing.sm }}>
+          <ThemedText type="title">Here’s how you’ll mark it</ThemedText>
+          <ThemedText
+            style={[styles.helper, { opacity: 1, textAlign: 'left', paddingHorizontal: 0, paddingVertical: 0 }]}>
+            You’ll tap above the start of each beat, in order — plus one mark at
+            the very end. Like this:
+          </ThemedText>
+          {isPhone && winWidth < winHeight && (
+            <View style={[styles.rotateHint, { backgroundColor: C.tint + '18' }]}>
+              <ThemedText style={{ fontSize: 16 }}>↻</ThemedText>
+              <ThemedText style={{ flex: 1, fontSize: 13 }}>
+                Turn your phone sideways for a bigger view.
+              </ThemedText>
+            </View>
+          )}
+        </View>
+        <View
+          style={{
+            flex: 1,
+            justifyContent: 'center',
+            paddingHorizontal: Spacing.lg,
+            paddingVertical: Spacing.md,
+          }}>
+          <RNImage
+            source={require('@/assets/images/tutorial-click-up-marking.png')}
+            style={{ width: '100%', height: '100%', borderRadius: 8 }}
+            resizeMode="contain"
+          />
+        </View>
+        <View style={{ padding: 20 }}>
+          <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
+            <Button
+              label="Got it →"
+              onPress={proceedToMarking}
+              style={actionButtonStyle}
+            />
+          </View>
+        </View>
+      </ThemedView>
+    );
+  }
+
   if (phase === 'marking') {
     if (!passage) return <ThemedView style={{ flex: 1 }} />;
     const canContinue = markers.length >= MIN_MARKERS;
+    // Guided onboarding: a clean, quiz-style marking screen — no app top-bar,
+    // no tour. Example picture up top, then the user's own score to tap. Hands
+    // off to actual practice (playing) only when they tap Start practicing.
+    if (isGuided) {
+      return (
+        <ThemedView style={{ flex: 1 }}>
+          <Stack.Screen options={{ headerShown: false }} />
+          <View
+            style={{
+              paddingTop: insets.top + 10,
+              paddingHorizontal: Spacing.lg,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+            <Pressable onPress={goBackToExample} hitSlop={8}>
+              <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
+                ‹ Back
+              </ThemedText>
+            </Pressable>
+            <View style={{ flexDirection: 'row', gap: Spacing.lg }}>
+              <Pressable onPress={undoMarker} disabled={markers.length === 0} hitSlop={6}>
+                <ThemedText
+                  style={{
+                    color: C.tint,
+                    fontWeight: Type.weight.bold,
+                    opacity: markers.length === 0 ? 0.35 : 1,
+                  }}>
+                  Undo
+                </ThemedText>
+              </Pressable>
+              <Pressable onPress={clearMarkers} disabled={markers.length === 0} hitSlop={6}>
+                <ThemedText
+                  style={{
+                    color: '#c0392b',
+                    fontWeight: Type.weight.bold,
+                    opacity: markers.length === 0 ? 0.35 : 1,
+                  }}>
+                  Clear
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+          {/* One compact instruction line — title + how-to — so the score
+              below keeps every spare vertical pixel (the cramped
+              portrait-browser case Ralph hit on a small phone). */}
+          <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.xs }}>
+            <ThemedText style={{ fontWeight: Type.weight.bold, fontSize: Type.size.lg }}>
+              Now mark your passage
+            </ThemedText>
+            <ThemedText
+              style={[styles.helper, { opacity: 1, textAlign: 'left', paddingHorizontal: 0, paddingVertical: 2 }]}>
+              Tap above each beat in order, plus one at the very end. Pinch to
+              zoom.{isPhone && winWidth < winHeight ? '  ↻ Turn sideways for more room.' : ''}
+            </ThemedText>
+          </View>
+          {/* Score fills all remaining space, contained + pinch-zoomable, so a
+              tall or multi-line crop is panned (not truncated) and there's no
+              page scroll fighting the pan gesture. */}
+          <View
+            style={{
+              flex: 1,
+              marginTop: Spacing.xs,
+              marginHorizontal: Spacing.lg,
+              borderRadius: 8,
+              overflow: 'hidden',
+            }}>
+            <ZoomableImage
+              style={StyleSheet.absoluteFill}
+              persistKey={passage.id}
+              tapAspectRatio={imageAspect ?? undefined}
+              onTapPoint={(point, scale) => {
+                const hit = nearestMarkerNormalized(
+                  markers,
+                  point,
+                  markerTapRadius(winWidth - 32, scale),
+                );
+                if (hit != null) removeMarker(hit);
+                else placeMarker(point);
+              }}>
+              <ScoreWithMarkers
+                uri={passage.source_uri}
+                markers={markers}
+                mode="place"
+                captureTaps={false}
+              />
+            </ZoomableImage>
+          </View>
+          {/* Soft nudge: ICU's step count multiplies with markers, so a
+              first-timer who marks the whole passage builds a session they'll
+              never finish. Don't block — just suggest keeping it small. */}
+          {markers.length >= 5 && (
+            <View style={{ paddingHorizontal: 20, paddingTop: Spacing.sm }}>
+              <View
+                style={{ backgroundColor: C.tint, borderRadius: Radii.lg, padding: 14 }}>
+                <ThemedText
+                  style={{
+                    color: '#fff',
+                    fontWeight: Type.weight.bold,
+                    fontSize: 15,
+                    lineHeight: 20,
+                  }}>
+                  That’s plenty for a first try! Every extra mark makes this
+                  session longer — stop here, or mark just part of the passage to
+                  get a feel for it.
+                </ThemedText>
+              </View>
+            </View>
+          )}
+          <View style={{ paddingHorizontal: 20, paddingTop: Spacing.sm, paddingBottom: 20 }}>
+            <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
+              <Button
+                label={
+                  canContinue
+                    ? 'Start practicing →'
+                    : `Mark ${MIN_MARKERS - markers.length} more to start`
+                }
+                variant={canContinue ? 'primary' : 'outline'}
+                onPress={() => {
+                  if (canContinue) void commitMarkersAndStart();
+                }}
+                style={actionButtonStyle}
+              />
+            </View>
+          </View>
+        </ThemedView>
+      );
+    }
     return (
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -212,7 +468,13 @@ export default function ClickUpScreen() {
                 </ThemedText>
               </Pressable>
               <Pressable
-                onPress={canContinue ? commitMarkersAndConfigure : undefined}
+                onPress={
+                  canContinue
+                    ? isGuided
+                      ? commitMarkersAndStart
+                      : commitMarkersAndConfigure
+                    : undefined
+                }
                 hitSlop={6}
                 disabled={!canContinue}
                 {...tourTag('cu-next')}
@@ -285,7 +547,7 @@ export default function ClickUpScreen() {
           title="Mark your units"
           body={
             "Interleaved Click-Up is a structured practice method developed by Molly Gebrian — a viola professor and researcher in the neuroscience of practice (her book: Learn Faster, Perform Better). Instead of repeating a passage start-to-finish, you break it into small units; the app interleaves them at climbing tempos, forcing your brain to keep retrieving and reconnecting sections. That builds deeper, more reliable playing under pressure.\n\n" +
-            "Mark your units: tap just above the music to mark the start of each unit (a beat, a measure — the smallest chunk you want to drill). Pinch to zoom in for accuracy. Drop one extra mark at the end of the last unit so the app knows where it stops. You need at least " +
+            "Mark your units: tap just above the music to mark the start of each unit (a beat, a measure — the smallest chunk you want to practice). Pinch to zoom in for accuracy. Drop one extra mark at the end of the last unit so the app knows where it stops. You need at least " +
             String(MIN_MARKERS) +
             " marks total.\n\n" +
             "Fixing marks: tap a marker again to remove it, tap UNDO for just the last one, or CLEAR to start over. When you're done, tap NEXT → at the top right to set your tempo range.\n\n" +
@@ -412,7 +674,45 @@ export default function ClickUpScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SessionTopBar
+      {/* Guided onboarding: replace the full session chrome with a light,
+          quiz-consistent banner. The metronome auto-runs, so the user just
+          plays along and taps NEXT — no top bar, tool tabs, or coach modal. */}
+      {isGuided && (
+        <View
+          style={[
+            styles.guidedBar,
+            { paddingTop: insets.top + 10, borderBottomColor: C.icon + '33' },
+          ]}>
+          <View style={{ flex: 1, gap: 1 }}>
+            <ThemedText
+              style={{
+                fontSize: Type.size.xs,
+                fontWeight: Type.weight.bold,
+                color: C.tint,
+                opacity: 0.9,
+              }}>
+              Step {currentIndex + 1} of {storedConfig.steps.length}
+            </ThemedText>
+            <ThemedText
+              style={{
+                fontSize: Type.size.sm,
+                fontWeight: Type.weight.semibold,
+                lineHeight: 18,
+              }}
+              numberOfLines={2}>
+              Play from one green arrow ▼ to the next.
+            </ThemedText>
+          </View>
+          <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={8}>
+            <ThemedText style={[styles.guidedBarDone, { color: C.tint }]}>
+              Done
+            </ThemedText>
+          </Pressable>
+        </View>
+      )}
+      {!isGuided && (
+        <>
+          <SessionTopBar
         onExit={exitSession}
         // "EXIT" on every size — matches the other practice screens; a bare
         // back-arrow here read as "undo", not "leave the session".
@@ -485,19 +785,43 @@ export default function ClickUpScreen() {
 
       {/* Phone LANDSCAPE folds this into the header line above (scarce vertical
           space); portrait + larger screens keep the standalone reminder. */}
-      {!isPhoneLandscape && (
-        <ThemedText style={styles.playHelper}>
-          Play from one green arrow ▼ to the next.
-        </ThemedText>
+          {!isPhoneLandscape && (
+            <ThemedText style={styles.playHelper}>
+              Play from one green arrow ▼ to the next.
+            </ThemedText>
+          )}
+        </>
       )}
 
       {/* Keyboard / pedal capture is always live during the playing phase
           (gated only by note prompts + celebration overlays). Laptop
           users get Space/Enter, iPad users get the on-screen NEXT, and a
           BT foot pedal works on any platform without a toggle. */}
+      {isGuided && nextCoachVisible && (
+        <Pressable
+          onPress={() => setNextCoachVisible(false)}
+          style={{
+            position: 'absolute',
+            top: insets.top + 56,
+            left: 12,
+            right: 12,
+            zIndex: 50,
+            backgroundColor: C.tint,
+            borderRadius: Radii.lg,
+            padding: 14,
+          }}>
+          <ThemedText style={{ color: '#fff', fontWeight: Type.weight.bold, fontSize: 15 }}>
+            Yes — that worked! The metronome just clicked up {increment} BPM, and
+            it’ll do that again each time you tap Next.
+          </ThemedText>
+          <ThemedText style={{ color: '#fff', opacity: 0.85, fontSize: 12, marginTop: 6 }}>
+            Tap to dismiss
+          </ThemedText>
+        </Pressable>
+      )}
       <PedalCatcher
         active={!notePromptVisible && !celebrating}
-        onAdvance={onNext}
+        onAdvance={handleNext}
         onBack={onPrev}
       />
 
@@ -544,12 +868,26 @@ export default function ClickUpScreen() {
           )}
           {ann.canvas}
         </View>
-        <PracticeToolsLayer
-          metronome={metronome}
-          metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."
-          pencil={ann.pencil}
-          recorderPassageId={passage?.id}
-        />
+        {isGuided ? (
+          // Guided: just a collapsed metronome tab (no note → starts closed),
+          // so a first-timer can tap it open to watch the tempo climb. No
+          // pencil/timer/recorder chrome.
+          <PracticeToolsLayer
+            metronome={metronome}
+            tools={
+              isPhone
+                ? { left: [], right: ['metronome'] }
+                : { left: ['metronome'], right: [] }
+            }
+          />
+        ) : (
+          <PracticeToolsLayer
+            metronome={metronome}
+            metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."
+            pencil={ann.pencil}
+            recorderPassageId={passage?.id}
+          />
+        )}
       </View>
 
       <View style={styles.bottomBar}>
@@ -570,14 +908,57 @@ export default function ClickUpScreen() {
             style={[styles.backBtn, { opacity: currentIndex === 0 ? 0.4 : 1 }]}>
             <ThemedText style={styles.backBtnText}>← BACK</ThemedText>
           </Pressable>
-          <Pressable onPress={onNext} style={[styles.nextBtn, styles.nextBtnGrow]}>
+          <Pressable onPress={handleNext} style={[styles.nextBtn, styles.nextBtnGrow]}>
             <ThemedText style={styles.nextBtnText}>NEXT →</ThemedText>
           </Pressable>
         </View>
       </View>
 
+      {isGuided && (celebrating || notePromptVisible) && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            zIndex: 100,
+          }}>
+          <ThemedView
+            style={{
+              borderRadius: Radii.xl,
+              padding: 24,
+              width: '100%',
+              maxWidth: 360,
+              alignItems: 'center',
+              gap: 10,
+            }}>
+            <ThemedText style={{ fontSize: 40 }}>🎉</ThemedText>
+            <ThemedText style={{ fontSize: 20, fontWeight: Type.weight.bold, textAlign: 'center' }}>
+              Your first guided session is done!
+            </ThemedText>
+            <ThemedText style={{ textAlign: 'center', opacity: 0.8 }}>
+              Nice work — it’s saved to your practice log.
+            </ThemedText>
+            <View style={{ width: '100%', marginTop: 8 }}>
+              <Button
+                label="See my library →"
+                onPress={() => {
+                  void finishGuidedToLibrary();
+                }}
+                style={actionButtonStyle}
+              />
+            </View>
+          </ThemedView>
+        </View>
+      )}
+
       <PracticeLogNotePrompt
-        visible={celebrating || notePromptVisible}
+        visible={!isGuided && (celebrating || notePromptVisible)}
         emoji={celebrating ? '🎉' : undefined}
         title={
           celebrating
@@ -616,7 +997,7 @@ export default function ClickUpScreen() {
         onCancel={() => setPhoneMenuOpen(false)}
       />
 
-      <ClickUpCoach />
+      {!isGuided && <ClickUpCoach />}
 
       <TutorialStep
         id="click-up-play"
@@ -659,6 +1040,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
   },
+  rotateHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: Radii.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
   playHelper: {
     textAlign: 'center',
     fontSize: Type.size.sm,
@@ -668,6 +1057,25 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   doneBtn: { backgroundColor: Status.danger },
+  // Guided-onboarding playing header: a light, quiz-consistent bar that
+  // replaces the full SessionTopBar so the first session never drops into
+  // app chrome. Just the instruction + a Done escape hatch.
+  guidedBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  guidedBarText: {
+    flex: 1,
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    lineHeight: 18,
+  },
+  guidedBarDone: { fontSize: Type.size.md, fontWeight: Type.weight.bold },
   // Symmetric side padding (= the help-button corner reserve) keeps the
   // centred NEXT/BACK row clear of the bottom-right "?" button on a narrow
   // viewport while staying centred on the window.

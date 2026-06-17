@@ -37,8 +37,10 @@ export const TESTER_PROMO_CODE = 'BETA6';
 //         current_period_end = excluded.current_period_end,
 //         updated_at = (extract(epoch from now()) * 1000)::bigint;
 
-// Free tier: this many active photo passages. PDF parts (documents) are
-// Pro-only — they're the serious-player workflow and the real storage cost.
+// Free tier: this many active photo passages — marked passages that aren't from
+// a PDF (legacy standalone photos + passages marked on photo/image-documents),
+// counted by countActivePhotoPassages(). PDF parts (source_kind 'pdf' documents)
+// are Pro-only — the serious-player workflow and the real storage cost.
 export const FREE_PASSAGE_LIMIT = 3;
 
 // Display strings used by the paywall UI. The actual amounts live in the

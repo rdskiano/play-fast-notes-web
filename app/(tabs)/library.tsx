@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -67,6 +67,7 @@ import {
   type DocumentRow,
 } from '@/lib/db/repos/documents';
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
+import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { getTempoLadderProgressForPassages } from '@/lib/db/repos/tempoLadder';
 import { bmacUrl } from '@/lib/links';
 
@@ -387,7 +388,9 @@ function DocumentCard({
           <ThemedText style={{ opacity: Opacity.muted }}>{document.composer}</ThemedText>
         )}
         <ThemedText style={{ opacity: Opacity.muted, fontSize: 12 }}>
-          Full part · {document.page_count} page{document.page_count === 1 ? '' : 's'}
+          {document.source_kind === 'images'
+            ? `Photo${document.page_count > 1 ? ` · ${document.page_count} pages` : ''}`
+            : `Full part · ${document.page_count} page${document.page_count === 1 ? '' : 's'}`}
         </ThemedText>
         {breadcrumb ? (
           <ThemedText style={[styles.breadcrumb, { color: moreColor }]} numberOfLines={1}>
@@ -432,6 +435,13 @@ function DocumentCard({
 
 export default function LibraryScreen() {
   const router = useRouter();
+  // One-time orientation overlay when the user lands here straight from
+  // finishing their first guided session (finishGuidedToLibrary appends
+  // ?welcome=1). NOT the big first-run "Add your first piece" tutorial — that's
+  // gated on never-practiced + empty library, so it stays silent now that they
+  // have a passage and a logged session.
+  const welcomeParam = useLocalSearchParams<{ welcome?: string }>().welcome;
+  const [showWelcome, setShowWelcome] = useState(welcomeParam === '1');
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { colors: strategyColors } = useStrategyColors();
@@ -487,6 +497,33 @@ export default function LibraryScreen() {
   const [undoMove, setUndoMove] = useState<UndoMove | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Persisted "this account has already been through the first-run quiz" flag,
+  // read from the per-user settings table. `null` = still loading. The demo
+  // account (newbie@newbie.com) always reads null and never writes it, so it
+  // re-onboards on every fresh load. Loaded per mount, so signing out and back
+  // in re-evaluates it (the old module-level guard didn't — that's why the
+  // demo account stopped firing the quiz until a full reload).
+  const [onboardingSeen, setOnboardingSeen] = useState<boolean | null>(null);
+  // Guards against a double-fire of the redirect within a single mount. Resets
+  // on remount, which is correct — the persisted flag governs from then on.
+  const redirectingToOnboarding = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSetting('onboarding.seen')
+      .then((v) => {
+        if (!cancelled) setOnboardingSeen(v === 'true');
+      })
+      .catch(() => {
+        // On a read error, assume seen so a flaky network can't trap the user on
+        // a blank screen or loop them into onboarding — the empty-library hero
+        // still guides a genuinely new user to add their first piece.
+        if (!cancelled) setOnboardingSeen(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -593,6 +630,30 @@ export default function LibraryScreen() {
     ...filteredDocuments.map((document) => ({ kind: 'document' as const, document })),
     ...filteredPassages.map((passage) => ({ kind: 'passage' as const, passage })),
   ];
+
+  // First run = the very first thing a brand-new user sees is the guided quiz,
+  // not an empty library. Fire once the persisted flag says "not seen", the data
+  // has loaded, and the top-level library is genuinely empty + un-practiced
+  // (no error, not searching, not inside a folder). We mark the flag seen
+  // (best-effort) and flip local state BEFORE navigating, so the user sees the
+  // quiz exactly once across sessions and devices — and a mid-quiz bail doesn't
+  // restart them. The ref blocks a double-fire while this mount tears down.
+  useEffect(() => {
+    if (
+      !redirectingToOnboarding.current &&
+      onboardingSeen === false &&
+      practiceCount === 0 &&
+      !error &&
+      !q &&
+      !currentFolderId &&
+      rows.length === 0
+    ) {
+      redirectingToOnboarding.current = true;
+      setOnboardingSeen(true);
+      setSetting('onboarding.seen', 'true').catch(() => {});
+      router.replace('/onboarding' as never);
+    }
+  }, [onboardingSeen, practiceCount, error, q, currentFolderId, rows.length, router]);
 
   function goUp() {
     const parent = path.length >= 2 ? path[path.length - 2].id : null;
@@ -926,6 +987,25 @@ export default function LibraryScreen() {
     </View>
   );
 
+  // Hold a blank canvas (no empty-library chrome) while we're still deciding
+  // whether to send a brand-new user straight into the quiz — either the flag
+  // is still loading or it says "not seen" and the library is empty and about
+  // to redirect. This is what kills the empty-library flash before the quiz.
+  // Returning users with content fall through immediately (rows.length > 0),
+  // and a user who already finished onboarding (onboardingSeen === true) sees
+  // the normal empty-state hero if they later delete everything.
+  const decidingFirstRun =
+    !q &&
+    !currentFolderId &&
+    !error &&
+    rows.length === 0 &&
+    ((onboardingSeen === false && practiceCount === 0) ||
+      (onboardingSeen === null && (practiceCount === null || practiceCount === 0)));
+
+  if (decidingFirstRun) {
+    return <ThemedView style={[styles.container, { paddingTop: headerTopPad }]} />;
+  }
+
   return (
     <ThemedView style={[styles.container, { paddingTop: headerTopPad }]}>
       <ThemedView
@@ -1090,7 +1170,7 @@ export default function LibraryScreen() {
           next action without scanning options. */}
       {isAtRoot && !editMode && (
         <ThemedText style={[styles.addHint, { color: C.icon }]}>
-          Add full parts, or take a photo of a difficult passage. Or tap 🛠 Tools
+          Add full parts, or take a photo of a page and mark the spots. Or tap 🛠 Tools
           to practice without uploading music.
         </ThemedText>
       )}
@@ -1191,8 +1271,9 @@ export default function LibraryScreen() {
                   textAlign: 'center',
                   maxWidth: 420,
                 }}>
-                Snap a photo of a few measures you're working on — one tricky
-                spot is all it takes — and the practice strategies do the rest.
+                Snap a photo of the page you're working on, mark the spots you
+                want to practice — one tricky spot is all it takes — and the
+                practice strategies do the rest.
               </ThemedText>
               <Button
                 label="📷 Add your first passage"
@@ -1401,43 +1482,75 @@ export default function LibraryScreen() {
         onCancel={() => setActionTarget(null)}
       />
 
-      {/* Gate on practiceCount !== null so the modal only appears AFTER
-          the first refresh completes — otherwise existing users see it
-          flash during the brief loading window before their items
-          populate. */}
-      {/* Gates:
-          - practiceCount !== null: wait for the first refresh so the
-            modal doesn't flash during the loading window.
-          - practiceCount === 0: only fire for true first-timers. Once
-            the user has practiced anything (anywhere), they know how
-            to add pieces — deleting their library shouldn't re-coach.
-          - rows.length === 0 / !q / !currentFolderId: the trigger
-            condition itself (empty library at root, not a search). */}
+      {/* The guided onboarding (the empty-library redirect to /onboarding)
+          is now the first-run experience, so this no longer auto-fires — it
+          would just flash in front of the quiz. It stays registered
+          (visible={false}) so the ? button can still open it on demand. */}
       <TutorialStep
         id="library-add"
-        visible={
-          practiceCount === 0 &&
-          !error &&
-          rows.length === 0 &&
-          !q &&
-          !currentFolderId
-        }
-        title="Add your first piece"
+        visible={false}
+        title="Your library"
         body={
-          '+ Add (top right) — snap a photo of a tricky measure, upload a PDF of the full part, or make a folder. The easiest first move: a photo of one passage you want to drill.\n\n' +
+          '+ Add (top right) — snap a photo of a page, upload a PDF of the full part, or make a folder. The easiest first move: a photo of the page, then mark the spots you want to practice right on it.\n\n' +
           'Header buttons:\n' +
           (Platform.OS === 'web'
             ? '☕ — buy me a coffee, if the app helps you.\n'
             : '') +
           '📋 Practice Log — every session you\'ve logged, for this folder or the whole library.\n' +
-          '🔀 Rep Rotator — drill several passages in shuffled order.\n' +
-          '🛠 Tools — the metronome, tempo ladder, rhythm variations, and Interleaved Click-Up on their own, without uploading any music.\n' +
+          '🔀 Rep Rotator — practice several passages in shuffled order.\n' +
+          '🛠 Tools — the metronome, tempo ladder, and rhythm variations on their own, without uploading any music.\n' +
           '✎ Edit — reorder with ↑ ↓, plus rename, move, or delete each item; tap Done to leave.\n\n' +
           'Search — pick a scope above the box: My Library filters your own folders and passages by title or composer; Community searches rhythm exercises shared by other players; IMSLP searches the public-domain sheet-music library so you can pull a score straight into your library (all free to browse).\n\n' +
           'Account — at the bottom of this page: sign out, reset your data, or delete your account.\n\n' +
           'On any folder, passage, or PDF card: tap to open it, or long-press for quick actions (rename, move, edit/crop, delete).'
         }
       />
+
+      {showWelcome && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            zIndex: 200,
+          }}>
+          <ThemedView
+            style={{ borderRadius: 16, padding: 24, width: '100%', maxWidth: 380, gap: 12 }}>
+            <ThemedText style={{ fontSize: 22, fontWeight: Type.weight.bold, textAlign: 'center' }}>
+              This is your library 🎉
+            </ThemedText>
+            <ThemedText style={{ opacity: 0.85, textAlign: 'center' }}>
+              Your passage is saved here. From now on you can:
+            </ThemedText>
+            <View style={{ gap: 8 }}>
+              <ThemedText style={{ lineHeight: 22 }}>
+                •{' '}
+                <ThemedText style={{ fontWeight: Type.weight.bold }}>
+                  Practice it again
+                </ThemedText>{' '}
+                — tap your passage, then pick any strategy.
+              </ThemedText>
+              <ThemedText style={{ lineHeight: 22 }}>
+                •{' '}
+                <ThemedText style={{ fontWeight: Type.weight.bold }}>Add another</ThemedText>{' '}
+                — tap ＋ Add at the top.
+              </ThemedText>
+              <ThemedText style={{ lineHeight: 22 }}>
+                •{' '}
+                <ThemedText style={{ fontWeight: Type.weight.bold }}>Your account</ThemedText>{' '}
+                — at the very bottom (sign out, settings).
+              </ThemedText>
+            </View>
+            <Button label="Got it" onPress={() => setShowWelcome(false)} />
+          </ThemedView>
+        </View>
+      )}
 
       {undoMove && (
         <View pointerEvents="box-none" style={styles.toastAnchor}>
@@ -1482,7 +1595,7 @@ function AddChooserModal({
           <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
             Add
           </ThemedText>
-          <Button label="Add image of passage" onPress={onPickPassage} fullWidth />
+          <Button label="Add a photo" onPress={onPickPassage} fullWidth />
           <Button label="Add PDF" variant="outline" onPress={onPickDocument} fullWidth />
           <Button label="Add folder" variant="outline" onPress={onPickFolder} fullWidth />
           <Button label="Cancel" variant="ghost" onPress={onClose} fullWidth />

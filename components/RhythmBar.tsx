@@ -19,10 +19,11 @@
 // AbcStaffView + buildRhythmAbc, so both web and native work via one call.
 
 import { useMemo, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
+import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
@@ -63,7 +64,9 @@ export function RhythmBar({
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const { colors } = useStrategyColors();
   const insets = useSafeAreaInsets();
+  const { width: vpW } = useWindowDimensions();
   const abc = useMemo(() => buildRhythmAbc(pattern, { bare: true }), [pattern]);
 
   // Merged (landscape title row) vs band (portrait dock). Sizes validated
@@ -85,8 +88,14 @@ export function RhythmBar({
   // width-10 on both platforms (web sets the svg to its bbox + clips; native's
   // WebView clamps to width), so one value drives both the wrapper and the
   // staff. A too-large width was what left the big empty gap on iPad.
+  // In the portrait band the whole cluster ([Loop][←][music][→]) sits on one
+  // non-wrapping, centered row. If the music slot is too wide for the phone, the
+  // flanking buttons overflow the screen edges and get clipped (fine in
+  // landscape, which has width to spare). Cap the music to the width left after
+  // the buttons + padding (~215px) so Loop / ← / → always stay on-screen.
+  const maxNotationW = compact ? Math.max(110, vpW - 215) : 480;
   const notationW = Math.round(
-    Math.max(150, Math.min((50 + pattern.notes.length * 42) * (notationScale / 1.1), 480)),
+    Math.min(Math.max(150, (50 + pattern.notes.length * 42) * (notationScale / 1.1)), maxNotationW),
   );
 
   const loopBtn = (
@@ -132,7 +141,14 @@ export function RhythmBar({
         disabled={!canNext}
         hitSlop={6}
         accessibilityLabel="Next pattern"
-        style={[styles.navBtn, styles.nextBtn, { opacity: canNext ? 1 : 0.4 }]}>
+        style={[
+          styles.navBtn,
+          styles.nextBtn,
+          // Match the Rhythm Variations strategy color (the pill), not a stale
+          // hardcoded purple from when this strategy used to be purple.
+          { backgroundColor: colors.rhythmic, borderColor: colors.rhythmic },
+          { opacity: canNext ? 1 : 0.4 },
+        ]}>
         <ThemedText style={[styles.navText, { color: '#fff' }]}>→</ThemedText>
       </Pressable>
     </View>
@@ -183,7 +199,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  nextBtn: { backgroundColor: '#9b59b6', borderColor: '#6c3483' },
+  // Color is applied inline from the rhythmic strategy color; this default
+  // matches it (amber) so there's no purple fallback if the context is absent.
+  nextBtn: { backgroundColor: '#d07b1f', borderColor: '#d07b1f' },
   navText: { fontWeight: Type.weight.heavy, fontSize: 18, lineHeight: 20 },
   loopBtn: {
     borderRadius: Radii.md,

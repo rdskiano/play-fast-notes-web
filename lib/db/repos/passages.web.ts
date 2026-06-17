@@ -18,6 +18,10 @@ export type Passage = {
   source_kind: SourceKind;
   source_uri: string;
   thumbnail_uri: string | null;
+  // Full, uncropped photo this passage was first created from. Null until the
+  // passage is cropped (or for PDF-derived passages). Lets the Crop screen
+  // always re-open the full image so cropping is non-destructive.
+  original_uri: string | null;
   units_json: string | null;
   folder_id: string | null;
   document_id: string | null;
@@ -76,6 +80,7 @@ export async function insertPassage(p: NewPassage): Promise<Passage> {
   if (error) throw error;
   return {
     ...row,
+    original_uri: null,
     units_json: null,
     deleted_at: null,
   };
@@ -111,14 +116,29 @@ export async function listPassages(): Promise<Passage[]> {
   return (data ?? []) as Passage[];
 }
 
-// How many live photo passages the user has (PDF-derived passages excluded —
-// PDFs are gated separately). Drives the free tier's passage limit.
+// How many live photo passages the user has, for the free-tier limit. A "photo
+// passage" = any marked passage that isn't from a PDF: legacy standalone photos
+// (document_id null) PLUS passages marked on image-documents (photos are now
+// one-page image-documents you mark boxes on). PDF "parts" are gated separately
+// (Pro), so they're excluded here.
 export async function countActivePhotoPassages(): Promise<number> {
-  const { count, error } = await supabase
+  const { data: pdfDocs, error: docErr } = await supabase
+    .from('documents')
+    .select('id')
+    .is('deleted_at', null)
+    .eq('source_kind', 'pdf');
+  if (docErr) throw docErr;
+  const pdfIds = (pdfDocs ?? []).map((d) => d.id);
+
+  let query = supabase
     .from('pieces')
     .select('id', { count: 'exact', head: true })
-    .is('deleted_at', null)
-    .is('document_id', null);
+    .is('deleted_at', null);
+  if (pdfIds.length > 0) {
+    // Keep rows whose document_id is null OR is not one of the PDF documents.
+    query = query.or(`document_id.is.null,document_id.not.in.(${pdfIds.join(',')})`);
+  }
+  const { count, error } = await query;
   if (error) throw error;
   return count ?? 0;
 }
@@ -204,6 +224,23 @@ export async function updatePassageAssets(
   if (error) throw error;
 }
 
+// Save a crop without destroying the original. Writes the cropped image to
+// source_uri + thumbnail_uri (what every practice screen displays) while
+// recording the full, uncropped photo in original_uri. The Crop screen reads
+// original_uri so it can always re-open the full image.
+export async function updatePassageCrop(
+  id: string,
+  source_uri: string,
+  thumbnail_uri: string,
+  original_uri: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('pieces')
+    .update({ source_uri, thumbnail_uri, original_uri, updated_at: Date.now() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
 export async function updatePassageRegions(id: string, regions: PassageRegion[]): Promise<void> {
   const { error } = await supabase
     .from('pieces')
@@ -240,12 +277,17 @@ export async function softDeletePassage(id: string): Promise<void> {
   // this passage; the practice log never loads these files.
   const { data: row } = await supabase
     .from('pieces')
-    .select('source_uri, thumbnail_uri, annotation_image_uri')
+    .select('source_uri, thumbnail_uri, original_uri, annotation_image_uri')
     .eq('id', id)
     .maybeSingle();
   if (row) {
     try {
-      await removePublicUrls([row.source_uri, row.thumbnail_uri, row.annotation_image_uri]);
+      await removePublicUrls([
+        row.source_uri,
+        row.thumbnail_uri,
+        row.original_uri,
+        row.annotation_image_uri,
+      ]);
     } catch {
       // ignore — keep going with the soft-delete
     }

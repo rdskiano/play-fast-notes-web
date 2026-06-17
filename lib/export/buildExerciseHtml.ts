@@ -185,10 +185,43 @@ export function buildExerciseHtml(
     font-size: 12px;
     letter-spacing: 0.02em;
   }
+
+  /* On-screen-only return bar for the web print popup — without it the user is
+     stranded on this tab after the print dialog with no way back to the app.
+     Hidden in the printed/saved PDF (and the native expo-print render) via the
+     @media print rule below. */
+  .app-return-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: ${BRAND};
+    padding: 10px 14px;
+    margin: -24px -28px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .app-return-btn {
+    background: #fff;
+    color: ${BRAND};
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: 800;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .app-return-hint { color: #fff; font-size: 12px; opacity: 0.95; }
+  @media print { .no-print { display: none !important; } }
 </style>
 <script src="${ABCJS_CDN}"></script>
 </head>
 <body>
+  <div class="no-print app-return-bar">
+    <button class="app-return-btn" onclick="window.close()">← Back to Play Fast Notes</button>
+    <span class="app-return-hint">Save this as a PDF from your browser's Print dialog, then tap Back to return to the app.</span>
+  </div>
   <header class="pfn-header">
     <img class="pfn-logo" src="${LOGO_URL}" alt="Play Fast Notes" />
     <h1 class="pfn-name">Play Fast Notes</h1>

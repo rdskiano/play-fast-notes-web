@@ -38,6 +38,7 @@ import { PromptModal } from '@/components/PromptModal';
 import { SectionMarkerCapturer } from '@/components/SectionMarkerCapturer';
 import { SectionsModal } from '@/components/SectionsModal';
 import { SessionTopBar } from '@/components/SessionTopBar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
@@ -92,11 +93,17 @@ type ViewMode = 'single' | 'spread';
 
 export default function DocumentScreen() {
   const router = useRouter();
-  const { id, resize: resizeParam } = useLocalSearchParams<{
+  const { id, resize: resizeParam, coach: coachParam } = useLocalSearchParams<{
     id: string;
     resize?: string;
+    coach?: string;
   }>();
+  // Guided onboarding lands a photo here (?coach=1). After the user marks their
+  // first passage box we hand that passage id back to the quiz, which resumes
+  // off ?passageId=<id> regardless of how the passage was made.
+  const coach = coachParam === '1';
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const C = Colors[useColorScheme() ?? 'light'];
   // Phone density: tight icon-only header so the title + tool buttons
   // don't pile on top of each other in narrow viewports.
@@ -195,6 +202,12 @@ export default function DocumentScreen() {
   // wouldn't fit alongside the title.
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
   const [markingSection, setMarkingSection] = useState(false);
+  // Where the user tapped to start a section, held while they name it. Drives
+  // the section-name PromptModal (an in-app dialog — window.prompt is silently
+  // blocked on iPad Safari, which was eating section marks entirely there).
+  const [pendingSectionMark, setPendingSectionMark] = useState<{ page: number; y: number } | null>(
+    null,
+  );
 
   // Save-flow flag — freezes the dimensions used by viewMode derivation so
   // the iPad on-screen keyboard's viewport resize can't trigger a spurious
@@ -334,29 +347,24 @@ export default function DocumentScreen() {
     setMarkingSection(false);
   }
 
-  async function onCaptureSection(page: number, y: number) {
-    // Use the browser-native window.prompt() — no React Modal in the way, so
-    // there's no Modal mount/unmount triggering layout reflow on the
-    // underlying ScrollView. iPad Safari's native dialog (when not blocked)
-    // is rendered by the browser chrome, not React.
-    const defaultName = `Section ${sections.length + 1}`;
-    let name: string | null = defaultName;
-    if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
-      // Empty default — let the user type fresh; we fall back to "Section N"
-      // only if they leave it blank.
-      name = window.prompt('Name this section');
-    }
-    if (name === null) {
-      // User canceled.
-      setMarkingSection(false);
-      return;
-    }
-    const finalName = name.trim() || defaultName;
-    const next: DocumentSection[] = [
-      ...sections.filter((s) => !(s.start_page === page && s.start_y === y)),
-      { name: finalName, start_page: page, start_y: y },
-    ];
+  function onCaptureSection(page: number, y: number) {
+    // Exit marking mode (removes the armed overlay) and open an in-app name
+    // dialog. We use a React PromptModal instead of window.prompt because iPad
+    // Safari silently blocks window.prompt, which used to discard the mark and
+    // leave the user thinking the tap did nothing.
     setMarkingSection(false);
+    setPendingSectionMark({ page, y });
+  }
+
+  async function submitSectionName(name: string) {
+    const mark = pendingSectionMark;
+    setPendingSectionMark(null);
+    if (!mark) return;
+    const finalName = name.trim() || `Section ${sections.length + 1}`;
+    const next: DocumentSection[] = [
+      ...sections.filter((s) => !(s.start_page === mark.page && s.start_y === mark.y)),
+      { name: finalName, start_page: mark.page, start_y: mark.y },
+    ];
     await onSectionsChange(next);
   }
 
@@ -567,6 +575,16 @@ export default function DocumentScreen() {
     setMode('draw');
   }
 
+  // Guided onboarding (?coach=1): there's no top bar to tap "+ Mark passage",
+  // so drop the user straight into box-drawing on the photo once it's loaded.
+  const coachDrawStartedRef = useRef(false);
+  useEffect(() => {
+    if (!coach || pages.length === 0 || coachDrawStartedRef.current) return;
+    coachDrawStartedRef.current = true;
+    startDraw();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coach, pages.length]);
+
   function cancelDraw() {
     setDrafts(new Map());
     setMarkingSection(false);
@@ -601,18 +619,28 @@ export default function DocumentScreen() {
   }
 
   async function onSaveDraftClick() {
-    if (drafts.size === 0) return;
+    if (drafts.size === 0 || !doc) return;
+    if (coach) {
+      // Guided onboarding: the page is already titled the piece (asked up front,
+      // set at upload), so the FIRST spot auto-names off it ("<piece> 1") with no
+      // popup — keeps the marking step interruption-free. Every spot AFTER the
+      // first (added later, non-coach) is named by the user via the prompt below.
+      void commitDraft(`${doc.title} ${passages.length + 1}`);
+      return;
+    }
     setNamePromptOpen(true);
   }
 
-  async function onNamePromptSubmit(value: string) {
+  function onNamePromptSubmit(value: string) {
     setNamePromptOpen(false);
     const title = value.trim();
-    if (!title) {
-      // Empty name = cancel the save but keep drafts so user can retry.
-      return;
-    }
-    if (drafts.size === 0 || !doc) return;
+    // Empty name = cancel the save but keep drafts so user can retry.
+    if (!title) return;
+    void commitDraft(title);
+  }
+
+  async function commitDraft(title: string) {
+    if (!title || drafts.size === 0 || !doc) return;
     setSavingDraft(true);
     try {
       // Sort drafts by page so the composite stacks top-to-bottom in document order.
@@ -645,6 +673,13 @@ export default function DocumentScreen() {
       setDrafts(new Map());
       setMode('idle');
       pendingFirstDrawnPageRef.current = null;
+      if (coach) {
+        // The page is already titled the piece (set at upload from the name the
+        // user gave up front), and this spot auto-named "<piece> 1" — so no
+        // rename needed. Skip the "Mark another?" sheet and resume the quiz.
+        router.replace(`/onboarding?passageId=${passageId}` as never);
+        return;
+      }
       setPostSaveTitle(title);
       // Refresh in background so the new gray box appears when user picks "Mark another".
       refresh();
@@ -815,7 +850,12 @@ export default function DocumentScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SessionTopBar
+      {/* Guided onboarding wears the quiz's minimal clothes: no app chrome, no
+          tool tabs, no wall-of-text tutorial — just a light instruction banner
+          over the photo + box-drawing surface. Everything below is gated on the
+          coach flag so the normal photo/PDF flow is untouched. */}
+      {!coach && (
+        <SessionTopBar
         onExit={() => router.back()}
         // Navigation, not a session exit — match the "‹ Destination" family
         // used by every other navigation bar (all-caps is reserved for EXIT).
@@ -965,7 +1005,35 @@ export default function DocumentScreen() {
           onCancelResize: cancelResize,
           onCommitResize: commitResize,
         })}
-      />
+        />
+      )}
+
+      {coach && (
+        <View
+          style={[
+            styles.coachBar,
+            {
+              paddingTop: insets.top + 12,
+              backgroundColor: C.background,
+              borderBottomColor: C.icon + '22',
+            },
+          ]}>
+          <Pressable onPress={() => router.back()} hitSlop={10}>
+            <ThemedText style={[styles.coachBack, { color: C.tint }]}>‹ Back</ThemedText>
+          </Pressable>
+          <ThemedText numberOfLines={2} style={styles.coachInstruction}>
+            {drafts.size > 0
+              ? 'Looks good — tap Continue.'
+              : 'Drag a box around the spot you want to practice.'}
+          </ThemedText>
+          <Button
+            label={savingDraft ? 'Saving…' : 'Continue →'}
+            size="sm"
+            onPress={onSaveDraftClick}
+            disabled={drafts.size === 0 || savingDraft}
+          />
+        </View>
+      )}
       <View style={styles.pagerWrap} onLayout={onPagerLayout}>
         {pages.length === 0 ? (
           <View style={styles.emptyWrap}>
@@ -1219,7 +1287,7 @@ export default function DocumentScreen() {
             )}
           </>
         )}
-        {mode === 'idle' && (
+        {mode === 'idle' && !coach && (
           <PracticeToolsLayer pencil={pencilProp} recorderDocumentId={id} />
         )}
       </View>
@@ -1228,7 +1296,8 @@ export default function DocumentScreen() {
         <View pointerEvents="box-none" style={styles.markBanner}>
           <View style={styles.markBannerInner}>
             <ThemedText style={styles.markBannerText}>
-              Tap a page where the section starts
+              Tap where this section starts — it runs until the next marker, so
+              there's no end to set.
             </ThemedText>
             <Button label="Cancel" variant="ghost" size="sm" onPress={cancelSectionMark} />
           </View>
@@ -1248,7 +1317,9 @@ export default function DocumentScreen() {
           <Pressable
             onPress={dismissPdfBoxCoach}
             accessibilityLabel="Dismiss tip"
-            style={styles.coachToast}>
+            // Clear the notch / status bar AND the header — a flat top offset
+            // tucked the toast under the phone's speaker / Dynamic Island.
+            style={[styles.coachToast, { top: insets.top + 56 }]}>
             <View style={styles.coachToastInner}>
               <ThemedText style={styles.coachToastText}>
                 ▶ Tap a box to practice that passage
@@ -1264,22 +1335,39 @@ export default function DocumentScreen() {
           workflow before they touch anything. Complements the existing
           `pdfBoxCoachVisible` toast, which only fires on PDFs that
           ALREADY have passages. */}
-      <TutorialStep
-        id="pdf-viewer-overview"
-        visible={passages.length === 0 && practiceLogCount === 0}
-        title="Working with a PDF"
-        body={
-          'Each page can hold as many "passages" as you want to drill independently.\n\n' +
-          'Turn pages — tap the ‹ › chevrons at the edges, swipe sideways, or use the arrow keys.\n\n' +
-          'Single / Spread (landscape only) — toggle between one page and a two-page spread.\n\n' +
-          '+ Mark passage — drag a box around the music you want to drill. After you name it, it shows up in your library.\n\n' +
-          'Tap any box to practice that passage, or pick Edit to rename, resize, or delete it.\n\n' +
-          'Sections — tap the page to mark movement divisions or sections in the music; this makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
-          'Hide boxes — clean read of the score without the gray rectangles.\n\n' +
-          'Practice Log — every session you\'ve done on this PDF, across all passages.\n\n' +
-          PRACTICE_TOOLS_HELP
-        }
-      />
+      {!coach && (doc?.source_kind === 'images' ? (
+        <TutorialStep
+          id="images-viewer-overview"
+          visible={passages.length === 0 && practiceLogCount === 0}
+          title="Working with your photo"
+          body={
+            'Your photo is one page — mark as many "passages" on it as you want to practice independently.\n\n' +
+            '+ Mark passage — drag a box around a spot you want to practice. After you name it, it shows up in your library.\n\n' +
+            'Tap any box to practice that passage, or pick Edit to rename, resize, or delete it.\n\n' +
+            'Sections — tap the page to mark where a movement or section begins; each marker runs until the next one (you only mark starts, not ends). This makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
+            'Hide boxes — a clean read of the full page without the gray rectangles.\n\n' +
+            'Practice Log — every session you\'ve done on this photo, across all passages.\n\n' +
+            PRACTICE_TOOLS_HELP
+          }
+        />
+      ) : (
+        <TutorialStep
+          id="pdf-viewer-overview"
+          visible={passages.length === 0 && practiceLogCount === 0}
+          title="Working with a PDF"
+          body={
+            'Each page can hold as many "passages" as you want to practice independently.\n\n' +
+            'Turn pages — tap the ‹ › chevrons at the edges, swipe sideways, or use the arrow keys.\n\n' +
+            'Single / Spread (landscape only) — toggle between one page and a two-page spread.\n\n' +
+            '+ Mark passage — drag a box around the music you want to practice. After you name it, it shows up in your library.\n\n' +
+            'Tap any box to practice that passage, or pick Edit to rename, resize, or delete it.\n\n' +
+            'Sections — tap the page to mark where a movement or section begins; each marker runs until the next one (you only mark starts, not ends). This makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
+            'Hide boxes — clean read of the score without the gray rectangles.\n\n' +
+            'Practice Log — every session you\'ve done on this PDF, across all passages.\n\n' +
+            PRACTICE_TOOLS_HELP
+          }
+        />
+      ))}
 
       <ActionSheet
         visible={selectedPassage !== null}
@@ -1363,6 +1451,17 @@ export default function DocumentScreen() {
         submitLabel="Save"
         onSubmit={onNamePromptSubmit}
         onCancel={() => setNamePromptOpen(false)}
+      />
+
+      <PromptModal
+        visible={pendingSectionMark !== null}
+        title="Name this section"
+        message="A section starts here and runs until your next section marker — there's no need to mark an end."
+        initialValue=""
+        placeholder={`e.g. Movement II, Development, Section ${sections.length + 1}`}
+        submitLabel="Add section"
+        onSubmit={submitSectionName}
+        onCancel={() => setPendingSectionMark(null)}
       />
 
 
@@ -1531,6 +1630,23 @@ function renderSubRow(args: {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  // Guided-onboarding instruction banner — light surface that replaces the app
+  // chrome so the quiz's minimal look carries through the box-marking step.
+  coachBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  coachBack: { fontSize: Type.size.md, fontWeight: Type.weight.semibold },
+  coachInstruction: {
+    flex: 1,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.semibold,
+    textAlign: 'center',
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: Type.size.md, fontWeight: Type.weight.bold },
   // Phone-density title — shorter font + reserved for one line of text.

@@ -131,8 +131,9 @@ export function InstallPrompt() {
           {platform === 'ios' ? (
             <View style={styles.steps}>
               <ThemedText style={[styles.step, { color: C.text }]}>
-                1. Tap the Share button at the bottom of the browser
-                (the square with an arrow pointing up).
+                1. Tap the Share button — the square with an arrow
+                pointing up. It's in your browser's toolbar, at the top
+                or bottom edge of the screen.
               </ThemedText>
               <ThemedText style={[styles.step, { color: C.text }]}>
                 2. Scroll down and tap "Add to Home Screen."

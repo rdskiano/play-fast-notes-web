@@ -118,7 +118,7 @@ export function ScoreWithMarkers({
                 {
                   fontSize: arrowFont,
                   left: drawn.ox + m.x * drawn.w - arrowFont / 2,
-                  top: drawn.oy + m.y * drawn.h - arrowLift,
+                  top: Math.max(2, drawn.oy + m.y * drawn.h - arrowLift),
                   pointerEvents: 'none',
                 },
               ]}>
@@ -138,7 +138,9 @@ export function ScoreWithMarkers({
                 borderRadius: mHalf,
                 borderWidth: compact ? Borders.medium : Borders.thick,
                 left: drawn.ox + m.x * drawn.w - mHalf,
-                top: drawn.oy + m.y * drawn.h - mLift,
+                // Clamp so a mark near the top of a tightly-cropped passage
+                // rides at the top edge instead of being clipped off-screen.
+                top: Math.max(2, drawn.oy + m.y * drawn.h - mLift),
                 pointerEvents: 'none',
               },
               isHi && styles.markerHighlight,

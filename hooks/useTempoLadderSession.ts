@@ -73,6 +73,12 @@ export function useTempoLadderSession(
   // persistence, no practice-log entry. The ladder mechanics are identical;
   // they just run off in-memory state for the session and vanish on exit.
   toolsOnly: boolean = false,
+  // Guided onboarding: the quiz routes a brand-new user here with ?guided=1.
+  // Instead of the full setup form, the flow is one performance-tempo question
+  // → a short "here's the plan" screen → play (step mode, start auto-set to
+  // half, default increment/reps). Completing one clean set ends the guided
+  // session and lands them in their library. See the guided helpers below.
+  guided: boolean = false,
 ) {
   const router = useRouter();
   const metronome = useMetronome(60);
@@ -81,10 +87,19 @@ export function useTempoLadderSession(
   const [passage, setPassage] = useState<Passage | null>(null);
   const [exerciseId, setExerciseId] = useState<string | null>(null);
   const [progress, setProgress] = useState<TempoLadderProgress | null>(null);
-  const [phase, setPhase] = useState<'config' | 'playing'>('config');
+  const [phase, setPhase] = useState<'tempo' | 'ready' | 'config' | 'playing'>(
+    guided ? 'tempo' : 'config',
+  );
   const [celebrating, setCelebrating] = useState<Celebration>(null);
   const [completedSets, setCompletedSets] = useState(0);
   const lastHitTempoRef = useRef<number | null>(null);
+  // Guided onboarding auto-enables the micro-break timer to demonstrate the
+  // habit (see confirmPerformanceTempo). Timers are global + persisted, so we
+  // remember what the setting was BEFORE we flipped it and restore it when the
+  // user leaves onboarding (finish OR bail, via the unmount cleanup below) —
+  // a brand-new user shouldn't be left with a timer they never chose. null =
+  // we never touched it; true/false = the captured prior state.
+  const microbreakPriorEnabledRef = useRef<boolean | null>(null);
   // True once the user has reached goal at any point this session. Drives
   // the start-tempo bump on endSession.
   const reachedGoalRef = useRef(false);
@@ -103,6 +118,22 @@ export function useTempoLadderSession(
   // deletes a row that startPlaying freshly created this session, never one
   // carrying real prior progress.
   const hadDurableRowRef = useRef(false);
+
+  // Latest micro-break API, read by the unmount cleanup below (avoids a stale
+  // closure on setConfig).
+  const microbreakRef = useRef(microbreak);
+  microbreakRef.current = microbreak;
+  // On leaving the guided session (finish→replace OR any EXIT/back), put the
+  // micro-break timer back the way we found it — but only if confirmPerformance-
+  // Tempo actually flipped it on (captured prior state === false). Restores via
+  // the GlobalTimer provider, which stays mounted, so this is safe at unmount.
+  useEffect(() => {
+    return () => {
+      if (guided && microbreakPriorEnabledRef.current === false) {
+        microbreakRef.current.setConfig({ enabled: false });
+      }
+    };
+  }, [guided]);
 
   const [mode, setMode] = useState<Mode>('step');
   const [startTempo, setStartTempo] = useState('60');
@@ -694,6 +725,67 @@ export function useTempoLadderSession(
     router.back();
   }
 
+  // ── guided (onboarding) helpers ─────────────────────────────────────────
+  // The quiz drops a brand-new user at the 'tempo' phase. They answer one
+  // question (performance tempo); we pre-set step mode at half that tempo with
+  // default increment/reps, frame the plan ('ready'), then play. Completing one
+  // clean set ends the session in their library.
+  function confirmPerformanceTempo() {
+    const goal = parseInt(goalTempo, 10) || 120;
+    // Half the goal, floored at 30, but always kept below the goal so
+    // startSession's goal>start guard can never strand the user on 'ready'.
+    const start = Math.min(Math.max(30, Math.round(goal / 2)), goal - 5);
+    setMode('step');
+    setStartTempo(String(start));
+    setIncrement(5);
+    setTargetReps(5);
+    // Switch on the micro-break timer so the guided session demonstrates the
+    // rest-every-few-reps habit (the 'ready' screen tells the user we did).
+    // Remember the prior state first so the unmount cleanup can restore it —
+    // we only ever turn it back off if WE turned it on.
+    if (microbreakPriorEnabledRef.current === null) {
+      microbreakPriorEnabledRef.current = microbreak.config.enabled;
+    }
+    microbreak.setConfig({ enabled: true });
+    setPhase('ready');
+  }
+
+  function goBackToTempo() {
+    setPhase('tempo');
+  }
+
+  // Start the guided session and begin the click immediately — same rationale
+  // as ICU: a first-timer on a small phone shouldn't have to hunt for the
+  // metronome's play button. The "Start practicing" tap is the user gesture
+  // that unlocks audio on iOS.
+  async function startGuidedPlaying() {
+    await startSession();
+    metronome.start();
+  }
+
+  // Guided finish: log the session like endSession's success path, then land
+  // the first-timer in their library (with the one-time orientation overlay)
+  // rather than router.back() into the murky replace-stack.
+  async function finishGuidedToLibrary() {
+    if (!toolsOnly && exerciseId && id) {
+      await stampLastUsed(id, 'tempo_ladder');
+      await logPractice(
+        id,
+        'tempo_ladder',
+        {
+          tempo: lastHitTempoRef.current ?? metronome.bpm,
+          goalTempo: progress?.goal_tempo,
+          mode: progress?.mode,
+          completedSets,
+        },
+        exerciseId,
+      );
+    }
+    metronome.stop();
+    setCelebrating(null);
+    router.replace('/(tabs)/library?welcome=1' as never);
+  }
+
   return {
     phase,
     passage,
@@ -730,5 +822,10 @@ export function useTempoLadderSession(
     advanceAfterCelebration,
     dismissCelebration,
     endSession,
+    // guided onboarding
+    confirmPerformanceTempo,
+    goBackToTempo,
+    startGuidedPlaying,
+    finishGuidedToLibrary,
   };
 }

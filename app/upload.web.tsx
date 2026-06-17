@@ -14,17 +14,105 @@ import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { insertPassage, updatePassageAssets } from '@/lib/db/repos/passages';
-import { uploadPassageImage } from '@/lib/supabase/storage';
+import { insertDocument } from '@/lib/db/repos/documents';
+import { supabase } from '@/lib/supabase/client';
+import { uploadDocumentPageImage } from '@/lib/supabase/storage';
 
-function newPassageId(): string {
-  return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+// Match the document/PDF reference render scale so a photo page lives in the
+// same coordinate space as PDF pages (regions_json boxes are in these pixels).
+const MAX_PAGE_EDGE = 2000;
+
+function newDocId(): string {
+  return `d_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// Pull a readable string out of any thrown value. Supabase/Postgres errors are
+// plain objects, so String(e) gives a useless "[object Object]".
+function errToMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === 'object') {
+    const o = e as { message?: unknown; error_description?: unknown; details?: unknown };
+    if (typeof o.message === 'string' && o.message) return o.message;
+    if (typeof o.error_description === 'string' && o.error_description) return o.error_description;
+    if (typeof o.details === 'string' && o.details) return o.details;
+  }
+  return String(e);
+}
+
+// Camera files (IMG_1234, image, photo) aren't meaningful titles; fall back.
+function defaultTitleFromFile(file: File): string {
+  const base = (file.name || '').replace(/\.[^/.]+$/, '').trim();
+  if (!base || /^(img[_\- ]?\d+|image|photo|untitled|scan)$/i.test(base)) return 'Untitled photo';
+  return base.slice(0, 80);
+}
+
+// Detect HEIC/HEIF. iOS sometimes reports an empty file.type for HEIC, so the
+// filename extension is the reliable signal.
+function isHeic(file: File): boolean {
+  return /image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
+}
+
+const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i;
+
+// Chrome and Firefox have no HEIC codec, so new Image()/canvas can't decode an
+// iPhone HEIC at all — re-encoding can't help because the DECODE itself fails.
+// Convert HEIC to JPEG first with the libheif WASM decoder, lazily imported so
+// its ~1.5 MB only loads when a HEIC is actually picked. (Safari decodes HEIC
+// natively, so this branch is for everyone else.)
+async function toDisplayableBlob(file: File): Promise<Blob> {
+  if (!isHeic(file)) return file;
+  const heic2any = (await import('heic2any')).default;
+  const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+  return Array.isArray(out) ? out[0] : out;
+}
+
+// Produce a JPEG page image at the document reference scale, and read its
+// dimensions in the same pass. HEIC is decoded to JPEG first (above); then the
+// browser-decodable blob is drawn to a canvas so the stored page renders
+// everywhere (the old flow re-encoded via the crop canvas; there's no crop step
+// now).
+async function fileToPageImage(file: File): Promise<{ blob: Blob; w: number; h: number }> {
+  const displayable = await toDisplayableBlob(file);
+  const url = URL.createObjectURL(displayable);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const im = new window.Image();
+      im.onload = () => resolve(im);
+      im.onerror = () => reject(new Error('Could not read that image.'));
+      im.src = url;
+    });
+    const natW = img.naturalWidth || 1;
+    const natH = img.naturalHeight || 1;
+    const scale = Math.min(1, MAX_PAGE_EDGE / Math.max(natW, natH));
+    const w = Math.max(1, Math.round(natW * scale));
+    const h = Math.max(1, Math.round(natH * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D context not available.');
+    ctx.drawImage(img, 0, 0, w, h);
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error('Could not process the image.'))),
+        'image/jpeg',
+        0.9,
+      ),
+    );
+    return { blob, w, h };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 export default function UploadScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ folder?: string }>();
+  const params = useLocalSearchParams<{ folder?: string; coach?: string; piece?: string }>();
   const targetFolderId = params.folder ? params.folder : null;
+  const coach = params.coach === '1';
+  // Onboarding asks the piece name up front and passes it here so the photo/page
+  // is titled the piece (and the first marked spot can auto-name "<piece> 1").
+  const pieceTitle = params.piece?.trim();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
 
@@ -44,34 +132,45 @@ export default function UploadScreen() {
     cameraInputRef.current?.click();
   }
 
-  // The previous flow required two taps: pick the file → see a preview →
-  // tap "Next: Crop" to save and navigate. The preview added no value
-  // (the crop screen is the natural next step), so we now save and
-  // navigate as soon as a file is in hand — one tap from camera shutter
-  // to the crop view.
-  async function ingestAndCrop(file: File) {
-    if (!file.type.startsWith('image/')) {
+  // A photo is now a one-PAGE image document: we store the whole page and the
+  // user marks as many passage boxes on it as they like (the PDF flow). So we
+  // mint an image-backed `documents` row and open the document viewer — no
+  // crop step. The viewer's "+ Mark passage" creates each passage from a box.
+  async function ingestAsDocument(file: File) {
+    // iOS often hands HEIC files with an empty file.type, so fall back to the
+    // extension before rejecting.
+    if (!file.type.startsWith('image/') && !IMAGE_EXT_RE.test(file.name)) {
       setError('That file isn’t an image. Drop a PNG, JPG, or HEIC.');
       return;
     }
     setSaving(true);
     setError(null);
-    const id = newPassageId();
+    const docId = newDocId();
     try {
-      await insertPassage({
-        id,
-        title: 'Untitled',
+      const { blob, w, h } = await fileToPageImage(file);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) throw new Error('Not signed in');
+      const publicUrl = await uploadDocumentPageImage(userId, docId, 1, blob);
+      await insertDocument({
+        id: docId,
+        title: pieceTitle || defaultTitleFromFile(file),
         composer: null,
-        source_kind: 'image',
-        source_uri: '',
-        thumbnail_uri: null,
+        source_kind: 'images',
+        page_count: 1,
+        pages: [{ index: 1, image_uri: publicUrl, w, h }],
         folder_id: targetFolderId,
       });
-      const publicUrl = await uploadPassageImage(id, file);
-      await updatePassageAssets(id, publicUrl, publicUrl);
-      router.replace(`/passage/${id}/crop`);
+      // Coach (guided onboarding): the viewer hands a passage id back to the
+      // quiz after the user marks their first box. Non-coach: just open it.
+      router.replace((coach ? `/document/${docId}?coach=1` : `/document/${docId}`) as never);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = errToMessage(e);
+      setError(
+        isHeic(file)
+          ? `Couldn't read that HEIC photo (${msg}). Try a JPG or PNG, or retake it.`
+          : msg,
+      );
       setSaving(false);
     }
   }
@@ -79,7 +178,7 @@ export default function UploadScreen() {
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    await ingestAndCrop(file);
+    await ingestAsDocument(file);
     // Reset so re-picking the same file re-fires onChange.
     e.target.value = '';
   }
@@ -94,7 +193,7 @@ export default function UploadScreen() {
       e.preventDefault();
       setDragOver(false);
       const file = e.dataTransfer?.files?.[0];
-      if (file) void ingestAndCrop(file);
+      if (file) void ingestAsDocument(file);
     }
     function handleOver(e: DragEvent) {
       e.preventDefault();
@@ -119,7 +218,7 @@ export default function UploadScreen() {
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <ThemedView style={{ gap: 14 }}>
-          <ThemedText type="title">Add a passage</ThemedText>
+          <ThemedText type="title">Add a photo</ThemedText>
 
           {/* The drop zone IS the picker — click it to open the OS file
               picker, or drag a file from Finder/Explorer onto it. Drag-and-
@@ -139,7 +238,7 @@ export default function UploadScreen() {
               },
             ]}>
             <ThemedText style={styles.dropTitle}>
-              Drop an image here
+              Drop a photo of the page here
             </ThemedText>
             <ThemedText style={[styles.dropSub, { color: C.icon }]}>
               or click to choose a file
@@ -166,8 +265,9 @@ export default function UploadScreen() {
           </Pressable>
 
           <ThemedText style={{ opacity: 0.55, fontSize: 12, textAlign: 'center' }}>
-            A photo or screenshot of your sheet music — you&apos;ll crop it to
-            just the passage you want to practice next.
+            {coach
+              ? 'A photo or screenshot of the full page with the spot you want to work on — you’ll mark it right on the page next.'
+              : 'A photo or screenshot of the full page — then you’ll mark the spots you want to practice right on it (as many as you like).'}
           </ThemedText>
 
           <Pressable
@@ -188,7 +288,7 @@ export default function UploadScreen() {
             <View style={styles.savingRow}>
               <ActivityIndicator color={C.tint} />
               <ThemedText style={[styles.savingText, { color: C.icon }]}>
-                Saving photo — opening crop tool…
+                {coach ? 'Saving your photo…' : 'Saving photo — opening it up…'}
               </ThemedText>
             </View>
           )}
@@ -220,11 +320,11 @@ export default function UploadScreen() {
       <TutorialStep
         id="upload-passage"
         visible={false}
-        title="Add a passage photo"
+        title="Add a photo of the page"
         body={
-          "Snap or upload a photo of one passage you want to drill. Drop an image onto the box, or tap it to choose a file. On phone, \"Take a photo\" opens the camera directly — point at the music and shoot.\n\n" +
-          "You'll land on the crop screen right away; trim it to just the bars you want to practice.\n\n" +
-          "If the passage runs across the bottom of one page and onto the next, tap \"Passage spans two pages?\" to photograph both halves and stitch them into one continuous score."
+          "Snap or upload a photo of the whole page. Drop an image onto the box, or tap it to choose a file. On phone, \"Take a photo\" opens the camera directly — point at the music and shoot.\n\n" +
+          "You'll land on the page itself; tap \"+ Mark passage\" and draw a box around each spot you want to practice — mark as many as you like. \"Hide boxes\" shows the clean full page anytime.\n\n" +
+          "If a spot runs across the bottom of one page and onto the next, tap \"Passage spans two pages?\" to photograph both halves and stitch them into one continuous score."
         }
       />
     </ThemedView>

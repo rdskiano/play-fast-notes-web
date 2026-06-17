@@ -31,7 +31,7 @@ export const MIN_MICRO_MARKS = 2;
 
 // 'problem' is the full-screen pick-two-notes step, only used in Problem mode
 // (between config and playing).
-export type MicroPhase = 'marking' | 'config' | 'problem' | 'playing';
+export type MicroPhase = 'tempo' | 'marking' | 'config' | 'problem' | 'playing';
 
 // Persisted in the exercise's config_json. Marks live here (NOT in the shared
 // passage.units_json) because micro marks are note-level and would clobber the
@@ -46,12 +46,12 @@ export type MicroStoredConfig = {
   steps: MicroStep[];
 };
 
-export function useMicroChainSession(id: string | undefined) {
+export function useMicroChainSession(id: string | undefined, guided = false) {
   const router = useRouter();
   const metronome = useMetronome(60);
   const microbreak = useMicrobreakTimer();
 
-  const [phase, setPhase] = useState<MicroPhase>('marking');
+  const [phase, setPhase] = useState<MicroPhase>(guided ? 'tempo' : 'marking');
   const [passage, setPassage] = useState<Passage | null>(null);
   const [exerciseId, setExerciseId] = useState<string | null>(null);
   const [storedConfig, setStoredConfig] = useState<MicroStoredConfig | null>(null);
@@ -281,6 +281,43 @@ export function useMicroChainSession(id: string | undefined) {
     setPhase('marking');
   }
 
+  // ── guided (onboarding) helpers ─────────────────────────────────────────
+  // The quiz routes a brand-new user here with ?guided=1. The flow is one
+  // performance-tempo question → mark the notes → play (Forward mode, the
+  // simplest). Completing the chain finishes the guided session in their
+  // library.
+  function confirmPerformanceTempo() {
+    setMode('forward');
+    setPhase('marking');
+  }
+
+  function goBackToTempo() {
+    setPhase('tempo');
+  }
+
+  // Guided finish: log the session, then land the first-timer in their library
+  // (with the one-time orientation overlay) rather than router.back().
+  async function finishGuidedToLibrary() {
+    if (id && exerciseId) {
+      await setClickUpIndex(exerciseId, currentIndex);
+      await stampLastUsed(id, 'micro_chaining');
+      await logPractice(
+        id,
+        'micro_chaining',
+        {
+          mode,
+          step: currentIndex,
+          totalSteps: storedConfig?.steps.length,
+          tempo: metronome.bpm,
+        },
+        exerciseId,
+      );
+    }
+    metronome.stop();
+    setCelebrating(false);
+    router.replace('/(tabs)/library?welcome=1' as never);
+  }
+
   function goBackToConfig() {
     metronome.stop();
     setPhase('config');
@@ -324,5 +361,9 @@ export function useMicroChainSession(id: string | undefined) {
     goBackToMarking,
     goBackToConfig,
     resumePlaying,
+    // guided onboarding
+    confirmPerformanceTempo,
+    goBackToTempo,
+    finishGuidedToLibrary,
   };
 }

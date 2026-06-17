@@ -8,7 +8,7 @@
 // mounts every tool, so the copy is deliberately general.
 export const PRACTICE_TOOLS_HELP =
   'Practice tools: tap a tab on the edge of the screen to pop out a tool — drag it to reposition, pinch to resize, tap the tab again to dock it.\n\n' +
-  '🥁 Metronome — play/stop, set the tempo, meter, and subdivision, and tap out beat accents. Tap RHYTHMS to swap the plain click for a drum groove matched to your meter (rock, waltz, etc.).\n' +
+  '🥁 Metronome — play/stop, set the tempo, meter, and subdivision, and tap out beat accents. Along the bottom: RHYTHMS swaps the click for a drum groove matched to your meter (rock, waltz, etc.), DRONE adds a steady pitch underneath to tune against, and GAPS randomly silences a share of the beats so you keep time on your own.\n' +
   '⏱ Timers — optional nudges to rotate passages, take a micro-break, play it cold, or move your body.\n' +
   '🎤 Recorder — capture a take and play it back; saved takes attach to your practice log.\n' +
   '✏️ Pencil — mark up the score (stylus only; the tab appears when a pen is detected).';

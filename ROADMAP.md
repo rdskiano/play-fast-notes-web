@@ -1,12 +1,26 @@
 # Play Fast Notes — Roadmap (unified)
 
-_Last updated: 2026-06-10_
+_Last updated: 2026-06-15_
 
 This roadmap covers **both surfaces** (iOS/iPad + web) of the unified Play Fast Notes app, which lives in this directory (`play-fast-notes/`). The two older repos (`../learn-fast-notes/` for iPad and `../play-fast-notes-web/` for web) are read-only archives and their roadmaps are historical only.
 
 > **🚀 2026-05-24 — WEB CUTOVER COMPLETE.** `playfastnotes.com` now ships from THIS repo via `git push web-origin-archive master` (the remote alias still has the "archive" word, but it points at `rdskiano/play-fast-notes-web` and Vercel auto-deploys from there). The 2026-05-23/24 push (`3d031c2` + `17767f6`) shipped: web Recorder + web Pencil (stylus-gated) + PWA + camera capture + phone density pass + per-passage pinch-zoom + timer overhaul (4 timers Rotate/Micro/Cold/Break + ⚙ settings sheet) + Space/X keyboard advance + ToolDock −/+ resize. **iPad cutover is the remaining plumbing milestone** — the physical iPad still runs Xcode-built dev clients from `learn-fast-notes/`.
 
 The old web-only context note (2026-05-17 Mac upgrade) is now folded into history. iPad still uses local Xcode builds for the user's working device; web now ships from this repo via Vercel.
+
+## 🚧 2026-06-15 — Guided first-run onboarding (IN PROGRESS, web, tsc-clean, NOT committed)
+
+A full guided onboarding that drops a brand-new user straight into a productive first practice session, to fix the funnel leak (61% of signups never add a piece). Full design rationale + blow-by-blow in memory `[[project_onboarding_redesign]]` — **read its top "RESUME HERE" block first.**
+
+**Arc:** empty library → auto-redirect to a quiz → "Help me get started" (or skip to 🛠 tools) → photo / PDF-screenshot → crop → two OBSERVABLE questions ("How does it feel?" / "What does the passage look like?") → routed to ONE pre-configured tool. **Routing tree:** even & running → Rhythm Variations; else by feel: unfamiliar → Tempo Ladder, one-spot → Micro-chaining, else (more-even / faster) → Interleaved Click-Up. Design principle: only ask what the user can answer by LOOKING (the situation), never by KNOWING (which tool); "show one move, hide the toolbox."
+
+**Only ICU is pre-configured so far.** Guided ICU runs on `/passage/[id]/click-up?guided=1` as a viewport-fit, quiz-styled flow: performance-tempo slider (`BpmStepper`, hear-it preview; start auto = half) → "here's how you'll mark it" example (`assets/images/tutorial-click-up-marking.png`) + Got it → "now mark your passage" (pinch-zoom + pan, Undo/Clear in the top bar, marker circles top-clamped so a tight crop doesn't clip them) → play (metronome AUTO-STARTS on the tap; one-time first-Next reassurance banner) → 🎉 celebration ("saved to your practice log" + See my library) → library `?welcome=1` one-time orientation card. The big "Add your first piece" `TutorialStep` stays silent post-session (gated on never-practiced + empty library), so existing per-page tours take over from the library on.
+
+**Files (UNCOMMITTED):** NEW `app/onboarding.tsx`; edited `app/_layout.tsx` (route), `app/(tabs)/library.tsx` (first-run redirect via module flag `didRedirectToOnboarding` + `?welcome=1` welcome overlay), `app/upload.web.tsx` + `app/passage/[id]/crop.web.tsx` (`?coach=1` round-trip: photo → crop → back to quiz, no name prompt), `app/passage/[id]/click-up.tsx` + `hooks/useClickUpSession.ts` (guided phases tempo/example/marking, auto-metronome, first-Next banner, celebration, `finishGuidedToLibrary`), `components/ScoreWithMarkers.tsx` (marker `top: Math.max(2, …)` clamp).
+
+**Test:** sign in `newbie@newbie.com` (empty library auto-fires the quiz; the redirect only fires on an EMPTY library, so delete the test passage to re-fire OR open `localhost:8081/onboarding` directly). **Design for the phone BROWSER (URL chrome present), not the installed PWA** — almost nobody installs.
+
+**Open:** (1) guided pre-config for Rhythm Variations / Tempo Ladder / Micro-chaining (same `?guided=1` + phase pattern); (2) "what's next" celebration teaser (practice-again / try-another-method) undecided; (3) crop screen still wears its own non-quiz chrome; (4) before prod, swap the module-flag redirect → a persisted "seen onboarding" setting; (5) then commit — web push (`git push web-origin-archive master`) IS a live deploy, so smoke-test first.
 
 ## ✅ 2026-06-08 — Tools-only mode: practice tools without a piece (branch `tools-only-mode`, NOT pushed)
 

@@ -206,9 +206,9 @@ export default function RootLayout() {
                 />
                 <Stack.Screen name="tools/index" options={{ headerShown: false }} />
                 <Stack.Screen name="tools/metronome" options={{ headerShown: false }} />
-                <Stack.Screen name="tools/stepper" options={{ headerShown: false }} />
                 <Stack.Screen name="import-seed" options={{ headerShown: false }} />
                 <Stack.Screen name="import-supabase" options={{ headerShown: false }} />
+                <Stack.Screen name="onboarding" options={{ headerShown: false }} />
               </Stack>
                 {!IS_WEB && <InterleavedStatusBar />}
                 <PracticeTimerAlertModal />
