@@ -38,6 +38,8 @@ playpreview # npx eas-cli build --profile preview --platform ios (standalone .ip
 
 All four aliases live in `~/.zshrc` and point at this directory. Plus `LANG=en_US.UTF-8` / `LC_ALL=en_US.UTF-8` are exported — required for CocoaPods on macOS 26.
 
+**Verify a change with:** `node node_modules/typescript/bin/tsc --noEmit` (type check) + `npx expo export -p web` (web bundle). Note: bare `npx tsc` is unreliable here — npx sometimes fetches an unrelated prank `tsc` package instead of the local compiler, so call the local binary directly as above.
+
 For local iOS builds (the new-Mac workflow):
 ```
 rm -rf ios
@@ -374,6 +376,20 @@ fast-follow — native `app/upload.tsx` still mints single passages (web is the 
 surface). `tsc --noEmit` + `expo export -p web` clean. **NEEDS authed click-through
 (user testing 2026-06-17).** Onboarding session (separate) updates `app/onboarding.tsx`
 capture copy to match.
+
+## ✅ 2026-06-18 — Practice coach (beta) — DEPLOYED + LIVE
+
+A per-piece **"What should I practice? · beta"** recommender, live (beta-flagged) behind a button on passage detail. Curated/deterministic, **NO LLM**. Full design + decision history in memory `project_coaching_mode`; actionable spec in **`COACHING_MODE_PLAN.md`** (read it before extending).
+
+- **Entry:** "What should I practice? · beta" pill on passage detail (`app/passage/[id]/index.tsx`, titleActions) + first item in the phone Strategies ActionSheet. Screen: `app/passage/[id]/coach.tsx`.
+- **Engine:** `lib/coach/engine.ts` (pure, UI-free) — fixed question tree (`CHALLENGES` / `FOLLOWUPS`) + `summarizeHistory` + `recommend`. Reads existing data only (`getPracticeLogForPassage`, `listPassageReminders`). Routes to the 6 built tools via **normal** routes (NOT `?guided=1` — that carries onboarding's celebration/bounce). rv → `/passage/[id]/rhythmic?grouping=4`, rep → `/interleaved?seedPassageId`.
+- **Flow:** post-session 👍/👎 (caught on return to the coach via `useFocusEffect`; stored in settings `coach:lastRec:<pieceId>` — read those rows for analytics) → optional due-date (new **`pieces.due_date`** col; `null`=ask / `0`=no deadline / `>0`=date) → diagnosis → recommendation in a strict voice (affirm → situation → tool → one-line method; **never say what NOT to do**).
+- **Miss-rate rules:** forward-only, **coach-internal** misses logged in Tempo Ladder (`misses`+`targetReps`, in `useTempoLadderSession.ts`) + Rep Rotator (`totalAttempts`, in `app/interleaved.tsx`) — **never rendered in the practice log.** "Grinding" = ~3× target reps to land a clean set; only acts when the user picks the matching complaint: speed+grind → stay on Tempo Ladder slower (no ICU graduation); Rep-Rotator grind → Micro-chaining first. Comfortable → nothing.
+- **Scope ceiling (deliberate):** instrument-specific drills are OUT; chunking is NOT its own tool (Macro-chaining covers it). The coach only routes to built tools + universal nudges.
+- **Migration:** `alter table pieces add column if not exists due_date bigint;` (already applied to prod; native SQLite migration in `lib/db/schema.ts`).
+- Account screen gained a **Feedback** section (Send feedback mailto → rdskiano@gmail.com).
+- Commits (all on master + pushed/live): `6b4bad7` core · `1c6f6bd` label + "just getting started" path · `06802fc` miss-rate rules · `0768899` Account feedback section.
+- **Open:** authed live click-through; the grinding rules are forward-only (need fresh sessions to fire); optional later — in-modal 👍/👎 for higher capture, a Supabase feedback form, logging "gave up" (0-set) Tempo Ladder sessions so the worst grind is visible.
 
 ## Where to pick up next
 
