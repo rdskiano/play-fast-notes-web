@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { DocumentPageImage } from '@/components/DocumentPageImage';
 import { MoveToPicker } from '@/components/MoveToPicker';
 import { PromptModal } from '@/components/PromptModal';
@@ -102,18 +103,6 @@ type UndoMove = {
   fromParent: string | null;
   label: string;
 };
-
-function confirmDelete(label: string, message: string): Promise<boolean> {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    return Promise.resolve(window.confirm(`Delete "${label}"?\n\n${message}`));
-  }
-  return new Promise((resolve) => {
-    Alert.alert(`Delete "${label}"?`, message, [
-      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-      { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
-    ]);
-  });
-}
 
 type FolderCardProps = {
   folder: Folder;
@@ -489,6 +478,31 @@ export default function LibraryScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [prompt, setPrompt] = useState<Prompt>(null);
+  // Delete confirmation. On web we drive our own ConfirmModal — iPad Safari
+  // silently suppresses window.confirm(), so a native dialog there returns
+  // false and the delete never fires. The resolver bridges the modal's
+  // button press back to the awaiting handler.
+  const [confirmDel, setConfirmDel] = useState<{ label: string; message: string } | null>(null);
+  const confirmDelResolver = useRef<((ok: boolean) => void) | null>(null);
+  const confirmDelete = useCallback((label: string, message: string): Promise<boolean> => {
+    if (Platform.OS === 'web') {
+      return new Promise<boolean>((resolve) => {
+        confirmDelResolver.current = resolve;
+        setConfirmDel({ label, message });
+      });
+    }
+    return new Promise((resolve) => {
+      Alert.alert(`Delete "${label}"?`, message, [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+      ]);
+    });
+  }, []);
+  const resolveConfirmDelete = useCallback((ok: boolean) => {
+    confirmDelResolver.current?.(ok);
+    confirmDelResolver.current = null;
+    setConfirmDel(null);
+  }, []);
   const [addOpen, setAddOpen] = useState(false);
   // Non-null = the paywall is up; the string is the context line explaining
   // which gate was hit. Inert while PAYWALL_ENABLED is false (isPro is
@@ -1412,6 +1426,16 @@ export default function LibraryScreen() {
         submitLabel="Save"
         onSubmit={onPromptSubmit}
         onCancel={() => setPrompt(null)}
+      />
+
+      <ConfirmModal
+        visible={confirmDel !== null}
+        title={confirmDel ? `Delete "${confirmDel.label}"?` : ''}
+        message={confirmDel?.message}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => resolveConfirmDelete(true)}
+        onCancel={() => resolveConfirmDelete(false)}
       />
 
       <AddChooserModal

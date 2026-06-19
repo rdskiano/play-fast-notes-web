@@ -1,5 +1,5 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { Button } from '@/components/Button';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { PromptModal } from '@/components/PromptModal';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
@@ -69,6 +70,8 @@ export default function RhythmListScreen() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [prompt, setPrompt] = useState<Prompt>(null);
+  const [confirmDel, setConfirmDel] = useState<{ label: string } | null>(null);
+  const deletePerformRef = useRef<(() => void) | null>(null);
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -133,28 +136,25 @@ export default function RhythmListScreen() {
     refresh();
   }
 
+  const DELETE_MESSAGE =
+    'This removes the exercise. You can still find past practice logs on the passage history.';
+
   function confirmDelete(ex: Exercise, label: string) {
     const performDelete = async () => {
       await softDeleteExercise(ex.id);
       refresh();
     };
     if (Platform.OS === 'web') {
-      const ok =
-        typeof window !== 'undefined' &&
-        window.confirm(
-          `Delete "${label}"? This removes the exercise. You can still find past practice logs on the passage history.`,
-        );
-      if (ok) performDelete();
+      // iPad Safari silently suppresses window.confirm(), so use our in-app
+      // ConfirmModal instead — otherwise Delete does nothing there.
+      deletePerformRef.current = performDelete;
+      setConfirmDel({ label });
       return;
     }
-    Alert.alert(
-      `Delete "${label}"?`,
-      'This removes the exercise. You can still find past practice logs on the passage history.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: performDelete },
-      ],
-    );
+    Alert.alert(`Delete "${label}"?`, DELETE_MESSAGE, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: performDelete },
+    ]);
   }
 
   const title = passage?.title ?? 'Rhythmic exercises';
@@ -302,6 +302,24 @@ export default function RhythmListScreen() {
         submitLabel="Save"
         onSubmit={onRenameSubmit}
         onCancel={() => setPrompt(null)}
+      />
+
+      <ConfirmModal
+        visible={confirmDel !== null}
+        title={confirmDel ? `Delete "${confirmDel.label}"?` : ''}
+        message={DELETE_MESSAGE}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          const fn = deletePerformRef.current;
+          deletePerformRef.current = null;
+          setConfirmDel(null);
+          fn?.();
+        }}
+        onCancel={() => {
+          deletePerformRef.current = null;
+          setConfirmDel(null);
+        }}
       />
 
       <TutorialStep
