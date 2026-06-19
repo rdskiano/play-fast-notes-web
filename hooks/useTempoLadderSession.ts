@@ -92,6 +92,9 @@ export function useTempoLadderSession(
   );
   const [celebrating, setCelebrating] = useState<Celebration>(null);
   const [completedSets, setCompletedSets] = useState(0);
+  // Cumulative misses this session — coach-internal signal (clean-rate), never
+  // rendered in the practice log. Logged into data_json on finish.
+  const [misses, setMisses] = useState(0);
   const lastHitTempoRef = useRef<number | null>(null);
   // Guided onboarding auto-enables the micro-break timer to demonstrate the
   // habit (see confirmPerformanceTempo). Timers are global + persisted, so we
@@ -320,6 +323,7 @@ export function useTempoLadderSession(
     earnedStepUpRef.current = false;
     touchedRef.current = false;
     setCompletedSets(0);
+    setMisses(0);
 
     if (mode === 'custom') {
       if (!customPattern || !customPatternId) return;
@@ -536,6 +540,7 @@ export function useTempoLadderSession(
   async function onMiss() {
     if (!progress || (!toolsOnly && !exerciseId)) return;
     touchedRef.current = true; // a rep happened → this is a real session
+    setMisses((n) => n + 1);
     // A miss starts a fresh attempt, so any unbanked completed-set advance is
     // no longer owed.
     earnedStepUpRef.current = false;
@@ -685,6 +690,7 @@ export function useTempoLadderSession(
         goalTempo: progress?.goal_tempo,
         mode: progress?.mode,
         completedSets,
+        misses,
       };
       // Capture which Custom pattern was practiced so the practice log can
       // render "Tempo Ladder · My 9+1" rather than just "Tempo Ladder".
@@ -777,6 +783,7 @@ export function useTempoLadderSession(
           goalTempo: progress?.goal_tempo,
           mode: progress?.mode,
           completedSets,
+          misses,
         },
         exerciseId,
       );

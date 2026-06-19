@@ -202,4 +202,9 @@ export const MIGRATIONS: string[] = [
   -- Crop can always re-open the full image (re-frame, or crop another passage).
   ALTER TABLE pieces ADD COLUMN original_uri TEXT;
   `,
+  `
+  -- Per-piece due date (epoch ms) for the practice coach's urgency read.
+  -- NULL = never asked; 0 = explicitly "no deadline"; >0 = a date.
+  ALTER TABLE pieces ADD COLUMN due_date INTEGER;
+  `,
 ];

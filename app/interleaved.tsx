@@ -90,6 +90,9 @@ type SpotState = {
   streak: number;
   justMissed: boolean;
   completed: boolean;
+  // Total reps attempted on this passage this session — coach-internal
+  // clean-rate signal, never rendered in the practice log.
+  totalAttempts?: number;
 };
 
 type LapState = {
@@ -345,6 +348,7 @@ function InterleavedScreenInner() {
       streak: 0,
       justMissed: false,
       completed: false,
+      totalAttempts: 0,
     }));
     setSpots(initial);
     engagedTempoMap.current = new Map();
@@ -377,6 +381,7 @@ function InterleavedScreenInner() {
       const next = [...prev];
       const spot = { ...next[currentIndex] };
       spot.streak += 1;
+      spot.totalAttempts = (spot.totalAttempts ?? 0) + 1;
       spot.justMissed = false;
       if (spot.streak >= targetReps) spot.completed = true;
       next[currentIndex] = spot;
@@ -404,6 +409,7 @@ function InterleavedScreenInner() {
       const next = [...prev];
       const spot = { ...next[currentIndex] };
       spot.streak = 0;
+      spot.totalAttempts = (spot.totalAttempts ?? 0) + 1;
       spot.justMissed = true;
       spot.completed = false;
       next[currentIndex] = spot;
@@ -442,6 +448,7 @@ function InterleavedScreenInner() {
           targetReps,
           streak: spot.streak,
           completed: spot.completed,
+          totalAttempts: spot.totalAttempts ?? 0,
         };
         const tempo = engagedTempoMap.current.get(spot.passage.id);
         if (tempo != null) data.tempo = tempo;

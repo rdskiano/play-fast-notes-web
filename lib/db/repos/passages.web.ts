@@ -29,6 +29,9 @@ export type Passage = {
   created_at: number;
   updated_at: number;
   deleted_at: number | null;
+  // Per-piece due date (epoch ms) for the coach's urgency read.
+  // null = never asked; 0 = explicitly "no deadline"; >0 = a date.
+  due_date: number | null;
 };
 
 export function parseMarkers(units_json: string | null): Marker[] {
@@ -83,6 +86,7 @@ export async function insertPassage(p: NewPassage): Promise<Passage> {
     original_uri: null,
     units_json: null,
     deleted_at: null,
+    due_date: null,
   };
 }
 
@@ -189,6 +193,16 @@ export async function movePassage(id: string, folder_id: string | null): Promise
   const { error } = await supabase
     .from('pieces')
     .update({ folder_id, updated_at: Date.now() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// Per-piece due date for the coach. Pass 0 for an explicit "no deadline" so
+// the coach stops asking; a positive epoch-ms value for a real date.
+export async function updatePassageDueDate(id: string, dueDate: number | null): Promise<void> {
+  const { error } = await supabase
+    .from('pieces')
+    .update({ due_date: dueDate, updated_at: Date.now() })
     .eq('id', id);
   if (error) throw error;
 }

@@ -446,6 +446,15 @@ export default function PassageDetailScreen() {
               // strategies are added; keeping these out of that row stops Crop
               // from being pushed to its own line).
               <View style={styles.titleActions}>
+                <Pressable
+                  onPress={() =>
+                    guardedNav(() => router.push(`/passage/${passage.id}/coach`))
+                  }
+                  style={[styles.outlinePill, { backgroundColor: C.tint, borderColor: C.tint }]}>
+                  <ThemedText style={[styles.outlinePillText, { color: '#fff' }]}>
+                    Where do I start? · beta
+                  </ThemedText>
+                </Pressable>
                 {hasFull && (
                   <Pressable
                     onPress={() => setViewFull((v) => !v)}
@@ -749,6 +758,13 @@ export default function PassageDetailScreen() {
         visible={phoneMenuOpen}
         title={passage.title}
         items={[
+          {
+            label: '🧭 Where do I start? · beta',
+            onPress: () => {
+              setPhoneMenuOpen(false);
+              guardedNav(() => router.push(`/passage/${passage.id}/coach`));
+            },
+          },
           ...(STRATEGIES.filter((s) => s.enabled).map((s) => {
             const isTempoLadder = s.key === 'tempo_ladder';
             const pct =
