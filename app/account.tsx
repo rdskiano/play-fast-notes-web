@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -136,6 +136,21 @@ export default function AccountScreen() {
     }
   }
 
+  function sendFeedback() {
+    const platform = Platform.OS === 'web' ? 'web' : Platform.OS;
+    // The trailing context line helps triage a report (which build, who).
+    const body =
+      '\n\n\n—\n(Please keep the line below — it helps me look into it.)\n' +
+      `Play Fast Notes · ${platform}${userEmail ? ' · ' + userEmail : ''}`;
+    const url =
+      'mailto:rdskiano@gmail.com' +
+      `?subject=${encodeURIComponent('Play Fast Notes feedback')}` +
+      `&body=${encodeURIComponent(body)}`;
+    Linking.openURL(url).catch(() => {
+      // No mail client wired up — the address is shown on screen as a fallback.
+    });
+  }
+
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -185,6 +200,17 @@ export default function AccountScreen() {
               />
             </View>
           )}
+
+        <ThemedText style={[styles.sectionHint, { marginTop: Spacing.md }]}>
+          Feedback
+        </ThemedText>
+        <View style={styles.accountActions}>
+          <Button label="Send feedback" variant="outline" size="sm" onPress={sendFeedback} />
+        </View>
+        <ThemedText style={styles.sectionHint}>
+          Hit a bug or have an idea — especially about the new “What should I
+          practice?” coach (beta)? Email me at rdskiano@gmail.com.
+        </ThemedText>
 
         {/* Native only: friendly entry to the web→device import that used to
             hide behind the /import-supabase URL. */}
