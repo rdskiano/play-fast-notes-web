@@ -691,6 +691,7 @@ export function useTempoLadderSession(
         mode: progress?.mode,
         completedSets,
         misses,
+        targetReps: progress?.target_reps,
       };
       // Capture which Custom pattern was practiced so the practice log can
       // render "Tempo Ladder · My 9+1" rather than just "Tempo Ladder".
@@ -784,6 +785,7 @@ export function useTempoLadderSession(
           mode: progress?.mode,
           completedSets,
           misses,
+          targetReps: progress?.target_reps,
         },
         exerciseId,
       );

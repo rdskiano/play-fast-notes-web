@@ -120,7 +120,38 @@ export type HistorySummary = {
   lastTool: ToolKey | null; // most recent logged tool on this piece
   stalled: boolean; // tempo ladder not advancing across recent sessions
   triedCount: number; // how many distinct tools have been used
+  // "Grinding" = the latest session shows it taking ~3× the target reps to land
+  // a clean set / streak. Forward-only (old rows lack the data → false). Only
+  // ACTED ON when the user picks the matching complaint, never surfaced cold.
+  ladderGrind: boolean;
+  repGrind: boolean;
 };
+
+function num(v: unknown): number | null {
+  return typeof v === 'number' ? v : null;
+}
+
+// Tempo Ladder: grinding if it took ~3× target reps to land a clean set, i.e.
+// (target + misses-per-set) >= 3×target  ⇔  ~15 reps to get 5.
+function isLadderGrind(d: Record<string, unknown> | null): boolean {
+  if (!d) return false;
+  const misses = num(d.misses);
+  const completedSets = num(d.completedSets);
+  const targetReps = num(d.targetReps);
+  if (misses === null || completedSets === null || targetReps === null) return false;
+  if (targetReps <= 0 || completedSets < 1) return false;
+  return targetReps + misses / completedSets >= 3 * targetReps;
+}
+
+// Rep Rotator: grinding if a recent session didn't complete and took ~3× target
+// attempts on this passage — a sign to go do individual work before rotating.
+function isRepGrind(d: Record<string, unknown> | null): boolean {
+  if (!d) return false;
+  const totalAttempts = num(d.totalAttempts);
+  const targetReps = num(d.targetReps);
+  if (totalAttempts === null || targetReps === null || targetReps <= 0) return false;
+  return d.completed === false && totalAttempts >= 3 * targetReps;
+}
 
 export function summarizeHistory(entries: PracticeLogEntry[]): HistorySummary {
   const counts: Record<ToolKey, number> = { ladder: 0, icu: 0, rep: 0, rv: 0, micro: 0, macro: 0 };
@@ -128,19 +159,29 @@ export function summarizeHistory(entries: PracticeLogEntry[]): HistorySummary {
   const ladderTempos: number[] = []; // most-recent first
 
   // Repo returns entries sorted by practiced_at descending.
+  // Most-recent parsed data_json per rep-based tool (entries are desc by date),
+  // for the grind read.
+  let latestLadder: Record<string, unknown> | null = null;
+  let latestRep: Record<string, unknown> | null = null;
+
   for (const e of entries) {
     const tool = STRATEGY_TO_TOOL[e.strategy];
     if (!tool) continue;
     counts[tool] += 1;
     if (lastTool === null) lastTool = tool;
-    if (tool === 'ladder' && e.data_json) {
+    let d: Record<string, unknown> | null = null;
+    if (e.data_json) {
       try {
-        const d = JSON.parse(e.data_json) as { tempo?: unknown };
-        if (typeof d.tempo === 'number') ladderTempos.push(d.tempo);
+        d = JSON.parse(e.data_json) as Record<string, unknown>;
       } catch {
-        // skip corrupt row
+        d = null;
       }
     }
+    if (tool === 'ladder') {
+      if (d && typeof d.tempo === 'number') ladderTempos.push(d.tempo as number);
+      if (!latestLadder && d) latestLadder = d;
+    }
+    if (tool === 'rep' && !latestRep && d) latestRep = d;
   }
 
   const usage: Record<ToolKey, number> = { ladder: 0, icu: 0, rep: 0, rv: 0, micro: 0, macro: 0 };
@@ -153,7 +194,14 @@ export function summarizeHistory(entries: PracticeLogEntry[]): HistorySummary {
   if (ladderTempos.length >= 3 && ladderTempos[0] <= ladderTempos[2]) stalled = true;
 
   const triedCount = (Object.keys(counts) as ToolKey[]).filter((k) => counts[k] >= 1).length;
-  return { usage, lastTool, stalled, triedCount };
+  return {
+    usage,
+    lastTool,
+    stalled,
+    triedCount,
+    ladderGrind: isLadderGrind(latestLadder),
+    repGrind: isRepGrind(latestRep),
+  };
 }
 
 // ── The recommendation ──────────────────────────────────────────────────────
@@ -225,6 +273,21 @@ export function recommend(input: CoachInput): Recommendation {
       const call = conn(h, 'macro', 'Macro-chaining', 'break it into chunks and chain them at tempo, shrinking the gaps between');
       return { lead: `${affirm(h)} ${situation}`, call: dueTriage(call, 'macro', dueWeeks), startTool: 'macro' };
     }
+    // Grinding (taking ~3× the reps to land a clean set): stay on Tempo Ladder
+    // but drop to a very playable tempo. Beats graduating to ICU — they need a
+    // clean foundation first.
+    if (h.ladderGrind) {
+      return {
+        lead: `${affirm(h)} ${situation}`,
+        call: conn(
+          h,
+          'ladder',
+          'Tempo Ladder',
+          'drop the tempo until a clean set comes almost easily, then climb — right now it’s taking about three times the reps to land one',
+        ),
+        startTool: 'ladder',
+      };
+    }
     if (h.usage.ladder >= 2 || h.stalled) {
       return {
         lead: `${affirm(h)} ${situation}`,
@@ -269,6 +332,20 @@ export function recommend(input: CoachInput): Recommendation {
   // ⓓ not reliably — ICU ⇄ Rep Rotator rotation by recency
   if (challenge === 'd') {
     const lead = `${affirm(h)} Since it’s not always there yet,`;
+    // Grinding in the rotator (can't land the target, ~3× the attempts): go do
+    // individual passage work first, then come back to it.
+    if (h.repGrind) {
+      return {
+        lead,
+        call: conn(
+          h,
+          'micro',
+          'Micro-chaining',
+          'Rep Rotator’s a slog right now — go shore up the shaky passages one at a time, then come back to it',
+        ),
+        startTool: 'micro',
+      };
+    }
     const didICU = h.usage.icu >= 1;
     const didRR = h.usage.rep >= 1;
     let call: string;
