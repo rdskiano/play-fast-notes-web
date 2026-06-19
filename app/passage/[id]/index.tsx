@@ -452,7 +452,7 @@ export default function PassageDetailScreen() {
                   }
                   style={[styles.outlinePill, { backgroundColor: C.tint, borderColor: C.tint }]}>
                   <ThemedText style={[styles.outlinePillText, { color: '#fff' }]}>
-                    Where do I start? · beta
+                    What should I practice? · beta
                   </ThemedText>
                 </Pressable>
                 {hasFull && (
@@ -759,7 +759,7 @@ export default function PassageDetailScreen() {
         title={passage.title}
         items={[
           {
-            label: '🧭 Where do I start? · beta',
+            label: '🧭 What should I practice? · beta',
             onPress: () => {
               setPhoneMenuOpen(false);
               guardedNav(() => router.push(`/passage/${passage.id}/coach`));

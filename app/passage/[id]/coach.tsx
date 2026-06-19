@@ -129,8 +129,9 @@ export default function CoachScreen() {
     setSpecial(undefined);
     setFollow(undefined);
     setChallenge(c);
-    // Coordination has no follow-up — it goes straight to a recommendation.
-    setStep(c === 'e' ? 'rec' : 'follow');
+    // Coordination and "just getting started" have no follow-up — they go
+    // straight to a recommendation.
+    setStep(c === 'e' || c === 'g' ? 'rec' : 'follow');
   }, []);
 
   const pickFollow = useCallback(
@@ -294,7 +295,7 @@ export default function CoachScreen() {
         ) : step === 'challenge' ? (
           <View style={styles.section}>
             <ThemedText style={styles.lead}>
-              Let’s figure out where to start with{' '}
+              Let’s figure out what to work on for{' '}
               <ThemedText style={styles.leadStrong}>{passage.title}</ThemedText>.
             </ThemedText>
             {reminder ? (

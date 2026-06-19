@@ -46,9 +46,10 @@ export const TOOL_ROUTE: Record<Exclude<ToolKey, 'rep'>, string> = {
 
 // ── The fixed question tree (verbatim wording) ──────────────────────────────
 
-export type ChallengeKey = 'a' | 'b' | 'c' | 'd' | 'e' | 'f';
+export type ChallengeKey = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g';
 
 export const CHALLENGES: { key: ChallengeKey; label: string }[] = [
+  { key: 'g', label: 'I’m just getting started — still learning it' },
   { key: 'a', label: 'I can’t get it up to speed' },
   { key: 'b', label: 'It’s uneven or lumpy when I speed up' },
   { key: 'c', label: 'One spot keeps falling apart' },
@@ -299,6 +300,25 @@ export function recommend(input: CoachInput): Recommendation {
       startTool: pick,
       escape:
         'ICU is what makes it reliable; Rep Rotator locks in what works — alternate them, don’t pick one forever.',
+    };
+  }
+
+  // ⓖ just getting started / still learning it — get the notes secure at a
+  // playable tempo, then climb. (No follow-up; handled like coordination.)
+  if (challenge === 'g') {
+    return {
+      lead: 'Let’s get the notes under your fingers first.',
+      call: dueTriage(
+        conn(
+          h,
+          'ladder',
+          'Tempo Ladder',
+          'start at a tempo you can play it cleanly and climb from there as it settles in',
+        ),
+        'ladder',
+        dueWeeks,
+      ),
+      startTool: 'ladder',
     };
   }
 
