@@ -41,6 +41,7 @@ import { NoteValueGlyph, type NoteValue } from '@/components/NoteValueGlyph';
 import { ThemedText } from '@/components/themed-text';
 import { VolumeSlider } from '@/components/VolumeSlider';
 import { getGroove, groovesForMeter } from '@/lib/audio/grooves';
+import { Palette } from '@/constants/palette';
 import { Spacing, Type } from '@/constants/tokens';
 import type {
   BeatState,
@@ -1001,7 +1002,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 9,
     borderRadius: 16,
-    backgroundColor: '#2ecc71',
+    backgroundColor: Palette.success,
     alignItems: 'center',
     justifyContent: 'center',
   },

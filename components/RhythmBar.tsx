@@ -25,9 +25,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
-import { Colors } from '@/constants/theme';
+import { Palette } from '@/constants/palette';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { buildRhythmAbc } from '@/lib/notation/buildAbc';
 import type { RhythmPattern } from '@/lib/strategies/rhythmPatterns';
 
@@ -62,8 +61,6 @@ export function RhythmBar({
   trailing,
   withSafeArea = false,
 }: Props) {
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
   const { colors } = useStrategyColors();
   const insets = useSafeAreaInsets();
   const { width: vpW } = useWindowDimensions();
@@ -103,7 +100,7 @@ export function RhythmBar({
       onPress={onToggleRhythm}
       hitSlop={6}
       accessibilityLabel={rhythmLooping ? 'Stop rhythm' : 'Loop rhythm'}
-      style={[styles.loopBtn, { backgroundColor: rhythmLooping ? '#c0392b' : C.tint }]}>
+      style={[styles.loopBtn, { backgroundColor: rhythmLooping ? Palette.danger : colors.rhythmic }]}>
       <ThemedText style={styles.loopText}>
         {rhythmLooping ? '■' : '▶'}
         {compact ? '' : rhythmLooping ? ' Stop' : ' Loop'}
@@ -119,8 +116,8 @@ export function RhythmBar({
         disabled={!canPrev}
         hitSlop={6}
         accessibilityLabel="Previous pattern"
-        style={[styles.navBtn, { borderColor: C.tint, opacity: canPrev ? 1 : 0.3 }]}>
-        <ThemedText style={[styles.navText, { color: C.tint }]}>←</ThemedText>
+        style={[styles.navBtn, { borderColor: colors.rhythmic, opacity: canPrev ? 1 : 0.3 }]}>
+        <ThemedText style={[styles.navText, { color: colors.rhythmic }]}>←</ThemedText>
       </Pressable>
 
       <View style={{ width: notationW, height: notationH, justifyContent: 'center' }}>
@@ -165,8 +162,8 @@ export function RhythmBar({
           paddingRight: Spacing.md + insets.right,
         },
         {
-          borderBottomColor: C.icon + '44',
-          backgroundColor: scheme === 'dark' ? '#1a1c1e' : '#fafafa',
+          borderBottomColor: Palette.border,
+          backgroundColor: Palette.card,
         },
       ]}>
       {leading}

@@ -21,6 +21,7 @@ import {
 import { CustomPatternDots } from '@/components/CustomPatternDots';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
+import { Palette } from '@/constants/palette';
 import { Borders, Overlays, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
@@ -233,7 +234,7 @@ export function CustomPatternEditor({
             </View>
 
             {error && (
-              <ThemedText style={[styles.errorText, { color: '#c0392b' }]}>
+              <ThemedText style={[styles.errorText, { color: Palette.danger }]}>
                 {error}
               </ThemedText>
             )}

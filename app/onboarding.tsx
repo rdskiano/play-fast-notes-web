@@ -6,9 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
+import { Lift, Palette } from '@/constants/palette';
+import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logOnboardingStep } from '@/lib/onboarding/telemetry';
 
 // The guided "Coach me" front door. Two observable questions — how the
@@ -64,8 +64,6 @@ const STEP_INDEX: Record<Step, number> = {
 export default function OnboardingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ passageId?: string }>();
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
   const insets = useSafeAreaInsets();
 
   const [history, setHistory] = useState<Step[]>([]);
@@ -133,14 +131,13 @@ export default function OnboardingScreen() {
         style={({ pressed }) => [
           styles.option,
           {
-            borderColor: C.icon + '66',
-            backgroundColor: pressed ? C.icon + '18' : 'transparent',
+            backgroundColor: pressed ? Palette.accentSoft : Palette.card,
             opacity: disabled ? 0.4 : 1,
           },
         ]}>
         <ThemedText style={styles.optionTitle}>{title}</ThemedText>
         {sub ? (
-          <ThemedText style={[styles.optionSub, { color: C.icon }]}>
+          <ThemedText style={[styles.optionSub, { color: Palette.textSecondary }]}>
             {sub}
           </ThemedText>
         ) : null}
@@ -159,19 +156,19 @@ export default function OnboardingScreen() {
       <View style={[styles.topRow, { paddingTop: insets.top + 10 }]}>
         {history.length > 0 ? (
           <Pressable onPress={back} hitSlop={8} style={styles.backBtn}>
-            <ThemedText style={[styles.backText, { color: C.tint }]}>
+            <ThemedText style={[styles.backText, { color: Palette.accent }]}>
               ‹ Back
             </ThemedText>
           </Pressable>
         ) : (
           <View style={{ width: 48 }} />
         )}
-        <View style={[styles.track, { backgroundColor: C.icon + '33' }]}>
+        <View style={[styles.track, { backgroundColor: Palette.track }]}>
           <View
             style={[
               styles.fill,
               {
-                backgroundColor: C.tint,
+                backgroundColor: Palette.accent,
                 width: `${(STEP_INDEX[step] / 4) * 100}%`,
               },
             ]}
@@ -184,7 +181,7 @@ export default function OnboardingScreen() {
         {step === 'entry' && (
           <View style={styles.centered}>
             <ThemedText style={styles.h1}>Let’s get you practicing.</ThemedText>
-            <ThemedText style={[styles.lead, { color: C.icon }]}>
+            <ThemedText style={[styles.lead, { color: Palette.textSecondary }]}>
               Add a passage and I’ll guide you through it — or jump straight to the
               practice tools.
             </ThemedText>
@@ -211,16 +208,16 @@ export default function OnboardingScreen() {
         {step === 'photo' && (
           <View style={styles.centered}>
             <ThemedText style={styles.h1}>What are you working on?</ThemedText>
-            <ThemedText style={[styles.lead, { color: C.icon }]}>
-              Name the piece, then snap a photo of the page — you’ll mark the fast
+            <ThemedText style={[styles.lead, { color: Palette.textSecondary }]}>
+              Name the piece, then add a photo of the page — you’ll mark the fast
               or technical spot you want to practice on it.
             </ThemedText>
             <TextInput
               value={pieceName}
               onChangeText={setPieceName}
               placeholder="e.g. Mozart Concerto"
-              placeholderTextColor={C.icon + '99'}
-              style={[styles.nameInput, { borderColor: C.icon + '66', color: C.text }]}
+              placeholderTextColor={Palette.textMuted}
+              style={[styles.nameInput, { borderColor: Palette.border, color: Palette.text }]}
               returnKeyType="done"
             />
             {/* Both options route to /upload?coach=1&piece=<name>: the upload
@@ -230,22 +227,22 @@ export default function OnboardingScreen() {
                 the page + first spot are always titled. */}
             <View style={styles.actions}>
               <Option
-                title="📷  Photo of your sheet music"
-                sub="paper on the stand"
+                title="📷  Take a photo"
+                sub="snap the page on your stand"
                 disabled={!pieceName.trim()}
                 onPress={() =>
                   router.push(
-                    `/upload?coach=1&piece=${encodeURIComponent(pieceName.trim())}` as never,
+                    `/upload?coach=1&source=camera&piece=${encodeURIComponent(pieceName.trim())}` as never,
                   )
                 }
               />
               <Option
-                title="🖼  Screenshot of your PDF"
-                sub="from Forscore or your files"
+                title="🖼  Choose a photo"
+                sub="pick one from your photos"
                 disabled={!pieceName.trim()}
                 onPress={() =>
                   router.push(
-                    `/upload?coach=1&piece=${encodeURIComponent(pieceName.trim())}` as never,
+                    `/upload?coach=1&source=library&piece=${encodeURIComponent(pieceName.trim())}` as never,
                   )
                 }
               />
@@ -319,17 +316,17 @@ export default function OnboardingScreen() {
 
         {step === 'result' && (
           <View style={styles.centered}>
-            <ThemedText style={[styles.kicker, { color: C.icon }]}>
+            <ThemedText style={[styles.kicker, { color: Palette.accent }]}>
               YOUR FIRST SESSION
             </ThemedText>
             <ThemedText style={styles.h1}>{TOOLS[target].name}</ThemedText>
-            <ThemedText style={[styles.lead, { color: C.icon }]}>
+            <ThemedText style={[styles.lead, { color: Palette.textSecondary }]}>
               {TOOLS[target].blurb}
             </ThemedText>
             <View style={styles.actions}>
               <Button label="Begin →" onPress={begin} />
             </View>
-            <ThemedText style={[styles.note, { color: C.icon }]}>
+            <ThemedText style={[styles.note, { color: Palette.textMuted }]}>
               Already set up at a tempo you can play — just start.
             </ThemedText>
           </View>
@@ -360,7 +357,14 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   centered: { flex: 1, justifyContent: 'center', gap: Spacing.sm },
-  h1: { fontSize: 24, fontWeight: Type.weight.bold, lineHeight: 30 },
+  h1: {
+    fontFamily: Fonts.rounded,
+    fontSize: 24,
+    fontWeight: Type.weight.bold,
+    lineHeight: 30,
+    letterSpacing: -0.4,
+    color: Palette.text,
+  },
   lead: { fontSize: Type.size.md, lineHeight: 22 },
   nameInput: {
     borderWidth: 1,
@@ -371,20 +375,27 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   kicker: {
+    fontFamily: Fonts.rounded,
     fontSize: 12,
-    fontWeight: Type.weight.bold,
+    fontWeight: Type.weight.heavy,
     letterSpacing: 1,
     marginBottom: 2,
   },
   actions: { gap: Spacing.sm, marginTop: Spacing.lg },
   option: {
-    borderWidth: Borders.medium,
-    borderRadius: Radii.lg,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii['2xl'],
     paddingVertical: 14,
     paddingHorizontal: 16,
     gap: 2,
+    ...Lift,
   },
-  optionTitle: { fontSize: Type.size.md, fontWeight: Type.weight.bold },
+  optionTitle: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.bold,
+    color: Palette.text,
+  },
   optionSub: { fontSize: Type.size.sm },
   note: { fontSize: 12, marginTop: Spacing.md, lineHeight: 17 },
 });

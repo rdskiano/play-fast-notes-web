@@ -34,11 +34,12 @@ import {
 
 import { Image, View } from 'react-native';
 
+import { Palette } from '@/constants/palette';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 
 import type { TourStep } from './types';
 
-type ScreenTour = { screenId: string; steps: TourStep[] };
+type ScreenTour = { screenId: string; steps: TourStep[]; accent?: string };
 
 type TourCtxValue = {
   // The tour registered by the currently-focused screen (null = none).
@@ -74,7 +75,7 @@ const Ctx = createContext<TourCtxValue>(NOOP);
 // Tour visuals are a deliberately dark "coaching" layer so they read as an
 // overlay on top of the app, never as part of the (light) UI itself.
 const ACCENT = '#e67e22'; // site orange — spotlight ring, labels, buttons
-const DOT_BLUE = '#0a7ea4'; // site blue — the per-control ⓘ dots (match the ? button)
+const DOT_BLUE = Palette.accent; // site blue — the per-control ⓘ dots (match the ? button)
 const CARD_BG = '#1e293b'; // slate-800
 const CARD_TITLE = '#f8fafc';
 const CARD_BODY = '#cbd5e1';
@@ -144,15 +145,19 @@ export function useTour(): TourCtxValue {
 // active — e.g. on a phase of the screen that has no tour. Keep `steps`
 // a stable reference (a module-level const) so registration doesn't
 // re-fire every render.
-export function useScreenTour(screenId: string, steps: TourStep[] | null): void {
+export function useScreenTour(
+  screenId: string,
+  steps: TourStep[] | null,
+  accent?: string,
+): void {
   const { registerScreen, start } = useTour();
 
   useFocusEffect(
     useCallback(() => {
-      if (steps && steps.length) registerScreen({ screenId, steps });
+      if (steps && steps.length) registerScreen({ screenId, steps, accent });
       else registerScreen(null);
       return () => registerScreen(null);
-    }, [registerScreen, screenId, steps]),
+    }, [registerScreen, screenId, steps, accent]),
   );
 
   useFocusEffect(
@@ -638,7 +643,7 @@ function TourDots() {
               width: 18,
               height: 18,
               borderRadius: 99,
-              background: DOT_BLUE,
+              background: screen.accent ?? DOT_BLUE,
               color: '#fff',
               border: '2px solid #fff',
               fontSize: 11,

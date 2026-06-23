@@ -9,6 +9,7 @@ import { PromptModal } from '@/components/PromptModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
+import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Opacity, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -665,5 +666,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
   },
-  errorText: { color: '#c0392b', fontSize: Type.size.sm, textAlign: 'center' },
+  errorText: { color: Palette.danger, fontSize: Type.size.sm, textAlign: 'center' },
 });

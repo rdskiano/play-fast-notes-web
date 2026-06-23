@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -17,15 +18,17 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PassagePicker } from '@/components/PassagePicker';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
-import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
+import { PracticeToolsBar } from '@/components/PracticeToolsBar';
+import { RotateForPractice } from '@/components/RotateForPractice';
 import { SelfLedSheet } from '@/components/SelfLedSheet';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
-import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
+import { Colors, Fonts } from '@/constants/theme';
+import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
+import { Palette, Lift } from '@/constants/palette';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
@@ -201,11 +204,6 @@ function InterleavedScreenInner() {
   const isTouch = useIsTouchDevice();
   const isLandscape = vpW > vpH;
   const insets = useSafeAreaInsets();
-  // Landscape phone: drop the floating ✗ / ✓ buttons onto the help-button
-  // line (✓ shifted left of the help button) instead of floating them high
-  // on a short screen. Portrait keeps the lifted spacing.
-  const repBottomLift = isPhone && isLandscape ? 16 : HELP_CLEARANCE;
-  const cleanRightExtra = isPhone && isLandscape ? 60 : 0;
 
   const [phase, setPhase] = useState<Phase>('select');
   const [mode, setMode] = useState<SessionMode>('consistency');
@@ -605,39 +603,20 @@ function InterleavedScreenInner() {
   // ── Select phase ─────────────────────────────────────────────────────────
   if (phase === 'select') {
     const minSel = 2;
-    const canStart = selectedIds.length >= minSel;
     return (
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
-        <SessionTopBar
-          onExit={exit}
-          exitLabel="EXIT"
-          center={
-            <ThemedText style={styles.topCenter} numberOfLines={1}>
-              Pick passages to rotate through
-            </ThemedText>
-          }
-        />
 
         <PassagePicker
           selectedIds={selectedIds}
           passages={passages}
-          order={order}
           onToggle={toggleSelect}
+          onSetSelected={setSelectedIds}
+          onStart={() => setPhase('config')}
+          onExit={exit}
+          minToStart={minSel}
         />
 
-        <View style={styles.bottomBar}>
-          <Button
-            label={
-              canStart
-                ? `Continue with ${selectedIds.length} passages →`
-                : `Pick at least ${minSel} passages`
-            }
-            onPress={() => setPhase('config')}
-            disabled={!canStart}
-            style={actionButtonStyle}
-          />
-        </View>
         <TutorialStep
           id="rep-rotator-first-run"
           visible={true}
@@ -669,7 +648,7 @@ function InterleavedScreenInner() {
 
   // Consistency mode active screen.
   return (
-    <ThemedView style={{ flex: 1 }}>
+    <View style={styles.playRoot}>
       <Stack.Screen options={{ headerShown: false }} />
       {/* Keyboard / foot-pedal shortcuts: right pedal / Space = ✓ Clean,
           left pedal / X = ✗ Miss. Suppressed while celebration / log prompt
@@ -681,204 +660,169 @@ function InterleavedScreenInner() {
         secondaryKey="x"
         onSecondary={onMiss}
       />
-      {/* Phone hides the SessionTopBar (replaced by a floating dots
-          pill + ✕ button) and the bottom repBar (replaced by floating
-          ✗ / ✓ circles), to give the score the full screen the way
-          Tempo Ladder does. */}
-      {!isPhone && (
-        <SessionTopBar
-          onExit={async () => {
-            await ann.flush();
-            setPhase('select');
-          }}
-          exitLabel="EXIT"
-          center={
-            <View style={{ alignItems: 'center', maxWidth: '100%' }}>
-              <ThemedText style={styles.topCenter} numberOfLines={1}>
-                {currentSpot?.passage.title ?? 'Passage'}
-              </ThemedText>
-              <ThemedText style={styles.topSubCenter}>
-                {completedCount}/{spots.length} complete
-              </ThemedText>
-              <View style={styles.streakDots}>
-                {Array.from({ length: targetReps }).map((_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.dot,
-                      i < (currentSpot?.streak ?? 0)
-                        ? styles.dotFilled
-                        : { borderColor: C.icon },
-                    ]}
-                  />
-                ))}
-              </View>
-            </View>
-          }
-          right={
-            <View style={styles.topRightRow}>
-              <Button
-                label="END"
-                variant="danger"
-                size="sm"
-                onPress={endSession}
-              />
-            </View>
-          }
-        />
-      )}
 
+      {/* ── Reskinned run top bar (all devices) — Exit (left) · title +
+          live "BPM · streak dots · count" pill (centre). The tools pill
+          floats top-right (rendered last, below). Mirrors Tempo Ladder. */}
+      <View style={[styles.runTopBar, { paddingTop: insets.top + 10 }]}>
+        <View style={styles.runSide}>
+          <Pressable
+            onPress={async () => {
+              await ann.flush();
+              endSession();
+            }}
+            hitSlop={8}
+            style={styles.runExit}>
+            <Feather name="log-out" size={15} color={Palette.danger} />
+            <ThemedText style={styles.runExitText}>Exit</ThemedText>
+          </Pressable>
+        </View>
+        <View style={styles.runCenter}>
+          {/* Strategy + passage title — desktop / iPad only. Dropped on phone
+              to save a line (practice runs in landscape, vertical space tight). */}
+          {!isPhone && (
+            <View style={styles.runTitleRow}>
+              <View style={styles.runStratDot} />
+              <ThemedText style={styles.runTitleText} numberOfLines={1}>
+                Rep Rotator
+              </ThemedText>
+              {!!currentSpot?.passage.title && (
+                <ThemedText style={styles.runTitleMeta} numberOfLines={1}>
+                  {'  ·  '}
+                  {currentSpot.passage.title}
+                </ThemedText>
+              )}
+            </View>
+          )}
+          <View style={styles.runStatPill}>
+            <ThemedText style={styles.runStatBpm}>{metronome.bpm}</ThemedText>
+            <ThemedText style={styles.runStatUnit}>BPM</ThemedText>
+            <View style={styles.runStatDivider} />
+            <View style={styles.runStatDots}>
+              {Array.from({ length: targetReps }).map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.runStatDot,
+                    i < (currentSpot?.streak ?? 0)
+                      ? styles.runStatDotFilled
+                      : styles.runStatDotEmpty,
+                  ]}
+                />
+              ))}
+            </View>
+            <ThemedText style={styles.runStatCount}>
+              {completedCount}/{spots.length}
+            </ThemedText>
+          </View>
+        </View>
+        <View style={styles.runSide} />
+      </View>
+
+      {/* ── Score ──────────────────────────────────────────────────── */}
       <View
         style={[
           styles.contentArea,
-          // Reserve a band under the score so the floating ✗ / ✓ circles
-          // don't overlap the music. Portrait reserves the full lifted band;
-          // landscape is short, so reserve almost nothing and let the buttons
-          // float over the lower corners (matches the Tempo Ladder pattern).
-          isPhone &&
-            (isLandscape
-              ? { paddingBottom: insets.bottom + 8 }
-              : { paddingBottom: insets.bottom + HELP_CLEARANCE + 36 }),
-        ]}>
-        {currentSpot?.passage.source_uri ? (
-          <View
-            style={[
-              styles.scoreFill,
-              // Laptop: pad the score frame so the music (and its pencil
-              // overlay) is inset from the screen edges — clearing the
-              // edge-docked tool tabs on the sides and giving top/bottom
-              // breathing room. The image lives in an inner flex child
-              // (styles.scoreInner) because an absolutely-filled image
-              // ignores this padding on web. The tool layer is a sibling,
-              // so its tabs stay at the true screen edge. Phone keeps its
-              // full-bleed pannable zoom.
-              !isPhone && {
+          isPhone
+            ? { paddingBottom: insets.bottom + (isLandscape ? 8 : 0) }
+            : {
                 paddingHorizontal: SCORE_SIDE_BUFFER,
-                paddingVertical: SCORE_VERT_BUFFER,
+                paddingTop: SCORE_VERT_BUFFER,
+                paddingBottom: Spacing.sm,
                 backgroundColor: SCORE_FRAME_BG,
               },
-            ]}>
-            <View style={styles.scoreInner}>
-              {isTouch ? (
-                <ZoomableImage
-                  uri={currentSpot.passage.source_uri}
-                  style={StyleSheet.absoluteFill}
-                  // Remember the zoom + pan per passage so cycling
-                  // between rotated passages doesn't carry over the
-                  // previous passage's zoom.
-                  persistKey={currentSpot.passage.id}
-                />
-              ) : (
-                <Image
-                  source={{ uri: currentSpot.passage.source_uri }}
-                  style={StyleSheet.absoluteFill}
-                  contentFit="contain"
-                />
-              )}
-              {ann.canvas}
-            </View>
-          </View>
-        ) : null}
-        <PracticeToolsLayer
-          metronome={metronome}
-          pencil={ann.pencil}
-          recorderPassageId={currentSpot?.passage.id}
-        />
-
-        {/* Phone overlays — float over the score so the practice
-            controls don't steal vertical space. */}
-        {isPhone && (
-          <>
-            <View
-              pointerEvents="none"
-              style={[styles.phoneDotsWrap, { top: insets.top + 10 }]}>
-              <View style={styles.phoneDotsPill}>
-                <View style={styles.phoneDotsRow}>
-                  {Array.from({ length: targetReps }).map((_, i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.phoneDot,
-                        i < (currentSpot?.streak ?? 0)
-                          ? styles.phoneDotFilled
-                          : styles.phoneDotEmpty,
-                      ]}
-                    />
-                  ))}
-                </View>
-                <ThemedText style={styles.phoneDotsCount}>
-                  {completedCount}/{spots.length}
-                </ThemedText>
-              </View>
-            </View>
-
-            <Pressable
-              onPress={endSession}
-              hitSlop={6}
-              accessibilityLabel="Exit session"
-              style={[
-                styles.phoneEndBtn,
-                { top: insets.top + 8, left: insets.left + 8 },
-              ]}>
-              <ThemedText style={[styles.phoneEndGlyph, { color: C.tint }]}>EXIT</ThemedText>
-            </Pressable>
-
-            <Pressable
-              onPress={onMiss}
-              hitSlop={6}
-              accessibilityLabel="Mark as miss"
-              style={[
-                styles.phoneRepBtn,
-                styles.phoneMissBtn,
-                // Portrait lifts to clear the help button; landscape drops to
-                // the help line. `insets.left` clears the landscape notch.
-                // `cleanRightExtra` mirrors the inward shift applied to the ✓
-                // button so the pair sits symmetrically (B-009).
-                {
-                  bottom: insets.bottom + repBottomLift,
-                  left: insets.left + 16 + cleanRightExtra,
-                },
-              ]}>
-              <ThemedText style={styles.phoneRepGlyph}>✗</ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={onClean}
-              hitSlop={6}
-              accessibilityLabel="Mark as clean"
-              style={[
-                styles.phoneRepBtn,
-                styles.phoneCleanBtn,
-                {
-                  bottom: insets.bottom + repBottomLift,
-                  right: insets.right + 16 + cleanRightExtra,
-                },
-              ]}>
-              <ThemedText style={styles.phoneRepGlyph}>✓</ThemedText>
-            </Pressable>
-          </>
-        )}
+        ]}>
+        <View style={{ flex: 1, width: '100%', position: 'relative' }}>
+          {currentSpot?.passage.source_uri &&
+            (isTouch ? (
+              <ZoomableImage
+                uri={currentSpot.passage.source_uri}
+                style={styles.scoreContain}
+                // Remember the zoom + pan per passage so cycling between
+                // rotated passages doesn't carry over the previous zoom.
+                persistKey={currentSpot.passage.id}
+              />
+            ) : (
+              <Image
+                source={{ uri: currentSpot.passage.source_uri }}
+                style={styles.scoreContain}
+                contentFit="contain"
+              />
+            ))}
+          {ann.canvas}
+        </View>
       </View>
 
-      {!isPhone && (
+      {/* ── Mark Miss / Clean ────────────────────────────────────────
+          Phone-landscape: split to the bottom corners (a mis-tap can't
+          fire the wrong call). Everywhere else: a centred bar with two
+          big buttons + shortcut helper copy. Mirrors Tempo Ladder. */}
+      {isPhone && isLandscape ? (
         <>
-          <View style={[styles.repBar, { borderTopColor: C.icon + '44' }]}>
-            <Pressable
-              onPress={onClean}
-              style={[styles.repBtn, styles.cleanBtn]}>
-              <ThemedText style={styles.repText}>Clean ✓</ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={onMiss}
-              style={[styles.repBtn, styles.missBtn]}>
-              <ThemedText style={styles.repText}>Miss ✗</ThemedText>
-            </Pressable>
-          </View>
-
-          <ThemedText style={[styles.tempoHint, { color: C.icon }]}>
-            Your tempo is saved for each passage. Space = Clean ✓ · X = Miss ✗
+          <Pressable
+            onPress={onMiss}
+            hitSlop={6}
+            accessibilityLabel="Mark as miss"
+            style={[
+              styles.cornerBtn,
+              styles.missOutlineBtn,
+              // Shift BOTH buttons inward by 64 so the ✓ clears the global
+              // help "i" button in the bottom-right corner; the ✗ matches it.
+              { bottom: insets.bottom + 4, left: insets.left + 16 + 64 },
+            ]}>
+            <ThemedText style={styles.missBtnText}>✕  Miss</ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={onClean}
+            hitSlop={6}
+            accessibilityLabel="Mark as clean"
+            style={[
+              styles.cornerBtn,
+              styles.cleanFilledBtn,
+              { bottom: insets.bottom + 4, right: insets.right + 16 + 64 },
+            ]}>
+            <ThemedText style={styles.cleanBtnText}>✓  Clean</ThemedText>
+          </Pressable>
+          <ThemedText
+            pointerEvents="none"
+            style={[styles.runHintLine, { bottom: insets.bottom + 6 }]}>
+            Space or foot pedal = Clean · X = Miss
           </ThemedText>
         </>
+      ) : (
+        <View style={[styles.runBottomBar, { paddingBottom: insets.bottom + 10 }]}>
+          <View style={styles.runBtnRow}>
+            <Pressable
+              onPress={onMiss}
+              accessibilityLabel="Mark as miss"
+              style={[styles.bottomBtn, styles.missOutlineBtn]}>
+              <ThemedText style={styles.missBtnText}>✕  Miss</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={onClean}
+              accessibilityLabel="Mark as clean"
+              style={[styles.bottomBtn, styles.cleanBtnWide, styles.cleanFilledBtn]}>
+              <ThemedText style={styles.cleanBtnText}>✓  Clean</ThemedText>
+            </Pressable>
+          </View>
+          <ThemedText style={styles.runHintAuto}>
+            Clean a passage {targetReps}× in a row to retire it — the app rotates you on every mark.
+          </ThemedText>
+          {!isPhone && (
+            <ThemedText style={styles.runHintShortcut}>
+              Space or foot pedal = Clean · X = Miss
+            </ThemedText>
+          )}
+        </View>
       )}
+
+      {/* Tools pill — floats top-right, panels drop below it. Rendered last
+          so it paints above the score. */}
+      <PracticeToolsBar
+        metronome={metronome}
+        pencil={{ ...ann.pencil, onUndo: ann.undo }}
+        recorderPassageId={currentSpot?.passage.id}
+      />
 
       <PracticeLogNotePrompt
         visible={celebrating || notePromptVisible}
@@ -908,11 +852,13 @@ function InterleavedScreenInner() {
           "✓ Clean — counts the rep; once a passage hits its clean-rep target it's done and drops out of the rotation.\n\n" +
           "✗ Miss — logs the miss and resets that passage's streak; you stay on it.\n\n" +
           "Keyboard / pedal: Space = Clean ✓, X = Miss ✗.\n\n" +
-          "END (top-right) finishes the session and saves it to your practice log. On a wide screen, EXIT (top-left) leaves without logging and returns to your passage list.\n\n" +
+          "Exit (top-left) finishes the session and saves it to your practice log.\n\n" +
           PRACTICE_TOOLS_HELP
         }
       />
-    </ThemedView>
+      {/* Phone: practice runs in landscape. Portrait → "rotate" prompt. */}
+      <RotateForPractice />
+    </View>
   );
 }
 
@@ -1049,12 +995,12 @@ function TimerActive({
       <View style={styles.strategyRow}>
         <Pressable
           onPress={() => launchStrategy('tempo-ladder')}
-          style={[styles.strategyBtn, { backgroundColor: '#2ecc71' }]}>
+          style={[styles.strategyBtn, { backgroundColor: Palette.success }]}>
           <ThemedText style={styles.strategyText}>Tempo Ladder</ThemedText>
         </Pressable>
         <Pressable
           onPress={() => launchStrategy('click-up')}
-          style={[styles.strategyBtn, { backgroundColor: '#154360' }]}>
+          style={[styles.strategyBtn, { backgroundColor: C.tint }]}>
           <ThemedText style={styles.strategyText}>Interleaved Click-Up</ThemedText>
         </Pressable>
         <Pressable
@@ -1114,7 +1060,7 @@ function TimerActive({
         style={[
           styles.timerBar,
           {
-            backgroundColor: timerSession.timerExpired ? '#c0392b' : C.tint,
+            backgroundColor: timerSession.timerExpired ? Palette.danger : C.tint,
           },
         ]}>
         <ThemedText style={styles.timerLabel}>
@@ -1159,51 +1105,156 @@ const styles = StyleSheet.create({
     opacity: Opacity.muted,
     marginTop: 2,
   },
-  streakDots: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 4,
-    justifyContent: 'center',
-  },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 2,
-    backgroundColor: 'transparent',
-  },
-  dotFilled: { backgroundColor: Status.success, borderColor: Status.success },
   contentArea: { flex: 1 },
   scoreFill: { flex: 1, width: '100%' },
-  // Inner frame that actually holds the score image + pencil overlay. A normal
-  // flex child so the parent's padding (the laptop buffer) insets it; the
-  // absoluteFill image then fills this inset frame.
-  scoreInner: { flex: 1, width: '100%', position: 'relative' },
-  repBar: {
+  scoreContain: { flex: 1, width: '100%' },
+
+  // ── Reskinned run screen (mirrors Tempo Ladder's run layout) ─────────────
+  playRoot: { flex: 1, backgroundColor: Palette.paper },
+  runTopBar: {
     flexDirection: 'row',
-    gap: Spacing.md,
-    // The 160 right clearance keeps the Miss button out from under the
-    // floating help bubble in the bottom-right corner. Mirror it on the left
-    // so the Clean / Miss pair stays centered instead of shifted left (B-009).
-    paddingLeft: 160,
-    paddingRight: 160,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
-    borderTopWidth: Borders.thin,
-  },
-  repBtn: {
-    flex: 1,
-    paddingVertical: Spacing.lg,
-    borderRadius: Radii.lg,
     alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
   },
-  cleanBtn: { backgroundColor: Status.success },
-  missBtn: { backgroundColor: '#e74c3c' },
-  repText: { color: '#fff', fontWeight: Type.weight.black, fontSize: Type.size.xl },
-  tempoHint: {
+  runSide: { flex: 1, justifyContent: 'center' },
+  runExit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    alignSelf: 'flex-start',
+  },
+  runExitText: {
+    color: Palette.danger,
+    fontWeight: Type.weight.heavy,
+    fontSize: Type.size.md,
+  },
+  runCenter: { alignItems: 'center', gap: 6 },
+  runTitleRow: { flexDirection: 'row', alignItems: 'center' },
+  // Strategy-identity dot — Rep Rotator's orange (distinct from the green
+  // "clean" streak dots in the pill below).
+  runStratDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#C9772E',
+    marginRight: 7,
+  },
+  runTitleText: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.2,
+  },
+  runTitleMeta: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textMuted,
+  },
+  runStatPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radii.pill,
+    backgroundColor: Palette.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    ...Lift,
+  },
+  runStatBpm: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    fontVariant: ['tabular-nums'],
+  },
+  runStatUnit: {
+    fontSize: 10,
+    fontWeight: Type.weight.bold,
+    letterSpacing: 0.5,
+    color: Palette.textMuted,
+    marginLeft: -4,
+  },
+  runStatDivider: { width: 1, height: 14, backgroundColor: Palette.border },
+  runStatDots: { flexDirection: 'row', gap: 5, alignItems: 'center' },
+  runStatDot: { width: 11, height: 11, borderRadius: 6, borderWidth: 2 },
+  runStatDotEmpty: { borderColor: Palette.textMuted, backgroundColor: 'transparent' },
+  runStatDotFilled: { borderColor: Palette.success, backgroundColor: Palette.success },
+  runStatCount: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.heavy,
+    color: Palette.textSecondary,
+    fontVariant: ['tabular-nums'],
+    marginLeft: 2,
+  },
+  runBottomBar: {
+    paddingTop: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    gap: 6,
+  },
+  runBtnRow: {
+    flexDirection: 'row',
+    gap: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomBtn: {
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    minWidth: 150,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Lift,
+  },
+  cleanBtnWide: { minWidth: 200 },
+  missOutlineBtn: {
+    backgroundColor: Palette.card,
+    borderWidth: 1.5,
+    borderColor: Palette.danger,
+  },
+  cleanFilledBtn: { backgroundColor: Palette.success },
+  missBtnText: { color: Palette.danger, fontWeight: Type.weight.heavy, fontSize: 17 },
+  cleanBtnText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: 17 },
+  // Phone-landscape: same buttons pinned to the bottom corners.
+  cornerBtn: {
+    position: 'absolute',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 14,
+    minWidth: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Lift,
+    zIndex: 5,
+  },
+  runHintLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textMuted,
+    zIndex: 4,
+  },
+  runHintAuto: {
     textAlign: 'center',
     fontSize: 12,
-    paddingBottom: Spacing.md,
+    color: Palette.textMuted,
+    marginTop: 2,
+  },
+  runHintShortcut: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textSecondary,
   },
 
   strategyRow: {
@@ -1329,74 +1380,5 @@ const styles = StyleSheet.create({
     fontSize: Type.size.md,
     lineHeight: 20,
     maxWidth: 480,
-  },
-
-  // Phone overlays. Same vocabulary as the Tempo Ladder phone layout so
-  // the two practice screens feel consistent. Z-indexed above the score
-  // but below modals.
-  phoneDotsWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 5,
-  },
-  phoneDotsPill: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 18,
-    backgroundColor: '#000000aa',
-  },
-  phoneDotsRow: { flexDirection: 'row', gap: 8 },
-  phoneDotsCount: {
-    color: '#ffffffcc',
-    fontSize: 11,
-    fontWeight: Type.weight.bold,
-  },
-  phoneDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 2,
-  },
-  phoneDotEmpty: { borderColor: '#ffffff77', backgroundColor: 'transparent' },
-  phoneDotFilled: { borderColor: '#2ecc71', backgroundColor: '#2ecc71' },
-  phoneEndBtn: {
-    // Plain blue text, no chip — matches SessionTopBar's EXIT exactly so the
-    // floating (no-top-bar) layout reads the same as every other screen.
-    position: 'absolute',
-    left: 8,
-    paddingHorizontal: 6,
-    paddingVertical: Spacing.xs,
-    zIndex: 5,
-  },
-  // Mirrors SessionTopBar's exitText so every EXIT reads the same.
-  phoneEndGlyph: {
-    fontSize: Type.size.sm,
-    fontWeight: Type.weight.heavy,
-  },
-  phoneRepBtn: {
-    position: 'absolute',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    zIndex: 5,
-  },
-  phoneMissBtn: { left: 16, backgroundColor: '#c0392b' },
-  phoneCleanBtn: { right: 16, backgroundColor: '#2ecc71' },
-  phoneRepGlyph: {
-    color: '#fff',
-    fontSize: 28,
-    lineHeight: 30,
-    fontWeight: Type.weight.heavy,
   },
 });

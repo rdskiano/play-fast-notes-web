@@ -3,6 +3,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { ThemedText } from '@/components/themed-text';
+import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -235,7 +236,7 @@ function FloatingRhythmCardWeb({
               onPress={onToggleRhythm}
               style={[
                 styles.hearBtn,
-                { backgroundColor: rhythmLooping ? '#c0392b' : C.tint },
+                { backgroundColor: rhythmLooping ? Palette.danger : C.tint },
               ]}>
               <ThemedText style={styles.hearText}>
                 {rhythmLooping ? '■ Stop rhythm' : '▶ Loop rhythm'}

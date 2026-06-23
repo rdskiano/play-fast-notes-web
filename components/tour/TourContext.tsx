@@ -14,7 +14,11 @@ export function TourProvider({ children }: { children: ReactNode }) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function useScreenTour(_screenId: string, _steps: TourStep[] | null): void {
+export function useScreenTour(
+  _screenId: string,
+  _steps: TourStep[] | null,
+  _accent?: string,
+): void {
   // No-op on native.
 }
 

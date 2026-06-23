@@ -2,17 +2,18 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { RecordingPlayer } from '@/components/RecordingPlayer';
-import { SessionTopBar } from '@/components/SessionTopBar';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Lift, Palette } from '@/constants/palette';
+import { Fonts } from '@/constants/theme';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import {
   deletePracticeLog,
   getPracticeLogForFolder,
@@ -104,8 +105,7 @@ export default function FolderLogScreen() {
     folderId?: string;
     folderName?: string;
   }>();
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
   const { colors: STRATEGY_COLORS } = useStrategyColors();
   const { width, height } = useWindowDimensions();
   const isPhone = Math.min(width, height) < 600;
@@ -223,18 +223,15 @@ export default function FolderLogScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SessionTopBar
-        onExit={() => router.back()}
-        exitLabel="‹ Library"
-        center={
-          <ThemedText style={styles.topCenter} numberOfLines={1}>
-            {title} — Practice Log
-          </ThemedText>
-        }
-      />
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <ThemedText style={styles.backLink}>‹ Library</ThemedText>
+        </Pressable>
+        <ThemedText type="title">{title} — Practice Log</ThemedText>
+      </View>
       {days.length === 0 ? (
         <View style={styles.empty}>
-          <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>
+          <ThemedText style={{ color: Palette.textMuted, textAlign: 'center' }}>
             No practice sessions recorded yet.
           </ThemedText>
         </View>
@@ -247,15 +244,15 @@ export default function FolderLogScreen() {
                 style={[
                   styles.passageCard,
                   isPhone && styles.passageCardPhone,
-                  { borderColor: C.icon + '33' },
                 ]}>
                 <ThemedText style={styles.passageName} numberOfLines={1}>
                   {pg.passageTitle}
                 </ThemedText>
-                <View style={styles.pillRow}>
+                {/* DESIGN_RULES §2: strategies render as neutral rows with a small
+                    colored dot + ink label, not fully-saturated filled pills. */}
+                <View style={styles.entryList}>
                   {pg.entries.map((e) => {
                     const label = strategyLabel(e);
-                    const color = STRATEGY_COLORS[e.strategy] ?? C.icon;
                     const detail = formatPracticeDetail(e, { compact: true });
                     const exerciseName =
                       e.exercise_name && e.exercise_name.trim().length > 0
@@ -263,24 +260,29 @@ export default function FolderLogScreen() {
                         : null;
                     const { mood, note } = parseMoodNote(e);
                     return (
-                      <Pressable
-                        key={e.id}
-                        onPress={() => setEditing(e)}
-                        style={styles.entry}>
-                        <View style={[styles.pill, { backgroundColor: color }]}>
-                          <ThemedText style={styles.pillText} numberOfLines={1}>
+                      <View key={e.id} style={styles.entry}>
+                        <Pressable
+                          onPress={() => setEditing(e)}
+                          style={styles.entryRow}>
+                          <View
+                            style={[
+                              styles.entryDot,
+                              { backgroundColor: STRATEGY_COLORS[e.strategy] ?? Palette.textMuted },
+                            ]}
+                          />
+                          <ThemedText style={styles.entryRowLabel} numberOfLines={2}>
                             {label}
                             {exerciseName ? ` · ${exerciseName}` : ''}
                             {detail ? ` ${detail}` : ''}
                             {mood ? ` ${mood}` : ''}
                           </ThemedText>
-                        </View>
+                        </Pressable>
                         {note && (
                           <ThemedText style={styles.noteText} numberOfLines={2}>
                             {note}
                           </ThemedText>
                         )}
-                      </Pressable>
+                      </View>
                     );
                   })}
                 </View>
@@ -299,7 +301,7 @@ export default function FolderLogScreen() {
                 {day.documentGroups.map((doc) => (
                   <View key={doc.documentId} style={styles.documentGroup}>
                     <ThemedText
-                      style={[styles.documentTitle, { color: C.text }]}
+                      style={styles.documentTitle}
                       numberOfLines={1}>
                       {doc.documentTitle}
                     </ThemedText>
@@ -307,7 +309,7 @@ export default function FolderLogScreen() {
                       <View key={si} style={styles.sectionGroup}>
                         {sg.sectionName && (
                           <ThemedText
-                            style={[styles.sectionName, { color: C.icon }]}
+                            style={styles.sectionName}
                             numberOfLines={1}>
                             {sg.sectionName}
                           </ThemedText>
@@ -370,7 +372,8 @@ export default function FolderLogScreen() {
 }
 
 const styles = StyleSheet.create({
-  topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
+  header: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, gap: Spacing.xs },
+  backLink: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, color: Palette.accent },
   content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'] },
   empty: {
     flex: 1,
@@ -379,8 +382,10 @@ const styles = StyleSheet.create({
     padding: Spacing['2xl'],
   },
   dateHeader: {
+    fontFamily: Fonts.rounded,
     fontWeight: Type.weight.heavy,
     fontSize: Type.size.lg,
+    color: Palette.text,
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
@@ -392,11 +397,14 @@ const styles = StyleSheet.create({
   passageCard: {
     flexBasis: '48%',
     flexGrow: 1,
+    backgroundColor: Palette.card,
     borderWidth: Borders.thin,
+    borderColor: Palette.border,
     borderRadius: Radii.md,
     padding: 10,
     gap: 6,
     overflow: 'hidden',
+    ...Lift,
   },
   passageCardPhone: {
     flexBasis: '100%',
@@ -404,27 +412,16 @@ const styles = StyleSheet.create({
   passageName: {
     fontWeight: Type.weight.bold,
     fontSize: Type.size.sm,
+    color: Palette.text,
   },
-  pillRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.xs,
-  },
-  pill: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
-    borderRadius: Radii.sm,
-    maxWidth: '100%',
-  },
-  pillText: {
-    color: '#fff',
-    fontSize: Type.size.xs,
-    fontWeight: Type.weight.bold,
-  },
+  entryList: { gap: 2 },
+  entryRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 6, minHeight: 32 },
+  entryDot: { width: 9, height: 9, borderRadius: 5, flexShrink: 0 },
+  entryRowLabel: { flex: 1, fontSize: Type.size.sm, fontWeight: Type.weight.semibold, color: Palette.text },
   entry: { gap: 2 },
   noteText: {
     fontSize: Type.size.xs,
-    opacity: Opacity.subtle,
+    color: Palette.textSecondary,
     marginLeft: Spacing.xs,
     fontStyle: 'italic',
   },
@@ -433,8 +430,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   documentTitle: {
+    fontFamily: Fonts.rounded,
     fontSize: Type.size.md,
     fontWeight: Type.weight.heavy,
+    color: Palette.text,
     marginTop: Spacing.xs,
   },
   sectionGroup: {
@@ -444,6 +443,7 @@ const styles = StyleSheet.create({
   sectionName: {
     fontSize: Type.size.sm,
     fontWeight: Type.weight.bold,
+    color: Palette.textMuted,
     letterSpacing: 0.5,
   },
 });

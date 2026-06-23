@@ -1,6 +1,7 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, SectionList, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
@@ -9,9 +10,9 @@ import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { Colors } from '@/constants/theme';
-import { Opacity, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Lift, Palette } from '@/constants/palette';
+import { Fonts } from '@/constants/theme';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import {
   deletePracticeLog,
@@ -90,8 +91,7 @@ type Section = { title: string; data: PracticeLogEntry[] };
 
 export default function HistoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
   const { colors: STRATEGY_COLORS } = useStrategyColors();
 
   const router = useRouter();
@@ -151,31 +151,19 @@ export default function HistoryScreen() {
 
   return (
     <ThemedView style={{ flex: 1 }}>
-      <Stack.Screen
-        options={{
-          title: `${passage.title} — History`,
-          headerBackVisible: false,
-          headerLeft: () => (
-            <Pressable
-              onPress={() => router.back()}
-              hitSlop={14}
-              style={{ paddingHorizontal: 4 }}>
-              <ThemedText
-                style={{
-                  color: C.tint,
-                  fontSize: 30,
-                  fontWeight: '400',
-                  lineHeight: 32,
-                }}>
-                ‹
-              </ThemedText>
-            </Pressable>
-          ),
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <ThemedText style={styles.backLink}>‹ Back</ThemedText>
+        </Pressable>
+        <ThemedText type="title">Practice history</ThemedText>
+        <ThemedText style={styles.headerSub} numberOfLines={1}>
+          {passage.title}
+        </ThemedText>
+      </View>
       {sections.length === 0 ? (
         <View style={styles.empty}>
-          <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>
+          <ThemedText style={{ color: Palette.textMuted, textAlign: 'center' }}>
             No practice sessions recorded yet.{'\n'}Practice with any strategy to start
             building your history.
           </ThemedText>
@@ -191,7 +179,7 @@ export default function HistoryScreen() {
           )}
           renderItem={({ item }) => {
             const label = strategyLabel(item);
-            const color = STRATEGY_COLORS[item.strategy] ?? C.icon;
+            const color = STRATEGY_COLORS[item.strategy] ?? Palette.textMuted;
             const detail = formatPracticeDetail(item);
             const exerciseName =
               item.exercise_name && item.exercise_name.trim().length > 0
@@ -201,7 +189,7 @@ export default function HistoryScreen() {
             return (
               <Pressable
                 onPress={() => setEditing(item)}
-                style={[styles.entry, { borderColor: C.icon + '33' }]}>
+                style={styles.entry}>
                 <View style={[styles.dot, { backgroundColor: color }]} />
                 <View style={{ flex: 1, gap: 2 }}>
                   <View style={styles.entryHeader}>
@@ -210,7 +198,7 @@ export default function HistoryScreen() {
                       {exerciseName ? ` · ${exerciseName}` : ''}
                       {mood ? ` ${mood}` : ''}
                     </ThemedText>
-                    <ThemedText style={[styles.timeText, { color: C.icon }]}>
+                    <ThemedText style={styles.timeText}>
                       {formatTime(item.practiced_at)}
                     </ThemedText>
                   </View>
@@ -267,10 +255,16 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'] },
+  header: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, gap: Spacing.xs },
+  backLink: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, color: Palette.accent },
+  headerSub: { fontSize: Type.size.md, color: Palette.textSecondary },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing['2xl'] },
   dateHeader: {
+    fontFamily: Fonts.rounded,
     fontWeight: Type.weight.heavy,
     fontSize: Type.size.lg,
+    color: Palette.text,
+    letterSpacing: -0.2,
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
@@ -278,8 +272,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
+    ...Lift,
   },
   dot: {
     width: 10,
@@ -292,8 +291,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  stratLabel: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
-  timeText: { fontSize: 12, fontWeight: Type.weight.semibold },
-  detailText: { opacity: Opacity.muted, fontSize: Type.size.sm },
-  noteText: { opacity: 0.75, fontSize: Type.size.sm, fontStyle: 'italic', marginTop: 2 },
+  stratLabel: { fontWeight: Type.weight.bold, fontSize: Type.size.md, color: Palette.text },
+  timeText: { fontSize: 12, fontWeight: Type.weight.semibold, color: Palette.textMuted },
+  detailText: { color: Palette.textSecondary, fontSize: Type.size.sm },
+  noteText: { color: Palette.textSecondary, fontSize: Type.size.sm, fontStyle: 'italic', marginTop: 2 },
 });

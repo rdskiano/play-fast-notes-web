@@ -1,18 +1,18 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { RecordingPlayer } from '@/components/RecordingPlayer';
-import { SessionTopBar } from '@/components/SessionTopBar';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { Colors } from '@/constants/theme';
+import { Lift, Palette } from '@/constants/palette';
+import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { listAllFolders, type Folder } from '@/lib/db/repos/folders';
 import {
   deletePracticeLog,
@@ -126,7 +126,6 @@ type DayGroup = { dateLabel: string; folders: DayFolderGroup[] };
 function renderDateCard(
   pg: PassageGroup,
   key: number,
-  C: typeof Colors.light,
   STRATEGY_COLORS: Record<string, string>,
   setEditing: (e: LibraryPracticeLogEntry) => void,
   isPhone: boolean,
@@ -135,33 +134,34 @@ function renderDateCard(
   return (
     <View
       key={key}
-      style={[
-        styles.card,
-        isPhone && styles.cardPhone,
-        { borderColor: C.icon + '33' },
-      ]}>
+      style={[styles.card, isPhone && styles.cardPhone]}>
       <View style={styles.nameRow}>
         <ThemedText
-          style={[styles.passageName, isDeleted && { color: C.icon }]}
+          style={[styles.passageName, isDeleted && { color: Palette.textMuted }]}
           numberOfLines={1}>
           {pg.passageTitle}
         </ThemedText>
         {isDeleted && (
-          <ThemedText style={[styles.deletedTag, { color: C.icon, borderColor: C.icon + '66' }]}>
+          <ThemedText style={styles.deletedTag}>
             deleted
           </ThemedText>
         )}
       </View>
-      <View style={styles.pillRow}>
+      {/* DESIGN_RULES §2: strategies render as neutral rows with a small
+          colored dot + ink label, not fully-saturated filled pills. */}
+      <View style={styles.entryList}>
         {pg.entries.map((e) => (
           <Pressable
             key={e.id}
             onPress={() => setEditing(e)}
-            style={[
-              styles.pill,
-              { backgroundColor: STRATEGY_COLORS[e.strategy] ?? C.icon },
-            ]}>
-            <ThemedText style={styles.pillText} numberOfLines={1}>
+            style={styles.entryRow}>
+            <View
+              style={[
+                styles.entryDot,
+                { backgroundColor: STRATEGY_COLORS[e.strategy] ?? Palette.textMuted },
+              ]}
+            />
+            <ThemedText style={styles.entryRowLabel} numberOfLines={2}>
               {entryLabel(e)}
             </ThemedText>
           </Pressable>
@@ -175,7 +175,7 @@ function renderDateCard(
             return (
               <ThemedText
                 key={e.id}
-                style={[styles.noteText, { color: C.icon }]}
+                style={styles.noteText}
                 numberOfLines={2}>
                 {note}
               </ThemedText>
@@ -194,8 +194,7 @@ function renderDateCard(
 
 export default function LibraryLogScreen() {
   const router = useRouter();
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
   const { colors: STRATEGY_COLORS } = useStrategyColors();
   const { width, height } = useWindowDimensions();
   const isPhone = Math.min(width, height) < 600;
@@ -347,32 +346,24 @@ export default function LibraryLogScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SessionTopBar
-        onExit={() => router.back()}
-        exitLabel="‹ Library"
-        center={
-          <ThemedText style={styles.topCenter} numberOfLines={1}>
-            Practice log
-          </ThemedText>
-        }
-      />
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <ThemedText style={styles.backLink}>‹ Library</ThemedText>
+        </Pressable>
+        <ThemedText type="title">Practice log</ThemedText>
+      </View>
 
       {entries.length === 0 ? (
         <View style={styles.empty}>
-          <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>
+          <ThemedText style={{ color: Palette.textMuted, textAlign: 'center' }}>
             No practice sessions recorded yet.
           </ThemedText>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {dayGroups.map((day, i) => (
-            <View
-              key={i}
-              style={[
-                styles.dayBlock,
-                { borderColor: C.icon + '55', backgroundColor: C.icon + '08' },
-              ]}>
-              <View style={[styles.dayHeaderBar, { backgroundColor: C.tint }]}>
+            <View key={i} style={styles.dayBlock}>
+              <View style={styles.dayHeaderBar}>
                 <ThemedText style={styles.dayHeaderText}>
                   {day.dateLabel}
                 </ThemedText>
@@ -382,33 +373,24 @@ export default function LibraryLogScreen() {
                   key={fi}
                   style={[
                     styles.folderSection,
-                    fi > 0 && { borderTopColor: C.icon + '33', borderTopWidth: 1 },
+                    fi > 0 && { borderTopColor: Palette.border, borderTopWidth: 1 },
                   ]}>
                   {folder.folderName !== 'Unfiled' && (
                     <View style={styles.folderLabelRow}>
-                      <View
-                        style={[styles.folderBar, { backgroundColor: C.tint }]}
-                      />
-                      <ThemedText
-                        style={[styles.folderLabel, { color: C.text }]}
-                        numberOfLines={1}>
+                      <View style={styles.folderBar} />
+                      <ThemedText style={styles.folderLabel} numberOfLines={1}>
                         {folder.folderName}
                       </ThemedText>
                     </View>
                   )}
                   {folder.documentGroups.map((docGroup) => (
                     <View key={docGroup.documentId} style={styles.documentGroup}>
-                      <ThemedText
-                        style={[
-                          styles.documentTitle,
-                          { color: C.text, borderBottomColor: C.tint + '55' },
-                        ]}
-                        numberOfLines={1}>
+                      <ThemedText style={styles.documentTitle} numberOfLines={1}>
                         {docGroup.documentTitle}
                       </ThemedText>
                       <View style={styles.grid}>
                         {docGroup.passages.map((pg, j) =>
-                          renderDateCard(pg, j, C, STRATEGY_COLORS, setEditing, isPhone),
+                          renderDateCard(pg, j, STRATEGY_COLORS, setEditing, isPhone),
                         )}
                       </View>
                     </View>
@@ -416,7 +398,7 @@ export default function LibraryLogScreen() {
                   {folder.standalonePassages.length > 0 && (
                     <View style={styles.grid}>
                       {folder.standalonePassages.map((pg, j) =>
-                        renderDateCard(pg, j, C, STRATEGY_COLORS, setEditing, isPhone),
+                        renderDateCard(pg, j, STRATEGY_COLORS, setEditing, isPhone),
                       )}
                     </View>
                   )}
@@ -466,23 +448,28 @@ export default function LibraryLogScreen() {
 }
 
 const styles = StyleSheet.create({
-  topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
+  header: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, gap: Spacing.xs },
+  backLink: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, color: Palette.accent },
   content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'], gap: 18 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing['2xl'] },
   dayBlock: {
     borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    backgroundColor: Palette.inset,
     borderRadius: Radii.xl,
     overflow: 'hidden',
   },
   dayHeaderBar: {
+    backgroundColor: Palette.accent,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   dayHeaderText: {
+    fontFamily: Fonts.rounded,
     color: '#fff',
     fontSize: 15,
     fontWeight: Type.weight.heavy,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   folderSection: {
     padding: Spacing.md,
@@ -497,10 +484,13 @@ const styles = StyleSheet.create({
     width: Spacing.xs,
     height: 18,
     borderRadius: 2,
+    backgroundColor: Palette.accent,
   },
   folderLabel: {
+    fontFamily: Fonts.rounded,
     fontSize: Type.size.md,
     fontWeight: Type.weight.heavy,
+    color: Palette.text,
     flex: 1,
   },
   grid: {
@@ -511,41 +501,56 @@ const styles = StyleSheet.create({
   card: {
     flexBasis: '48%',
     flexGrow: 1,
+    backgroundColor: Palette.card,
     borderWidth: Borders.thin,
+    borderColor: Palette.border,
     borderRadius: Radii.md,
     padding: 10,
     gap: 6,
     overflow: 'hidden',
+    ...Lift,
   },
   cardPhone: {
     flexBasis: '100%',
   },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  passageName: { fontWeight: Type.weight.bold, fontSize: Type.size.sm, flexShrink: 1 },
+  passageName: { fontWeight: Type.weight.bold, fontSize: Type.size.sm, color: Palette.text, flexShrink: 1 },
   deletedTag: {
     fontSize: Type.size.xs,
     fontWeight: Type.weight.bold,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
+    color: Palette.textMuted,
     borderWidth: Borders.thin,
+    borderColor: Palette.border,
     borderRadius: Radii.sm,
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
-  pill: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radii.sm, maxWidth: '100%' },
-  pillText: { color: '#fff', fontSize: Type.size.xs, fontWeight: Type.weight.bold },
+  entryList: { gap: 2 },
+  entryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: 6,
+    minHeight: 32,
+  },
+  entryDot: { width: 9, height: 9, borderRadius: 5, flexShrink: 0 },
+  entryRowLabel: { flex: 1, fontSize: Type.size.sm, fontWeight: Type.weight.semibold, color: Palette.text },
   notesList: { gap: 2, marginTop: Spacing.xs },
-  noteText: { fontSize: Type.size.xs, fontStyle: 'italic' },
+  noteText: { fontSize: Type.size.xs, fontStyle: 'italic', color: Palette.textSecondary },
   documentGroup: {
     gap: Spacing.xs,
     marginTop: Spacing.xs,
   },
   documentTitle: {
+    fontFamily: Fonts.rounded,
     fontSize: Type.size.lg,
     fontWeight: Type.weight.heavy,
+    color: Palette.text,
     paddingBottom: Spacing.xs,
     borderBottomWidth: Borders.thin,
+    borderBottomColor: Palette.accent + '55',
     marginTop: Spacing.xs,
   },
 });

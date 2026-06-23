@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -21,7 +22,7 @@ import type { Grouping } from '@/lib/strategies/rhythmPatterns';
 
 import { PassageReminders } from '@/components/PassageReminders';
 import { PaywallModal } from '@/components/PaywallModal';
-import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
+import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { useEntitlement } from '@/lib/billing/entitlements';
 import { SelfLedSheet } from '@/components/SelfLedSheet';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
@@ -29,7 +30,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
-import { Colors } from '@/constants/theme';
+import { Lift, Palette } from '@/constants/palette';
+import { Colors, Fonts } from '@/constants/theme';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -63,15 +65,19 @@ type StrategyDef = {
   key: StrategyKey;
   label: string;
   enabled: boolean;
+  // Two-letter monogram + one-line "what it does", shown on the phone
+  // strategy cards (hero layout).
+  mono: string;
+  blurb: string;
 };
 
 const STRATEGIES: StrategyDef[] = [
-  { key: 'tempo_ladder', label: 'Tempo Ladder', enabled: true },
-  { key: 'click_up', label: 'Interleaved Click-Up', enabled: true },
-  { key: 'rhythmic', label: 'Rhythmic Variation', enabled: true },
-  { key: 'micro_chaining', label: 'Micro-Chaining', enabled: true },
-  { key: 'macro_chaining', label: 'Macro-Chaining', enabled: true },
-  { key: 'rep_rotator', label: 'Rep Rotator', enabled: true },
+  { key: 'tempo_ladder', label: 'Tempo Ladder', enabled: true, mono: 'TL', blurb: 'Climb to performance tempo one rung at a time.' },
+  { key: 'click_up', label: 'Interleaved Click-Up', enabled: true, mono: 'IC', blurb: 'Interleave units as the tempo climbs.' },
+  { key: 'rhythmic', label: 'Rhythmic Variation', enabled: true, mono: 'RV', blurb: 'Shift rhythms to expose weak spots.' },
+  { key: 'micro_chaining', label: 'Micro-Chaining', enabled: true, mono: 'Mi', blurb: 'Add one note at a time to tiny cells.' },
+  { key: 'macro_chaining', label: 'Macro-Chaining', enabled: true, mono: 'Ma', blurb: 'Link mastered chunks into longer spans.' },
+  { key: 'rep_rotator', label: 'Rep Rotator', enabled: true, mono: 'RR', blurb: 'Rotate passages in spaced sets.' },
 ];
 
 // Reading order across a document: page first, then top-to-bottom, then
@@ -88,6 +94,20 @@ function sortByReadingOrder(passages: Passage[]): Passage[] {
     if (Math.abs(ra.y - rb.y) > 30) return ra.y - rb.y;
     return ra.x - rb.x;
   });
+}
+
+// Deeper shade of a hex color (each RGB channel × factor). Lets the Exercise
+// Builder button be a darker shade of the SAME rhythmic violet as its sibling
+// "Rhythm patterns only" — stays coupled even if the strategy color is
+// overridden — instead of an unrelated brown.
+function darken(hex: string, factor = 0.72): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = Math.round(((n >> 16) & 0xff) * factor);
+  const g = Math.round(((n >> 8) & 0xff) * factor);
+  const b = Math.round((n & 0xff) * factor);
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
 const GROUPING_CHOICES: { n: Grouping; abc: string; w: number }[] = [
@@ -136,6 +156,10 @@ export default function PassageDetailScreen() {
   // Separate "more actions" (☰) menu — History / Crop — split off from the
   // Strategies menu so each button does one obvious thing.
   const [phoneMoreOpen, setPhoneMoreOpen] = useState(false);
+  // Landscape phone (the reading/practice orientation): the six strategies
+  // live behind a floating "Practice" launcher that slides in this panel,
+  // keeping the default state pure full-bleed score.
+  const [practiceOpen, setPracticeOpen] = useState(false);
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
   // Landscape phone: the Rhythmic Variation chooser lays its two options
@@ -366,254 +390,88 @@ export default function PassageDetailScreen() {
     );
   }
 
-  return (
-    <ThemedView style={{ flex: 1 }}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <View
-        style={[
-          styles.topBar,
-          {
-            borderBottomColor: C.icon + '44',
-            paddingTop: insets.top + 14,
-          },
-        ]}>
-        <View style={styles.titleRow}>
-          {/* Left: back control. For a passage that belongs to a PDF/part, this
-              is an explicit "‹ Full Part" button to the parent document — the
-              floating ‹ › on the score handle moving between sibling passages,
-              so the top button is unambiguously "back to the whole part." A
-              standalone passage keeps a plain back chevron. */}
-          <View style={[styles.titleSide, !isPhone && styles.titleSideFlex]}>
-            {passage.document_id ? (
-              <Pressable
-                onPress={() =>
-                  // A PDF-backed passage is reached FROM its PDF (these
-                  // passages aren't listed in the library), so a true back()
-                  // returns to that PDF in one step — no extra history entry,
-                  // no double-back. Only push the document if there's no
-                  // history to go back to (e.g. a deep link straight here).
-                  guardedNav(() =>
-                    router.canGoBack()
-                      ? router.back()
-                      : router.navigate(`/document/${passage.document_id}`),
-                  )
-                }
-                hitSlop={16}
-                accessibilityLabel="Back to full part"
-                style={styles.backBtn}>
-                <ThemedText
-                  style={[styles.backLabel, { color: C.tint }]}
-                  numberOfLines={1}>
-                  ‹ Full Part
-                </ThemedText>
-              </Pressable>
-            ) : (
-              <Pressable onPress={() => router.back()} hitSlop={16} style={styles.backBtn}>
-                <ThemedText style={[styles.backArrow, { color: C.tint }]}>‹</ThemedText>
-              </Pressable>
-            )}
-          </View>
-          <ThemedText style={styles.topTitle} numberOfLines={1}>
-            {passage.title}
-          </ThemedText>
-          {/* Right: on phone the strategy + actions menus live here so the
-              centered title stays balanced. Tablet / desktop see the full pill
-              row below instead. The labelled "Strategies" button pairs with the
-              ☰ menu (History / Crop) — the ☰ alone would be unguessable. */}
-          <View style={[styles.titleSide, styles.titleSideRight, !isPhone && styles.titleSideFlex]}>
-            {isPhone ? (
-              <View style={styles.phoneMenuRow}>
-                <Pressable
-                  onPress={() => setPhoneMenuOpen(true)}
-                  hitSlop={6}
-                  accessibilityLabel="Practice strategies"
-                  style={[styles.phoneStrategiesBtn, { backgroundColor: C.tint }]}>
-                  <ThemedText style={styles.phoneStrategiesText}>Strategies</ThemedText>
-                </Pressable>
-                <Pressable
-                  onPress={() => setPhoneMoreOpen(true)}
-                  hitSlop={6}
-                  accessibilityLabel="More actions"
-                  style={[styles.phoneMenuBtn, { borderColor: C.icon }]}>
-                  <ThemedText style={[styles.phoneMenuGlyph, { color: C.text }]}>
-                    ☰
-                  </ThemedText>
-                </Pressable>
-              </View>
-            ) : (
-              // Tablet / desktop: History + Crop sit on the title line so the
-              // strategy pills below get the full width (they wrap as more
-              // strategies are added; keeping these out of that row stops Crop
-              // from being pushed to its own line).
-              <View style={styles.titleActions}>
-                <Pressable
-                  onPress={() =>
-                    guardedNav(() => router.push(`/passage/${passage.id}/coach`))
-                  }
-                  style={[styles.outlinePill, { backgroundColor: C.tint, borderColor: C.tint }]}>
-                  <ThemedText style={[styles.outlinePillText, { color: '#fff' }]}>
-                    What should I practice? · beta
-                  </ThemedText>
-                </Pressable>
-                {hasFull && (
-                  <Pressable
-                    onPress={() => setViewFull((v) => !v)}
-                    style={[
-                      styles.outlinePill,
-                      { borderColor: C.tint },
-                      viewFull && { backgroundColor: C.tint },
-                    ]}>
-                    <ThemedText
-                      style={[
-                        styles.outlinePillText,
-                        { color: viewFull ? '#fff' : C.tint },
-                      ]}>
-                      {viewFull ? 'Show crop' : 'Full photo'}
-                    </ThemedText>
-                  </Pressable>
-                )}
-                <Pressable
-                  onPress={() =>
-                    guardedNav(() => router.push(`/passage/${passage.id}/history`))
-                  }
-                  style={[styles.outlinePill, { borderColor: C.icon }]}>
-                  <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
-                    Practice History
-                  </ThemedText>
-                </Pressable>
-                <Pressable
-                  onPress={() =>
-                    guardedNav(() =>
-                      passage.document_id
-                        ? router.push(
-                            `/document/${passage.document_id}?resize=${passage.id}`,
-                          )
-                        : router.push(`/passage/${passage.id}/crop`),
-                    )
-                  }
-                  style={[styles.outlinePill, { borderColor: C.icon }]}>
-                  <ThemedText style={[styles.outlinePillText, { color: C.tint }]}>
-                    Crop
-                  </ThemedText>
-                </Pressable>
-              </View>
-            )}
-          </View>
-        </View>
-        {!isPhone && (
-          <View style={styles.pillRow}>
-            {STRATEGIES.map(renderPill)}
-            {/* Self-Led pill hidden for now (unused). The SelfLedSheet + routes
-                stay mounted so it can be restored by re-adding this trigger.
-                History + Crop moved up to the title row (see titleActions). */}
-          </View>
-        )}
-        <PassageReminders passageId={passage.id} />
-      </View>
+  // Capped score "hero" height for the phone layout. The score is reference;
+  // the strategies below are the verbs — so cap the score so the suggestion
+  // card and the first strategy row peek above the fold rather than living a
+  // full scroll down. Landscape (the music-stand orientation) is short, so it
+  // gets a tighter cap keyed off the available height.
+  const heroH = isPhone
+    ? Math.round(vpH * 0.32)
+    : Math.min(620, Math.round(vpH * 0.52));
 
-      <GestureDetector gesture={swipeNav}>
-      <View
-        // Swipe-to-navigate: web uses pointer events (onPointerDown/Up/Cancel,
-        // HTMLElement-only, forwarded by RN-Web); native uses the horizontal
-        // fling in `swipeNav` above. Either way the ‹ › buttons still navigate.
-        {...(Platform.OS === 'web'
-          ? ({
-              onPointerDown: onSwipeStart,
-              onPointerUp: onSwipeEnd,
-              onPointerCancel: () => {
-                swipeStartRef.current = null;
-              },
-            } as object)
-          : {})}
-        style={{
-          flex: 1,
-          flexDirection: 'column',
-          minHeight: 0,
-          position: 'relative',
-        }}>
-        <View style={styles.body}>
-          {passage.source_uri ? (
-            <View
-              style={[
-                styles.scoreFill,
-                // Laptop: inset the score from the screen edges so it clears
-                // the edge-docked tool tabs and gets top/bottom breathing
-                // room. The image lives in an inner flex child (an
-                // absolutely-filled image ignores this padding on web);
-                // PracticeToolsLayer is a sibling further up the tree so its
-                // tabs stay at the true screen edge. Phone keeps full-bleed
-                // zoom.
-                !isPhone && {
-                  paddingHorizontal: SCORE_SIDE_BUFFER,
-                  paddingVertical: SCORE_VERT_BUFFER,
-                  backgroundColor: SCORE_FRAME_BG,
-                },
-              ]}>
-              <View style={{ flex: 1, width: '100%', position: 'relative' }}>
-                {isTouch ? (
-                  // Annotation layer goes INSIDE the zoom transform (overlay) so
-                  // the writing pinch-zooms/pans together with the image instead
-                  // of floating on a fixed layer above it.
-                  <ZoomableImage
-                    uri={displayUri}
-                    style={StyleSheet.absoluteFill}
-                    // Distinct key per view so the crop and the full photo each
-                    // keep their own zoom instead of sharing one.
-                    persistKey={`${passage.id}:${viewFull && hasFull ? 'full' : 'crop'}`}
-                    overlay={ann.canvas}
-                    // Phone: while annotating, one finger draws (pan off) but
-                    // two fingers still pinch-zoom. iPad keeps normal gestures
-                    // (the Apple Pencil draws; the finger pans).
-                    drawMode={isPhone && ann.pencil.active}
-                  />
-                ) : (
-                  <>
-                    <Image
-                      source={{ uri: displayUri }}
-                      style={StyleSheet.absoluteFill}
-                      contentFit="contain"
-                    />
-                    {ann.canvas}
-                  </>
-                )}
-              </View>
-            </View>
-          ) : (
-            <View style={styles.noScore}>
-              <ThemedText style={{ color: C.icon, textAlign: 'center' }}>
-                No sheet music image yet.
-              </ThemedText>
+  function renderStratCard(s: StrategyDef) {
+    const color = strategyColors[s.key] ?? Palette.accent;
+    const pct =
+      s.key === 'tempo_ladder' && tempoLadderProgress !== null
+        ? Math.round(tempoLadderProgress * 100)
+        : null;
+    return (
+      <Pressable
+        key={s.key}
+        disabled={!s.enabled}
+        onPress={() => openStrategy(s.key)}
+        style={[styles.stratCard, !s.enabled && { opacity: 0.4 }]}>
+        <View style={styles.stratCardTop}>
+          <View style={[styles.stratMono, { backgroundColor: color + '22' }]}>
+            <ThemedText style={[styles.stratMonoText, { color }]}>{s.mono}</ThemedText>
+          </View>
+          {pct !== null && (
+            <View style={[styles.stratPct, { backgroundColor: color + '22' }]}>
+              <ThemedText style={[styles.stratPctText, { color }]}>{pct}%</ThemedText>
             </View>
           )}
         </View>
-        {!annotating && prev && (
-          <Pressable
-            onPress={goPrev}
-            hitSlop={10}
-            style={[styles.spotNavBtn, styles.spotNavLeft, { borderColor: C.icon }]}>
-            <ThemedText style={[styles.spotNavGlyph, { color: C.tint }]}>‹</ThemedText>
-          </Pressable>
-        )}
-        {!annotating && next && (
-          <Pressable
-            onPress={goNext}
-            hitSlop={10}
-            style={[styles.spotNavBtn, styles.spotNavRight, { borderColor: C.icon }]}>
-            <ThemedText style={[styles.spotNavGlyph, { color: C.tint }]}>›</ThemedText>
-          </Pressable>
-        )}
-        {!annotating && siblings.length > 1 && (
-          <View style={styles.spotCounter} pointerEvents="none">
-            <ThemedText style={[styles.spotCounterText, { color: C.icon }]}>
-              {siblings.findIndex((s) => s.id === passage.id) + 1} / {siblings.length}
-            </ThemedText>
+        <ThemedText style={styles.stratCardName} numberOfLines={1}>
+          {s.label}
+        </ThemedText>
+        <ThemedText style={styles.stratCardBlurb} numberOfLines={2}>
+          {s.blurb}
+        </ThemedText>
+      </Pressable>
+    );
+  }
+
+  // Full-width strategy row for the landscape "Practice" side panel.
+  function renderStratRow(s: StrategyDef) {
+    const color = strategyColors[s.key] ?? Palette.accent;
+    const pct =
+      s.key === 'tempo_ladder' && tempoLadderProgress !== null
+        ? Math.round(tempoLadderProgress * 100)
+        : null;
+    return (
+      <Pressable
+        key={s.key}
+        disabled={!s.enabled}
+        onPress={() => {
+          setPracticeOpen(false);
+          openStrategy(s.key);
+        }}
+        style={[styles.stratRow, !s.enabled && { opacity: 0.4 }]}>
+        <View style={[styles.stratMono, { backgroundColor: color + '22' }]}>
+          <ThemedText style={[styles.stratMonoText, { color }]}>{s.mono}</ThemedText>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <ThemedText style={styles.stratRowName} numberOfLines={1}>
+            {s.label}
+          </ThemedText>
+          <ThemedText style={styles.stratCardBlurb} numberOfLines={1}>
+            {s.blurb}
+          </ThemedText>
+        </View>
+        {pct !== null && (
+          <View style={[styles.stratPct, { backgroundColor: color + '22' }]}>
+            <ThemedText style={[styles.stratPctText, { color }]}>{pct}%</ThemedText>
           </View>
         )}
+        <Feather name="chevron-right" size={18} color={Palette.textMuted} />
+      </Pressable>
+    );
+  }
 
-        <PracticeToolsLayer pencil={ann.pencil} recorderPassageId={passage?.id} />
-      </View>
-      </GestureDetector>
-
+  // Shared modals/sheets — rendered by both the phone hero layout and the
+  // tablet/desktop layout below.
+  const overlays = (
+    <>
       <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
         visible={rhythmicSheetOpen}
         transparent
@@ -642,17 +500,13 @@ export default function PassageDetailScreen() {
                     your internal pulse, improves evenness, and exposes weak spots
                     that playing as written can hide.
                   </ThemedText>
-                  {/* Side-by-side on landscape phone so both options are visible
-                      at once; stacked everywhere else (B-002). */}
                   <View
                     style={[styles.modeOptions, isLandscapePhone && styles.modeOptionsRow]}>
                     <View style={isLandscapePhone ? styles.modeOption : undefined}>
                       <Button
                         label="Rhythm patterns only"
                         onPress={() => setRhythmicStep('grouping')}
-                        // Match the Rhythmic Variation pill (its strategy color),
-                        // not the old purple this strategy used to be.
-                        style={{ backgroundColor: strategyColors.rhythmic ?? '#d07b1f' }}
+                        style={{ backgroundColor: strategyColors.rhythmic ?? Palette.rhythmic }}
                         fullWidth
                       />
                       <ThemedText style={styles.sheetHint}>
@@ -666,9 +520,6 @@ export default function PassageDetailScreen() {
                         label="Exercise Builder"
                         onPress={() => {
                           setRhythmicSheetOpen(false);
-                          // Pro hook: the Builder is the paid feature; the
-                          // free "Rhythm patterns only" path above is the
-                          // taste. Inert while PAYWALL_ENABLED is false.
                           if (!entitlement.isPro) {
                             setBuilderPaywall(true);
                             return;
@@ -680,9 +531,7 @@ export default function PassageDetailScreen() {
                             }),
                           );
                         }}
-                        // A deeper amber so the Pro Builder stays distinct from
-                        // the free "Rhythm patterns only" above, same gold family.
-                        style={{ backgroundColor: '#9c5a14' }}
+                        style={{ backgroundColor: darken(strategyColors.rhythmic ?? Palette.rhythmic) }}
                         fullWidth
                       />
                       <ThemedText style={styles.sheetHint}>
@@ -741,101 +590,18 @@ export default function PassageDetailScreen() {
         onPick={(key) => {
           setSelfLedOpen(false);
           if (!passage) return;
-          // Recording is no longer a self-led strategy — the Recorder
-          // is its own practice tool, available on every screen — so
-          // every key here routes to the generic /self-led/[key] page.
           guardedNav(() => {
             router.push(`/passage/${passage.id}/self-led/${key}` as never);
           });
         }}
       />
 
-      {/* Phone ⋯ menu — every strategy and side-action that was in the
-          pillRow lives here as a labeled row. Self-Led opens its existing
-          sub-sheet rather than flattening because it has its own
-          sub-options. */}
-      <ActionSheet
-        visible={phoneMenuOpen}
-        title={passage.title}
-        items={[
-          {
-            label: '🧭 What should I practice? · beta',
-            onPress: () => {
-              setPhoneMenuOpen(false);
-              guardedNav(() => router.push(`/passage/${passage.id}/coach`));
-            },
-          },
-          ...(STRATEGIES.filter((s) => s.enabled).map((s) => {
-            const isTempoLadder = s.key === 'tempo_ladder';
-            const pct =
-              isTempoLadder && tempoLadderProgress !== null
-                ? Math.round(tempoLadderProgress * 100)
-                : null;
-            return {
-              label: pct !== null ? `${s.label} — ${pct}%` : s.label,
-              onPress: () => {
-                setPhoneMenuOpen(false);
-                openStrategy(s.key);
-              },
-            } satisfies ActionSheetItem;
-          })),
-          // Self-Led entry hidden for now (unused).
-        ]}
-        onCancel={() => setPhoneMenuOpen(false)}
-      />
-
-      <ActionSheet
-        visible={phoneMoreOpen}
-        title={passage.title}
-        items={[
-          ...(hasFull
-            ? [
-                {
-                  label: viewFull ? 'Show crop' : 'View full photo',
-                  onPress: () => {
-                    setPhoneMoreOpen(false);
-                    setViewFull((v) => !v);
-                  },
-                },
-              ]
-            : []),
-          {
-            label: 'Practice History',
-            onPress: () => {
-              setPhoneMoreOpen(false);
-              guardedNav(() => router.push(`/passage/${passage.id}/history`));
-            },
-          },
-          {
-            label: 'Crop',
-            onPress: () => {
-              setPhoneMoreOpen(false);
-              guardedNav(() =>
-                passage.document_id
-                  ? router.push(
-                      `/document/${passage.document_id}?resize=${passage.id}`,
-                    )
-                  : router.push(`/passage/${passage.id}/crop`),
-              );
-            },
-          },
-        ]}
-        onCancel={() => setPhoneMoreOpen(false)}
-      />
-
-      {/* Step 2 of the guided first-session flow. Fires on any passage
-          detail visit while the global practice log is empty — auto-
-          resolves the first time the user finishes a practice session.
-          Body adapts to phone (pills collapsed into "strategies →"
-          menu) vs tablet/desktop (pills inline below the title). */}
       <TutorialStep
         id="first-strategy"
         visible={practiceLogCount === 0}
         title="Now pick a practice strategy"
         body={
-          (isPhone
-            ? 'Tap "strategies →" in the top right to open the menu. Inside:\n\n'
-            : 'Each strategy above is a different way to drill this passage:\n\n') +
+          'Each strategy card below is a different way to drill this passage:\n\n' +
           "Tempo Ladder — clicking up the metronome slowly over time.\n\n" +
           "Interleaved Click-Up — practice each measure or beat in isolation and in ever-changing contexts and tempos. A favorite!\n\n" +
           "Rhythmic Variation — play the passage with different rhythm patterns to expose weak spots and even out your technique.\n\n" +
@@ -855,8 +621,316 @@ export default function PassageDetailScreen() {
         contextLine="The Exercise Builder is a Practice Pro feature — “Rhythm patterns only” stays free."
         onClose={() => setBuilderPaywall(false)}
       />
-    </ThemedView>
+    </>
   );
+
+  // ── Landscape phone: reading / practice mode ───────────────────────────
+  // Full-bleed score; all controls float on top so the music owns the
+  // screen. The six strategies live behind a "Practice" launcher that slides
+  // in a side panel, then dismisses — so the default state is pure score.
+  if (isLandscapePhone) {
+    return (
+      <ThemedView style={{ flex: 1 }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <GestureDetector gesture={swipeNav}>
+          <View
+            {...(Platform.OS === 'web'
+              ? ({
+                  onPointerDown: onSwipeStart,
+                  onPointerUp: onSwipeEnd,
+                  onPointerCancel: () => {
+                    swipeStartRef.current = null;
+                  },
+                } as object)
+              : {})}
+            style={{ flex: 1, position: 'relative' }}>
+            {/* Full-bleed score */}
+            <View style={StyleSheet.absoluteFill}>
+              {passage.source_uri ? (
+                isTouch ? (
+                  <ZoomableImage
+                    uri={displayUri}
+                    style={StyleSheet.absoluteFill}
+                    persistKey={`${passage.id}:${viewFull && hasFull ? 'full' : 'crop'}`}
+                    overlay={ann.canvas}
+                    drawMode={ann.pencil.active}
+                  />
+                ) : (
+                  <>
+                    <Image
+                      source={{ uri: displayUri }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="contain"
+                    />
+                    {ann.canvas}
+                  </>
+                )
+              ) : (
+                <View style={[styles.heroEmpty, { flex: 1 }]}>
+                  <Feather name="image" size={30} color={Palette.textMuted} />
+                  <ThemedText style={styles.heroEmptyText}>No score image yet</ThemedText>
+                </View>
+              )}
+            </View>
+
+            {/* Floating top-left: back + title */}
+            {!annotating && (
+              <View style={[styles.lsTopLeft, { top: insets.top + 8 }]} pointerEvents="box-none">
+                {passage.document_id ? (
+                  <Pressable
+                    onPress={() =>
+                      guardedNav(() =>
+                        router.canGoBack()
+                          ? router.back()
+                          : router.navigate(`/document/${passage.document_id}`),
+                      )
+                    }
+                    hitSlop={10}
+                    style={styles.lsChip}>
+                    <ThemedText style={styles.lsChipText} numberOfLines={1}>
+                      ‹ Full Part
+                    </ThemedText>
+                  </Pressable>
+                ) : (
+                  <Pressable onPress={() => router.back()} hitSlop={10} style={styles.lsChip}>
+                    <ThemedText style={styles.lsChipText}>‹ Back</ThemedText>
+                  </Pressable>
+                )}
+                <View style={styles.lsTitleWrap}>
+                  <ThemedText style={styles.lsTitle} numberOfLines={1}>
+                    {passage.title}
+                  </ThemedText>
+                  {!!passage.composer && (
+                    <ThemedText style={styles.lsSub} numberOfLines={1}>
+                      {passage.composer}
+                    </ThemedText>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {/* Floating top-right: history + crop */}
+            {!annotating && (
+              <View style={[styles.lsTopRight, { top: insets.top + 8 }]}>
+                <Pressable
+                  onPress={() => guardedNav(() => router.push(`/passage/${passage.id}/history`))}
+                  hitSlop={8}
+                  accessibilityLabel="Practice history"
+                  style={styles.lsIconBtn}>
+                  <Feather name="clock" size={18} color={Palette.text} />
+                </Pressable>
+              </View>
+            )}
+
+            {/* Sibling counter, bottom-left */}
+            {!annotating && siblings.length > 1 && (
+              <View style={styles.lsCounter} pointerEvents="none">
+                <ThemedText style={styles.heroCounterText}>
+                  {siblings.findIndex((s) => s.id === passage.id) + 1} / {siblings.length}
+                </ThemedText>
+              </View>
+            )}
+
+            {/* Floating Practice launcher, bottom-right */}
+            {!annotating && !practiceOpen && (
+              <Pressable style={styles.lsPracticeBtn} onPress={() => setPracticeOpen(true)}>
+                <Feather name="zap" size={16} color="#fff" />
+                <ThemedText style={styles.lsPracticeText}>Practice</ThemedText>
+              </Pressable>
+            )}
+          </View>
+        </GestureDetector>
+
+        {/* Practice side panel */}
+        {practiceOpen && (
+          <>
+            <Pressable
+              style={[StyleSheet.absoluteFill, styles.lsScrim]}
+              onPress={() => setPracticeOpen(false)}
+            />
+            <View style={styles.lsPanel}>
+              <View style={styles.lsPanelHeader}>
+                <ThemedText style={styles.lsPanelTitle}>Practice strategies</ThemedText>
+                <Pressable
+                  onPress={() => setPracticeOpen(false)}
+                  hitSlop={8}
+                  style={styles.lsPanelClose}>
+                  <Feather name="x" size={18} color={Palette.text} />
+                </Pressable>
+              </View>
+              <ScrollView
+                contentContainerStyle={{ gap: Spacing.sm, paddingBottom: Spacing.lg }}
+                showsVerticalScrollIndicator={false}>
+                <Pressable
+                  onPress={() => {
+                    setPracticeOpen(false);
+                    guardedNav(() => router.push(`/passage/${passage.id}/coach`));
+                  }}
+                  style={styles.heroCoach}>
+                  <View style={styles.heroCoachIcon}>
+                    <Feather name="zap" size={18} color="#fff" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <ThemedText style={styles.heroCoachTitle}>What should I practice?</ThemedText>
+                  </View>
+                  <View style={styles.heroBeta}>
+                    <ThemedText style={styles.heroBetaText}>BETA</ThemedText>
+                  </View>
+                </Pressable>
+                {STRATEGIES.map(renderStratRow)}
+              </ScrollView>
+            </View>
+          </>
+        )}
+
+        {/* Tools as a horizontal pill in line with the practice-log / crop
+            icons (anchorRight clears that 2-icon cluster). */}
+        <PracticeToolsBar
+          pencil={{ ...ann.pencil, onUndo: ann.undo }}
+          recorderPassageId={passage?.id}
+          anchorTop={insets.top + 8}
+          anchorRight={58}
+        />
+        {overlays}
+      </ThemedView>
+    );
+  }
+
+  // ── Default layout: the hub (portrait phone, tablet, laptop) ────────────
+  // Passage as hero (capped score), the coach suggestion, then the strategy
+  // menu as cards — all in one scroll. Content centers into a column on wide
+  // screens (iPad / laptop) so it doesn't stretch edge-to-edge. Landscape
+  // phone already returned above with the full-bleed reading mode.
+  return (
+      <ThemedView style={{ flex: 1 }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={[styles.heroTopBar, styles.heroColumnCap, { paddingTop: insets.top + 10 }]}>
+          {passage.document_id ? (
+            <Pressable
+              onPress={() =>
+                guardedNav(() =>
+                  router.canGoBack()
+                    ? router.back()
+                    : router.navigate(`/document/${passage.document_id}`),
+                )
+              }
+              hitSlop={12}
+              style={styles.backBtn}>
+              <ThemedText style={[styles.backLabel, { color: Palette.accent }]} numberOfLines={1}>
+                ‹ Full Part
+              </ThemedText>
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+              <ThemedText style={[styles.backArrow, { color: Palette.accent }]}>‹</ThemedText>
+            </Pressable>
+          )}
+          <View style={styles.heroTopActions}>
+            <Pressable
+              onPress={() => guardedNav(() => router.push(`/passage/${passage.id}/history`))}
+              hitSlop={8}
+              accessibilityLabel="Practice history"
+              style={styles.heroIconBtn}>
+              <Feather name="clock" size={18} color={Palette.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={styles.heroScroll}
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.heroColumn}>
+          <ThemedText style={styles.heroTitle} numberOfLines={2}>
+            {passage.title}
+          </ThemedText>
+          {!!passage.composer && (
+            <ThemedText style={styles.heroSub} numberOfLines={1}>
+              {passage.composer}
+            </ThemedText>
+          )}
+
+          <View style={[styles.heroScore, { height: heroH }]}>
+            {passage.source_uri ? (
+              isTouch ? (
+                <ZoomableImage
+                  uri={displayUri}
+                  style={StyleSheet.absoluteFill}
+                  persistKey={`${passage.id}:${viewFull && hasFull ? 'full' : 'crop'}`}
+                  overlay={ann.canvas}
+                  drawMode={isPhone && ann.pencil.active}
+                />
+              ) : (
+                <>
+                  <Image
+                    source={{ uri: displayUri }}
+                    style={StyleSheet.absoluteFill}
+                    contentFit="contain"
+                  />
+                  {ann.canvas}
+                </>
+              )
+            ) : (
+              <View style={styles.heroEmpty}>
+                <Feather name="image" size={30} color={Palette.textMuted} />
+                <ThemedText style={styles.heroEmptyText}>No score image yet</ThemedText>
+              </View>
+            )}
+            {!annotating && prev && (
+              <Pressable onPress={goPrev} hitSlop={8} style={[styles.heroNav, styles.heroNavLeft]}>
+                <ThemedText style={styles.heroNavGlyph}>‹</ThemedText>
+              </Pressable>
+            )}
+            {!annotating && next && (
+              <Pressable onPress={goNext} hitSlop={8} style={[styles.heroNav, styles.heroNavRight]}>
+                <ThemedText style={styles.heroNavGlyph}>›</ThemedText>
+              </Pressable>
+            )}
+            {!annotating && siblings.length > 1 && (
+              <View style={styles.heroCounter} pointerEvents="none">
+                <ThemedText style={styles.heroCounterText}>
+                  {siblings.findIndex((s) => s.id === passage.id) + 1} / {siblings.length}
+                </ThemedText>
+              </View>
+            )}
+          </View>
+
+
+          <Pressable
+            onPress={() => guardedNav(() => router.push(`/passage/${passage.id}/coach`))}
+            style={styles.heroCoach}>
+            <View style={styles.heroCoachIcon}>
+              <Feather name="zap" size={18} color="#fff" />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <ThemedText style={styles.heroCoachTitle}>What should I practice?</ThemedText>
+              <ThemedText style={styles.heroCoachSub} numberOfLines={1}>
+                Get a strategy suggestion for this passage
+              </ThemedText>
+            </View>
+            <View style={styles.heroBeta}>
+              <ThemedText style={styles.heroBetaText}>BETA</ThemedText>
+            </View>
+          </Pressable>
+
+          <ThemedText style={styles.heroSectionHeading}>Practice strategies</ThemedText>
+          <View style={styles.stratGrid}>
+            {STRATEGIES.map(renderStratCard)}
+          </View>
+
+          <PassageReminders passageId={passage.id} />
+          </View>
+        </ScrollView>
+
+        {/* Tools as a horizontal pill in line with the practice-log / crop
+            icons in the hero top bar (anchorRight clears that cluster). */}
+        <PracticeToolsBar
+          pencil={{ ...ann.pencil, onUndo: ann.undo }}
+          recorderPassageId={passage?.id}
+          anchorRight={58}
+        />
+        {overlays}
+      </ThemedView>
+    );
 }
 
 const styles = StyleSheet.create({
@@ -1032,4 +1106,307 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   spotCounterText: { fontSize: 11, fontWeight: Type.weight.semibold },
+
+  // ── Phone hero layout ──────────────────────────────────────────────────
+  heroTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
+  heroTopActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  heroColumnCap: { width: '100%', maxWidth: 1100, alignSelf: 'center' },
+  // Inner column for the scrollable hub body. The ScrollView's content
+  // container centers it (alignItems:center); this caps its width on wide
+  // screens without the width:'100%' + alignSelf trick that overflowed on
+  // iPad. maxWidth never exceeds the viewport, so no horizontal bleed.
+  heroColumn: { width: '100%', maxWidth: 1100, gap: Spacing.md },
+  heroIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroScroll: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing['2xl'],
+    alignItems: 'center',
+  },
+  heroTitle: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size['3xl'],
+    // Explicit line height so descenders (g, y, p) aren't clipped — Bricolage
+    // is a tall display face and the default leading crops them at this size.
+    lineHeight: 36,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.5,
+  },
+  heroSub: {
+    fontSize: Type.size.md,
+    color: Palette.textSecondary,
+    marginTop: -Spacing.xs,
+  },
+  heroScore: {
+    width: '100%',
+    backgroundColor: Palette.inset,
+    borderRadius: Radii.xl,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  heroEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
+  heroEmptyText: { fontSize: Type.size.sm, color: Palette.textMuted },
+  heroNav: {
+    position: 'absolute',
+    bottom: 8,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#ffffffe6',
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroNavLeft: { left: 8 },
+  heroNavRight: { right: 8 },
+  heroNavGlyph: { fontSize: 26, lineHeight: 28, fontWeight: Type.weight.heavy, color: Palette.text },
+  heroCounter: {
+    position: 'absolute',
+    bottom: 8,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  heroCounterText: {
+    fontSize: 11,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textSecondary,
+    backgroundColor: '#ffffffcc',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radii.pill,
+    overflow: 'hidden',
+  },
+  heroFullBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: 14,
+    borderRadius: Radii.lg,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+  },
+  heroFullBtnText: { fontSize: Type.size.md, fontWeight: Type.weight.heavy, color: Palette.text },
+  heroCoach: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radii.lg,
+    backgroundColor: Palette.accentSoft,
+  },
+  heroCoachIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radii.md,
+    backgroundColor: Palette.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroCoachTitle: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.heavy,
+    color: Palette.accentDeep,
+  },
+  heroCoachSub: { fontSize: Type.size.sm, color: Palette.textSecondary },
+  heroBeta: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
+  },
+  heroBetaText: {
+    fontSize: 10,
+    fontWeight: Type.weight.heavy,
+    letterSpacing: 0.5,
+    color: Palette.accent,
+  },
+  heroSectionHeading: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.xl,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    marginTop: Spacing.xs,
+  },
+  stratGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  stratCard: {
+    flexGrow: 1,
+    flexBasis: '46%',
+    minWidth: 150,
+    padding: Spacing.md,
+    borderRadius: Radii.lg,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    gap: 6,
+  },
+  stratCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  stratMono: {
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stratMonoText: { fontSize: Type.size.md, fontWeight: Type.weight.heavy },
+  stratPct: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radii.pill,
+  },
+  stratPctText: { fontSize: Type.size.xs, fontWeight: Type.weight.heavy },
+  stratCardName: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+  },
+  stratCardBlurb: { fontSize: Type.size.sm, color: Palette.textSecondary, lineHeight: 18 },
+
+  // ── Landscape reading mode ─────────────────────────────────────────────
+  lsTopLeft: {
+    position: 'absolute',
+    left: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    maxWidth: '60%',
+  },
+  lsChip: {
+    backgroundColor: '#ffffffe6',
+    borderRadius: Radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+  },
+  lsChipText: { fontSize: Type.size.md, fontWeight: Type.weight.bold, color: Palette.accent },
+  lsTitleWrap: {
+    backgroundColor: '#ffffffd9',
+    borderRadius: Radii.lg,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 0,
+    flexShrink: 1,
+  },
+  lsTitle: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.3,
+  },
+  lsSub: { fontSize: Type.size.xs, color: Palette.textSecondary },
+  lsTopRight: {
+    position: 'absolute',
+    right: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  lsIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: '#ffffffe6',
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lsCounter: { position: 'absolute', left: Spacing.md, bottom: Spacing.md },
+  lsPracticeBtn: {
+    position: 'absolute',
+    // Shifted left to clear the global help "i" button in the bottom-right
+    // corner (they overlapped in landscape).
+    right: Spacing.lg + 64,
+    bottom: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Palette.accent,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: Radii.pill,
+    ...Lift,
+  },
+  lsPracticeText: { color: '#fff', fontSize: Type.size.md, fontWeight: Type.weight.heavy },
+  lsScrim: { backgroundColor: '#00000033' },
+  lsPanel: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: 360,
+    maxWidth: '85%',
+    backgroundColor: Palette.paper,
+    borderLeftWidth: Borders.thin,
+    borderLeftColor: Palette.border,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    gap: Spacing.md,
+    ...Lift,
+  },
+  lsPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  lsPanelTitle: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.xl,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+  },
+  lsPanelClose: {
+    width: 34,
+    height: 34,
+    borderRadius: Radii.md,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stratRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radii.lg,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+  },
+  stratRowName: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+  },
 });

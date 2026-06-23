@@ -6,6 +6,7 @@ import Animated from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
+import { Palette } from '@/constants/palette';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDraggableCard } from '@/hooks/useDraggableCard';
@@ -93,7 +94,7 @@ export function FloatingSlowClickUpControls({
             <ThemedText style={styles.collapsedBpm}>{bpm}</ThemedText>
             <ThemedText style={[styles.collapsedUnit, { color: C.icon }]}>BPM</ThemedText>
             <ThemedText
-              style={[styles.collapsedPlay, { color: running ? '#2ecc71' : C.tint }]}>
+              style={[styles.collapsedPlay, { color: running ? Palette.success : C.tint }]}>
               {running ? '■' : '▶'}
             </ThemedText>
           </Pressable>
@@ -129,7 +130,7 @@ export function FloatingSlowClickUpControls({
               onPress={onToggle}
               style={[
                 styles.playBtn,
-                { backgroundColor: running ? '#c0392b' : '#e67e22' },
+                { backgroundColor: running ? Palette.danger : '#e67e22' },
               ]}>
               <ThemedText style={styles.playBtnText}>
                 {running ? '■ Stop click' : '▶ Start click'}
@@ -291,6 +292,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
   },
   cleanBtn: { backgroundColor: Status.success },
-  missBtn: { backgroundColor: '#e74c3c' },
+  missBtn: { backgroundColor: Palette.danger },
   repText: { color: '#fff', fontWeight: Type.weight.black, fontSize: 20, letterSpacing: 0.3 },
 });

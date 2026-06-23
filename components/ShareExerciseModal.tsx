@@ -17,6 +17,7 @@ import {
 
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
+import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Overlays, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -205,6 +206,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   shapeText: { fontSize: Type.size.sm, textAlign: 'center' },
-  error: { color: '#c0392b', textAlign: 'center', fontSize: Type.size.sm },
+  error: { color: Palette.danger, textAlign: 'center', fontSize: Type.size.sm },
   row: { flexDirection: 'row', gap: Spacing.sm },
 });

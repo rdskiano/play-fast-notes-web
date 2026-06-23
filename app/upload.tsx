@@ -3,11 +3,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
+import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Palette } from '@/constants/palette';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { addPhotoPassage } from '@/lib/photo/addPhotoPassage';
 
 // Native "Add a passage" screen. Choose a photo from the library or take one
@@ -17,8 +17,6 @@ export default function UploadScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ folder?: string }>();
   const folderId = params.folder ? params.folder : null;
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,26 +68,22 @@ export default function UploadScreen() {
 
       {busy ? (
         <View style={styles.center}>
-          <ActivityIndicator />
-          <ThemedText style={{ marginTop: Spacing.sm, opacity: 0.7 }}>Saving…</ThemedText>
+          <ActivityIndicator color={Palette.accent} />
+          <ThemedText style={styles.savingText}>Saving…</ThemedText>
         </View>
       ) : (
         <>
-          <Pressable style={[styles.btn, { backgroundColor: C.tint }]} onPress={choosePhoto}>
-            <ThemedText style={styles.btnText}>Choose photo</ThemedText>
-          </Pressable>
-          <Pressable style={[styles.btn, { backgroundColor: C.tint }]} onPress={takePhoto}>
-            <ThemedText style={styles.btnText}>Take photo</ThemedText>
-          </Pressable>
+          <Button label="Choose photo" fullWidth onPress={choosePhoto} />
+          <Button label="Take photo" variant="outline" fullWidth onPress={takePhoto} />
           <Pressable
-            style={[styles.multiPageBtn, { borderColor: C.icon }]}
+            style={styles.multiPageBtn}
             onPress={() =>
               router.push({
                 pathname: '/multi-page',
                 params: { folder: folderId ?? '' },
               } as never)
             }>
-            <ThemedText style={{ opacity: 0.6, fontSize: Type.size.sm }}>
+            <ThemedText style={styles.multiPageText}>
               Passage spans two pages?
             </ThemedText>
           </Pressable>
@@ -102,22 +96,19 @@ export default function UploadScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: Spacing.md, justifyContent: 'center' },
-  body: { fontSize: Type.size.md, lineHeight: 24, opacity: 0.7 },
-  btn: {
-    borderRadius: Radii.lg,
-    padding: 16,
-    alignItems: 'center',
-  },
-  btnText: { color: '#fff', fontWeight: Type.weight.bold, fontSize: Type.size.lg },
+  container: { flex: 1, padding: Spacing.xl, gap: Spacing.md, justifyContent: 'center' },
+  body: { fontSize: Type.size.md, lineHeight: 24, color: Palette.textSecondary },
   center: { alignItems: 'center', padding: Spacing.md },
-  error: { color: '#c0392b', fontSize: Type.size.sm },
+  savingText: { marginTop: Spacing.sm, color: Palette.textSecondary },
+  error: { color: Palette.danger, fontSize: Type.size.sm },
   multiPageBtn: {
     alignSelf: 'center',
-    borderWidth: 1,
-    borderRadius: Radii.md,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
     marginTop: Spacing.sm,
   },
+  multiPageText: { fontSize: Type.size.sm, color: Palette.textSecondary },
 });

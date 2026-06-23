@@ -59,12 +59,14 @@ export const Opacity = {
 } as const;
 
 export const Shadows = {
+  // v2 reskin — soft, low lift (0 10px 26px rgba(20,30,30,.10)). No heavy
+  // dark shadows. Mirrors `Lift` in constants/palette.ts.
   card: {
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+    shadowColor: 'rgb(20, 30, 30)',
+    shadowOpacity: 0.1,
+    shadowRadius: 26,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
   },
 } as const;
 
@@ -74,10 +76,12 @@ export const Overlays = {
   cardLight: '#ffffffee',
 } as const;
 
+// Aligned to DESIGN_RULES §1 (one success / danger / warn). Kept as a separate
+// export for existing call sites; values now match the Palette semantics.
 export const Status = {
-  success: '#2ecc71',
-  danger: '#c0392b',
-  warning: '#e67e22',
+  success: '#2E9C66',
+  danger: '#D9523E',
+  warning: '#E0863A',
 } as const;
 
 /**

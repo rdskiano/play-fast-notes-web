@@ -10,6 +10,7 @@
 // edge (an empty array clears that edge). The rhythm exercise generator,
 // for example, stacks Timer / Metronome / Pencil all on the right.
 
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
@@ -32,6 +33,7 @@ import { DEVICE, MetronomePanel } from '@/components/MetronomePanel';
 import { RecorderPanel } from '@/components/RecorderPanel';
 import { ThemedText } from '@/components/themed-text';
 import { ToolDock, type DockEdge } from '@/components/ToolDock';
+import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -39,9 +41,6 @@ import { usePenDetected } from '@/hooks/usePenDetected';
 import { useMetronome, type BeatState, type MetronomeApi } from '@/lib/audio/useMetronome';
 
 const TOP_INSET = 52;
-const TAB_GAP = 8;
-const SPAN = 142;
-const SPAN_COMPACT = 96;
 const TAB_THICKNESS = 34;
 // Below this viewport width we collapse the tool tabs from rotated text
 // labels into square icon-only tabs ("phone density"). Matches a small
@@ -59,18 +58,13 @@ export type ToolKey = 'pencil' | 'metronome' | 'timer' | 'recorder';
 // default zoom most practice happens at; revisit (incl. web) if it bites.
 const PENCIL_ENABLED = Platform.OS !== 'web';
 
-// Default edge layout. A screen passes `tools` to override either edge —
-// an empty array clears that edge entirely.
-const DEFAULT_LAYOUT: Record<DockEdge, ToolKey[]> = {
-  left: ['pencil', 'metronome'],
-  right: ['timer', 'recorder'],
-};
-
-// Phone layout: everything on the right edge so the iPhone Dynamic
-// Island / front camera (which sits on the LEFT side in landscape) can't
-// cover any tab. Metronome takes the top slot — it's the tool a
-// practicing musician needs to reach instantly.
-const PHONE_LAYOUT: Record<DockEdge, ToolKey[]> = {
+// Universal layout (v2 reskin): all tools in one right-edge chip rail on every
+// device. Metronome takes the top slot — the tool a practicing musician needs
+// to reach instantly. (Right edge also keeps the rail clear of the iPhone
+// Dynamic Island / front camera, which sit on the LEFT in landscape.) A screen
+// can still override either edge via the `tools` prop (an empty array clears
+// that edge).
+const DEFAULT_RAIL: Record<DockEdge, ToolKey[]> = {
   left: [],
   right: ['metronome', 'pencil', 'timer', 'recorder'],
 };
@@ -83,12 +77,21 @@ const TOOL_ICONS: Record<ToolKey, string> = {
   recorder: '🎤',
 };
 
+// v2 reskin — clean line icons for the phone tool chips (MaterialCommunityIcons).
+const TOOL_MCI: Record<ToolKey, keyof typeof MaterialCommunityIcons.glyphMap> = {
+  pencil: 'pencil-outline',
+  metronome: 'metronome',
+  timer: 'timer-outline',
+  recorder: 'microphone-outline',
+};
+
 // A tool's tab is "compact" (Pencil, Timer) or full-height (Metronome,
 // Recorder) — this drives both the tab length and how tabs stack down an
 // edge. In phone-density mode every tab is square, regardless of weight.
-function tabSpan(key: ToolKey, isPhone: boolean): number {
-  if (isPhone) return TAB_THICKNESS;
-  return key === 'metronome' || key === 'recorder' ? SPAN : SPAN_COMPACT;
+// v2 reskin — every device uses the compact white icon-chip rail, so the tab
+// is a fixed square on all sizes.
+function tabSpan(_key: ToolKey, _isPhone: boolean): number {
+  return TAB_THICKNESS;
 }
 
 // The Timer tool's device identity — reuses the metronome's graphite
@@ -193,6 +196,8 @@ export function PracticeToolsLayer({
     borderColor: C.icon,
     containerW: size.w,
     containerH: size.h,
+    // v2 reskin — chips render flat inside a shared white rail pill.
+    merged: true,
   };
 
   function renderTool(key: ToolKey, edge: DockEdge, tabTop: number) {
@@ -210,6 +215,7 @@ export function PracticeToolsLayer({
               tabSpan={span}
               active={pencil.active}
               onToggle={pencil.onToggle}
+              merged
             />
           );
         }
@@ -219,6 +225,7 @@ export function PracticeToolsLayer({
             key={dockKey}
             edge={edge}
             label={label}
+            iconName={TOOL_MCI[key]}
             accent={DEVICE.body}
             tabTop={tabTop}
             tabSpan={span}
@@ -238,6 +245,7 @@ export function PracticeToolsLayer({
             key={dockKey}
             edge={edge}
             label={label}
+            iconName={TOOL_MCI[key]}
             accent={DEVICE.body}
             panelBg={DEVICE.body}
             borderColor={DEVICE.rim}
@@ -287,6 +295,7 @@ export function PracticeToolsLayer({
             key={dockKey}
             edge={edge}
             label={label}
+            iconName={TOOL_MCI[key]}
             accent={DEVICE.body}
             panelBg={TIMER_DEVICE.body}
             borderColor={TIMER_DEVICE.rim}
@@ -329,6 +338,7 @@ export function PracticeToolsLayer({
             key={dockKey}
             edge={edge}
             label={label}
+            iconName={TOOL_MCI[key]}
             accent={DEVICE.body}
             tabTop={tabTop}
             tabSpan={span}
@@ -351,16 +361,30 @@ export function PracticeToolsLayer({
     // Phone gets the all-right layout; screens that pass an explicit
     // `tools` prop still win (e.g. rhythm-builder), so authors keep
     // full control when they want it.
-    const defaultLayout = isPhone ? PHONE_LAYOUT : DEFAULT_LAYOUT;
-    const requested = tools?.[edge] ?? defaultLayout[edge];
+    const requested = tools?.[edge] ?? DEFAULT_RAIL[edge];
     const showPencil = PENCIL_ENABLED && penDetected;
     const keys = showPencil ? requested : requested.filter((k) => k !== 'pencil');
+    if (keys.length === 0) return null;
+    // Merged rail: chips stack flush (no gap) inside one shared white pill.
     let top = TOP_INSET;
-    return keys.map((key) => {
+    const docks = keys.map((key) => {
       const dock = renderTool(key, edge, top);
-      top += tabSpan(key, isPhone) + TAB_GAP;
+      top += TAB_THICKNESS;
       return dock;
     });
+    return (
+      <View key={edge} style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <View
+          pointerEvents="none"
+          style={[
+            styles.railPill,
+            edge === 'left' ? { left: 10 } : { right: 10 },
+            { top: TOP_INSET, height: keys.length * TAB_THICKNESS },
+          ]}
+        />
+        {docks}
+      </View>
+    );
   }
 
   return (
@@ -399,88 +423,72 @@ function PencilTab({
   tabSpan,
   active,
   onToggle,
+  merged = false,
 }: {
   edge: DockEdge;
   tabTop: number;
   tabSpan: number;
   active: boolean;
   onToggle: () => void;
+  merged?: boolean;
 }) {
   return (
     <Pressable
       onPress={onToggle}
+      accessibilityLabel={active ? 'Stop annotating' : 'Annotate'}
       style={[
-        styles.pencilTab,
-        edge === 'left' ? styles.pencilTabLeft : styles.pencilTabRight,
-        {
-          top: tabTop,
-          height: tabSpan,
-          backgroundColor: active ? DEVICE.rim : DEVICE.body,
-        },
+        styles.chipTab,
+        edge === 'left' ? { left: 10 } : { right: 10 },
+        { top: tabTop, height: tabSpan },
+        merged && styles.chipMerged,
+        !merged && active && { backgroundColor: Palette.accent, borderColor: Palette.accent },
       ]}>
-      {tabSpan <= TAB_THICKNESS + 4 ? (
-        <ThemedText style={styles.pencilTabIcon}>
-          {active ? '✓' : '✏️'}
-        </ThemedText>
-      ) : (
-        // See note in ToolDock — rotated text needs a sized wrapper or
-        // RN-Web shrinks it to the 34px parent and ellipsises the label.
-        <View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            width: tabSpan,
-            height: TAB_THICKNESS,
-            left: (TAB_THICKNESS - tabSpan) / 2,
-            top: (tabSpan - TAB_THICKNESS) / 2,
-            alignItems: 'center',
-            justifyContent: 'center',
-            transform: [{ rotate: edge === 'left' ? '-90deg' : '90deg' }],
-          }}>
-          <ThemedText numberOfLines={1} style={styles.pencilTabLabel}>
-            {active ? 'DONE' : 'PENCIL'}
-          </ThemedText>
-        </View>
-      )}
+      <MaterialCommunityIcons
+        name={active ? 'check' : 'pencil-outline'}
+        size={20}
+        color={merged ? (active ? Palette.accent : Palette.text) : active ? '#fff' : Palette.text}
+      />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  pencilTab: {
+  // v2 reskin — white floating icon chip (matches ToolDock's phone tab).
+  chipTab: {
     position: 'absolute',
-    width: TAB_THICKNESS,
+    width: 40,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: Palette.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
     shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 6,
+    elevation: 4,
   },
-  pencilTabLeft: {
-    left: 0,
-    borderTopRightRadius: 12,
-    borderBottomRightRadius: 12,
+  // Flat segment inside the shared rail pill.
+  chipMerged: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    shadowOpacity: 0,
+    elevation: 0,
   },
-  pencilTabRight: {
-    right: 0,
-    borderTopLeftRadius: 12,
-    borderBottomLeftRadius: 12,
-  },
-  pencilTabLabel: {
-    color: '#fff',
-    fontSize: 12,
-    lineHeight: 14,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    textAlign: 'center',
-  },
-  pencilTabIcon: {
-    color: '#fff',
-    fontSize: 18,
-    lineHeight: 22,
-    textAlign: 'center',
+  // The shared white "rail pill" drawn behind the merged chip group.
+  railPill: {
+    position: 'absolute',
+    width: 40,
+    borderRadius: 18,
+    backgroundColor: Palette.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   placeholder: {
     flex: 1,

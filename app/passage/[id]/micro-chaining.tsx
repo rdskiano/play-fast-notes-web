@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -11,11 +12,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ActionSheet } from '@/components/ActionSheet';
 import { BpmStepper } from '@/components/BpmStepper';
 import { Button } from '@/components/Button';
 import { PedalCatcher } from '@/components/PedalCatcher';
+import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
+import { RotateForPractice } from '@/components/RotateForPractice';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import {
   ScoreWithMarkers,
@@ -27,7 +29,9 @@ import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { Colors } from '@/constants/theme';
+import { useStrategyColors } from '@/components/StrategyColorsContext';
+import { Colors, Fonts } from '@/constants/theme';
+import { Lift, Palette } from '@/constants/palette';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -92,6 +96,10 @@ export default function MicroChainingScreen() {
   const isGuided = guided === '1';
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const { colors } = useStrategyColors();
+  // Micro-Chaining's strategy color (indigo by default; respects a user
+  // override). Themes the run-screen Next button, title dot, and Done link.
+  const ACCENT = colors.micro_chaining;
   const { width: winWidth, height: winHeight } = useWindowDimensions();
   const isPhone = Math.min(winWidth, winHeight) < 600;
   const insets = useSafeAreaInsets();
@@ -99,7 +107,6 @@ export default function MicroChainingScreen() {
   const isTouch = useIsTouchDevice();
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
-  const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
   const session = useMicroChainSession(id, isGuided);
 
   useEffect(() => {
@@ -193,6 +200,7 @@ export default function MicroChainingScreen() {
             value={performanceTempo}
             onChange={setPerformanceTempo}
             metronome={metronome}
+            accent={ACCENT}
           />
         </ScrollView>
         <View style={{ padding: 20, gap: 10 }}>
@@ -251,7 +259,7 @@ export default function MicroChainingScreen() {
               <Pressable onPress={clearMarks} hitSlop={6} disabled={marks.length === 0}>
                 <ThemedText
                   style={{
-                    color: '#c0392b',
+                    color: Palette.danger,
                     fontWeight: Type.weight.bold,
                     opacity: marks.length === 0 ? 0.35 : 1,
                   }}>
@@ -334,7 +342,7 @@ export default function MicroChainingScreen() {
                 hitSlop={6}
                 disabled={marks.length === 0}
                 style={[styles.topBtn, { opacity: marks.length === 0 ? 0.35 : 1 }]}>
-                <ThemedText style={[styles.topBtnText, { color: '#c0392b' }]}>CLEAR</ThemedText>
+                <ThemedText style={[styles.topBtnText, { color: Palette.danger }]}>CLEAR</ThemedText>
               </Pressable>
               <Pressable
                 onPress={canContinue ? commitMarksAndConfigure : undefined}
@@ -343,7 +351,7 @@ export default function MicroChainingScreen() {
                 {...tourTag('mc-next')}
                 style={[
                   styles.topBtn,
-                  { backgroundColor: canContinue ? '#2ecc71' : C.icon + '55' },
+                  { backgroundColor: canContinue ? Palette.success : C.icon + '55' },
                 ]}>
                 <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>NEXT →</ThemedText>
               </Pressable>
@@ -418,6 +426,7 @@ export default function MicroChainingScreen() {
                 title={m.title}
                 subtitle={m.subtitle}
                 selected={mode === m.key}
+                accent={ACCENT}
                 onPress={() => setMode(m.key)}
               />
             ))}
@@ -442,6 +451,7 @@ export default function MicroChainingScreen() {
             value={performanceTempo}
             onChange={setPerformanceTempo}
             metronome={metronome}
+            accent={ACCENT}
           />
         </ScrollView>
 
@@ -464,7 +474,7 @@ export default function MicroChainingScreen() {
                 label="Pick problem notes →"
                 onPress={goToProblemSelect}
                 disabled={!canPickProblem}
-                style={[actionButtonStyle, { opacity: canPickProblem ? 1 : 0.4 }]}
+                style={[actionButtonStyle, { backgroundColor: ACCENT, opacity: canPickProblem ? 1 : 0.4 }]}
               />
             ) : (
               <Button
@@ -472,7 +482,11 @@ export default function MicroChainingScreen() {
                 variant={resuming ? 'outline' : 'primary'}
                 onPress={startPlaying}
                 disabled={!canStart}
-                style={[actionButtonStyle, { opacity: canStart ? 1 : 0.4 }]}
+                style={[
+                  actionButtonStyle,
+                  { opacity: canStart ? 1 : 0.4 },
+                  !resuming && { backgroundColor: ACCENT },
+                ]}
               />
             )}
           </View>
@@ -618,61 +632,51 @@ export default function MicroChainingScreen() {
           </Pressable>
         </View>
       )}
+      {/* ── Reskinned run top bar (all devices) — coral Exit (left) ·
+          centered "{noteLabel} · n/N" tracker. Tools pill floats top-right
+          (rendered at root, below). Mirrors Tempo Ladder / Click-Up. */}
       {!isGuided && (
         <>
-          <SessionTopBar
-        onExit={exitSession}
-        exitLabel="EXIT"
-        center={
-          isPhoneLandscape ? (
-            <ThemedText style={styles.topCenter} numberOfLines={1}>
-              {currentIndex + 1}/{storedConfig.steps.length}
-              <ThemedText style={styles.topCenterHint}>
-                {'   ·   Play from the first ▼ to the last.'}
-              </ThemedText>
-            </ThemedText>
-          ) : (
-            <ThemedText style={styles.topCenter} numberOfLines={1}>
-              {noteLabel} · {currentIndex + 1}/{storedConfig.steps.length}
-            </ThemedText>
-          )
-        }
-        right={
-          isPhone ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Pressable
-                onPress={() => setNotePromptVisible(true)}
-                hitSlop={6}
-                style={[styles.topBtn, styles.doneBtn]}>
-                <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>DONE</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => setPhoneMenuOpen(true)}
-                hitSlop={6}
-                accessibilityLabel="More actions"
-                style={styles.topBtn}>
-                <ThemedText style={[styles.topBtnText, { color: C.tint }]}>⋯</ThemedText>
+          <View style={[styles.runTopBar, { paddingTop: insets.top + 10 }]}>
+            <View style={styles.runSide}>
+              <Pressable onPress={exitSession} hitSlop={8} style={styles.runExit}>
+                <Feather name="log-out" size={15} color={Palette.danger} />
+                <ThemedText style={styles.runExitText}>Exit</ThemedText>
               </Pressable>
             </View>
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Pressable
-                onPress={goBackToConfig}
-                hitSlop={6}
-                accessibilityLabel="Back to setup"
-                style={styles.topBtn}>
-                <ThemedText style={[styles.topBtnText, { color: C.tint }]}>← Setup</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => setNotePromptVisible(true)}
-                hitSlop={6}
-                style={[styles.topBtn, styles.doneBtn]}>
-                <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>DONE</ThemedText>
-              </Pressable>
+            <View style={styles.runCenter}>
+              {/* Strategy + passage title — desktop / iPad only. Dropped on
+                  phone to save a row (practice runs in landscape there). */}
+              {!isPhone && (
+                <View style={styles.runTitleRow}>
+                  <View style={[styles.runAccentDot, { backgroundColor: ACCENT }]} />
+                  <ThemedText style={styles.runTitleText} numberOfLines={1}>
+                    Micro-Chaining
+                  </ThemedText>
+                  {!!passage?.title && (
+                    <ThemedText style={styles.runTitleMeta} numberOfLines={1}>
+                      {'  ·  '}
+                      {passage.title}
+                    </ThemedText>
+                  )}
+                </View>
+              )}
+              <View style={styles.runStatPill}>
+                {!!noteLabel && (
+                  <>
+                    <ThemedText style={styles.runStatLabelStrong} numberOfLines={1}>
+                      {noteLabel}
+                    </ThemedText>
+                    <View style={styles.runStatDivider} />
+                  </>
+                )}
+                <ThemedText style={styles.runStatCount}>
+                  {currentIndex + 1}/{storedConfig.steps.length}
+                </ThemedText>
+              </View>
             </View>
-          )
-        }
-      />
+            <View style={styles.runSide} />
+          </View>
 
           {!isPhoneLandscape && (
             <ThemedText style={styles.playHelper}>
@@ -719,10 +723,11 @@ export default function MicroChainingScreen() {
           )}
           {ann.canvas}
         </View>
-        {isGuided ? (
-          // Guided: a collapsed metronome tab (no note → starts closed) so a
-          // first-timer can pop it open for a steady pulse at the performance
-          // tempo. No pencil/timer/recorder chrome.
+        {/* Guided: a collapsed metronome tab (no note → starts closed) so a
+            first-timer can pop it open for a steady pulse at the performance
+            tempo. Non-guided uses the floating PracticeToolsBar (rendered at
+            root, below) instead of the edge dock. */}
+        {isGuided && (
           <PracticeToolsLayer
             metronome={metronome}
             tools={
@@ -731,34 +736,120 @@ export default function MicroChainingScreen() {
                 : { left: ['metronome'], right: [] }
             }
           />
-        ) : (
-          <PracticeToolsLayer
-            metronome={metronome}
-            metronomeNote="Micro-Chaining stays at your performance tempo — play the highlighted notes, then tap Next."
-            pencil={ann.pencil}
-            recorderPassageId={passage?.id}
-          />
         )}
       </View>
 
-      <View style={styles.bottomBar}>
-        {!isPhone && (
-          <ThemedText style={styles.pedalNote}>
-            Space / Enter / right pedal = NEXT · ← / Backspace / left pedal = BACK
-          </ThemedText>
-        )}
-        <View style={styles.navRow}>
+      {/* ── BACK / NEXT (+ quiet Setup / Done links) ──────────────────
+          Guided keeps the original centred nav row. Non-guided gets the
+          reskinned bottom: big ← Back / Next → (corner-split in phone
+          landscape), with Setup and Done — log it demoted to quiet links. */}
+      {isGuided ? (
+        <View style={styles.bottomBar}>
+          {!isPhone && (
+            <ThemedText style={styles.pedalNote}>
+              Space / Enter / right pedal = NEXT · ← / Backspace / left pedal = BACK
+            </ThemedText>
+          )}
+          <View style={styles.navRow}>
+            <Pressable
+              onPress={currentIndex === 0 ? undefined : onPrev}
+              disabled={currentIndex === 0}
+              style={[styles.backBtn, { opacity: currentIndex === 0 ? 0.4 : 1 }]}>
+              <ThemedText style={styles.backBtnText}>← BACK</ThemedText>
+            </Pressable>
+            <Pressable onPress={onNext} style={[styles.nextBtn, styles.nextBtnGrow]}>
+              <ThemedText style={styles.nextBtnText}>NEXT →</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      ) : isPhoneLandscape ? (
+        <>
+          {/* +64 inward so the Next clears the global help "i" in the
+              bottom-right; Back matches it so the pair stays symmetric. */}
           <Pressable
             onPress={currentIndex === 0 ? undefined : onPrev}
             disabled={currentIndex === 0}
-            style={[styles.backBtn, { opacity: currentIndex === 0 ? 0.4 : 1 }]}>
-            <ThemedText style={styles.backBtnText}>← BACK</ThemedText>
+            hitSlop={6}
+            accessibilityLabel="Previous step"
+            style={[
+              styles.cornerBtn,
+              styles.runBackBtn,
+              {
+                bottom: insets.bottom + 4,
+                left: insets.left + 16 + 64,
+                opacity: currentIndex === 0 ? 0.4 : 1,
+              },
+            ]}>
+            <ThemedText style={styles.runBackBtnText}>← Back</ThemedText>
           </Pressable>
-          <Pressable onPress={onNext} style={[styles.nextBtn, styles.nextBtnGrow]}>
-            <ThemedText style={styles.nextBtnText}>NEXT →</ThemedText>
+          <Pressable
+            onPress={onNext}
+            hitSlop={6}
+            accessibilityLabel="Next step"
+            style={[
+              styles.cornerBtn,
+              { backgroundColor: ACCENT },
+              { bottom: insets.bottom + 4, right: insets.right + 16 + 64 },
+            ]}>
+            <ThemedText style={styles.runNextBtnText}>Next →</ThemedText>
           </Pressable>
+          <View style={[styles.runLinksLandscape, { bottom: insets.bottom + 8 }]}>
+            <Pressable onPress={goBackToConfig} hitSlop={6}>
+              <ThemedText style={[styles.runLink, { color: ACCENT }]}>← Setup</ThemedText>
+            </Pressable>
+            <ThemedText style={styles.runLinkDot}>·</ThemedText>
+            <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={6}>
+              <ThemedText style={[styles.runLink, { color: ACCENT }]}>Done — log it</ThemedText>
+            </Pressable>
+          </View>
+        </>
+      ) : (
+        <View style={[styles.runBottomBar, { paddingBottom: insets.bottom + 10 }]}>
+          <View style={styles.runBtnRow}>
+            <Pressable
+              onPress={currentIndex === 0 ? undefined : onPrev}
+              disabled={currentIndex === 0}
+              accessibilityLabel="Previous step"
+              style={[
+                styles.bottomBtn,
+                styles.runBackBtn,
+                { opacity: currentIndex === 0 ? 0.4 : 1 },
+              ]}>
+              <ThemedText style={styles.runBackBtnText}>← Back</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={onNext}
+              accessibilityLabel="Next step"
+              style={[styles.bottomBtn, styles.runNextBtnWide, { backgroundColor: ACCENT }]}>
+              <ThemedText style={styles.runNextBtnText}>Next →</ThemedText>
+            </Pressable>
+          </View>
+          <View style={styles.runLinks}>
+            <Pressable onPress={goBackToConfig} hitSlop={6}>
+              <ThemedText style={[styles.runLink, { color: ACCENT }]}>← Setup</ThemedText>
+            </Pressable>
+            <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={6}>
+              <ThemedText style={[styles.runLink, { color: ACCENT }]}>Done — log it</ThemedText>
+            </Pressable>
+          </View>
+          {!isPhone && (
+            <ThemedText style={styles.runHintShortcut}>
+              Space / Enter / right pedal = NEXT · ← / Backspace / left pedal = BACK
+            </ThemedText>
+          )}
         </View>
-      </View>
+      )}
+
+      {/* Tools pill — floats top-right (non-guided). Guided keeps the inline
+          collapsed metronome tab (in the content area above). */}
+      {!isGuided && (
+        <PracticeToolsBar
+          metronome={metronome}
+          metronomeNote="Micro-Chaining stays at your performance tempo — play the highlighted notes, then tap Next."
+          pencil={{ ...ann.pencil, onUndo: ann.undo }}
+          recorderPassageId={passage?.id}
+        />
+      )}
 
       {/* Guided onboarding: a single celebratory overlay (no mood/note form)
           that logs the session and lands the first-timer in their library. */}
@@ -830,20 +921,6 @@ export default function MicroChainingScreen() {
         }}
       />
 
-      <ActionSheet
-        visible={phoneMenuOpen}
-        items={[
-          {
-            label: '← Back to setup',
-            onPress: () => {
-              setPhoneMenuOpen(false);
-              goBackToConfig();
-            },
-          },
-        ]}
-        onCancel={() => setPhoneMenuOpen(false)}
-      />
-
       {!isGuided && (
       <TutorialStep
         id="micro-chaining-play"
@@ -852,11 +929,13 @@ export default function MicroChainingScreen() {
         body={
           'The score marks the span you play right now with two arrows ▼ — the first note and the current end note. Play from the first to the last at your performance tempo, then tap NEXT → to extend the chain by one note.\n\n' +
           'Forward grows from the first note; Backward grows from the last; Problem starts on the muddy transition and expands both ways. ← BACK shrinks the chain one link (handy if you advanced too soon).\n\n' +
-          'Run your own metronome from the tools — Micro-Chaining keeps you at one tempo on purpose. The session logs when you reach the last step; tap DONE to log it early, or EXIT to leave without logging.' +
+          'Run your own metronome from the tools — Micro-Chaining keeps you at one tempo on purpose. The session logs when you reach the last step; tap Done — log it (below the Next button) to log it early, or Exit (top-left) to leave without logging.' +
           `\n\n${PRACTICE_TOOLS_HELP}`
         }
       />
       )}
+      {/* Phone: practice runs in landscape. Portrait → "rotate" prompt. */}
+      <RotateForPractice />
     </ThemedView>
   );
 }
@@ -865,35 +944,44 @@ function ModeCard({
   title,
   subtitle,
   selected,
+  accent,
   onPress,
 }: {
   title: string;
   subtitle: string;
   selected: boolean;
+  /** Strategy color — themes the selected border / tint / title / check. */
+  accent: string;
   onPress: () => void;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.modeCard,
         {
-          borderColor: selected ? C.tint : C.icon + '55',
+          borderWidth: selected ? Borders.thick : Borders.thin,
+          borderColor: selected ? accent : Palette.border,
           backgroundColor: selected
-            ? C.tint + '11'
+            ? accent + '14'
             : pressed
-              ? C.icon + '11'
-              : 'transparent',
+              ? Palette.surfaceSunk
+              : Palette.card,
         },
       ]}>
+      {selected && (
+        <View style={styles.modeCardCheck}>
+          <Feather name="check" size={16} color={accent} />
+        </View>
+      )}
       <ThemedText
-        style={[styles.modeCardTitle, { color: selected ? C.tint : C.text }]}
+        style={[styles.modeCardTitle, { color: selected ? accent : Palette.text }]}
         numberOfLines={2}>
         {title}
       </ThemedText>
-      <ThemedText style={[styles.modeCardSubtitle, { color: C.icon }]} numberOfLines={3}>
+      <ThemedText
+        style={[styles.modeCardSubtitle, { color: Palette.textSecondary }]}
+        numberOfLines={3}>
         {subtitle}
       </ThemedText>
     </Pressable>
@@ -902,6 +990,125 @@ function ModeCard({
 
 const styles = StyleSheet.create({
   configContainer: { flexGrow: 1, padding: 20, gap: 14, paddingBottom: HELP_CLEARANCE + 20 },
+
+  // ── Reskinned run top bar (mirrors Tempo Ladder / Click-Up) ──────
+  runTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  runSide: { flex: 1, justifyContent: 'center' },
+  runExit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    alignSelf: 'flex-start',
+  },
+  runExitText: {
+    color: Palette.danger,
+    fontWeight: Type.weight.heavy,
+    fontSize: Type.size.md,
+  },
+  runCenter: { alignItems: 'center', gap: 6 },
+  runTitleRow: { flexDirection: 'row', alignItems: 'center' },
+  runAccentDot: { width: 8, height: 8, borderRadius: 4, marginRight: 7 },
+  runTitleText: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.2,
+  },
+  runTitleMeta: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textMuted,
+  },
+  runStatPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radii.pill,
+    backgroundColor: Palette.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    ...Lift,
+  },
+  runStatLabelStrong: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+  },
+  runStatDivider: { width: 1, height: 14, backgroundColor: Palette.border },
+  runStatCount: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.textSecondary,
+    fontVariant: ['tabular-nums'],
+  },
+
+  // ── Reskinned bottom BACK / NEXT + quiet links ───────────────────
+  runBottomBar: {
+    paddingTop: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    gap: 8,
+  },
+  runBtnRow: { flexDirection: 'row', gap: 14, alignItems: 'center', justifyContent: 'center' },
+  bottomBtn: {
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    minWidth: 150,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Lift,
+  },
+  runNextBtnWide: { minWidth: 200 },
+  runBackBtn: {
+    backgroundColor: Palette.card,
+    borderWidth: 1.5,
+    borderColor: Palette.borderStrong,
+  },
+  runBackBtnText: { color: Palette.text, fontWeight: Type.weight.heavy, fontSize: 17 },
+  runNextBtnText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: 17 },
+  runLinks: { flexDirection: 'row', gap: Spacing.lg, alignItems: 'center', justifyContent: 'center' },
+  runLink: { fontSize: Type.size.sm, fontWeight: Type.weight.bold },
+  runLinkDot: { color: Palette.textMuted, fontSize: Type.size.sm },
+  runLinksLandscape: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 6,
+  },
+  runHintShortcut: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textSecondary,
+  },
+  cornerBtn: {
+    position: 'absolute',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 14,
+    minWidth: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Lift,
+    zIndex: 5,
+  },
+
   topBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radii.md },
   topBtnText: { fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
   topCenter: { textAlign: 'center', fontWeight: Type.weight.bold, fontSize: Type.size.sm },
@@ -933,7 +1140,7 @@ const styles = StyleSheet.create({
   },
   pedalNote: { textAlign: 'center', fontSize: 12, opacity: Opacity.muted },
   nextBtn: {
-    backgroundColor: '#2ecc71',
+    backgroundColor: Palette.success,
     paddingVertical: 16,
     borderRadius: Radii.md,
     alignItems: 'center',
@@ -973,6 +1180,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     gap: 4,
   },
-  modeCardTitle: { fontSize: Type.size.sm, fontWeight: Type.weight.heavy },
+  modeCardTitle: { fontSize: Type.size.sm, fontWeight: Type.weight.heavy, paddingRight: 18 },
   modeCardSubtitle: { fontSize: Type.size.xs, lineHeight: 16 },
+  modeCardCheck: { position: 'absolute', top: 8, right: 8 },
 });

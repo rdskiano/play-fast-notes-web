@@ -4,6 +4,7 @@ import { GestureDetector } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
+import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -107,7 +108,7 @@ export function FloatingMetronome({
             <ThemedText style={styles.collapsedBpm}>{bpm}</ThemedText>
             <ThemedText style={[styles.collapsedUnit, { color: C.icon }]}>BPM</ThemedText>
             <ThemedText
-              style={[styles.collapsedPlay, { color: running ? '#2ecc71' : C.tint }]}>
+              style={[styles.collapsedPlay, { color: running ? Palette.success : C.tint }]}>
               {running ? '■' : '▶'}
             </ThemedText>
           </Pressable>
@@ -152,7 +153,7 @@ export function FloatingMetronome({
               onPress={onToggle}
               style={[
                 styles.playBtn,
-                { backgroundColor: running ? '#c0392b' : '#e67e22' },
+                { backgroundColor: running ? Palette.danger : '#e67e22' },
               ]}>
               <ThemedText style={styles.playBtnText}>
                 {running ? '■ Stop' : '▶ Start'}

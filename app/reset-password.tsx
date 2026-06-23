@@ -9,13 +9,15 @@
 // before they can pick a new password. Once they submit, supabase.auth.updateUser
 // finalises the credentials and the same auth listener carries them into the app.
 
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { Image, StyleSheet, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Lift, Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -96,19 +98,24 @@ export default function ResetPasswordScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={styles.card}>
+        <Image
+          source={require('../assets/images/icon.png')}
+          style={styles.logo}
+          accessibilityIgnoresInvertColors
+        />
         <ThemedText type="title" style={styles.title}>
           Reset your password
         </ThemedText>
 
         {phase.kind === 'waiting' && (
-          <ThemedText style={[styles.body, { color: C.text }]}>
+          <ThemedText style={styles.body}>
             Verifying the reset link…
           </ThemedText>
         )}
 
         {phase.kind === 'expired' && (
           <>
-            <ThemedText style={[styles.body, { color: C.text }]}>
+            <ThemedText style={styles.body}>
               This reset link is invalid or has expired. Head back to sign-in
               and request a new one.
             </ThemedText>
@@ -116,6 +123,7 @@ export default function ResetPasswordScreen() {
               label="Back to sign-in"
               onPress={() => router.replace('/sign-in')}
               fullWidth
+              style={styles.primaryBtn}
             />
           </>
         )}
@@ -124,43 +132,43 @@ export default function ResetPasswordScreen() {
           phase.kind === 'submitting' ||
           phase.kind === 'error') && (
           <>
-            <ThemedText style={[styles.body, { color: C.text }]}>
+            <ThemedText style={styles.body}>
               Pick a new password — at least {MIN_PASSWORD} characters.
             </ThemedText>
 
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="New password"
-              placeholderTextColor={C.icon}
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry
-              style={[
-                styles.input,
-                { borderColor: C.icon, color: C.text, backgroundColor: C.background },
-              ]}
-              editable={phase.kind !== 'submitting'}
-            />
+            <View style={styles.inputWrap}>
+              <MaterialIcons name="lock-outline" size={20} color={Palette.textMuted} />
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder="New password"
+                placeholderTextColor={C.icon}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
+                style={[styles.input, { color: C.text }]}
+                editable={phase.kind !== 'submitting'}
+              />
+            </View>
 
-            <TextInput
-              value={confirm}
-              onChangeText={setConfirm}
-              placeholder="Confirm new password"
-              placeholderTextColor={C.icon}
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry
-              style={[
-                styles.input,
-                { borderColor: C.icon, color: C.text, backgroundColor: C.background },
-              ]}
-              editable={phase.kind !== 'submitting'}
-              onSubmitEditing={onSubmit}
-            />
+            <View style={styles.inputWrap}>
+              <MaterialIcons name="lock-outline" size={20} color={Palette.textMuted} />
+              <TextInput
+                value={confirm}
+                onChangeText={setConfirm}
+                placeholder="Confirm new password"
+                placeholderTextColor={C.icon}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
+                style={[styles.input, { color: C.text }]}
+                editable={phase.kind !== 'submitting'}
+                onSubmitEditing={onSubmit}
+              />
+            </View>
 
             {!matches && confirm.length > 0 && (
-              <ThemedText style={[styles.error, { color: '#c0392b' }]}>
+              <ThemedText style={[styles.error, { color: Palette.danger }]}>
                 Passwords do not match.
               </ThemedText>
             )}
@@ -172,10 +180,11 @@ export default function ResetPasswordScreen() {
               onPress={onSubmit}
               disabled={!canSubmit}
               fullWidth
+              style={styles.primaryBtn}
             />
 
             {phase.kind === 'error' && (
-              <ThemedText style={[styles.error, { color: '#c0392b' }]}>
+              <ThemedText style={[styles.error, { color: Palette.danger }]}>
                 {phase.message}
               </ThemedText>
             )}
@@ -198,19 +207,43 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     gap: Spacing.lg,
   },
+  // App-icon mark above the title — 84px, 24px radius, soft lift (matches sign-in).
+  logo: {
+    width: 84,
+    height: 84,
+    borderRadius: 24,
+    alignSelf: 'center',
+    marginBottom: Spacing.xs,
+    ...Lift,
+  },
   title: { textAlign: 'center' },
   body: {
     textAlign: 'center',
-    opacity: 0.85,
+    color: Palette.textSecondary,
     fontSize: Type.size.md,
     lineHeight: 20,
   },
-  input: {
+  // White field with a hairline border + leading icon. The TextInput sits
+  // inside flex:1 and carries no border of its own.
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Palette.card,
     borderWidth: Borders.thin,
-    borderRadius: Radii.md,
+    borderColor: Palette.border,
+    borderRadius: Radii.xl,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 14,
     fontSize: Type.size.lg,
+  },
+  // Soft lift under the primary action, matching sign-in.
+  primaryBtn: {
+    borderRadius: Radii.xl,
+    ...Lift,
   },
   error: {
     textAlign: 'center',

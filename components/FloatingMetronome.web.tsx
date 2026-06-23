@@ -4,6 +4,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SubdivisionGlyph } from '@/components/SubdivisionGlyph';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
+import { Palette } from '@/constants/palette';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { Subdivision } from '@/lib/audio/useMetronome';
@@ -218,7 +219,7 @@ function FloatingMetronomeWeb({
           <Pressable onPress={onToggle} style={styles.collapsedRow}>
             <ThemedText style={styles.collapsedBpm}>{bpm}</ThemedText>
             <ThemedText style={[styles.collapsedUnit, { color: C.icon }]}>BPM</ThemedText>
-            <ThemedText style={[styles.collapsedPlay, { color: running ? '#2ecc71' : C.tint }]}>
+            <ThemedText style={[styles.collapsedPlay, { color: running ? Palette.success : C.tint }]}>
               {running ? '■' : '▶'}
             </ThemedText>
           </Pressable>
@@ -255,7 +256,7 @@ function FloatingMetronomeWeb({
 
             <Pressable
               onPress={onToggle}
-              style={[styles.playBtn, { backgroundColor: running ? '#c0392b' : '#e67e22' }]}>
+              style={[styles.playBtn, { backgroundColor: running ? Palette.danger : '#e67e22' }]}>
               <ThemedText style={styles.playBtnText}>
                 {running ? '■ Stop' : '▶ Start'}
               </ThemedText>

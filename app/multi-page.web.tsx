@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -8,14 +9,16 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { InlineCropper } from '@/components/InlineCropper';
 import { PromptModal } from '@/components/PromptModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Lift, Palette } from '@/constants/palette';
+import { Fonts } from '@/constants/theme';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { insertPassage, renamePassage, updatePassageAssets } from '@/lib/db/repos/passages';
 import { stitchVertically } from '@/lib/image/canvasCrop';
 import { uploadPassageImage } from '@/lib/supabase/storage';
@@ -42,8 +45,7 @@ export default function MultiPageScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ folder?: string }>();
   const targetFolderId = params.folder ? params.folder : null;
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
 
   const [step, setStep] = useState<Step>('pick');
   const [rawUrl1, setRawUrl1] = useState<string | null>(null);
@@ -253,10 +255,7 @@ export default function MultiPageScreen() {
     return (
       <View style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.pickContent}>
-          <ThemedText type="title" style={{ textAlign: 'center' }}>
-            Two-page passage
-          </ThemedText>
-          <ThemedText style={{ opacity: 0.55, fontSize: 13, textAlign: 'center' }}>
+          <ThemedText style={styles.pickHint}>
             {bothDropped
               ? 'Both pages in. Tap Next to crop each one.'
               : missing === 1
@@ -271,14 +270,14 @@ export default function MultiPageScreen() {
               style={[
                 styles.dropZone,
                 {
-                  borderColor: dragOver ? C.tint : C.icon,
-                  backgroundColor: dragOver ? C.tint + '14' : 'transparent',
+                  borderColor: dragOver ? Palette.accent : Palette.border,
+                  backgroundColor: dragOver ? Palette.accentSoft : Palette.surfaceSunk,
                 },
               ]}>
               <ThemedText style={styles.dropTitle}>
                 Drop page {missing} here
               </ThemedText>
-              <ThemedText style={[styles.dropSub, { color: C.icon }]}>
+              <ThemedText style={styles.dropSub}>
                 or click to choose a file
               </ThemedText>
             </Pressable>
@@ -288,7 +287,6 @@ export default function MultiPageScreen() {
             <PickedPreview
               label="Page 1"
               uri={rawUrl1}
-              borderColor={C.icon}
               onRemove={() => clearPicked(1)}
             />
           )}
@@ -296,18 +294,13 @@ export default function MultiPageScreen() {
             <PickedPreview
               label="Page 2"
               uri={rawUrl2}
-              borderColor={C.icon}
               onRemove={() => clearPicked(2)}
             />
           )}
-
-          <Pressable onPress={() => router.back()} style={styles.cancelLink}>
-            <ThemedText style={{ color: C.tint }}>Cancel</ThemedText>
-          </Pressable>
         </ScrollView>
         {bothDropped && (
           <Pressable
-            style={[styles.saveBtn, { backgroundColor: C.tint }]}
+            style={styles.saveBtn}
             onPress={() => setStep('crop_1')}>
             <ThemedText style={styles.saveBtnText}>Next: Crop pages</ThemedText>
           </Pressable>
@@ -324,7 +317,7 @@ export default function MultiPageScreen() {
           <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
             Stacked preview
           </ThemedText>
-          <ThemedText style={{ opacity: 0.55, fontSize: 13, textAlign: 'center' }}>
+          <ThemedText style={[styles.pickHint, { textAlign: 'center' }]}>
             This is how the two pages will look combined.
           </ThemedText>
           {/* Mirror the relative-scale stitch the save step will produce: each
@@ -336,7 +329,7 @@ export default function MultiPageScreen() {
             const f2 = cropped2.w / Math.max(1, cropped2.srcW);
             const fMax = Math.max(f1, f2);
             return (
-              <View style={[styles.previewWrap, { borderColor: C.icon }]}>
+              <View style={styles.previewWrap}>
                 <View style={{ alignItems: 'center' }}>
                   <Image
                     source={{ uri: cropped1.url }}
@@ -347,7 +340,7 @@ export default function MultiPageScreen() {
                     contentFit="contain"
                   />
                 </View>
-                <View style={[styles.divider, { backgroundColor: C.icon }]} />
+                <View style={styles.divider} />
                 <View style={{ alignItems: 'center' }}>
                   <Image
                     source={{ uri: cropped2.url }}
@@ -362,30 +355,24 @@ export default function MultiPageScreen() {
             );
           })()}
           <View style={styles.previewActions}>
-            <Pressable
-              style={[styles.actionBtn, { borderColor: C.icon }]}
-              onPress={swapOrder}>
-              <ThemedText style={{ fontWeight: '600' }}>Swap order</ThemedText>
+            <Pressable style={styles.actionBtn} onPress={swapOrder}>
+              <ThemedText style={styles.actionBtnText}>Swap order</ThemedText>
             </Pressable>
-            <Pressable
-              style={[styles.actionBtn, { borderColor: C.icon }]}
-              onPress={() => redoPage(1)}>
-              <ThemedText style={{ fontWeight: '600' }}>Redo page 1</ThemedText>
+            <Pressable style={styles.actionBtn} onPress={() => redoPage(1)}>
+              <ThemedText style={styles.actionBtnText}>Redo page 1</ThemedText>
             </Pressable>
-            <Pressable
-              style={[styles.actionBtn, { borderColor: C.icon }]}
-              onPress={() => redoPage(2)}>
-              <ThemedText style={{ fontWeight: '600' }}>Redo page 2</ThemedText>
+            <Pressable style={styles.actionBtn} onPress={() => redoPage(2)}>
+              <ThemedText style={styles.actionBtnText}>Redo page 2</ThemedText>
             </Pressable>
           </View>
           {error && (
-            <ThemedText style={{ color: '#c0392b', fontSize: 13, textAlign: 'center' }}>
+            <ThemedText style={[styles.error, { textAlign: 'center' }]}>
               {error}
             </ThemedText>
           )}
         </ScrollView>
         <Pressable
-          style={[styles.saveBtn, { backgroundColor: C.tint }]}
+          style={styles.saveBtn}
           disabled={saving}
           onPress={saveComposite}>
           {saving ? (
@@ -410,7 +397,14 @@ export default function MultiPageScreen() {
 
   return (
     <ThemedView style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: 'Two-page passage' }} />
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <ThemedText style={styles.backLink}>‹ Back</ThemedText>
+        </Pressable>
+        <ThemedText type="title">Two-page passage</ThemedText>
+      </View>
 
       <input
         ref={fileInputRef}
@@ -459,28 +453,26 @@ export default function MultiPageScreen() {
 function PickedPreview({
   label,
   uri,
-  borderColor,
   onRemove,
 }: {
   label: string;
   uri: string;
-  borderColor: string;
   onRemove: () => void;
 }) {
   return (
     <View style={styles.previewCard}>
       <ThemedText style={styles.previewLabel}>{label}</ThemedText>
-      <View style={[styles.previewWrap, { borderColor }]}>
+      <View style={styles.previewWrap}>
         <Image
           source={{ uri }}
-          style={{ width: '100%', height: 160, borderRadius: 8 }}
+          style={{ width: '100%', height: 160, borderRadius: Radii.sm }}
           contentFit="contain"
         />
         <Pressable
-          style={[styles.removeBtn, { backgroundColor: '#c0392b' }]}
+          style={styles.removeBtn}
           onPress={onRemove}
           hitSlop={8}>
-          <ThemedText style={styles.removeText}>✕</ThemedText>
+          <Feather name="x" size={16} color="#fff" />
         </Pressable>
       </View>
     </View>
@@ -488,58 +480,96 @@ function PickedPreview({
 }
 
 const styles = StyleSheet.create({
-  pickContent: { flexGrow: 1, padding: 24, gap: 16, justifyContent: 'center' },
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  backLink: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.semibold,
+    color: Palette.accent,
+  },
+  pickContent: { flexGrow: 1, padding: Spacing.xl, gap: Spacing.lg, justifyContent: 'center' },
+  pickHint: {
+    color: Palette.textSecondary,
+    fontSize: Type.size.sm,
+    textAlign: 'center',
+  },
   dropZone: {
-    borderWidth: 2,
+    borderWidth: Borders.thick,
     borderStyle: 'dashed',
-    borderRadius: 12,
+    borderRadius: Radii.lg,
     paddingVertical: 48,
-    paddingHorizontal: 16,
+    paddingHorizontal: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
   },
-  dropTitle: { fontSize: 18, fontWeight: '700' },
-  dropSub: { fontSize: 14 },
-  previewCard: { gap: 4 },
-  previewLabel: { fontSize: 12, fontWeight: '700', opacity: 0.7 },
-  cancelLink: { alignSelf: 'center', paddingVertical: 8 },
+  dropTitle: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.xl,
+    fontWeight: Type.weight.bold,
+    color: Palette.text,
+  },
+  dropSub: { fontSize: Type.size.md, color: Palette.textMuted },
+  previewCard: { gap: Spacing.xs },
+  previewLabel: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.bold,
+    color: Palette.textSecondary,
+  },
   removeBtn: {
     position: 'absolute',
     top: 10,
     right: 10,
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: Radii.circle,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: Palette.danger,
   },
-  removeText: { color: '#fff', fontWeight: '800', fontSize: 14 },
-  previewScroll: { padding: 20, gap: 14 },
+  previewScroll: { padding: Spacing.lg, gap: Spacing.md },
   previewWrap: {
-    borderWidth: 1,
-    borderRadius: 12,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
     padding: 6,
     overflow: 'hidden',
+    ...Lift,
   },
-  divider: { height: 2, marginVertical: 2 },
+  divider: { height: 2, marginVertical: 2, backgroundColor: Palette.border },
   previewActions: {
     flexDirection: 'row',
-    gap: 10,
+    gap: Spacing.sm,
     justifyContent: 'center',
     flexWrap: 'wrap',
   },
   actionBtn: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+  },
+  actionBtnText: {
+    fontWeight: Type.weight.semibold,
+    color: Palette.text,
+  },
+  error: {
+    color: Palette.danger,
+    fontSize: Type.size.sm,
   },
   saveBtn: {
-    margin: 20,
-    borderRadius: 12,
+    margin: Spacing.lg,
+    borderRadius: Radii.lg,
     padding: 18,
     alignItems: 'center',
+    backgroundColor: Palette.accent,
   },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 18 },
+  saveBtnText: { color: '#fff', fontWeight: Type.weight.bold, fontSize: Type.size.xl },
 });

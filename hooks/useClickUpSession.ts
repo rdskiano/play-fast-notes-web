@@ -134,6 +134,11 @@ export function useClickUpSession(id: string | undefined, guided = false) {
     const first = steps[0];
     if (first) metronome.setBpm(first.tempo);
     setPhase('playing');
+    // Start the click immediately — the session is now running, so the user
+    // hears the first step's tempo without hunting for the metronome's play
+    // button. The "Start practicing" tap is the user gesture that unlocks
+    // audio on iOS.
+    metronome.start();
   }
 
   async function onNext() {
@@ -260,6 +265,8 @@ export function useClickUpSession(id: string | undefined, guided = false) {
     const step = storedConfig.steps[currentIndex];
     if (step) metronome.setBpm(step.tempo);
     setPhase('playing');
+    // Resuming a session = the click should be running again right away.
+    metronome.start();
   }
 
   // ── guided (onboarding) helpers ─────────────────────────────────────────
@@ -283,12 +290,10 @@ export function useClickUpSession(id: string | undefined, guided = false) {
     if (markers.length < MIN_MARKERS) return;
     await updatePassageUnits(id, markers);
     if (passage) setPassage({ ...passage, units_json: JSON.stringify(markers) });
+    // startPlaying() now starts the click itself (the session begins running
+    // immediately), so a first-timer on a small phone just hears the tempo
+    // and plays along — no hunting for the metronome's play button.
     await startPlaying();
-    // Guided onboarding: start the click immediately so a first-timer on a
-    // small phone just hears the tempo and plays along — no hunting for the
-    // metronome's play button (which barely fits the screen). The tap on
-    // "Start practicing" is the user gesture that unlocks audio on iOS.
-    metronome.start();
   }
 
   return {

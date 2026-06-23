@@ -12,6 +12,7 @@ import {
 } from '@/components/PracticeTimersContext';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
+import { Palette } from '@/constants/palette';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
@@ -185,7 +186,7 @@ export function PracticeTimersPill({
             hitSlop={6}
             style={[
               styles.serialChip,
-              { backgroundColor: chipExpired ? '#c0392b' : C.tint },
+              { backgroundColor: chipExpired ? Palette.danger : C.tint },
             ]}>
             <ThemedText style={styles.serialChipText}>
               {chipExpired ? "Time's up · Next →" : `${chipLabel} · Next →`}

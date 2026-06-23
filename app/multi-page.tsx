@@ -26,6 +26,7 @@ import { CropView } from '@/components/CropView';
 import { PromptModal } from '@/components/PromptModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -252,7 +253,7 @@ const styles = StyleSheet.create({
   btn: { borderRadius: Radii.lg, padding: 16, alignItems: 'center' },
   btnText: { color: '#fff', fontWeight: Type.weight.bold, fontSize: Type.size.lg },
   cancelLink: { alignSelf: 'center', paddingVertical: 8 },
-  error: { color: '#c0392b', fontSize: Type.size.sm },
+  error: { color: Palette.danger, fontSize: Type.size.sm },
   miniRow: { alignItems: 'center', gap: 4 },
   miniLabel: { fontSize: Type.size.xs, fontWeight: Type.weight.bold },
   mini: { width: '70%', height: 90, borderRadius: 8 },

@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -12,11 +13,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ActionSheet } from '@/components/ActionSheet';
 import { BpmStepper } from '@/components/BpmStepper';
 import { Button } from '@/components/Button';
 import { PedalCatcher } from '@/components/PedalCatcher';
-import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
+import { PracticeToolsBar } from '@/components/PracticeToolsBar';
+import { RotateForPractice } from '@/components/RotateForPractice';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import {
   ScoreWithMarkers,
@@ -28,7 +29,9 @@ import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
+import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { Colors } from '@/constants/theme';
+import { Lift, Palette } from '@/constants/palette';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -80,6 +83,10 @@ export default function MacroChainingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const { colors } = useStrategyColors();
+  // Macro-Chaining's strategy color (plum by default; respects a user
+  // override). Themes the run-screen Next button, info button, and Done link.
+  const ACCENT = colors.macro_chaining;
   const { width: winWidth, height: winHeight } = useWindowDimensions();
   const isPhone = Math.min(winWidth, winHeight) < 600;
   const insets = useSafeAreaInsets();
@@ -87,7 +94,6 @@ export default function MacroChainingScreen() {
   const isTouch = useIsTouchDevice();
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
-  const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const session = useMacroChainSession(id);
 
@@ -217,7 +223,7 @@ export default function MacroChainingScreen() {
                 hitSlop={6}
                 disabled={marks.length === 0}
                 style={[styles.topBtn, { opacity: marks.length === 0 ? 0.35 : 1 }]}>
-                <ThemedText style={[styles.topBtnText, { color: '#c0392b' }]}>CLEAR</ThemedText>
+                <ThemedText style={[styles.topBtnText, { color: Palette.danger }]}>CLEAR</ThemedText>
               </Pressable>
               <Pressable
                 onPress={canContinue ? commitMarksAndConfigure : undefined}
@@ -226,7 +232,7 @@ export default function MacroChainingScreen() {
                 {...tourTag('mac-next')}
                 style={[
                   styles.topBtn,
-                  { backgroundColor: canContinue ? '#2ecc71' : C.icon + '55' },
+                  { backgroundColor: canContinue ? Palette.success : C.icon + '55' },
                 ]}>
                 <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>NEXT →</ThemedText>
               </Pressable>
@@ -305,7 +311,7 @@ export default function MacroChainingScreen() {
             are what make that sustainable. This sets the metronome; you stay in control of
             it during practice.
           </ThemedText>
-          <BpmStepper value={goalTempo} onChange={setGoalTempo} metronome={metronome} />
+          <BpmStepper value={goalTempo} onChange={setGoalTempo} metronome={metronome} accent={ACCENT} />
         </ScrollView>
 
         <View style={{ padding: 20, gap: 10 }}>
@@ -327,7 +333,11 @@ export default function MacroChainingScreen() {
               variant={resuming ? 'outline' : 'primary'}
               onPress={startPlaying}
               disabled={!canStart}
-              style={[actionButtonStyle, { opacity: canStart ? 1 : 0.4 }]}
+              style={[
+                actionButtonStyle,
+                { opacity: canStart ? 1 : 0.4 },
+                !resuming && { backgroundColor: ACCENT },
+              ]}
             />
           </View>
           <Button
@@ -359,61 +369,37 @@ export default function MacroChainingScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SessionTopBar
-        onExit={exitSession}
-        exitLabel="EXIT"
-        center={
-          <View style={styles.instructionRow}>
-            <ThemedText style={styles.topInstruction} numberOfLines={2}>
-              {instruction}
-            </ThemedText>
-            {info ? (
-              <Pressable
-                onPress={() => setInfoOpen(true)}
-                hitSlop={10}
-                accessibilityLabel="More about this step"
-                style={[styles.infoBtn, { backgroundColor: C.tint }]}>
-                <ThemedText style={styles.infoBtnText}>i</ThemedText>
-              </Pressable>
-            ) : null}
-          </View>
-        }
-        right={
-          isPhone ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Pressable
-                onPress={() => setNotePromptVisible(true)}
-                hitSlop={6}
-                style={[styles.topBtn, styles.doneBtn]}>
-                <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>DONE</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => setPhoneMenuOpen(true)}
-                hitSlop={6}
-                accessibilityLabel="More actions"
-                style={styles.topBtn}>
-                <ThemedText style={[styles.topBtnText, { color: C.tint }]}>⋯</ThemedText>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Pressable
-                onPress={goBackToConfig}
-                hitSlop={6}
-                accessibilityLabel="Back to setup"
-                style={styles.topBtn}>
-                <ThemedText style={[styles.topBtnText, { color: C.tint }]}>← Setup</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => setNotePromptVisible(true)}
-                hitSlop={6}
-                style={[styles.topBtn, styles.doneBtn]}>
-                <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>DONE</ThemedText>
-              </Pressable>
-            </View>
-          )
-        }
-      />
+      {/* ── Reskinned run top bar — coral Exit (left) · centered step
+          instruction + info ⓘ (centre) · spacer reserving room for the
+          floating tools pill (right). Mirrors Tempo Ladder / Click-Up. */}
+      <View
+        style={[
+          styles.runTopBar,
+          {
+            paddingTop: insets.top + 10,
+            // Pad by the safe-area insets so the fixed right reserve lines up
+            // with the floating tools pill (anchored at insets.right + 12) —
+            // otherwise the centred instruction runs under the pill on a
+            // notched landscape phone.
+            paddingLeft: insets.left + Spacing.md,
+            paddingRight: insets.right + Spacing.md,
+          },
+        ]}>
+        <Pressable onPress={exitSession} hitSlop={8} style={styles.runExit}>
+          <Feather name="log-out" size={15} color={Palette.danger} />
+          <ThemedText style={styles.runExitText}>Exit</ThemedText>
+        </Pressable>
+        <View style={styles.runInstructionWrap}>
+          {/* No manual ⓘ here — it duplicated the global help "i" (bottom-
+              right). The per-step Quick Tip still auto-fires the first time
+              through each new chunk size (see the macroInfoKey effect).
+              paddingRight reserves room for the floating 4-icon tools pill so
+              the instruction wraps BEFORE it instead of running underneath. */}
+          <ThemedText style={styles.runInstruction} numberOfLines={2}>
+            {instruction}
+          </ThemedText>
+        </View>
+      </View>
 
       <PedalCatcher
         active={!notePromptVisible && !celebrating}
@@ -440,32 +426,96 @@ export default function MacroChainingScreen() {
           )}
           {ann.canvas}
         </View>
-        <PracticeToolsLayer
-          metronome={metronome}
-          metronomeNote="Macro-Chaining stays at your goal tempo — set the metronome, play the chunk, rest the beats, then tap Next."
-          pencil={ann.pencil}
-          recorderPassageId={passage?.id}
-        />
       </View>
 
-      <View style={styles.bottomBar}>
-        {!isPhone && (
-          <ThemedText style={styles.pedalNote}>
-            Space / Enter / right pedal = NEXT · ← / Backspace / left pedal = BACK
-          </ThemedText>
-        )}
-        <View style={styles.navRow}>
+      {/* ── BACK / NEXT (+ quiet Setup / Done links) — big ← Back / Next →
+          (corner-split in phone landscape), with Setup and Done — log it
+          demoted to quiet links. Mirrors Click-Up. */}
+      {isPhoneLandscape ? (
+        <>
+          {/* +64 inward so the Next clears the global help "i" in the
+              bottom-right; Back matches it so the pair stays symmetric. */}
           <Pressable
             onPress={currentIndex === 0 ? undefined : onPrev}
             disabled={currentIndex === 0}
-            style={[styles.backBtn, { opacity: currentIndex === 0 ? 0.4 : 1 }]}>
-            <ThemedText style={styles.backBtnText}>← BACK</ThemedText>
+            hitSlop={6}
+            accessibilityLabel="Previous step"
+            style={[
+              styles.cornerBtn,
+              styles.runBackBtn,
+              {
+                bottom: insets.bottom + 4,
+                left: insets.left + 16 + 64,
+                opacity: currentIndex === 0 ? 0.4 : 1,
+              },
+            ]}>
+            <ThemedText style={styles.runBackBtnText}>← Back</ThemedText>
           </Pressable>
-          <Pressable onPress={onNext} style={[styles.nextBtn, styles.nextBtnGrow]}>
-            <ThemedText style={styles.nextBtnText}>NEXT →</ThemedText>
+          <Pressable
+            onPress={onNext}
+            hitSlop={6}
+            accessibilityLabel="Next step"
+            style={[
+              styles.cornerBtn,
+              { backgroundColor: ACCENT },
+              { bottom: insets.bottom + 4, right: insets.right + 16 + 64 },
+            ]}>
+            <ThemedText style={styles.runNextBtnText}>Next →</ThemedText>
           </Pressable>
+          <View style={[styles.runLinksLandscape, { bottom: insets.bottom + 8 }]}>
+            <Pressable onPress={goBackToConfig} hitSlop={6}>
+              <ThemedText style={[styles.runLink, { color: ACCENT }]}>← Setup</ThemedText>
+            </Pressable>
+            <ThemedText style={styles.runLinkDot}>·</ThemedText>
+            <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={6}>
+              <ThemedText style={[styles.runLink, { color: ACCENT }]}>Done — log it</ThemedText>
+            </Pressable>
+          </View>
+        </>
+      ) : (
+        <View style={[styles.runBottomBar, { paddingBottom: insets.bottom + 10 }]}>
+          <View style={styles.runBtnRow}>
+            <Pressable
+              onPress={currentIndex === 0 ? undefined : onPrev}
+              disabled={currentIndex === 0}
+              accessibilityLabel="Previous step"
+              style={[
+                styles.bottomBtn,
+                styles.runBackBtn,
+                { opacity: currentIndex === 0 ? 0.4 : 1 },
+              ]}>
+              <ThemedText style={styles.runBackBtnText}>← Back</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={onNext}
+              accessibilityLabel="Next step"
+              style={[styles.bottomBtn, styles.runNextBtnWide, { backgroundColor: ACCENT }]}>
+              <ThemedText style={styles.runNextBtnText}>Next →</ThemedText>
+            </Pressable>
+          </View>
+          <View style={styles.runLinks}>
+            <Pressable onPress={goBackToConfig} hitSlop={6}>
+              <ThemedText style={[styles.runLink, { color: ACCENT }]}>← Setup</ThemedText>
+            </Pressable>
+            <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={6}>
+              <ThemedText style={[styles.runLink, { color: ACCENT }]}>Done — log it</ThemedText>
+            </Pressable>
+          </View>
+          {!isPhone && (
+            <ThemedText style={styles.runHintShortcut}>
+              Space / Enter / right pedal = NEXT · ← / Backspace / left pedal = BACK
+            </ThemedText>
+          )}
         </View>
-      </View>
+      )}
+
+      {/* Tools pill — floats top-right, panels drop below it. */}
+      <PracticeToolsBar
+        metronome={metronome}
+        metronomeNote="Macro-Chaining stays at your goal tempo — set the metronome, play the chunk, rest the beats, then tap Next."
+        pencil={{ ...ann.pencil, onUndo: ann.undo }}
+        recorderPassageId={passage?.id}
+      />
 
       <PracticeLogNotePrompt
         visible={celebrating || notePromptVisible}
@@ -490,22 +540,12 @@ export default function MacroChainingScreen() {
         }}
       />
 
-      <ActionSheet
-        visible={phoneMenuOpen}
-        items={[
-          {
-            label: '← Back to setup',
-            onPress: () => {
-              setPhoneMenuOpen(false);
-              goBackToConfig();
-            },
-          },
-        ]}
-        onCancel={() => setPhoneMenuOpen(false)}
-      />
-
       <Modal
-        visible={infoOpen}
+        // Suppress the per-step Quick Tip once the session completes — without
+        // this guard the final step's tip (it auto-opens on arrival at a new
+        // chunk size) paints over the completion log prompt, so finishing the
+        // sequence showed a tutorial instead of the "log your session" card.
+        visible={infoOpen && !celebrating}
         transparent
         animationType="fade"
         supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
@@ -533,16 +573,121 @@ export default function MacroChainingScreen() {
           'Work through the passage in chunks that grow over time. At each chunk size there are two phases:\n\n' +
           'ISOLATE — the top bar names one chunk and the green arrows on the score bracket it. Play just that chunk (into the first note of the next beat) and repeat until it\'s comfortable, then tap NEXT → for the next chunk.\n\n' +
           'CHAIN — once you\'ve drilled each chunk, you play them in a row with rest beats between. NEXT → removes a rest beat (2 → 1 → 0). When you reach the whole passage with no rests, you\'re playing it continuously at goal tempo.\n\n' +
-          'The chunk size doubles each round (1 → 2 → 4 → …). ← BACK steps back. Run your own metronome from the tools. The session logs at the last step; tap DONE to log early, or EXIT to leave without logging.' +
+          'The chunk size doubles each round (1 → 2 → 4 → …). ← BACK steps back. Run your own metronome from the tools. The session logs at the last step; tap Done — log it (below the Next button) to log early, or Exit (top-left) to leave without logging.' +
           `\n\n${PRACTICE_TOOLS_HELP}`
         }
       />
+      {/* Phone: practice runs in landscape. Portrait → "rotate" prompt. */}
+      <RotateForPractice />
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   configContainer: { flexGrow: 1, padding: 20, gap: 14, paddingBottom: HELP_CLEARANCE + 20 },
+
+  // ── Reskinned run top bar (mirrors Tempo Ladder / Click-Up) ──────
+  runTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  runExit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  runExitText: {
+    color: Palette.danger,
+    fontWeight: Type.weight.heavy,
+    fontSize: Type.size.md,
+  },
+  runInstructionWrap: {
+    flex: 1,
+    // minWidth:0 lets this flex child shrink below its content size on RN-Web
+    // (min-width defaults to auto) so the long instruction wraps INSIDE the
+    // bar instead of overflowing.
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: Spacing.md,
+    // Reserve room for the floating tools pill (4 icons ≈ 146 wide, anchored at
+    // insets.right + 12) so the centered instruction wraps before it. The
+    // runTopBar's safe-area padding handles insets.right; this clears the pill.
+    paddingRight: 150,
+    gap: 8,
+  },
+  runInstruction: {
+    flexShrink: 1,
+    minWidth: 0,
+    textAlign: 'center',
+    fontWeight: Type.weight.semibold,
+    fontSize: Type.size.sm,
+    lineHeight: 18,
+    color: Palette.text,
+  },
+
+  // ── Reskinned bottom BACK / NEXT + quiet links ───────────────────
+  runBottomBar: {
+    paddingTop: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    gap: 8,
+  },
+  runBtnRow: { flexDirection: 'row', gap: 14, alignItems: 'center', justifyContent: 'center' },
+  bottomBtn: {
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    minWidth: 150,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Lift,
+  },
+  runNextBtnWide: { minWidth: 200 },
+  runBackBtn: {
+    backgroundColor: Palette.card,
+    borderWidth: 1.5,
+    borderColor: Palette.borderStrong,
+  },
+  runBackBtnText: { color: Palette.text, fontWeight: Type.weight.heavy, fontSize: 17 },
+  runNextBtnText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: 17 },
+  runLinks: { flexDirection: 'row', gap: Spacing.lg, alignItems: 'center', justifyContent: 'center' },
+  runLink: { fontSize: Type.size.sm, fontWeight: Type.weight.bold },
+  runLinkDot: { color: Palette.textMuted, fontSize: Type.size.sm },
+  runLinksLandscape: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 6,
+  },
+  runHintShortcut: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textSecondary,
+  },
+  cornerBtn: {
+    position: 'absolute',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 14,
+    minWidth: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Lift,
+    zIndex: 5,
+  },
+
   topBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radii.md },
   topBtnText: { fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
   topCenter: { textAlign: 'center', fontWeight: Type.weight.bold, fontSize: Type.size.sm },
@@ -601,7 +746,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e293b',
   },
   infoEyebrow: {
-    color: '#e67e22',
+    color: Palette.accent,
     fontSize: Type.size.xs,
     fontWeight: Type.weight.heavy,
     letterSpacing: 1,
@@ -611,7 +756,7 @@ const styles = StyleSheet.create({
   gotItBtn: {
     alignSelf: 'flex-end',
     marginTop: Spacing.xs,
-    backgroundColor: '#e67e22',
+    backgroundColor: Palette.accent,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     borderRadius: Radii.md,
@@ -625,7 +770,7 @@ const styles = StyleSheet.create({
   },
   pedalNote: { textAlign: 'center', fontSize: 12, opacity: Opacity.muted },
   nextBtn: {
-    backgroundColor: '#2ecc71',
+    backgroundColor: Palette.success,
     paddingVertical: 16,
     borderRadius: Radii.md,
     alignItems: 'center',

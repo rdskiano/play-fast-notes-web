@@ -31,6 +31,7 @@ import { ZoomableImage } from '@/components/ZoomableImage';
 import { ThemedView } from '@/components/themed-view';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
+import { Palette } from '@/constants/palette';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useMetronome } from '@/lib/audio/useMetronome';
@@ -588,16 +589,16 @@ export default function RhythmBuilderScreen() {
                 <Pressable
                   onPress={openPdfTitlePrompt}
                   hitSlop={6}
-                  style={[styles.pdfBtn, { borderColor: '#2980b9' }]}>
-                  <ThemedText style={[styles.pdfBtnText, { color: '#2980b9' }]}>
+                  style={[styles.pdfBtn, { borderColor: Palette.accent }]}>
+                  <ThemedText style={[styles.pdfBtnText, { color: Palette.accent }]}>
                     PDF
                   </ThemedText>
                 </Pressable>
                 <Pressable
                   onPress={() => setShareOpen(true)}
                   hitSlop={6}
-                  style={[styles.pdfBtn, { borderColor: '#0a7ea4' }]}>
-                  <ThemedText style={[styles.pdfBtnText, { color: '#0a7ea4' }]}>
+                  style={[styles.pdfBtn, { borderColor: Palette.accent }]}>
+                  <ThemedText style={[styles.pdfBtnText, { color: Palette.accent }]}>
                     Share
                   </ThemedText>
                 </Pressable>
@@ -737,7 +738,7 @@ export default function RhythmBuilderScreen() {
                 styles.playBtn,
                 {
                   backgroundColor: metronome.playingSequence
-                    ? '#c0392b'
+                    ? Palette.danger
                     : pitches.length > 0
                       ? C.tint
                       : C.icon,
@@ -1152,7 +1153,7 @@ function ExerciseCard({
           {...({ dataSet: { printHide: '1' } } as object)}
           style={[
             exerciseStyles.playBtn,
-            { backgroundColor: isPlaying ? '#c0392b' : C.tint },
+            { backgroundColor: isPlaying ? Palette.danger : C.tint },
           ]}>
           <ThemedText style={exerciseStyles.playText}>
             {isPlaying ? '■' : '▶'}

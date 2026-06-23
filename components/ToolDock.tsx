@@ -30,8 +30,11 @@ import Animated, {
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+
 import { ThemedText } from '@/components/themed-text';
 import { TopLayer } from '@/components/TopLayer';
+import { Palette } from '@/constants/palette';
 
 export type DockEdge = 'left' | 'right';
 
@@ -76,6 +79,17 @@ type Props = {
    * tool from feeling like a loose floating card on a small screen.
    */
   docked?: boolean;
+  /**
+   * v2 reskin — MaterialCommunityIcons glyph shown on the phone (icon-mode)
+   * tab. Falls back to the text `label` when omitted, so callers that don't
+   * set it are unchanged.
+   */
+  iconName?: keyof typeof MaterialCommunityIcons.glyphMap;
+  /**
+   * v2 reskin — render the phone chip flat (transparent, no border/shadow) so
+   * it sits inside a shared "rail pill" the parent draws behind the group.
+   */
+  merged?: boolean;
   children: ReactNode;
 };
 
@@ -119,6 +133,8 @@ export function ToolDock({
   indicator,
   openScale = 1,
   openAtTop = false,
+  iconName,
+  merged = false,
   children,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
@@ -390,14 +406,27 @@ export function ToolDock({
         onPress={() => setOpen((o) => !o)}
         style={[
           styles.tab,
-          { top: tabTop, height: tabSpan, backgroundColor: accent },
-          edge === 'left' ? styles.tabLeft : styles.tabRight,
+          { top: tabTop, height: tabSpan },
+          // v2 reskin — phone tabs are white floating rounded chips (clear of
+          // the edge); larger surfaces keep the original charcoal edge tab.
+          tabSpan <= TAB_THICKNESS + 4
+            ? [
+                styles.tabPhone,
+                edge === 'left' ? { left: 10 } : { right: 10 },
+                merged && styles.tabMerged,
+              ]
+            : [
+                { backgroundColor: accent },
+                edge === 'left' ? styles.tabLeft : styles.tabRight,
+              ],
         ]}>
         {tabSpan <= TAB_THICKNESS + 4 ? (
-          // Phone density: square tab with an upright icon. No rotation —
-          // the label is a single emoji and rotating it would just be
-          // confusing.
-          <ThemedText style={styles.tabIcon}>{label}</ThemedText>
+          // Phone density: white chip with a clean line icon (v2 reskin).
+          iconName ? (
+            <MaterialCommunityIcons name={iconName} size={20} color={Palette.text} />
+          ) : (
+            <ThemedText style={[styles.tabIcon, { color: Palette.text }]}>{label}</ThemedText>
+          )
         ) : (
           // Full label rendered in an absolutely-positioned wrapper sized
           // to the rotated tab footprint. Centering + rotating the wrapper
@@ -478,6 +507,23 @@ const styles = StyleSheet.create({
   },
   tabLeft: { left: 0, borderTopRightRadius: 12, borderBottomRightRadius: 12 },
   tabRight: { right: 0, borderTopLeftRadius: 12, borderBottomLeftRadius: 12 },
+  // v2 reskin — phone tab: white floating rounded chip, clear of the screen
+  // edge, with a soft lift so it reads on the paper score.
+  tabPhone: {
+    width: 40,
+    borderRadius: 14,
+    backgroundColor: Palette.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+  },
+  // Merged-rail segment: flat + transparent; the parent's rail pill provides
+  // the white surface, border, and single shadow for the whole group.
+  tabMerged: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
   tabLabel: {
     color: '#fff',
     fontSize: 12,

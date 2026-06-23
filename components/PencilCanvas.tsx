@@ -25,6 +25,8 @@ export type PencilCanvasHandle = {
   export(): Promise<{ data: string; png: string }>;
   /** Erase the whole drawing. */
   clear(): void;
+  /** Step back the most recent stroke (PencilKit's own undo). */
+  undo(): void;
 };
 
 export type PencilCanvasProps = {
@@ -71,6 +73,9 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
       },
       clear() {
         pk.current?.clear();
+      },
+      undo() {
+        (pk.current as unknown as { undo?: () => void } | null)?.undo?.();
       },
     }));
 

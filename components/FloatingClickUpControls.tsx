@@ -6,6 +6,7 @@ import Animated from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
+import { Palette } from '@/constants/palette';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDraggableCard } from '@/hooks/useDraggableCard';
@@ -87,7 +88,7 @@ export function FloatingClickUpControls({
             <Pressable onPress={onToggle} style={styles.collapsedTempo}>
               <ThemedText style={styles.collapsedBpm}>{bpm}</ThemedText>
               <ThemedText
-                style={[styles.collapsedPlay, { color: running ? '#2ecc71' : C.tint }]}>
+                style={[styles.collapsedPlay, { color: running ? Palette.success : C.tint }]}>
                 {running ? '■' : '▶'}
               </ThemedText>
             </Pressable>
@@ -106,7 +107,7 @@ export function FloatingClickUpControls({
               onPress={onToggle}
               style={[
                 styles.playBtn,
-                { backgroundColor: running ? '#c0392b' : '#e67e22' },
+                { backgroundColor: running ? Palette.danger : '#e67e22' },
               ]}>
               <ThemedText style={styles.playBtnText}>
                 {running ? '■ Stop click' : '▶ Start click'}

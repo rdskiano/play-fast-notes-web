@@ -32,6 +32,7 @@ import {
   useState,
 } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getStroke } from 'perfect-freehand';
 
 import { ThemedText } from '@/components/themed-text';
@@ -42,6 +43,8 @@ export type PencilCanvasHandle = {
    *  newly-drawn strokes, composited). */
   export(): Promise<{ data: string; png: string }>;
   clear(): void;
+  /** Pop the most recent stroke from the current edit session. */
+  undo(): void;
 };
 
 export type PencilCanvasProps = {
@@ -84,6 +87,8 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
     { imageUri, editable, onChange, style },
     ref,
   ) {
+    // Keep the undo button clear of a landscape phone's side notch.
+    const insets = useSafeAreaInsets();
     const containerRef = useRef<View | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const bgImgRef = useRef<HTMLImageElement | null>(null);
@@ -377,8 +382,11 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
           setStrokeCount(0);
           redraw();
         },
+        undo() {
+          undo();
+        },
       }),
-      [redraw],
+      [redraw, undo],
     );
 
     // View mode: same as before — render the saved PNG as a passive overlay.
@@ -423,9 +431,11 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
           accessibilityLabel="Undo last stroke"
           style={[
             undoStyles.btn,
+            { top: 8 + insets.top, left: 8 + insets.left },
             strokeCount === 0 && undoStyles.btnDisabled,
           ]}>
           <ThemedText style={undoStyles.glyph}>↶</ThemedText>
+          <ThemedText style={undoStyles.label}>Undo</ThemedText>
         </Pressable>
       </View>
     );
@@ -437,14 +447,15 @@ const undoStyles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     left: 8,
-    width: 40,
     height: 40,
+    paddingHorizontal: 14,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#0006',
-    backgroundColor: '#ffffffcc',
+    backgroundColor: '#ffffffee',
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
   },
   btnDisabled: {
     opacity: 0.35,
@@ -452,6 +463,11 @@ const undoStyles = StyleSheet.create({
   glyph: {
     fontSize: 22,
     lineHeight: 24,
+    fontWeight: '800',
+    color: '#222',
+  },
+  label: {
+    fontSize: 14,
     fontWeight: '800',
     color: '#222',
   },

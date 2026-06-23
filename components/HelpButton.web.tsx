@@ -15,12 +15,13 @@ import { Pressable, StyleSheet } from 'react-native';
 import { useHelpContext } from '@/components/HelpContext';
 import { ThemedText } from '@/components/themed-text';
 import { useTour } from '@/components/tour/TourContext';
+import { Palette } from '@/constants/palette';
 import { Radii, Type } from '@/constants/tokens';
 
 // The "i" affordances (this button + the per-control tour dots) use the
 // site's blue so they read as native chrome. The tour/modal *accents*
 // (ring, buttons, labels) use orange — see TourContext.web ACCENT.
-const HELP_BLUE = '#0a7ea4';
+const HELP_BLUE = Palette.accent;
 
 export function HelpButton() {
   const { openManually, active } = useHelpContext();

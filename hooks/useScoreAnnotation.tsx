@@ -294,6 +294,8 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
   return {
     /** Feed to PracticeToolsLayer's `pencil` prop. */
     pencil: { active: annotating, onToggle: toggle },
+    /** Step back the most recent stroke while annotating. */
+    undo: () => canvasRef.current?.undo(),
     /** Drop inside the score's (relatively positioned) container. */
     canvas,
     /** Await before any forward navigation to persist unsaved marks. */

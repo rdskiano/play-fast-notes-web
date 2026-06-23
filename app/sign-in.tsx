@@ -1,10 +1,12 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Palette, Lift } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -73,6 +75,11 @@ export default function SignInScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={styles.card}>
+        <Image
+          source={require('../assets/images/icon.png')}
+          style={styles.logo}
+          accessibilityIgnoresInvertColors
+        />
         <ThemedText type="title" style={styles.title}>
           Play Fast Notes
         </ThemedText>
@@ -81,46 +88,47 @@ export default function SignInScreen() {
           emails sign in.
         </ThemedText>
 
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          placeholder="you@example.com"
-          placeholderTextColor={C.icon}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          style={[
-            styles.input,
-            { borderColor: C.icon, color: C.text, backgroundColor: C.background },
-          ]}
-          editable={status.kind !== 'submitting'}
-        />
+        <View style={styles.inputWrap}>
+          <MaterialIcons name="mail-outline" size={20} color={Palette.textMuted} />
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@example.com"
+            placeholderTextColor={C.icon}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            style={[styles.input, { color: C.text }]}
+            editable={status.kind !== 'submitting'}
+          />
+        </View>
 
-        <TextInput
-          value={password}
-          onChangeText={setPassword}
-          placeholder={`Password (${MIN_PASSWORD}+ characters)`}
-          placeholderTextColor={C.icon}
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry
-          style={[
-            styles.input,
-            { borderColor: C.icon, color: C.text, backgroundColor: C.background },
-          ]}
-          editable={status.kind !== 'submitting'}
-          onSubmitEditing={onSubmit}
-        />
+        <View style={styles.inputWrap}>
+          <MaterialIcons name="lock-outline" size={20} color={Palette.textMuted} />
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder={`Password (${MIN_PASSWORD}+ characters)`}
+            placeholderTextColor={C.icon}
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+            style={[styles.input, { color: C.text }]}
+            editable={status.kind !== 'submitting'}
+            onSubmitEditing={onSubmit}
+          />
+        </View>
 
         <Button
           label={status.kind === 'submitting' ? 'Signing in…' : 'Continue'}
           onPress={onSubmit}
           disabled={!canSubmit}
           fullWidth
+          style={styles.continueBtn}
         />
 
         {status.kind === 'error' && (
-          <ThemedText style={[styles.error, { color: '#c0392b' }]}>{status.message}</ThemedText>
+          <ThemedText style={[styles.error, { color: Palette.danger }]}>{status.message}</ThemedText>
         )}
 
         {resetState.kind === 'hidden' ? (
@@ -154,7 +162,7 @@ export default function SignInScreen() {
                   fullWidth
                 />
                 {resetState.kind === 'error' && (
-                  <ThemedText style={[styles.error, { color: '#c0392b' }]}>
+                  <ThemedText style={[styles.error, { color: Palette.danger }]}>
                     {resetState.message}
                   </ThemedText>
                 )}
@@ -186,19 +194,44 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     gap: Spacing.lg,
   },
+  // App-icon mark above the title — 84px, 24px radius, soft lift (per spec).
+  logo: {
+    width: 84,
+    height: 84,
+    borderRadius: 24,
+    alignSelf: 'center',
+    marginBottom: Spacing.xs,
+    ...Lift,
+  },
   title: { textAlign: 'center' },
   body: {
     textAlign: 'center',
-    opacity: 0.75,
+    color: Palette.textSecondary,
     fontSize: Type.size.md,
     lineHeight: 20,
+    marginBottom: Spacing.sm,
+  },
+  // White field with a hairline border + leading icon. The TextInput sits
+  // inside flex:1 and carries no border of its own.
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.xl,
+    paddingHorizontal: Spacing.md,
   },
   input: {
-    borderWidth: Borders.thin,
-    borderRadius: Radii.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
+    flex: 1,
+    paddingVertical: 14,
     fontSize: Type.size.lg,
+  },
+  // Soft lift under the primary action, matching the prototype.
+  continueBtn: {
+    borderRadius: Radii.xl,
+    ...Lift,
   },
   error: {
     textAlign: 'center',

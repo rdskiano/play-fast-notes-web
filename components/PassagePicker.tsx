@@ -1,680 +1,917 @@
-// Browse the library — folders, PDFs, loose passages — to pick passages for a
-// Serial Practice session. Opening a PDF shows its pages with the passage
-// boxes drawn on them, so passages are chosen by looking at the actual score
-// instead of guessing from a name. Drill-in navigation is internal; the
-// selected ids are owned by the parent screen.
+// Flat, fewer-clicks passage picker for Rep Rotator (v2 reskin).
+//
+// Replaces the old folder → PDF → tap-a-box file-tree picker. Passages are
+// already marked per piece (name, mastery %, thumbnail), so the user selects
+// them DIRECTLY from collapsible per-piece groups, searches across the whole
+// library, randomizes a set, or recalls a saved set. The parent screen owns
+// `selectedIds`; this component reports changes back through `onToggle` /
+// `onSetSelected` and fires `onStart` when the user commits the rotation.
 
+import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  type LayoutChangeEvent,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DocumentPageImage } from '@/components/DocumentPageImage';
+import { Button } from '@/components/Button';
+import { PromptModal } from '@/components/PromptModal';
 import { ThemedText } from '@/components/themed-text';
-import { Colors } from '@/constants/theme';
+import { Lift, Palette } from '@/constants/palette';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import {
-  getDocument,
-  listAllDocuments,
-  listDocumentsInFolder,
-  parsePages,
-  type DocumentPage,
-  type DocumentRow,
-} from '@/lib/db/repos/documents';
-import {
-  listAllFolders,
-  listFoldersInParent,
-  type Folder,
-} from '@/lib/db/repos/folders';
-import {
-  listPassagesInDocument,
-  listPassagesInFolder,
-  parseRegions,
-  type Passage,
-} from '@/lib/db/repos/passages';
+import { HELP_CLEARANCE } from '@/lib/layout/configForm';
+import { listAllDocuments, type DocumentRow } from '@/lib/db/repos/documents';
+import { parseRegions, type Passage } from '@/lib/db/repos/passages';
+import { getSetting, setSetting } from '@/lib/db/repos/settings';
+import { getTempoLadderProgressForPassages } from '@/lib/db/repos/tempoLadder';
 
-// A location in the drill-in stack: the library root, a folder, or a PDF.
-type Loc =
-  | { kind: 'root' }
-  | { kind: 'folder'; id: string; title: string }
-  | { kind: 'document'; id: string; title: string };
+// settings key for the per-user saved-set library (JSON array, no migration).
+const SAVED_SETS_KEY = 'interleave_sets';
 
-// Cap the rendered page width so a PDF page isn't enormous on a wide iPad.
-const MAX_PAGE_WIDTH = 760;
+type SavedSet = { id: string; name: string; passageIds: string[] };
+
+// Soft-tint chip colors cycled across the piece groups so selected chips read
+// as a colorful set — same palette vocabulary as the library folder grid.
+const PIECE_TINTS = [
+  { bg: Palette.accentSoft, fg: Palette.accent },
+  { bg: Palette.rhythmicSoft, fg: Palette.rhythmic },
+  { bg: Palette.interleavedSoft, fg: Palette.interleaved },
+  { bg: Palette.successSoft, fg: Palette.success },
+] as const;
+
+const LOOSE_KEY = '__loose__';
+
+// Mastery ramp (Tempo Ladder % toward goal) — Ralph's picker-specific bands.
+function masteryColor(pct: number): string {
+  if (pct >= 80) return Palette.success;
+  if (pct >= 55) return '#E0863A';
+  return Palette.danger;
+}
+
+type PieceGroup = {
+  key: string;
+  title: string;
+  composer: string | null;
+  thumbnailUri: string | null;
+  passages: Passage[];
+};
+
+// Page orientation subtext for a document-backed passage ("Page 3" /
+// "Pages 4–5"). The passage row has no measures field, so the page range is
+// the closest honest "where in the score" hint.
+function pageHint(p: Passage): string | null {
+  const regions = parseRegions(p.regions_json);
+  if (regions.length === 0) return null;
+  const pages = [...new Set(regions.map((r) => r.page))].sort((a, b) => a - b);
+  if (pages.length === 1) return `Page ${pages[0]}`;
+  return `Pages ${pages[0]}–${pages[pages.length - 1]}`;
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 export function PassagePicker({
   selectedIds,
   passages,
-  order,
   onToggle,
+  onSetSelected,
+  onStart,
+  onExit,
+  minToStart = 2,
+  startLabel = 'Start interleaving',
 }: {
-  /** Currently-selected passage ids, in selection order. */
+  /** Currently-selected passage ids, in selection order (parent-owned). */
   selectedIds: string[];
-  /** Every passage in the library — drives the per-folder/PDF selected count. */
+  /** Every passage in the library. */
   passages: Passage[];
-  /** 'serial' shows an order number on a selection; 'random' shows a check. */
-  order: 'serial' | 'random';
-  /** Toggle a passage in or out of the selection. */
+  /** Toggle a single passage in/out of the selection. */
   onToggle: (passageId: string) => void;
+  /** Replace the whole selection (randomize, clear, recall a saved set). */
+  onSetSelected: (ids: string[]) => void;
+  /** Commit the rotation — enabled once `minToStart` passages are picked. */
+  onStart: () => void;
+  /** Leave the picker (back to wherever the user came from). */
+  onExit: () => void;
+  minToStart?: number;
+  startLabel?: string;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
 
-  const [stack, setStack] = useState<Loc[]>([{ kind: 'root' }]);
-  const loc = stack[stack.length - 1];
+  // ── Supporting data: piece titles (documents) + mastery % (Tempo Ladder) ──
+  const [docs, setDocs] = useState<Map<string, DocumentRow>>(new Map());
+  const [mastery, setMastery] = useState<Record<string, number>>({});
 
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [docs, setDocs] = useState<DocumentRow[]>([]);
-  const [loose, setLoose] = useState<Passage[]>([]);
-  const [pages, setPages] = useState<DocumentPage[]>([]);
-  // Identity of the open document, needed to render its pages on demand from
-  // the original PDF when they aren't stored as per-page images (Stage 2).
-  const [docInfo, setDocInfo] = useState<{ id: string; original_uri: string | null } | null>(null);
-  const [docPassages, setDocPassages] = useState<Passage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [width, setWidth] = useState(0);
-  // Current page index within a PDF (only meaningful when loc.kind === 'document').
-  // Matches the document viewer's nav model: horizontal-paginated, edge taps,
-  // chevrons, and arrow keys.
-  const [pageIndex, setPageIndex] = useState(0);
-  const pagerScrollRef = useRef<ScrollView>(null);
-
-  // The whole folder/document tree — loaded once, used only to tally how many
-  // selected passages live inside each folder and PDF (the count badges).
-  const [allFolders, setAllFolders] = useState<Folder[]>([]);
-  const [allDocs, setAllDocs] = useState<DocumentRow[]>([]);
   useEffect(() => {
     let cancelled = false;
-    Promise.all([listAllFolders(), listAllDocuments()]).then(([fs, ds]) => {
-      if (cancelled) return;
-      setAllFolders(fs);
-      setAllDocs(ds);
-    });
+    listAllDocuments()
+      .then((ds) => {
+        if (cancelled) return;
+        setDocs(new Map(ds.map((d) => [d.id, d])));
+      })
+      .catch((err) => console.error('[picker] listAllDocuments failed', err));
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // How many selected passages sit inside each folder (recursively) and each
-  // PDF. A passage's home folder is its PDF's folder, or its own folder.
-  const { folderCounts, docCounts } = useMemo(() => {
-    const selected = new Set(selectedIds);
-    const docFolder = new Map<string, string | null>();
-    for (const d of allDocs) docFolder.set(d.id, d.folder_id);
-    const parentOf = new Map<string, string | null>();
-    for (const f of allFolders) parentOf.set(f.id, f.parent_folder_id);
-
-    const fCounts = new Map<string, number>();
-    const dCounts = new Map<string, number>();
-    for (const p of passages) {
-      if (!selected.has(p.id)) continue;
-      if (p.document_id) {
-        dCounts.set(p.document_id, (dCounts.get(p.document_id) ?? 0) + 1);
-      }
-      const home = p.document_id
-        ? docFolder.get(p.document_id) ?? null
-        : p.folder_id;
-      const seen = new Set<string>();
-      let f = home;
-      while (f && !seen.has(f)) {
-        seen.add(f);
-        fCounts.set(f, (fCounts.get(f) ?? 0) + 1);
-        f = parentOf.get(f) ?? null;
-      }
-    }
-    return { folderCounts: fCounts, docCounts: dCounts };
-  }, [selectedIds, passages, allFolders, allDocs]);
-
-  // Re-fetch whenever the drill-in location changes.
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    // Reset to the first page whenever we enter (or re-enter) a document so
-    // the user doesn't land mid-PDF on the page they happened to leave from.
-    if (loc.kind === 'document') {
-      setPageIndex(0);
+    if (passages.length === 0) {
+      setMastery({});
+      return;
     }
-    (async () => {
-      try {
-        if (loc.kind === 'document') {
-          const [doc, ps] = await Promise.all([
-            getDocument(loc.id),
-            listPassagesInDocument(loc.id),
-          ]);
-          if (cancelled) return;
-          setPages(doc ? parsePages(doc.pages_json) : []);
-          setDocInfo(doc ? { id: doc.id, original_uri: doc.original_uri } : null);
-          setDocPassages(ps);
-        } else {
-          const folderId = loc.kind === 'folder' ? loc.id : null;
-          const [fs, ds, ps] = await Promise.all([
-            listFoldersInParent(folderId),
-            listDocumentsInFolder(folderId),
-            listPassagesInFolder(folderId),
-          ]);
-          if (cancelled) return;
-          setFolders(fs);
-          setDocs(ds);
-          // Document-backed passages belong under their PDF, not loose here.
-          setLoose(ps.filter((p) => !p.document_id));
+    getTempoLadderProgressForPassages(passages.map((p) => p.id))
+      .then((rows) => {
+        if (cancelled) return;
+        const map: Record<string, number> = {};
+        for (const r of rows) {
+          if (r.goal_tempo > 0) {
+            map[r.piece_id] = Math.max(
+              0,
+              Math.min(100, Math.round((r.current_tempo / r.goal_tempo) * 100)),
+            );
+          }
         }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+        setMastery(map);
+      })
+      .catch((err) => console.error('[picker] tempo ladder progress failed', err));
     return () => {
       cancelled = true;
     };
-  }, [loc]);
+  }, [passages]);
 
-  const goBack = () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
-  const openFolder = (f: Folder) =>
-    setStack((s) => [...s, { kind: 'folder', id: f.id, title: f.name }]);
-  const openDocument = (d: DocumentRow) =>
-    setStack((s) => [...s, { kind: 'document', id: d.id, title: d.title }]);
+  // ── Saved sets ────────────────────────────────────────────────────────────
+  const [savedSets, setSavedSets] = useState<SavedSet[]>([]);
+  const [saveOpen, setSaveOpen] = useState(false);
 
-  const title = loc.kind === 'root' ? 'Library' : loc.title;
-  const pageWidth = Math.min(width - Spacing.md * 2, MAX_PAGE_WIDTH);
+  useEffect(() => {
+    let cancelled = false;
+    getSetting(SAVED_SETS_KEY)
+      .then((raw) => {
+        if (cancelled || !raw) return;
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) setSavedSets(parsed as SavedSet[]);
+        } catch {
+          // ignore a corrupt blob — start from an empty set library
+        }
+      })
+      .catch((err) => console.error('[picker] load saved sets failed', err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  // Mirror the document viewer's navigation: clamp + scroll the horizontal
-  // pager to the target index.
-  const goToPage = useCallback(
-    (idx: number) => {
-      if (loc.kind !== 'document') return;
-      const max = pages.length - 1;
-      if (max < 0) return;
-      const clamped = Math.max(0, Math.min(max, idx));
-      setPageIndex(clamped);
-      pagerScrollRef.current?.scrollTo({ x: width * clamped, animated: true });
-    },
-    [loc.kind, pages.length, width],
-  );
+  const persistSets = useCallback((next: SavedSet[]) => {
+    setSavedSets(next);
+    setSetting(SAVED_SETS_KEY, JSON.stringify(next)).catch((err) =>
+      console.error('[picker] persist saved sets failed', err),
+    );
+  }, []);
 
-  function onPagerScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
-    if (loc.kind !== 'document' || width === 0) return;
-    const idx = Math.round(e.nativeEvent.contentOffset.x / width);
-    if (idx !== pageIndex) setPageIndex(idx);
+  function saveCurrentSet(name: string) {
+    const clean = name.trim();
+    if (!clean || selectedIds.length < 2) return;
+    persistSets([
+      ...savedSets,
+      { id: `${Date.now()}`, name: clean, passageIds: [...selectedIds] },
+    ]);
   }
 
-  // Arrow-key navigation on desktop, mirroring the document viewer. Bails
-  // out when typing into a text input so we don't fight form fields.
-  useEffect(() => {
-    // Desktop keyboard nav only. `typeof window` is NOT a safe native guard —
-    // React Native defines a `window` global without `addEventListener`, so on
-    // iOS this used to call `window.addEventListener` → "undefined is not a
-    // function" (crashed Rep Rotator the moment a PDF opened in the picker).
-    if (loc.kind !== 'document' || Platform.OS !== 'web') return;
-    function onKey(e: KeyboardEvent) {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      if (e.key === 'ArrowRight') goToPage(pageIndex + 1);
-      else if (e.key === 'ArrowLeft') goToPage(pageIndex - 1);
+  function deleteSet(id: string) {
+    persistSets(savedSets.filter((s) => s.id !== id));
+  }
+
+  function applySet(set: SavedSet) {
+    // Drop any ids no longer in the library so a stale set can't seed ghosts.
+    const live = set.passageIds.filter((id) => passages.some((p) => p.id === id));
+    onSetSelected(live);
+  }
+
+  // ── Grouping: by document (piece); loose photos in one bucket ─────────────
+  const groups = useMemo<PieceGroup[]>(() => {
+    const byKey = new Map<string, PieceGroup>();
+    for (const p of passages) {
+      const key = p.document_id ?? LOOSE_KEY;
+      let g = byKey.get(key);
+      if (!g) {
+        const doc = p.document_id ? docs.get(p.document_id) : undefined;
+        g = {
+          key,
+          title: p.document_id
+            ? doc?.title ?? 'Untitled piece'
+            : 'Loose passages',
+          composer: p.document_id ? doc?.composer ?? p.composer : null,
+          thumbnailUri: null,
+          passages: [],
+        };
+        byKey.set(key, g);
+      }
+      g.passages.push(p);
+      if (!g.thumbnailUri) g.thumbnailUri = p.thumbnail_uri ?? p.source_uri ?? null;
     }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [loc.kind, pageIndex, goToPage]);
+    const list = [...byKey.values()];
+    // Alphabetical by title, loose bucket always last.
+    list.sort((a, b) => {
+      if (a.key === LOOSE_KEY) return 1;
+      if (b.key === LOOSE_KEY) return -1;
+      return a.title.localeCompare(b.title);
+    });
+    return list;
+  }, [passages, docs]);
+
+  // Map each passage to its group index → chip tint.
+  const tintByPassage = useMemo(() => {
+    const m = new Map<string, (typeof PIECE_TINTS)[number]>();
+    groups.forEach((g, i) => {
+      const tint = PIECE_TINTS[i % PIECE_TINTS.length];
+      for (const p of g.passages) m.set(p.id, tint);
+    });
+    return m;
+  }, [groups]);
+
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  // ── Search ────────────────────────────────────────────────────────────────
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const searchActive = q.length > 0;
+
+  const matchesQuery = useCallback(
+    (g: PieceGroup): { group: boolean; passages: Set<string> } => {
+      if (!searchActive) return { group: true, passages: new Set() };
+      const groupHit =
+        g.title.toLowerCase().includes(q) ||
+        (g.composer?.toLowerCase().includes(q) ?? false);
+      const passageHits = new Set(
+        g.passages.filter((p) => p.title.toLowerCase().includes(q)).map((p) => p.id),
+      );
+      return { group: groupHit || passageHits.size > 0, passages: passageHits };
+    },
+    [q, searchActive],
+  );
+
+  // ── Expand / collapse ─────────────────────────────────────────────────────
+  const [manualExpanded, setManualExpanded] = useState<Record<string, boolean>>({});
+  const isExpanded = useCallback(
+    (g: PieceGroup): boolean => {
+      if (searchActive) return true; // search reveals every matching group
+      if (g.key in manualExpanded) return manualExpanded[g.key];
+      const hasSelected = g.passages.some((p) => selectedSet.has(p.id));
+      return hasSelected || groups.length === 1;
+    },
+    [manualExpanded, searchActive, selectedSet, groups.length],
+  );
+  function toggleExpand(g: PieceGroup) {
+    setManualExpanded((prev) => ({ ...prev, [g.key]: !isExpanded(g) }));
+  }
+
+  // ── Randomize ─────────────────────────────────────────────────────────────
+  const [randomOpen, setRandomOpen] = useState(false);
+  const total = passages.length;
+  const [count, setCount] = useState(2);
+  // Seed the requested count to a sensible default once passages load.
+  useEffect(() => {
+    setCount((c) => Math.max(2, Math.min(total || 2, c === 2 ? Math.min(4, total) : c)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total]);
+  const clampCount = (n: number) => Math.max(2, Math.min(total, n));
+
+  function randomizeFrom(scopeIds: string[]) {
+    const n = Math.min(count, scopeIds.length);
+    onSetSelected(shuffle(scopeIds).slice(0, n));
+    setRandomOpen(false);
+  }
+
+  const selectedCount = selectedIds.length;
+  const canStart = selectedCount >= minToStart;
+
+  // ── Render helpers ────────────────────────────────────────────────────────
+  function renderMastery(p: Passage) {
+    const pct = mastery[p.id];
+    if (pct == null) {
+      return <ThemedText style={styles.masteryNone}>—</ThemedText>;
+    }
+    const color = masteryColor(pct);
+    return (
+      <View style={styles.masteryBadge}>
+        <View style={[styles.masteryDot, { backgroundColor: color }]} />
+        <ThemedText style={[styles.masteryPct, { color }]}>{pct}%</ThemedText>
+      </View>
+    );
+  }
 
   function renderPassageRow(p: Passage) {
-    const idx = selectedIds.indexOf(p.id);
-    const selected = idx >= 0;
+    const selected = selectedSet.has(p.id);
+    const hint = pageHint(p);
     return (
       <Pressable
         key={p.id}
         onPress={() => onToggle(p.id)}
         style={[
           styles.passageRow,
-          {
-            borderColor: selected ? C.tint : C.icon + '44',
-            backgroundColor: selected ? C.tint + '11' : 'transparent',
-          },
+          selected && { backgroundColor: Palette.accentSoft, borderColor: Palette.accent },
         ]}>
-        {p.thumbnail_uri ? (
-          <Image
-            source={{ uri: p.thumbnail_uri }}
-            style={styles.thumb}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={[styles.thumb, { backgroundColor: C.icon + '22' }]} />
-        )}
-        <ThemedText style={styles.passageTitle} numberOfLines={1}>
-          {p.title || 'Untitled'}
-        </ThemedText>
         <View
           style={[
-            styles.indicator,
-            {
-              borderColor: selected ? C.tint : C.icon,
-              backgroundColor: selected ? C.tint : 'transparent',
-            },
+            styles.checkbox,
+            selected
+              ? { backgroundColor: Palette.accent, borderColor: Palette.accent }
+              : { borderColor: Palette.borderStrong },
           ]}>
-          {selected && (
-            <ThemedText style={styles.indicatorText}>
-              {order === 'serial' ? String(idx + 1) : '✓'}
-            </ThemedText>
-          )}
+          {selected && <Feather name="check" size={14} color="#fff" />}
         </View>
+        <View style={styles.passageText}>
+          <ThemedText type="defaultSemiBold" numberOfLines={1}>
+            {p.title || 'Untitled'}
+          </ThemedText>
+          {hint ? <ThemedText style={styles.passageHint}>{hint}</ThemedText> : null}
+        </View>
+        {renderMastery(p)}
       </Pressable>
     );
   }
 
-  function renderPage(page: DocumentPage) {
-    if (pageWidth <= 0 || page.w <= 0 || page.h <= 0 || !docInfo) return null;
-    const W = pageWidth;
-    const H = (W * page.h) / page.w;
-    const hits: { passage: Passage; x: number; y: number; w: number; h: number }[] =
-      [];
-    for (const p of docPassages) {
-      for (const r of parseRegions(p.regions_json)) {
-        if (r.page === page.index) {
-          hits.push({ passage: p, x: r.x, y: r.y, w: r.w, h: r.h });
-        }
-      }
-    }
-    // Largest first → small boxes render last (on top) and catch the tap.
-    hits.sort((a, b) => b.w * b.h - a.w * a.h);
+  function renderGroup(g: PieceGroup) {
+    const match = matchesQuery(g);
+    if (!match.group) return null;
+    const expanded = isExpanded(g);
+    const visiblePassages =
+      searchActive && match.passages.size > 0
+        ? g.passages.filter((p) => match.passages.has(p.id))
+        : g.passages;
+    const pickedInGroup = g.passages.filter((p) => selectedSet.has(p.id)).length;
     return (
-      <View key={page.index} style={[styles.page, { width: W, height: H }]}>
-        <DocumentPageImage
-          doc={docInfo}
-          page={page}
-          style={StyleSheet.absoluteFill}
-          contentFit="fill"
-          // Render only the page in view + neighbors; the pager mounts all
-          // pages at once and on-demand renders are heavy.
-          active={Math.abs(page.index - 1 - pageIndex) <= 1}
-        />
-        {hits.map(({ passage, x, y, w, h }) => {
-          const idx = selectedIds.indexOf(passage.id);
-          const selected = idx >= 0;
-          return (
-            <Pressable
-              key={`${passage.id}:${page.index}`}
-              onPress={() => onToggle(passage.id)}
-              style={[
-                styles.box,
-                {
-                  left: (x / page.w) * W,
-                  top: (y / page.h) * H,
-                  width: (w / page.w) * W,
-                  height: (h / page.h) * H,
-                  borderColor: selected ? C.tint : '#000',
-                  borderWidth: selected ? 3 : 1.5,
-                  backgroundColor: selected ? C.tint + '33' : '#00000014',
-                },
-              ]}>
-              <View style={styles.boxLabel}>
-                <ThemedText
-                  style={[
-                    styles.boxLabelText,
-                    { color: selected ? C.tint : '#222' },
-                  ]}
-                  numberOfLines={1}>
-                  {passage.title}
-                </ThemedText>
-              </View>
-              {selected && (
-                <View style={[styles.boxBadge, { backgroundColor: C.tint }]}>
-                  <ThemedText style={styles.boxBadgeText}>
-                    {order === 'serial' ? String(idx + 1) : '✓'}
-                  </ThemedText>
-                </View>
-              )}
-            </Pressable>
-          );
-        })}
+      <View key={g.key} style={styles.groupCard}>
+        <Pressable style={styles.groupHeader} onPress={() => toggleExpand(g)}>
+          {g.thumbnailUri ? (
+            <Image source={{ uri: g.thumbnailUri }} style={styles.groupThumb} contentFit="cover" />
+          ) : (
+            <View style={[styles.groupThumb, { backgroundColor: Palette.surfaceSunk }]} />
+          )}
+          <View style={styles.groupTitleCol}>
+            <ThemedText type="defaultSemiBold" numberOfLines={1}>
+              {g.title}
+            </ThemedText>
+            {g.composer ? (
+              <ThemedText style={styles.groupComposer} numberOfLines={1}>
+                {g.composer}
+              </ThemedText>
+            ) : null}
+          </View>
+          <ThemedText
+            style={[
+              styles.groupPicked,
+              { color: pickedInGroup > 0 ? Palette.accent : Palette.textMuted },
+            ]}>
+            {pickedInGroup} of {g.passages.length}
+          </ThemedText>
+          <Feather
+            name={expanded ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={Palette.textMuted}
+          />
+        </Pressable>
+        {expanded && (
+          <View style={styles.groupBody}>{visiblePassages.map(renderPassageRow)}</View>
+        )}
       </View>
     );
   }
 
+  const anyVisible = groups.some((g) => matchesQuery(g).group);
+
   return (
-    <View
-      style={styles.fill}
-      onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)}>
-      <View style={[styles.navRow, { borderBottomColor: C.icon + '33' }]}>
-        {stack.length > 1 ? (
-          <Pressable onPress={goBack} hitSlop={10} style={styles.navBtn}>
-            <ThemedText
-              style={[styles.navBtnText, { color: C.tint }]}
-              numberOfLines={1}>
-              {loc.kind === 'document' ? '‹ Choose more passages' : '‹ Back'}
-            </ThemedText>
-          </Pressable>
-        ) : (
-          <View style={styles.navBtn} />
-        )}
-        <ThemedText style={styles.navTitle} numberOfLines={1}>
-          {title}
-        </ThemedText>
-        <ThemedText style={[styles.navCount, { color: C.icon }]}>
-          {selectedIds.length} selected
-        </ThemedText>
-      </View>
-
-      <ThemedText style={[styles.hint, { color: C.icon }]}>
-        {loc.kind === 'document'
-          ? 'Tap a passage box to add or remove it.'
-          : 'Open a folder or PDF, then tap passage boxes on the music to pick them.'}
-      </ThemedText>
-
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={C.tint} />
+    <View style={styles.fill}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + Spacing.sm }]}
+        keyboardShouldPersistTaps="handled">
+        {/* Header */}
+        <View
+          style={styles.backRow}
+          onStartShouldSetResponder={() => true}
+          onResponderRelease={onExit}>
+          <Feather name="chevron-left" size={18} color={Palette.accent} />
+          <ThemedText style={styles.backText}>Back</ThemedText>
         </View>
-      ) : loc.kind === 'document' ? (
-        <View style={styles.pagerWrap}>
-          {pages.length === 0 ? (
-            <ThemedText style={[styles.empty, { color: C.icon }]}>
-              This PDF has no pages.
+        <View style={styles.titleRow}>
+          <View style={styles.titleCol}>
+            <ThemedText type="title">Interleave passages</ThemedText>
+            <ThemedText style={styles.subtitle}>
+              Pick 2 or more from any piece — mixing spots beats drilling one on repeat.
             </ThemedText>
-          ) : (
-            <>
-              <ScrollView
-                ref={pagerScrollRef}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onScroll={onPagerScroll}
-                scrollEventThrottle={32}>
-                {pages.map((page) => (
-                  <View
-                    key={page.index}
-                    style={[styles.pageSlot, { width }]}>
-                    {/* Per-page vertical scroll: portrait PDFs are usually
-                        taller than the slot, and pages here keep their
-                        explicit width/height (boxes are absolutely-positioned
-                        in source-pixel space, so we can't fall back to
-                        contentFit="contain"). RN's nested scroll handles the
-                        gesture handoff: vertical drags scroll the page,
-                        horizontal swipes flip the page. */}
-                    <ScrollView
-                      contentContainerStyle={styles.pageSlotInner}
-                      showsVerticalScrollIndicator={false}>
-                      {renderPage(page)}
-                    </ScrollView>
-                  </View>
-                ))}
-              </ScrollView>
+          </View>
+          <View
+            style={[
+              styles.pickedChip,
+              selectedCount > 0
+                ? { backgroundColor: Palette.accent }
+                : { backgroundColor: Palette.surfaceSunk },
+            ]}>
+            <ThemedText
+              style={[
+                styles.pickedChipText,
+                { color: selectedCount > 0 ? '#fff' : Palette.textMuted },
+              ]}>
+              {selectedCount} picked
+            </ThemedText>
+          </View>
+        </View>
 
-              {/* Edge tap zones — wide invisible areas matching the document
-                  viewer's tap-anywhere-on-the-edge muscle memory. */}
-              <Pressable
-                style={[styles.pickerTapZone, { left: 0 }]}
-                onPress={() => goToPage(pageIndex - 1)}
-                accessibilityLabel="Previous page"
-              />
-              <Pressable
-                style={[styles.pickerTapZone, { right: 0 }]}
-                onPress={() => goToPage(pageIndex + 1)}
-                accessibilityLabel="Next page"
-              />
-
-              {/* Visible chevrons for mouse users. */}
-              {pageIndex > 0 && (
-                <Pressable
-                  onPress={() => goToPage(pageIndex - 1)}
-                  hitSlop={10}
-                  style={[styles.pickerNavBtn, styles.pickerNavLeft, { borderColor: C.icon }]}
-                  accessibilityLabel="Previous page">
-                  <ThemedText style={[styles.pickerNavGlyph, { color: C.tint }]}>‹</ThemedText>
-                </Pressable>
-              )}
-              {pageIndex < pages.length - 1 && (
-                <Pressable
-                  onPress={() => goToPage(pageIndex + 1)}
-                  hitSlop={10}
-                  style={[styles.pickerNavBtn, styles.pickerNavRight, { borderColor: C.icon }]}
-                  accessibilityLabel="Next page">
-                  <ThemedText style={[styles.pickerNavGlyph, { color: C.tint }]}>›</ThemedText>
-                </Pressable>
-              )}
-
-              {/* Page counter — bottom center. */}
-              <View pointerEvents="none" style={styles.pickerPageCounter}>
-                <ThemedText style={[styles.pickerPageCounterText, { color: C.icon }]}>
-                  {pageIndex + 1} / {pages.length}
-                </ThemedText>
-              </View>
-            </>
-          )}
-          {pages.length > 0 && docPassages.length === 0 && (
-            <View pointerEvents="none" style={styles.pickerEmptyOverlay}>
-              <ThemedText style={[styles.empty, { color: C.icon }]}>
-                No passages have been marked in this PDF yet.
-              </ThemedText>
+        {/* Search */}
+        <View style={styles.searchRow}>
+          <Feather name="search" size={16} color={Palette.textMuted} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search pieces and passages"
+            placeholderTextColor={Palette.textMuted}
+            style={styles.searchInput}
+            autoCorrect={false}
+          />
+          {query.length > 0 && (
+            <View onStartShouldSetResponder={() => true} onResponderRelease={() => setQuery('')}>
+              <Feather name="x" size={16} color={Palette.textMuted} />
             </View>
           )}
         </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.list}>
-          {folders.length === 0 && docs.length === 0 && loose.length === 0 && (
-            <ThemedText style={[styles.empty, { color: C.icon }]}>
-              Nothing here yet.
-            </ThemedText>
+
+        {/* Quick-start: Randomize + saved sets · count picker */}
+        <View style={styles.quickRow}>
+          <View style={styles.quickLeft}>
+            <Chip
+              onPress={() => setRandomOpen((o) => !o)}
+              style={[
+                styles.randomizeChip,
+                randomOpen && { borderColor: Palette.accent, borderWidth: Borders.thick },
+              ]}>
+              <Feather name="shuffle" size={14} color={Palette.accent} />
+              <ThemedText style={styles.randomizeText}>Randomize</ThemedText>
+              <Feather
+                name={randomOpen ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={Palette.accent}
+              />
+            </Chip>
+            {savedSets.map((set) => (
+              <Chip key={set.id} onPress={() => applySet(set)} style={styles.setChip}>
+                <ThemedText style={styles.setChipText} numberOfLines={1}>
+                  {set.name}
+                </ThemedText>
+                <View
+                  onStartShouldSetResponder={() => true}
+                  onResponderRelease={() => deleteSet(set.id)}
+                  hitSlop={8}>
+                  <Feather name="x" size={13} color={Palette.textMuted} />
+                </View>
+              </Chip>
+            ))}
+          </View>
+          <View style={styles.countPicker}>
+            <Stepper
+              label="−"
+              onPress={() => setCount((c) => clampCount(c - 1))}
+              disabled={count <= 2}
+            />
+            <ThemedText style={styles.countValue}>{count}</ThemedText>
+            <Stepper
+              label="+"
+              onPress={() => setCount((c) => clampCount(c + 1))}
+              disabled={count >= total}
+            />
+          </View>
+        </View>
+
+        {/* Randomize dropdown (inline, no overlay) */}
+        {randomOpen && (
+          <View style={styles.dropdown}>
+            <ThemedText style={styles.dropdownHeader}>Randomly pick {count} from</ThemedText>
+            <DropdownOption
+              label="Anywhere in my library"
+              meta={`${total} passages`}
+              onPress={() => randomizeFrom(passages.map((p) => p.id))}
+            />
+            {groups.map((g) => (
+              <DropdownOption
+                key={g.key}
+                thumbnailUri={g.thumbnailUri}
+                label={g.title}
+                meta={`${g.passages.length} passage${g.passages.length === 1 ? '' : 's'}`}
+                onPress={() => randomizeFrom(g.passages.map((p) => p.id))}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Piece groups */}
+        {total === 0 ? (
+          <ThemedText style={styles.empty}>
+            No passages yet. Add a piece in your library first.
+          </ThemedText>
+        ) : !anyVisible ? (
+          <ThemedText style={styles.empty}>No pieces match “{query}”.</ThemedText>
+        ) : (
+          groups.map(renderGroup)
+        )}
+      </ScrollView>
+
+      {/* Sticky bottom bar */}
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + Spacing.md }]}>
+        {selectedCount > 0 && (
+          <View style={styles.chipsRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipsScroll}
+              keyboardShouldPersistTaps="handled">
+              {selectedIds.map((id) => {
+                const p = passages.find((x) => x.id === id);
+                if (!p) return null;
+                const tint = tintByPassage.get(id) ?? PIECE_TINTS[0];
+                return (
+                  <View key={id} style={[styles.selChip, { backgroundColor: tint.bg }]}>
+                    <ThemedText
+                      style={[styles.selChipText, { color: tint.fg }]}
+                      numberOfLines={1}>
+                      {p.title || 'Untitled'}
+                    </ThemedText>
+                    <View
+                      onStartShouldSetResponder={() => true}
+                      onResponderRelease={() => onToggle(id)}
+                      hitSlop={6}>
+                      <Feather name="x" size={13} color={tint.fg} />
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+            <View
+              onStartShouldSetResponder={() => true}
+              onResponderRelease={() => onSetSelected([])}>
+              <ThemedText style={styles.clearText}>Clear</ThemedText>
+            </View>
+          </View>
+        )}
+        <View style={styles.bottomActions}>
+          {selectedCount >= 2 && (
+            <Button
+              label="Save set"
+              variant="outline"
+              size="sm"
+              onPress={() => setSaveOpen(true)}
+            />
           )}
-          {folders.map((f) => {
-            const n = folderCounts.get(f.id) ?? 0;
-            return (
-              <Pressable
-                key={f.id}
-                onPress={() => openFolder(f)}
-                style={[styles.row, { borderColor: C.icon + '44' }]}>
-                <ThemedText style={styles.rowIcon}>📁</ThemedText>
-                <ThemedText style={styles.rowTitle} numberOfLines={1}>
-                  {f.name}
-                </ThemedText>
-                {n > 0 && (
-                  <View style={[styles.countBadge, { backgroundColor: C.tint }]}>
-                    <ThemedText style={styles.countBadgeText}>{n}</ThemedText>
-                  </View>
-                )}
-                <ThemedText style={[styles.chevron, { color: C.icon }]}>›</ThemedText>
-              </Pressable>
-            );
-          })}
-          {docs.map((d) => {
-            const n = docCounts.get(d.id) ?? 0;
-            return (
-              <Pressable
-                key={d.id}
-                onPress={() => openDocument(d)}
-                style={[styles.row, { borderColor: C.icon + '44' }]}>
-                <ThemedText style={styles.rowIcon}>📄</ThemedText>
-                <ThemedText style={styles.rowTitle} numberOfLines={1}>
-                  {d.title}
-                </ThemedText>
-                {n > 0 && (
-                  <View style={[styles.countBadge, { backgroundColor: C.tint }]}>
-                    <ThemedText style={styles.countBadgeText}>{n}</ThemedText>
-                  </View>
-                )}
-                <ThemedText style={[styles.chevron, { color: C.icon }]}>›</ThemedText>
-              </Pressable>
-            );
-          })}
-          {loose.map((p) => renderPassageRow(p))}
-        </ScrollView>
+          <View style={styles.bottomCta}>
+            <Button
+              label={canStart ? `${startLabel} · ${selectedCount}` : `Pick at least ${minToStart} passages`}
+              onPress={onStart}
+              disabled={!canStart}
+            />
+          </View>
+        </View>
+      </View>
+
+      <PromptModal
+        visible={saveOpen}
+        title="Save this set"
+        message="Give this group of passages a name so you can re-pick it later."
+        placeholder="e.g. Audition round"
+        submitLabel="Save"
+        onSubmit={(name) => {
+          setSaveOpen(false);
+          saveCurrentSet(name);
+        }}
+        onCancel={() => setSaveOpen(false)}
+      />
+    </View>
+  );
+}
+
+// Small rounded chip used for Randomize + saved-set pills. Plain View with a
+// responder so nested ✕ buttons keep their own press handling.
+function Chip({
+  children,
+  onPress,
+  style,
+}: {
+  children: React.ReactNode;
+  onPress: () => void;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View
+      style={[styles.chip, style]}
+      onStartShouldSetResponder={() => true}
+      onResponderRelease={onPress}>
+      {children}
+    </View>
+  );
+}
+
+function Stepper({
+  label,
+  onPress,
+  disabled,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <View
+      style={[styles.stepBtn, disabled && { opacity: 0.35 }]}
+      onStartShouldSetResponder={() => !disabled}
+      onResponderRelease={() => {
+        if (!disabled) onPress();
+      }}>
+      <ThemedText style={styles.stepGlyph}>{label}</ThemedText>
+    </View>
+  );
+}
+
+function DropdownOption({
+  label,
+  meta,
+  thumbnailUri,
+  onPress,
+}: {
+  label: string;
+  meta: string;
+  thumbnailUri?: string | null;
+  onPress: () => void;
+}) {
+  return (
+    <View
+      style={styles.dropdownOption}
+      onStartShouldSetResponder={() => true}
+      onResponderRelease={onPress}>
+      {thumbnailUri ? (
+        <Image source={{ uri: thumbnailUri }} style={styles.dropdownThumb} contentFit="cover" />
+      ) : (
+        <View style={[styles.dropdownThumb, { backgroundColor: Palette.accentSoft }]}>
+          <Feather name="book-open" size={14} color={Palette.accent} />
+        </View>
       )}
+      <ThemedText type="defaultSemiBold" style={{ flex: 1 }} numberOfLines={1}>
+        {label}
+      </ThemedText>
+      <ThemedText style={styles.dropdownMeta}>{meta}</ThemedText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  navRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: Spacing.sm,
-  },
-  navBtn: { minWidth: 64 },
-  navBtnText: { fontSize: Type.size.md, fontWeight: Type.weight.bold },
-  navTitle: { flex: 1, fontSize: Type.size.md, fontWeight: Type.weight.bold },
-  navCount: { fontSize: Type.size.sm, fontWeight: Type.weight.semibold },
-  hint: {
-    fontSize: Type.size.xs,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-  },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.lg, gap: 6 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  scroll: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xl,
     gap: Spacing.md,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    borderWidth: Borders.thin,
-    borderRadius: Radii.md,
   },
-  rowIcon: { fontSize: 20 },
-  rowTitle: {
+
+  backRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  backText: { color: Palette.accent, fontWeight: Type.weight.semibold, fontSize: Type.size.md },
+
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+  },
+  titleCol: { flex: 1, gap: Spacing.xs },
+  subtitle: {
+    color: Palette.textSecondary,
+    fontSize: Type.size.md,
+    lineHeight: 20,
+  },
+  pickedChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: Radii.pill,
+    marginTop: 4,
+  },
+  pickedChipText: { fontSize: Type.size.sm, fontWeight: Type.weight.heavy },
+
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.xl,
+    paddingHorizontal: Spacing.md,
+    height: 46,
+  },
+  searchInput: {
     flex: 1,
     fontSize: Type.size.md,
-    fontWeight: Type.weight.semibold,
+    color: Palette.text,
   },
-  chevron: { fontSize: 22, fontWeight: Type.weight.heavy },
-  countBadge: {
-    minWidth: 22,
-    height: 22,
-    borderRadius: 11,
+
+  quickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  quickLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderRadius: Radii.pill,
+  },
+  randomizeChip: {
+    backgroundColor: Palette.accentSoft,
+    borderWidth: Borders.thin,
+    borderColor: Palette.accent + '44',
+  },
+  randomizeText: { color: Palette.accent, fontWeight: Type.weight.bold, fontSize: Type.size.sm },
+  setChip: {
+    backgroundColor: Palette.surfaceSunk,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    maxWidth: 160,
+  },
+  setChipText: {
+    color: Palette.text,
+    fontWeight: Type.weight.semibold,
+    fontSize: Type.size.sm,
+    flexShrink: 1,
+  },
+
+  countPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.pill,
     paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  stepBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Palette.surfaceSunk,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  countBadgeText: {
-    color: '#fff',
+  stepGlyph: { fontSize: 18, fontWeight: Type.weight.heavy, color: Palette.text, lineHeight: 20 },
+  countValue: {
+    minWidth: 18,
+    textAlign: 'center',
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    fontVariant: ['tabular-nums'],
+  },
+
+  dropdown: {
+    backgroundColor: Palette.card,
+    // Petrol outline so the open randomize panel reads as a distinct, active
+    // dropdown rather than blending into the piece cards below it.
+    borderWidth: Borders.thick,
+    borderColor: Palette.accent,
+    borderRadius: Radii['2xl'],
+    padding: Spacing.sm,
+    gap: 2,
+    ...Lift,
+  },
+  dropdownHeader: {
     fontSize: Type.size.xs,
     fontWeight: Type.weight.heavy,
+    color: Palette.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
+  dropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radii.lg,
+  },
+  dropdownThumb: {
+    width: 32,
+    height: 32,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dropdownMeta: { fontSize: Type.size.xs, color: Palette.textMuted },
+
+  groupCard: {
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii['2xl'],
+    ...Lift,
+    overflow: 'hidden',
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.md,
+  },
+  groupThumb: { width: 44, height: 44, borderRadius: Radii.md },
+  groupTitleCol: { flex: 1, gap: 1 },
+  groupComposer: { color: Palette.textSecondary, fontSize: Type.size.sm },
+  groupPicked: { fontSize: Type.size.sm, fontWeight: Type.weight.bold, fontVariant: ['tabular-nums'] },
+  groupBody: {
+    paddingHorizontal: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    gap: 6,
+  },
+
   passageRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    padding: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radii.lg,
     borderWidth: Borders.thin,
-    borderRadius: Radii.md,
+    borderColor: 'transparent',
   },
-  thumb: { width: 56, height: 38, borderRadius: Radii.sm },
-  passageTitle: {
-    flex: 1,
-    fontSize: Type.size.md,
-    fontWeight: Type.weight.semibold,
-  },
-  indicator: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: Borders.thin,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  indicatorText: {
-    color: '#fff',
-    fontWeight: Type.weight.heavy,
-    fontSize: Type.size.sm,
-  },
-  pageList: { padding: Spacing.md, gap: Spacing.md, alignItems: 'center' },
-  pagerWrap: { flex: 1 },
-  pageSlot: {
-    height: '100%',
-  },
-  pageSlotInner: {
-    padding: Spacing.md,
-    alignItems: 'center',
-  },
-  pickerTapZone: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 60,
-  },
-  pickerNavBtn: {
-    position: 'absolute',
-    top: 8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: Borders.thin,
-    backgroundColor: '#ffffffcc',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickerNavLeft: { left: 8 },
-  pickerNavRight: { right: 8 },
-  pickerNavGlyph: {
-    fontSize: 28,
-    lineHeight: 30,
-    fontWeight: Type.weight.heavy,
-  },
-  pickerPageCounter: {
-    position: 'absolute',
-    bottom: 8,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  pickerPageCounterText: {
-    fontSize: Type.size.xs,
-    fontWeight: Type.weight.semibold,
-  },
-  pickerEmptyOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingTop: Spacing.xl,
-  },
-  page: {
-    position: 'relative',
-    backgroundColor: '#fff',
-    borderRadius: Radii.sm,
-    overflow: 'hidden',
-  },
-  box: { position: 'absolute', borderRadius: Radii.sm },
-  boxLabel: {
-    position: 'absolute',
-    top: 2,
-    left: 2,
-    backgroundColor: '#ffffffe0',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: Radii.sm,
-    maxWidth: '92%',
-  },
-  boxLabelText: { fontSize: Type.size.xs, fontWeight: Type.weight.semibold },
-  boxBadge: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    minWidth: 22,
+  checkbox: {
+    width: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: 6,
+    borderWidth: Borders.medium,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 5,
   },
-  boxBadgeText: {
-    color: '#fff',
+  passageText: { flex: 1, gap: 1 },
+  passageHint: { color: Palette.textMuted, fontSize: Type.size.xs },
+  masteryBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  masteryDot: { width: 8, height: 8, borderRadius: 4 },
+  masteryPct: {
+    fontSize: Type.size.sm,
     fontWeight: Type.weight.heavy,
-    fontSize: Type.size.xs,
+    fontVariant: ['tabular-nums'],
   },
+  masteryNone: { color: Palette.textMuted, fontSize: Type.size.sm, opacity: 0.5 },
+
   empty: {
     textAlign: 'center',
-    padding: Spacing.xl,
-    fontSize: Type.size.sm,
+    color: Palette.textMuted,
+    paddingVertical: Spacing.xl,
+    fontSize: Type.size.md,
   },
+
+  bottomBar: {
+    borderTopWidth: Borders.thin,
+    borderTopColor: Palette.border,
+    backgroundColor: Palette.paper,
+    paddingLeft: Spacing.lg,
+    // Extra right padding keeps the CTA clear of the global floating "?" help
+    // button (fixed bottom-right, ~60px) so they don't overlap.
+    paddingRight: HELP_CLEARANCE,
+    paddingTop: Spacing.md,
+    gap: Spacing.sm,
+  },
+  chipsRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  chipsScroll: { gap: Spacing.sm, alignItems: 'center', paddingRight: Spacing.sm },
+  selChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingLeft: Spacing.md,
+    paddingRight: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: Radii.pill,
+    maxWidth: 180,
+  },
+  selChipText: { fontSize: Type.size.sm, fontWeight: Type.weight.semibold, flexShrink: 1 },
+  clearText: { color: Palette.textSecondary, fontWeight: Type.weight.semibold, fontSize: Type.size.sm },
+
+  bottomActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  bottomCta: { flex: 1 },
 });

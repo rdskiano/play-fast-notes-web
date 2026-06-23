@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -7,7 +8,9 @@ import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
 import { RhythmBar } from '@/components/RhythmBar';
 import { PedalCatcher } from '@/components/PedalCatcher';
+import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
+import { RotateForPractice } from '@/components/RotateForPractice';
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ScoreWithMarkers } from '@/components/ScoreWithMarkers';
@@ -18,6 +21,7 @@ import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
+import { Lift, Palette } from '@/constants/palette';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -75,11 +79,13 @@ export default function RhythmicScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { colors } = useStrategyColors();
+  // Rhythmic Variation's strategy color (violet by default; respects a user
+  // override). Themes the run-screen tracker chip + the Done link.
+  const ACCENT = colors.rhythmic;
   const insets = useSafeAreaInsets();
   // Phone density flag — drives the scrollable score below.
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
-  const isLandscape = vpW > vpH;
   const isTouch = useIsTouchDevice();
 
   const rawGrouping = Array.isArray(params.grouping)
@@ -318,7 +324,7 @@ export default function RhythmicScreen() {
               <Pressable
                 key={n}
                 onPress={() => startWithGrouping(n)}
-                style={[styles.groupingChip, { borderColor: C.icon }]}>
+                style={[styles.groupingChip, { borderColor: Palette.border, backgroundColor: Palette.card }]}>
                 <AbcStaffView
                   abc={abc}
                   width={w}
@@ -340,77 +346,44 @@ export default function RhythmicScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      {!toolsOnly && phase === 'playing' && grouping && patterns.length > 0 && isLandscape ? (
-        // Landscape: the rhythm notation + Loop/Back/Next live IN the title
-        // row (EXIT + grouping on the left, DONE on the right). No separate
-        // band — wide screens have width to spare and height to save, and the
-        // notation renders large in the full title width.
-        <RhythmBar
-          pattern={patterns[currentIndex]}
-          rhythmLooping={metronome.rhythmLooping}
-          onToggleRhythm={toggleRhythm}
-          onPrev={onPrev}
-          onNext={onNext}
-          canPrev={currentIndex > 0}
-          canNext={currentIndex < patterns.length - 1}
-          withSafeArea
-          leading={
-            <View style={styles.headerLeading}>
-              <Pressable onPress={exitSession} hitSlop={8} style={styles.exitBtn}>
-                <ThemedText style={[styles.exitText, { color: C.tint }]}>EXIT</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => setPickerOpen(true)}
-                hitSlop={6}
-                accessibilityLabel="Change note grouping"
-                style={[styles.changeChip, { borderColor: C.tint, backgroundColor: C.tint + '15' }]}>
-                <ThemedText style={[styles.changeChipText, { color: C.tint }]}>
-                  {grouping}-note ▾
-                </ThemedText>
+      {phase === 'playing' && grouping ? (
+        <>
+          {/* ── Reskinned run top bar (all devices) — coral Exit (left) ·
+              centered "Pattern n/N · grouping ▾" tracker (centre). The tools
+              pill floats top-right (rendered at root, below). Mirrors Tempo
+              Ladder / Click-Up. */}
+          <View style={[styles.runTopBar, { paddingTop: insets.top + 10 }]}>
+            <View style={styles.runSide}>
+              <Pressable onPress={exitSession} hitSlop={8} style={styles.runExit}>
+                <Feather name="log-out" size={15} color={Palette.danger} />
+                <ThemedText style={styles.runExitText}>Exit</ThemedText>
               </Pressable>
             </View>
-          }
-          trailing={<Button label="DONE" variant="danger" size="sm" onPress={doneSession} />}
-        />
-      ) : (
-        <>
-          <SessionTopBar
-            onExit={phase === 'playing' ? exitSession : () => router.back()}
-            center={
-              phase === 'playing' && grouping ? (
-                <View style={styles.titleRow}>
-                  <ThemedText style={styles.topCenter} numberOfLines={1}>
-                    Pattern {currentIndex + 1}/{patterns.length}
-                  </ThemedText>
-                  <Pressable
-                    onPress={() => setPickerOpen(true)}
-                    hitSlop={6}
-                    accessibilityLabel="Change note grouping"
-                    style={[styles.changeChip, { borderColor: C.tint, backgroundColor: C.tint + '15' }]}>
-                    <ThemedText style={[styles.changeChipText, { color: C.tint }]}>
-                      {grouping}-note ▾
-                    </ThemedText>
-                    <ThemedText style={[styles.changeHint, { color: C.tint }]}>
-                      change
-                    </ThemedText>
-                  </Pressable>
-                </View>
-              ) : (
-                <ThemedText style={styles.topCenter} numberOfLines={1}>
-                  Rhythmic Variation
+            <View style={styles.runCenter}>
+              <View style={styles.runStatPill}>
+                <ThemedText style={styles.runStatLabel}>Pattern</ThemedText>
+                <ThemedText style={styles.runStatCount}>
+                  {currentIndex + 1}/{patterns.length}
                 </ThemedText>
-              )
-            }
-            right={
-              phase === 'playing' ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Button label="DONE" variant="danger" size="sm" onPress={doneSession} />
-                </View>
-              ) : null
-            }
-          />
+                <View style={styles.runStatDivider} />
+                <Pressable
+                  onPress={() => setPickerOpen(true)}
+                  hitSlop={6}
+                  accessibilityLabel="Change note grouping"
+                  style={[styles.groupingChipRun, { backgroundColor: ACCENT + '1A' }]}>
+                  <ThemedText style={[styles.groupingChipRunText, { color: ACCENT }]}>
+                    {grouping}-note
+                  </ThemedText>
+                  <Feather name="chevron-down" size={13} color={ACCENT} />
+                </Pressable>
+              </View>
+            </View>
+            <View style={styles.runSide} />
+          </View>
 
-          {!toolsOnly && phase === 'playing' && grouping && patterns.length > 0 && (
+          {/* Loop band — ▶ Loop · ‹ · rhythm notation · › (no score in Tools
+              mode, where the staff is the centerpiece in the body instead). */}
+          {!toolsOnly && patterns.length > 0 && (
             <RhythmBar
               pattern={patterns[currentIndex]}
               rhythmLooping={metronome.rhythmLooping}
@@ -423,6 +396,15 @@ export default function RhythmicScreen() {
             />
           )}
         </>
+      ) : (
+        <SessionTopBar
+          onExit={() => router.back()}
+          center={
+            <ThemedText style={styles.topCenter} numberOfLines={1}>
+              Rhythmic Variation
+            </ThemedText>
+          }
+        />
       )}
 
       <View
@@ -489,7 +471,7 @@ export default function RhythmicScreen() {
                   accessibilityLabel={metronome.rhythmLooping ? 'Stop rhythm' : 'Loop rhythm'}
                   style={[
                     styles.toolsLoopBtn,
-                    { backgroundColor: metronome.rhythmLooping ? '#c0392b' : C.tint },
+                    { backgroundColor: metronome.rhythmLooping ? Palette.danger : C.tint },
                   ]}>
                   <ThemedText style={styles.toolsLoopText}>
                     {metronome.rhythmLooping ? '■ Stop' : '▶ Loop'}
@@ -532,25 +514,43 @@ export default function RhythmicScreen() {
         </View>
         {/* Guided onboarding keeps the surface minimal — only a collapsed
             metronome tab (no note → starts closed) so the user can add a
-            steady pulse alongside the RhythmBar's ▶ Loop if they want. */}
-        {phase === 'playing' &&
-          (isGuided ? (
-            <PracticeToolsLayer
-              metronome={metronome}
-              tools={
-                isPhone
-                  ? { left: [], right: ['metronome'] }
-                  : { left: ['metronome'], right: [] }
-              }
-            />
-          ) : (
-            <PracticeToolsLayer
-              metronome={metronome}
-              pencil={ann.pencil}
-              recorderPassageId={passage?.id}
-            />
-          ))}
+            steady pulse alongside the RhythmBar's ▶ Loop if they want.
+            Non-guided uses the floating PracticeToolsBar (rendered at root,
+            below) instead of the edge dock. */}
+        {phase === 'playing' && isGuided && (
+          <PracticeToolsLayer
+            metronome={metronome}
+            tools={
+              isPhone
+                ? { left: [], right: ['metronome'] }
+                : { left: ['metronome'], right: [] }
+            }
+          />
+        )}
       </View>
+
+      {/* Done — log it. Rhythmic Variation doesn't auto-log, so this is the
+          sole way to save the session; a quiet centered link keeps the top bar
+          clean (Exit · tracker · tools) while staying reachable. */}
+      {phase === 'playing' && (
+        <View style={[styles.runDoneRow, { paddingBottom: insets.bottom + 8 }]}>
+          <Pressable onPress={doneSession} hitSlop={8}>
+            <ThemedText style={[styles.runDoneLink, { color: ACCENT }]}>
+              Done — log it
+            </ThemedText>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Tools pill — floats top-right (non-guided). Guided keeps the inline
+          collapsed metronome tab (in the content area above). */}
+      {!isGuided && phase === 'playing' && (
+        <PracticeToolsBar
+          metronome={metronome}
+          pencil={{ ...ann.pencil, onUndo: ann.undo }}
+          recorderPassageId={passage?.id}
+        />
+      )}
 
       {(phase === 'config' || pickerOpen) && (
         <Pressable
@@ -588,8 +588,9 @@ export default function RhythmicScreen() {
                   style={[
                     styles.groupingChip,
                     {
-                      borderColor: grouping === n ? C.tint : C.icon,
+                      borderColor: grouping === n ? ACCENT : Palette.border,
                       borderWidth: grouping === n ? 2 : 1,
+                      backgroundColor: grouping === n ? ACCENT + '14' : Palette.card,
                     },
                   ]}>
                   {/* Smaller illustration on phone so all six chips pack into
@@ -730,6 +731,9 @@ export default function RhythmicScreen() {
           }
         />
       )}
+      {/* Phone: practice runs in landscape. Portrait → "rotate" prompt.
+          Tools-only mode has no score, so portrait is fine. */}
+      <RotateForPractice disabled={toolsOnly} />
     </ThemedView>
   );
 }
@@ -737,6 +741,67 @@ export default function RhythmicScreen() {
 const styles = StyleSheet.create({
   topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.sm, textAlign: 'center' },
   contentArea: { flex: 1 },
+
+  // ── Reskinned run top bar (mirrors Tempo Ladder / Click-Up) ──────
+  runTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  runSide: { flex: 1, justifyContent: 'center' },
+  runExit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    alignSelf: 'flex-start',
+  },
+  runExitText: {
+    color: Palette.danger,
+    fontWeight: Type.weight.heavy,
+    fontSize: Type.size.md,
+  },
+  runCenter: { alignItems: 'center' },
+  runStatPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radii.pill,
+    backgroundColor: Palette.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    ...Lift,
+  },
+  runStatLabel: {
+    fontSize: 10,
+    fontWeight: Type.weight.bold,
+    letterSpacing: 0.5,
+    color: Palette.textMuted,
+    textTransform: 'uppercase',
+  },
+  runStatCount: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    fontVariant: ['tabular-nums'],
+  },
+  runStatDivider: { width: 1, height: 14, backgroundColor: Palette.border },
+  groupingChipRun: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
+  },
+  groupingChipRunText: { fontSize: Type.size.sm, fontWeight: Type.weight.heavy },
+  runDoneRow: { alignItems: 'center', paddingTop: Spacing.xs },
+  runDoneLink: { fontSize: Type.size.md, fontWeight: Type.weight.bold },
   // Tools-mode hero: the staff + its controls, centered in the empty body.
   toolsStage: {
     ...StyleSheet.absoluteFillObject,
@@ -765,7 +830,7 @@ const styles = StyleSheet.create({
   },
   // Color applied inline from the rhythmic strategy color; amber default here
   // so there's no purple fallback.
-  toolsNextBtn: { backgroundColor: '#d07b1f', borderColor: '#d07b1f' },
+  toolsNextBtn: { backgroundColor: Palette.rhythmic, borderColor: Palette.rhythmic },
   toolsNavText: { fontWeight: Type.weight.heavy, fontSize: Type.size.md },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -814,37 +879,5 @@ const styles = StyleSheet.create({
   cancelChangeText: {
     fontSize: Type.size.md,
     fontWeight: Type.weight.bold,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  headerLeading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  exitBtn: { paddingHorizontal: 4, paddingVertical: Spacing.xs },
-  exitText: { fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
-  changeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: Radii.md,
-    borderWidth: Borders.thin,
-  },
-  changeChipText: {
-    fontSize: Type.size.sm,
-    fontWeight: Type.weight.heavy,
-  },
-  changeHint: {
-    fontSize: Type.size.xs,
-    fontWeight: Type.weight.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    opacity: 0.8,
   },
 });

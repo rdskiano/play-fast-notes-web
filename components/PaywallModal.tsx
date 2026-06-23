@@ -20,6 +20,7 @@ import {
   TRIAL_DAYS,
 } from '@/constants/billing';
 import { startCheckout, type CheckoutPlan } from '@/lib/billing/checkout';
+import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Overlays, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -145,6 +146,6 @@ const styles = StyleSheet.create({
   error: {
     textAlign: 'center',
     fontSize: Type.size.sm,
-    color: '#c0392b',
+    color: Palette.danger,
   },
 });

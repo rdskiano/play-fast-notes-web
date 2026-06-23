@@ -2,16 +2,17 @@
 //
 // The user marks each beat of the passage (mark the start of every beat + one
 // at the end — so N marks = N-1 beats, like Click-Up units). Practice then
-// works through chunk sizes that DOUBLE (1, 2, 4, 8, …) up to the whole
-// passage. At EACH chunk size there are two phases:
+// works through chunk sizes that split the passage into equal full units (its
+// divisors — e.g. 8 → 1, 2, 4; 10 → 1, 2, 5) up to the whole passage. At EACH
+// chunk size there are two phases:
 //
 //   1. ISOLATE — drill each chunk on its own (play it into the first note of
 //      the next beat, repeat until comfortable). One step per chunk position.
 //   2. CHAIN — play the chunks in a row with rest beats inserted between them,
 //      knocking the rests down to zero.
 //
-// Then the chunk size doubles and you isolate, then chain, again — up to
-// playing the whole passage continuously.
+// Then the chunk size grows to the next divisor and you isolate, then chain,
+// again — up to playing the whole passage continuously.
 //
 // Step-based, NOT metronome-driven: the app shows the instruction + highlights
 // the relevant chunk(s) on the score; the user runs their own metronome and
@@ -37,8 +38,14 @@ export function initialRests(chunkSize: number): number {
 export function generateMacroSteps(beatCount: number): MacroStep[] {
   if (beatCount < 1) return [];
   const sizes = new Set<number>();
-  for (let c = 1; c < beatCount; c *= 2) sizes.add(c);
-  sizes.add(beatCount); // whole-passage level (and guarantees ≥1 size)
+  // Use chunk sizes that split the passage into ≥2 EQUAL full units — i.e. the
+  // divisors of beatCount up to half its length. Every unit stays a full unit
+  // (never a partial trailing chunk), and the progression grows naturally:
+  // 8 → 1, 2, 4; 10 → 1, 2, 5; 16 → 1, 2, 4, 8. The whole passage is the finale.
+  for (let c = 1; c * 2 <= beatCount; c++) {
+    if (beatCount % c === 0) sizes.add(c);
+  }
+  sizes.add(beatCount); // whole-passage finale (and guarantees ≥1 size)
   const ordered = [...sizes].sort((a, b) => a - b);
 
   const steps: MacroStep[] = [];
@@ -128,7 +135,7 @@ export function formatMacroInfoTitle(step: MacroStep | undefined): string {
   if (!step) return '';
   if (step.kind === 'isolate') {
     if (step.chunkCount === 1) return 'The whole passage';
-    return step.chunkSize === 1 ? 'Drill this chunk' : 'The chunks just doubled';
+    return step.chunkSize === 1 ? 'Drill this chunk' : 'Bigger chunks now';
   }
   if (step.restBeats === 0) return 'No full rests';
   // First chain (full rests) reads "Chain it together"; each later rest-drop
@@ -147,7 +154,7 @@ export function formatMacroInfo(step: MacroStep | undefined, beatCount: number):
       return 'It may not be perfect, but hopefully as the days go by, this step should feel better and better.';
     }
     if (step.chunkSize > 1) {
-      return `The chunks just doubled — you're now drilling bigger pieces, ${step.chunkSize} beats at a time. Drill each one until it's comfortable, then you'll chain them with rests again, just like before.`;
+      return `The chunks just grew — you're now drilling bigger pieces, ${step.chunkSize} beats at a time. Drill each one until it's comfortable, then you'll chain them with rests again, just like before.`;
     }
     return 'Play from the beginning of the chunk to the first note of the next. Repeat this chunk until it feels comfortable — but the moment you feel your autopilot kicking in, move on to the next.';
   }

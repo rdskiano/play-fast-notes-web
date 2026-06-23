@@ -15,13 +15,15 @@ import { renderPdfPage } from '@/modules/pdf-render';
 export type ResolvableDoc = { id: string; original_uri: string | null };
 export type ResolvablePage = { index: number; image_uri?: string; w: number; h: number };
 
-// Long-edge cap for rendered pages (px). Close enough to the web reference
-// render scale that crop/box coordinates (stored against page w/h) line up.
-const MAX_EDGE = 2000;
+// Sharp long edge for display renders (px). Crop callers override this with the
+// page's stored size (see resolvePageImageUri opts / the web sibling's note):
+// display wants a crisp image, crops need pixels in the page.w × page.h space.
+const DISPLAY_MAX_EDGE = 2000;
 
 export async function resolvePageImageUri(
   doc: ResolvableDoc,
   page: ResolvablePage,
+  opts: { maxEdge?: number } = {},
 ): Promise<string> {
   // Fast path: a stored per-page image — but only if it's actually usable. A
   // remote URL loads over the network; a local file is used if it exists. A
@@ -43,10 +45,16 @@ export async function resolvePageImageUri(
     const dir = new Directory(Paths.cache, 'pdf-pages', doc.id);
     if (!dir.exists) dir.create({ intermediates: true });
 
-    // Cache: render each page once, reuse forever (cleared only with the cache).
-    // The "-s2" version tag invalidates earlier renders written at the wrong
-    // scale (2x Retina, or a fixed maxEdge that didn't match pages_json).
-    const out = new File(dir, `p${page.index}-s2.jpg`);
+    // Render a generous long edge so both the full-page view and the cropped
+    // passage stay sharp even when pages_json was recorded small. The edge is
+    // part of the cache filename so renders at different sizes don't alias.
+    const longEdge = Math.max(page.w, page.h) || 0;
+    const renderEdge = opts.maxEdge ?? (Math.max(DISPLAY_MAX_EDGE, longEdge) || DISPLAY_MAX_EDGE);
+
+    // Cache: render each page/size once, reuse forever (cleared only with the
+    // cache). The "-s2" version tag invalidates earlier renders written at the
+    // wrong scale (2x Retina, or a fixed maxEdge that didn't match pages_json).
+    const out = new File(dir, `p${page.index}-s2-e${Math.round(renderEdge)}.jpg`);
     if (out.exists) return out.uri;
 
     // The renderer needs a local PDF. After /import-supabase the original PDF is
@@ -59,10 +67,6 @@ export async function resolvePageImageUri(
       pdfUri = localPdf.uri;
     }
 
-    // Render the page at EXACTLY its stored long edge (pages_json), so the image
-    // dimensions match the coordinate space passage crops are stored in. This is
-    // the single rule that keeps crops aligned no matter how the doc was made.
-    const renderEdge = Math.max(page.w, page.h) || MAX_EDGE;
     const rendered = await renderPdfPage(pdfUri, page.index, renderEdge, out.uri);
     return rendered ?? '';
   } catch {
@@ -70,4 +74,29 @@ export async function resolvePageImageUri(
     // DocumentPageImage retries on a later activation.
     return '';
   }
+}
+
+/**
+ * Resolve a page for cropping a passage out of it. Mirrors the web sibling:
+ * passage rects are stored in page.w × page.h space, but we render the page at
+ * the sharp display edge (an upscale for small stored pages) so the cropped
+ * passage stays crisp in practice, and return the `scale` to multiply the rect
+ * by. A stored per-page image is already at page.w × page.h → scale 1.
+ */
+export async function resolvePageForCrop(
+  doc: ResolvableDoc,
+  page: ResolvablePage,
+): Promise<{ uri: string; scale: number }> {
+  const longEdge = Math.max(page.w, page.h) || DISPLAY_MAX_EDGE;
+  if (page.image_uri) {
+    if (page.image_uri.startsWith('http')) return { uri: page.image_uri, scale: 1 };
+    try {
+      if (new File(page.image_uri).exists) return { uri: page.image_uri, scale: 1 };
+    } catch {
+      // unreadable stored image — fall through to a rendered crop
+    }
+  }
+  const cropEdge = Math.max(DISPLAY_MAX_EDGE, longEdge);
+  const uri = await resolvePageImageUri(doc, page, { maxEdge: cropEdge });
+  return { uri, scale: cropEdge / longEdge };
 }

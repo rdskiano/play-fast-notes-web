@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -7,13 +8,14 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { Colors } from '@/constants/theme';
+import { Lift, Palette } from '@/constants/palette';
+import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { insertDocument } from '@/lib/db/repos/documents';
 import { logOnboardingStep } from '@/lib/onboarding/telemetry';
 import { supabase } from '@/lib/supabase/client';
@@ -108,14 +110,26 @@ async function fileToPageImage(file: File): Promise<{ blob: Blob; w: number; h: 
 
 export default function UploadScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ folder?: string; coach?: string; piece?: string }>();
+  const params = useLocalSearchParams<{
+    folder?: string;
+    coach?: string;
+    piece?: string;
+    source?: string;
+  }>();
   const targetFolderId = params.folder ? params.folder : null;
   const coach = params.coach === '1';
+  // Guided onboarding sends the source the user picked ("Take a photo" vs
+  // "Choose a photo") so we open that picker directly instead of asking again.
+  const intent =
+    params.source === 'camera'
+      ? 'camera'
+      : params.source === 'library'
+        ? 'library'
+        : null;
   // Onboarding asks the piece name up front and passes it here so the photo/page
   // is titled the piece (and the first marked spot can auto-name "<piece> 1").
   const pieceTitle = params.piece?.trim();
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +146,17 @@ export default function UploadScreen() {
   function openCamera() {
     cameraInputRef.current?.click();
   }
+
+  // Open the picker the user chose in onboarding straight away. Best-effort:
+  // iOS Safari blocks a programmatic file-input click that isn't from a direct
+  // tap, so the buttons below remain as a one-tap fallback when this no-ops.
+  useEffect(() => {
+    if (!intent) return;
+    if (intent === 'camera') openCamera();
+    else openFilePicker();
+    // Fire once on mount for the onboarding hand-off.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // A photo is now a one-PAGE image document: we store the whole page and the
   // user marks as many passage boxes on it as they like (the PDF flow). So we
@@ -218,9 +243,16 @@ export default function UploadScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <ThemedView style={{ gap: 14 }}>
-          <ThemedText type="title">Add a photo</ThemedText>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + Spacing.md }]}>
+        <View style={styles.column}>
+          {/* Big-title header (DESIGN_RULES §3 — left-aligned page title) */}
+          <View style={styles.header}>
+            <Pressable onPress={() => router.back()} hitSlop={8}>
+              <ThemedText style={styles.backLink}>‹ Back</ThemedText>
+            </Pressable>
+            <ThemedText type="title">Add a photo</ThemedText>
+          </View>
 
           {/* The drop zone IS the picker — click it to open the OS file
               picker, or drag a file from Finder/Explorer onto it. Drag-and-
@@ -234,16 +266,17 @@ export default function UploadScreen() {
             style={[
               styles.dropZone,
               {
-                borderColor: dragOver ? C.tint : C.icon,
-                backgroundColor: dragOver ? C.tint + '14' : 'transparent',
+                borderColor: dragOver ? Palette.accent : Palette.border,
+                backgroundColor: dragOver ? Palette.accentSoft : Palette.surfaceSunk,
                 opacity: saving ? 0.5 : 1,
               },
             ]}>
+            <Feather name="image" size={28} color={Palette.textMuted} />
             <ThemedText style={styles.dropTitle}>
-              Drop a photo of the page here
+              Choose a photo of the page
             </ThemedText>
-            <ThemedText style={[styles.dropSub, { color: C.icon }]}>
-              or click to choose a file
+            <ThemedText style={styles.dropSub}>
+              tap to pick one — or drag a file here
             </ThemedText>
           </Pressable>
 
@@ -257,23 +290,21 @@ export default function UploadScreen() {
           <Pressable
             onPress={openCamera}
             disabled={saving}
-            style={[
-              styles.cameraBtn,
-              { borderColor: C.tint, opacity: saving ? 0.5 : 1 },
-            ]}>
-            <ThemedText style={[styles.cameraBtnText, { color: C.tint }]}>
-              📷  Take a photo
+            style={[styles.cameraBtn, { opacity: saving ? 0.5 : 1 }]}>
+            <Feather name="camera" size={18} color={Palette.accent} />
+            <ThemedText style={styles.cameraBtnText}>
+              Take a photo
             </ThemedText>
           </Pressable>
 
-          <ThemedText style={{ opacity: 0.55, fontSize: 12, textAlign: 'center' }}>
+          <ThemedText style={styles.hint}>
             {coach
               ? 'A photo or screenshot of the full page with the spot you want to work on — you’ll mark it right on the page next.'
               : 'A photo or screenshot of the full page — then you’ll mark the spots you want to practice right on it (as many as you like).'}
           </ThemedText>
 
           <Pressable
-            style={[styles.multiPageBtn, { borderColor: C.icon }]}
+            style={styles.multiPageBtn}
             disabled={saving}
             onPress={() =>
               router.push({
@@ -281,22 +312,22 @@ export default function UploadScreen() {
                 params: { folder: targetFolderId ?? '' },
               })
             }>
-            <ThemedText style={{ opacity: 0.6, fontSize: 13 }}>
+            <ThemedText style={styles.multiPageText}>
               Passage spans two pages?
             </ThemedText>
           </Pressable>
 
           {saving && (
             <View style={styles.savingRow}>
-              <ActivityIndicator color={C.tint} />
-              <ThemedText style={[styles.savingText, { color: C.icon }]}>
+              <ActivityIndicator color={Palette.accent} />
+              <ThemedText style={styles.savingText}>
                 {coach ? 'Saving your photo…' : 'Saving photo — opening it up…'}
               </ThemedText>
             </View>
           )}
 
           {error && <ThemedText style={styles.error}>{error}</ThemedText>}
-        </ThemedView>
+        </View>
       </ScrollView>
 
       <input
@@ -335,41 +366,67 @@ export default function UploadScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scroll: { padding: 20, gap: 14 },
+  scroll: { padding: Spacing.lg, paddingBottom: Spacing['2xl'], alignItems: 'center' },
+  // Centered column on wide screens (iPad / laptop); full width on phone.
+  column: { width: '100%', maxWidth: 640, gap: Spacing.lg },
+  header: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, gap: Spacing.xs },
+  backLink: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, color: Palette.accent },
   dropZone: {
-    borderWidth: 2,
+    borderWidth: Borders.medium,
     borderStyle: 'dashed',
-    borderRadius: Radii.lg,
+    borderColor: Palette.border,
+    backgroundColor: Palette.surfaceSunk,
+    borderRadius: Radii['2xl'],
     paddingVertical: 48,
     paddingHorizontal: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: Spacing.sm,
   },
   dropTitle: {
+    fontFamily: Fonts.rounded,
     fontSize: Type.size.lg,
     fontWeight: Type.weight.bold,
+    color: Palette.text,
   },
   dropSub: {
     fontSize: Type.size.sm,
+    color: Palette.textMuted,
   },
   cameraBtn: {
-    borderWidth: 2,
-    borderRadius: Radii.lg,
+    flexDirection: 'row',
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.xl,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: Spacing.sm,
+    ...Lift,
   },
   cameraBtnText: {
     fontSize: Type.size.md,
     fontWeight: Type.weight.bold,
+    color: Palette.accent,
+  },
+  hint: {
+    color: Palette.textMuted,
+    fontSize: Type.size.xs,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   multiPageBtn: {
     borderWidth: Borders.thin,
-    borderRadius: Radii.md,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
     padding: Spacing.md,
     alignItems: 'center',
+  },
+  multiPageText: {
+    fontSize: Type.size.sm,
+    color: Palette.textSecondary,
   },
   savingRow: {
     flexDirection: 'row',
@@ -380,9 +437,10 @@ const styles = StyleSheet.create({
   },
   savingText: {
     fontSize: Type.size.sm,
+    color: Palette.textSecondary,
   },
   error: {
-    color: '#c0392b',
+    color: Palette.danger,
     textAlign: 'center',
     fontSize: Type.size.sm,
   },

@@ -12,6 +12,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View }
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -210,7 +211,7 @@ const styles = StyleSheet.create({
     borderRadius: Radii.md,
     padding: Spacing.md,
   },
-  error: { color: '#c0392b', fontSize: Type.size.sm },
+  error: { color: Palette.danger, fontSize: Type.size.sm },
   addBtn: {
     margin: 20,
     borderRadius: Radii.lg,

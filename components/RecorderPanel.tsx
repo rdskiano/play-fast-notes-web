@@ -25,6 +25,7 @@ import {
 
 import { SignInModal } from '@/components/SignInModal';
 import { ThemedText } from '@/components/themed-text';
+import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -181,7 +182,7 @@ export function RecorderPanel({
         onPress={toggleRecord}
         style={[
           styles.recordBtn,
-          { backgroundColor: recording ? '#7d1d1d' : '#e74c3c' },
+          { backgroundColor: recording ? Palette.danger : Palette.danger },
         ]}>
         <View
           style={recording ? styles.stopGlyph : styles.recordGlyph}
@@ -199,12 +200,12 @@ export function RecorderPanel({
             styles.meterFill,
             {
               width: `${(recording ? meterLevel : 0) * 100}%`,
-              backgroundColor: hot ? '#e74c3c' : '#2ecc71',
+              backgroundColor: hot ? Palette.danger : Palette.success,
             },
           ]}
         />
       </View>
-      <ThemedText style={[styles.meterNote, { color: hot ? '#e74c3c' : C.icon }]}>
+      <ThemedText style={[styles.meterNote, { color: hot ? Palette.danger : C.icon }]}>
         {hot
           ? 'Too loud — move the iPad back or play softer'
           : 'Input level'}
@@ -259,7 +260,7 @@ export function RecorderPanel({
                   Take {i + 1} · {fmt(take.durationSec)}
                 </ThemedText>
                 {take.saved ? (
-                  <ThemedText style={[styles.savedTag, { color: '#2ecc71' }]}>
+                  <ThemedText style={[styles.savedTag, { color: Palette.success }]}>
                     ✓ Saved
                   </ThemedText>
                 ) : savingId === take.id ? (

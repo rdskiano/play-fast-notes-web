@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -11,7 +12,8 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { CustomPatternDots } from '@/components/CustomPatternDots';
 import { CustomPatternEditor } from '@/components/CustomPatternEditor';
 import { PedalCatcher } from '@/components/PedalCatcher';
-import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
+import { PracticeToolsBar } from '@/components/PracticeToolsBar';
+import { RotateForPractice } from '@/components/RotateForPractice';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -20,8 +22,9 @@ import { useScreenTour } from '@/components/tour/TourContext';
 import { tourTag, type TourStep } from '@/components/tour/types';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
-import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
+import { Palette, Lift } from '@/constants/palette';
+import { Colors, Fonts } from '@/constants/theme';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
@@ -55,6 +58,11 @@ import {
 } from '@/lib/layout/configForm';
 
 const INCREMENTS: Increment[] = [2, 5, 10];
+
+// Tempo Ladder accent — the strategy's "clean / go" green. Used for selected
+// states, the slider, and the Start CTA on this setup screen.
+const ACCENT = Palette.tempoLadder;
+const ACCENT_SOFT = Palette.tempoLadderSoft;
 
 // Guided tour for the Tempo Ladder setup screen (web only — see
 // useScreenTour / TourContext.web). Each step spotlights one tagged
@@ -120,14 +128,6 @@ export default function TempoLadderScreen() {
   const isPhone = Math.min(vpW, vpH) < 600;
   const isTouch = useIsTouchDevice();
   const isLandscape = vpW > vpH;
-  // Where the floating ✗ / ✓ rep buttons sit above the bottom. Portrait keeps
-  // them lifted clear of the help button; landscape drops them down onto the
-  // help-button line (the ✓ is shifted left of the help button — see below)
-  // so they don't float high and waste the short screen.
-  const repBottomLift = isPhone && isLandscape ? 16 : HELP_CLEARANCE;
-  // Extra right offset for the ✓ in landscape so it seats just left of the
-  // bottom-right help button instead of on top of it.
-  const cleanRightExtra = isPhone && isLandscape ? 60 : 0;
 
   // Tools mode: reached from the library Tools hub via the sentinel id, with
   // no piece attached. The score backdrop already collapses (it only renders
@@ -186,6 +186,7 @@ export default function TempoLadderScreen() {
   useScreenTour(
     'tempo-ladder-setup',
     phase === 'config' && !toolsOnly && !isGuided ? TL_SETUP_STEPS : null,
+    ACCENT, // green ⓘ dots, matching this screen's accent + helper note
   );
 
   // Live validation for the setup form, so the Start button can say WHY it
@@ -320,38 +321,62 @@ export default function TempoLadderScreen() {
   }
 
   if (phase === 'config') {
+    // Computed subtitle under the big title. For step mode, summarize the
+    // ladder as "<rungs> rungs · +<inc> BPM each"; cluster/custom get a short
+    // static phrase. Robust against NaN/Infinity → static fallback.
+    const headerSubtitle = (() => {
+      if (mode === 'cluster') return 'Random tempo in a sliding band.';
+      if (mode === 'custom') {
+        return customPattern
+          ? summarizePattern(customPattern)
+          : 'Build your own rep-by-rep sequence.';
+      }
+      const start = parseInt(startTempo, 10);
+      const goal = parseInt(goalTempo, 10);
+      if (
+        Number.isFinite(start) &&
+        Number.isFinite(goal) &&
+        increment > 0 &&
+        goal > start
+      ) {
+        const rungs = Math.max(1, Math.round((goal - start) / increment)) + 1;
+        return `${rungs} rungs · +${increment} BPM each`;
+      }
+      return 'Slow-practice with graduated tempos.';
+    })();
+
     return (
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
-        <View
-          style={[
-            styles.topBar,
-            {
-              borderBottomColor: C.icon + '44',
-              paddingTop: insets.top + Spacing.sm,
-            },
-          ]}>
-          <Pressable onPress={() => router.back()} hitSlop={8} style={styles.endBtn}>
-            <ThemedText style={[styles.endBtnText, { color: C.tint }]}>EXIT</ThemedText>
-          </Pressable>
-          <ThemedText style={styles.topTitle}>Tempo Ladder</ThemedText>
-        </View>
 
-        <ScrollView contentContainerStyle={[styles.configContainer, configColumnStyle]}>
-          {!isPhone && (
-            <>
+        <ScrollView
+          contentContainerStyle={[
+            styles.configContainer,
+            configColumnStyle,
+            { paddingTop: insets.top + Spacing.md },
+          ]}>
+          {/* Big-title header (DESIGN_RULES §3) — replaces the old EXIT top bar
+              + inline title. Back link, then a monogram chip beside the title. */}
+          <Pressable onPress={() => router.back()} hitSlop={8}>
+            <ThemedText style={styles.backLink}>‹ Back</ThemedText>
+          </Pressable>
+          <View style={styles.headerRow}>
+            <View style={styles.monogram}>
+              <ThemedText style={styles.monogramText}>TL</ThemedText>
+            </View>
+            <View style={styles.headerTextCol}>
               <ThemedText type="title">Tempo Ladder</ThemedText>
-              <ThemedText style={{ opacity: 0.7 }}>
-                Slow-practice with graduated tempos. Pick a mode, set your goal, and play.
+              <ThemedText style={styles.headerSubtitle} numberOfLines={2}>
+                {headerSubtitle}
               </ThemedText>
-            </>
-          )}
+            </View>
+          </View>
 
           {/* Strategy explainer now lives behind the ? button (auto-opens for
               first-timers); no inline panel here. */}
 
           {/* ── Mode picker (top of the form) ───────────────────────── */}
-          <ThemedText type="subtitle" style={{ marginTop: Spacing.sm }}>Mode</ThemedText>
+          <ThemedText style={styles.sectionHeader}>Mode</ThemedText>
           <View style={styles.modeGrid} {...tourTag('tl-mode')}>
             <ModeCard
               title="Step click-up"
@@ -393,9 +418,19 @@ export default function TempoLadderScreen() {
               }}
             />
           </View>
-          <View style={[styles.divider, { backgroundColor: C.icon + '33' }]} />
+          <View style={styles.divider} />
 
-          {/* ── Shared config: BPM range + increment ─────────────────── */}
+          {/* ── Tempo range ──────────────────────────────────────────── */}
+          {/* Header row: section title on the left, a muted live summary of
+              the current Start → Goal span on the right. */}
+          <View style={styles.sectionHeaderRow}>
+            <ThemedText style={styles.sectionHeader}>Tempo range</ThemedText>
+            <ThemedText style={styles.sectionHeaderMeta}>
+              {`${parseInt(startTempo, 10) || 0} → ${
+                parseInt(mode === 'cluster' ? clusterHigh : goalTempo, 10) || 0
+              } BPM`}
+            </ThemedText>
+          </View>
           {/* Cluster mode shows three BPM cards — they never fit across the
               capped column, so always stack. Step/Custom have two and go
               2-across when the column is wide enough (e.g. landscape). */}
@@ -403,93 +438,97 @@ export default function TempoLadderScreen() {
             style={mode === 'cluster' || tempoStacks(vpW) ? styles.rowPhone : styles.row}
             {...tourTag('tl-tempo')}>
             <View style={styles.field}>
-              <ThemedText style={styles.label}>
+              <ThemedText style={styles.fieldLabel}>
                 {mode === 'cluster' ? 'Low BPM' : mode === 'custom' ? 'Base BPM' : 'Start BPM'}
               </ThemedText>
               <BpmStepper
                 value={startTempo}
                 onChange={setStartTempo}
                 metronome={metronome}
+                accent={ACCENT}
               />
             </View>
             <View style={styles.field}>
-              <ThemedText style={styles.label}>
+              <ThemedText style={styles.fieldLabel}>
                 {mode === 'cluster' ? 'High BPM' : mode === 'custom' ? 'Performance BPM' : 'Goal BPM'}
               </ThemedText>
               <BpmStepper
                 value={mode === 'cluster' ? clusterHigh : goalTempo}
                 onChange={mode === 'cluster' ? setClusterHigh : setGoalTempo}
                 metronome={metronome}
+                accent={ACCENT}
               />
             </View>
             {mode === 'cluster' && (
               <View style={styles.field}>
-                <ThemedText style={styles.label}>Final BPM</ThemedText>
+                <ThemedText style={styles.fieldLabel}>Final BPM</ThemedText>
                 <BpmStepper
                   value={finalTempo}
                   onChange={setFinalTempo}
                   metronome={metronome}
+                  accent={ACCENT}
                 />
               </View>
             )}
           </View>
 
-          <ThemedText style={styles.label}>
-            {mode === 'cluster' ? 'Shift window by, per advance' : 'Increment per advance'}
-          </ThemedText>
-          <View style={styles.chipRow} {...tourTag('tl-increment')}>
-            {INCREMENTS.map((n) => (
-              <Pressable
-                key={n}
-                onPress={() => setIncrement(n)}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: C.icon,
-                    backgroundColor: increment === n ? C.tint : 'transparent',
-                  },
-                ]}>
-                <ThemedText style={{ color: increment === n ? '#fff' : C.text }}>
-                  +{n}
-                </ThemedText>
-              </Pressable>
-            ))}
+          {/* ── Climb by / Clean reps — labeled segmented controls ───── */}
+          <View style={styles.segmentsRow}>
+            <View style={styles.segmentGroup} {...tourTag('tl-increment')}>
+              <ThemedText style={styles.segmentLabel}>
+                {mode === 'cluster' ? 'Shift window by' : 'Climb by'}
+              </ThemedText>
+              <View style={styles.pillRow}>
+                {INCREMENTS.map((n) => {
+                  const on = increment === n;
+                  return (
+                    <Pressable
+                      key={n}
+                      onPress={() => setIncrement(n)}
+                      style={[
+                        styles.pill,
+                        { backgroundColor: on ? ACCENT : Palette.surfaceSunk },
+                      ]}>
+                      <ThemedText
+                        style={[styles.pillText, { color: on ? '#fff' : Palette.text }]}>
+                        +{n}
+                      </ThemedText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {mode !== 'custom' && (
+              <View style={styles.segmentGroup} {...tourTag('tl-reps')}>
+                <ThemedText style={styles.segmentLabel}>Clean reps</ThemedText>
+                <View style={styles.pillRow}>
+                  {REP_TARGETS.map((n: RepTarget) => {
+                    const on = targetReps === n;
+                    return (
+                      <Pressable
+                        key={n}
+                        onPress={() => setTargetReps(n)}
+                        style={[
+                          styles.pill,
+                          { backgroundColor: on ? ACCENT : Palette.surfaceSunk },
+                        ]}>
+                        <ThemedText
+                          style={[styles.pillText, { color: on ? '#fff' : Palette.text }]}>
+                          {n}
+                        </ThemedText>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
           </View>
 
           {/* ── Mode-specific extras ────────────────────────────────── */}
-          {mode === 'cluster' && (
-            <ThemedText style={{ opacity: 0.6, fontSize: 13 }}>
-              Each rep picks a random tempo in the current window. On reaching your streak
-              target, the window slides up by the increment.
-            </ThemedText>
-          )}
-          {mode !== 'custom' && (
-            <>
-              <ThemedText style={styles.label}>Clean reps in a row to advance</ThemedText>
-              <View style={styles.chipRow} {...tourTag('tl-reps')}>
-                {REP_TARGETS.map((n: RepTarget) => (
-                  <Pressable
-                    key={n}
-                    onPress={() => setTargetReps(n)}
-                    style={[
-                      styles.chip,
-                      {
-                        borderColor: C.icon,
-                        backgroundColor: targetReps === n ? C.tint : 'transparent',
-                      },
-                    ]}>
-                    <ThemedText style={{ color: targetReps === n ? '#fff' : C.text }}>
-                      {n}
-                    </ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-            </>
-          )}
-
           {mode === 'custom' && customPattern && (
-            <View style={[styles.customPreviewBox, { borderColor: C.icon + '33' }]}>
-              <ThemedText style={[styles.label, { marginBottom: 4 }]}>
+            <View style={styles.customPreviewBox}>
+              <ThemedText style={[styles.fieldLabel, { marginBottom: 4 }]}>
                 Pattern: {customPattern.name}
               </ThemedText>
               <CustomPatternDots
@@ -497,9 +536,9 @@ export default function TempoLadderScreen() {
                 base={parseInt(startTempo, 10) || 60}
                 performance={parseInt(goalTempo, 10) || 120}
                 size="small"
-                accent={C.tint}
+                accent={ACCENT}
               />
-              <ThemedText style={{ opacity: 0.6, fontSize: 13, marginTop: 6 }}>
+              <ThemedText style={styles.previewNote}>
                 {summarizePattern(customPattern)} — {totalRepsInPattern(customPattern)} reps per set.
                 One clean run bumps the tempo by your increment. A miss restarts the pattern.
               </ThemedText>
@@ -508,8 +547,8 @@ export default function TempoLadderScreen() {
                   setEditorInitial(customPattern);
                   setEditorOpen(true);
                 }}
-                style={[styles.editPatternBtn, { borderColor: C.tint }]}>
-                <ThemedText style={{ color: C.tint, fontWeight: Type.weight.heavy }}>
+                style={[styles.editPatternBtn, { borderColor: ACCENT }]}>
+                <ThemedText style={{ color: ACCENT, fontWeight: Type.weight.heavy }}>
                   Edit pattern
                 </ThemedText>
               </Pressable>
@@ -517,12 +556,24 @@ export default function TempoLadderScreen() {
           )}
 
           {mode === 'custom' && !customPattern && (
-            <ThemedText style={{ opacity: 0.6, fontSize: 13 }}>
+            <ThemedText style={styles.previewNote}>
               Pick a saved pattern above, or tap{' '}
-              <ThemedText style={styles.blurbBold}>+ Build a custom pattern</ThemedText> to
+              <ThemedText style={styles.blurbBold}>Build a custom pattern</ThemedText> to
               create one.
             </ThemedText>
           )}
+
+          {/* Single helper note (replaces the scattered inline explainers).
+              Cluster's extra explainer + the general "start clean" coaching
+              copy live here. */}
+          <View style={styles.helperNote}>
+            <Feather name="info" size={16} color={ACCENT} style={styles.helperIcon} />
+            <ThemedText style={styles.helperText}>
+              {mode === 'cluster'
+                ? 'Each rep picks a random tempo in the current window. On reaching your streak target, the window slides up by the increment. Start where you can play it cleanly and comfortably.'
+                : 'Start where you can play it cleanly and comfortably — around half your target tempo is a good rule of thumb. The ladder climbs from there.'}
+            </ThemedText>
+          </View>
 
         </ScrollView>
 
@@ -533,16 +584,23 @@ export default function TempoLadderScreen() {
           {/* Tag a wrapper sized to the button (not the full-width bar) so
               the tour spotlight + ⓘ dot land on the Start button itself,
               not the far-right screen edge. */}
-          <View
-            style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}
+          <Pressable
+            onPress={startSession}
+            disabled={(mode === 'custom' && !customPattern) || configError !== null}
+            style={({ pressed }) => [
+              styles.startBtn,
+              {
+                opacity:
+                  (mode === 'custom' && !customPattern) || configError !== null
+                    ? 0.5
+                    : pressed
+                      ? 0.9
+                      : 1,
+              },
+            ]}
             {...tourTag('tl-start')}>
-            <Button
-              label="Start"
-              onPress={startSession}
-              disabled={(mode === 'custom' && !customPattern) || configError !== null}
-              style={actionButtonStyle}
-            />
-          </View>
+            <ThemedText style={styles.startBtnText}>Start practicing →</ThemedText>
+          </Pressable>
         </View>
 
         <CustomPatternEditor
@@ -670,6 +728,47 @@ export default function TempoLadderScreen() {
     else endSession();
   }
 
+  // Live streak indicator for the top-bar tracker pill — shared by the phone
+  // (no count text) and desktop (with "n/N") layouts.
+  function trackerDots(showCount: boolean) {
+    if (!progress) return null;
+    if (progress.mode === 'custom' && customPattern) {
+      return (
+        <CustomPatternDots
+          pattern={customPattern}
+          base={customBase}
+          performance={progress.goal_tempo}
+          position={customPosition}
+          state="playing"
+          size="small"
+          accent={Palette.success}
+        />
+      );
+    }
+    return (
+      <>
+        <View style={styles.runStatDots}>
+          {Array.from({ length: progress.target_reps }).map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.runStatDot,
+                i < progress.current_streak
+                  ? styles.runStatDotFilled
+                  : styles.runStatDotEmpty,
+              ]}
+            />
+          ))}
+        </View>
+        {showCount && (
+          <ThemedText style={styles.runStatCount}>
+            {progress.current_streak}/{progress.target_reps}
+          </ThemedText>
+        )}
+      </>
+    );
+  }
+
   return (
     <View style={[styles.playRoot, { backgroundColor: C.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -685,91 +784,56 @@ export default function TempoLadderScreen() {
         secondaryKey="x"
         onSecondary={onMiss}
       />
-      {!isPhone && (
-        <View
-          style={[
-            styles.activeTopBar,
-            { borderBottomColor: C.icon + '44', paddingTop: insets.top + 10 },
-          ]}>
-          <Pressable onPress={onEndPress} hitSlop={8} style={styles.endBtn}>
-            <ThemedText style={[styles.endBtnText, { color: C.tint }]}>EXIT</ThemedText>
-          </Pressable>
-          <View style={styles.streakDots}>
-            {progress.mode === 'custom' && customPattern ? (
-              <CustomPatternDots
-                pattern={customPattern}
-                base={customBase}
-                performance={progress.goal_tempo}
-                position={customPosition}
-                state="playing"
-                size="medium"
-                accent="#2ecc71"
-              />
-            ) : (
-              Array.from({ length: progress.target_reps }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.dot,
-                    i < progress.current_streak
-                      ? styles.dotFilled
-                      : { borderColor: C.icon },
-                  ]}
-                />
-              ))
-            )}
-          </View>
-          <Pressable
-            onPress={onMiss}
-            hitSlop={6}
-            style={[styles.repBtn, styles.missBtn]}>
-            <ThemedText style={styles.repBtnText}>Miss ✗</ThemedText>
-          </Pressable>
-          <View style={styles.repGap} />
-          <Pressable
-            onPress={onClean}
-            hitSlop={6}
-            style={[styles.repBtn, styles.cleanBtn]}>
-            <ThemedText style={styles.repBtnText}>Clean ✓</ThemedText>
+      {/* ── Reskinned run top bar (all devices) — Exit (left) · title +
+          live "BPM · streak dots · count" pill (centre). The tools pill
+          floats top-right (rendered last, below). */}
+      <View style={[styles.runTopBar, { paddingTop: insets.top + 10 }]}>
+        <View style={styles.runSide}>
+          <Pressable onPress={onEndPress} hitSlop={8} style={styles.runExit}>
+            <Feather name="log-out" size={15} color={Palette.danger} />
+            <ThemedText style={styles.runExitText}>Exit</ThemedText>
           </Pressable>
         </View>
-      )}
+        <View style={styles.runCenter}>
+          {/* Strategy + passage title — desktop / iPad only. Dropped on phone
+              to save a whole line (practice runs in landscape there, where
+              vertical space is scarce). The tracker pill stays centred. */}
+          {!isPhone && (
+            <View style={styles.runTitleRow}>
+              <View style={styles.runGreenDot} />
+              <ThemedText style={styles.runTitleText} numberOfLines={1}>
+                Tempo Ladder
+              </ThemedText>
+              {!!passage?.title && (
+                <ThemedText style={styles.runTitleMeta} numberOfLines={1}>
+                  {'  ·  '}
+                  {passage.title}
+                </ThemedText>
+              )}
+            </View>
+          )}
+          <View style={styles.runStatPill}>
+            <ThemedText style={styles.runStatBpm}>{metronome.bpm}</ThemedText>
+            <ThemedText style={styles.runStatUnit}>BPM</ThemedText>
+            <View style={styles.runStatDivider} />
+            {trackerDots(true)}
+          </View>
+        </View>
+        <View style={styles.runSide} />
+      </View>
 
-      {/* Tiny keyboard hint on laptop / desktop so users discover that
-          they can mark reps without clicking. Hidden on phone — no
-          keyboard there, so the line would just steal vertical space
-          from the score. */}
-      {!isPhone && (
-        <ThemedText style={[styles.kbdHint, { color: C.text }]}>
-          Space or foot pedal = Clean ✓ · X = Miss ✗
-        </ThemedText>
-      )}
-
+      {/* ── Score ──────────────────────────────────────────────────── */}
       <View
         style={[
           styles.contentArea,
-          // Trim just enough off the score's bottom so the floating
-          // ✗ / ✓ buttons don't sit on top of notes. In PORTRAIT there's
-          // plenty of height, so reserve the full band (buttons are ~56
-          // tall and lifted to clear the help button). In LANDSCAPE the
-          // screen is short and that fixed band eats a third of it — so
-          // reserve almost nothing and let the score fill the height; the
-          // ✗ / ✓ buttons float over the lower corners and the user can
-          // pinch to nudge notes clear.
-          isPhone &&
-            (vpW > vpH
-              ? { paddingBottom: insets.bottom + 8 }
-              : { paddingBottom: insets.bottom + HELP_CLEARANCE + 36 }),
-          // Laptop: inset the score from the screen edges so it clears the
-          // edge-docked tool tabs and gets top/bottom breathing room. The
-          // score lives in an inner flex child (an absolutely-filled score
-          // ignores this padding on web); PracticeToolsLayer + the phone
-          // overlays stay siblings at the true screen edge.
-          !isPhone && {
-            paddingHorizontal: SCORE_SIDE_BUFFER,
-            paddingVertical: SCORE_VERT_BUFFER,
-            backgroundColor: SCORE_FRAME_BG,
-          },
+          isPhone
+            ? { paddingBottom: insets.bottom + (isLandscape ? 8 : 0) }
+            : {
+                paddingHorizontal: SCORE_SIDE_BUFFER,
+                paddingTop: SCORE_VERT_BUFFER,
+                paddingBottom: Spacing.sm,
+                backgroundColor: SCORE_FRAME_BG,
+              },
         ]}>
         <View style={{ flex: 1, width: '100%', position: 'relative' }}>
           {passage?.source_uri &&
@@ -786,10 +850,7 @@ export default function TempoLadderScreen() {
                 contentFit="contain"
               />
             ))}
-          {/* Tools mode: no score, so show the metronome inline and centered
-              (bigger on iPad/laptop) instead of leaving it off in an edge tab.
-              The rep controls sit in the top bar (non-phone) or float at the
-              corners (phone) around it. */}
+          {/* Tools mode: no score, so show the metronome inline and centered. */}
           {toolsOnly && (
             <View style={styles.toolsMetroWrap} pointerEvents="box-none">
               <ToolsMetronome metronome={metronome} />
@@ -797,112 +858,94 @@ export default function TempoLadderScreen() {
           )}
           {ann.canvas}
         </View>
-        {/* Guided onboarding keeps the surface minimal — only a collapsed
-            metronome tab (no note → starts closed) so a first-timer can peek
-            at the climbing tempo. No pencil/timer/recorder. */}
-        {isGuided ? (
-          <PracticeToolsLayer
-            metronome={metronome}
-            tools={
-              isPhone
-                ? { left: [], right: ['metronome'] }
-                : { left: ['metronome'], right: [] }
-            }
-          />
-        ) : (
-          <PracticeToolsLayer
-            metronome={metronome}
-            metronomeNote="Tempo Ladder controls the tempo — no need to adjust it. Just press play."
-            pencil={ann.pencil}
-            recorderPassageId={passage?.id}
-            // Tools mode renders the metronome inline (above), so drop it from
-            // the edge tabs to avoid two; keep just the practice timers.
-            tools={toolsOnly ? { left: [], right: ['timer'] } : undefined}
-          />
-        )}
+      </View>
 
-        {/* Phone overlays — float on top of the score so the practice
-            controls don't steal vertical space. */}
-        {isPhone && (
-          <>
-            <View
-              pointerEvents="none"
-              style={[styles.phoneDotsWrap, { top: insets.top + 10 }]}>
-              <View style={styles.phoneDotsPill}>
-                {progress.mode === 'custom' && customPattern ? (
-                  <CustomPatternDots
-                    pattern={customPattern}
-                    base={customBase}
-                    performance={progress.goal_tempo}
-                    position={customPosition}
-                    state="playing"
-                    size="small"
-                    accent="#2ecc71"
-                  />
-                ) : (
-                  Array.from({ length: progress.target_reps }).map((_, i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.phoneDot,
-                        i < progress.current_streak
-                          ? styles.phoneDotFilled
-                          : styles.phoneDotEmpty,
-                      ]}
-                    />
-                  ))
-                )}
-              </View>
-            </View>
-
-            <Pressable
-              onPress={onEndPress}
-              hitSlop={6}
-              accessibilityLabel="Exit session"
-              style={[
-                styles.phoneEndBtn,
-                { top: insets.top + 8, left: insets.left + 8 },
-              ]}>
-              <ThemedText style={[styles.phoneEndGlyph, { color: C.tint }]}>EXIT</ThemedText>
-            </Pressable>
-
+      {/* ── Mark Miss / Clean ────────────────────────────────────────
+          Phone-landscape: split to the bottom corners (a mis-tap can't
+          fire the wrong call) so the score keeps near-full height, with
+          just the shortcut line. Everywhere else: a centred bar with two
+          big buttons + the auto-climb + shortcut helper copy. */}
+      {isPhone && isLandscape ? (
+        <>
+          <Pressable
+            onPress={onMiss}
+            hitSlop={6}
+            accessibilityLabel="Mark as miss"
+            style={[
+              styles.cornerBtn,
+              styles.missOutlineBtn,
+              // Shift BOTH buttons inward by 64 so the ✓ clears the global
+              // help "i" button in the bottom-right corner (it sits there
+              // when the app isn't installed as a PWA); the ✗ matches it so
+              // the pair stays symmetric.
+              { bottom: insets.bottom + 4, left: insets.left + 16 + 64 },
+            ]}>
+            <ThemedText style={styles.missBtnText}>✕  Miss</ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={onClean}
+            hitSlop={6}
+            accessibilityLabel="Mark as clean"
+            style={[
+              styles.cornerBtn,
+              styles.cleanFilledBtn,
+              { bottom: insets.bottom + 4, right: insets.right + 16 + 64 },
+            ]}>
+            <ThemedText style={styles.cleanBtnText}>✓  Clean</ThemedText>
+          </Pressable>
+          <ThemedText
+            pointerEvents="none"
+            style={[styles.runHintLine, { bottom: insets.bottom + 6 }]}>
+            Space or foot pedal = Clean · X = Miss
+          </ThemedText>
+        </>
+      ) : (
+        <View style={[styles.runBottomBar, { paddingBottom: insets.bottom + 10 }]}>
+          <View style={styles.runBtnRow}>
             <Pressable
               onPress={onMiss}
-              hitSlop={6}
               accessibilityLabel="Mark as miss"
-              style={[
-                styles.phoneRepBtn,
-                styles.phoneMissBtn,
-                // Lifted to clear the global help button's bottom-right
-                // corner (the ✓ sits directly above it; both raised so
-                // the pair stays level). `insets.left` keeps it clear of the
-                // notch / camera / speaker on the side edge in landscape.
-                // `cleanRightExtra` mirrors the ✓ button's inward shift so the
-                // pair sits symmetrically (B-009).
-                {
-                  bottom: insets.bottom + repBottomLift,
-                  left: insets.left + 16 + cleanRightExtra,
-                },
-              ]}>
-              <ThemedText style={styles.phoneRepGlyph}>✗</ThemedText>
+              style={[styles.bottomBtn, styles.missOutlineBtn]}>
+              <ThemedText style={styles.missBtnText}>✕  Miss</ThemedText>
             </Pressable>
             <Pressable
               onPress={onClean}
-              hitSlop={6}
               accessibilityLabel="Mark as clean"
-              style={[
-                styles.phoneRepBtn,
-                styles.phoneCleanBtn,
-                {
-                  bottom: insets.bottom + repBottomLift,
-                  right: insets.right + 16 + cleanRightExtra,
-                },
-              ]}>
-              <ThemedText style={styles.phoneRepGlyph}>✓</ThemedText>
+              style={[styles.bottomBtn, styles.cleanBtnWide, styles.cleanFilledBtn]}>
+              <ThemedText style={styles.cleanBtnText}>✓  Clean</ThemedText>
             </Pressable>
-          </>
-        )}
-      </View>
+          </View>
+          {progress.mode !== 'custom' && (
+            <ThemedText style={styles.runHintAuto}>
+              Tempo climbs automatically when you hit {progress.target_reps} clean in a row.
+            </ThemedText>
+          )}
+          {!isPhone && (
+            <ThemedText style={styles.runHintShortcut}>
+              Space or foot pedal = Clean · X = Miss
+            </ThemedText>
+          )}
+        </View>
+      )}
+
+      {/* Tools pill — floats top-right, panels drop below it. Rendered last
+          so it paints above the score. Guided keeps just the metronome;
+          tools-only shows the metronome inline (above) so the pill drops it. */}
+      <PracticeToolsBar
+        metronome={metronome}
+        metronomeNote={
+          isGuided
+            ? undefined
+            : 'Tempo Ladder controls the tempo — no need to adjust it. Just press play.'
+        }
+        pencil={
+          !isGuided && !toolsOnly
+            ? { ...ann.pencil, onUndo: ann.undo }
+            : undefined
+        }
+        recorderPassageId={passage?.id}
+        tools={isGuided ? ['metronome'] : toolsOnly ? ['timer'] : undefined}
+      />
 
       {/* Guided onboarding: completing one clean set IS the finish line. Show
           a single celebratory overlay (no "step up" / log-note forms) that
@@ -1027,6 +1070,11 @@ export default function TempoLadderScreen() {
           }
         />
       )}
+
+      {/* Phone: practice runs in landscape (the score needs the width). In
+          portrait this covers everything with a "rotate" prompt. Tools-only
+          mode has no score, so portrait is fine. */}
+      <RotateForPractice disabled={toolsOnly} />
     </View>
   );
 }
@@ -1052,33 +1100,44 @@ function ModeCard({
   onDelete?: () => void;
   dashed?: boolean;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.modeCard,
         {
-          borderColor: selected ? C.tint : C.icon + '55',
+          borderWidth: selected ? Borders.thick : Borders.thin,
+          borderColor: selected ? ACCENT : Palette.border,
           borderStyle: dashed ? 'dashed' : 'solid',
           backgroundColor: selected
-            ? C.tint + '11'
+            ? ACCENT + '14'
             : pressed
-              ? C.icon + '11'
-              : 'transparent',
+              ? Palette.surfaceSunk
+              : Palette.card,
         },
       ]}>
+      {/* dashed "add" affordance leads with a + icon; saved/built-in cards
+          show a check in the corner when selected. */}
+      {dashed && (
+        <View style={styles.modeCardDashedIcon}>
+          <Feather name="plus" size={18} color={Palette.textSecondary} />
+        </View>
+      )}
+      {selected && !dashed && (
+        <View style={styles.modeCardCheck}>
+          <Feather name="check" size={16} color={ACCENT} />
+        </View>
+      )}
       <ThemedText
         style={[
           styles.modeCardTitle,
-          { color: selected ? C.tint : C.text },
+          { color: selected ? ACCENT : Palette.text },
         ]}
         numberOfLines={2}>
-        {title}
+        {dashed ? title.replace(/^\+\s*/, '') : title}
       </ThemedText>
       <ThemedText
-        style={[styles.modeCardSubtitle, { color: C.icon }]}
+        style={styles.modeCardSubtitle}
         numberOfLines={2}>
         {subtitle}
       </ThemedText>
@@ -1090,9 +1149,7 @@ function ModeCard({
               hitSlop={8}
               style={styles.modeCardActionBtn}
               accessibilityLabel="Edit pattern">
-              <ThemedText style={[styles.modeCardEditGlyph, { color: C.icon }]}>
-                ✎
-              </ThemedText>
+              <Feather name="edit-2" size={16} color={Palette.textMuted} />
             </Pressable>
           )}
           {onDelete && (
@@ -1101,9 +1158,7 @@ function ModeCard({
               hitSlop={8}
               style={styles.modeCardActionBtn}
               accessibilityLabel="Delete pattern">
-              <ThemedText style={[styles.modeCardEditGlyph, { color: Status.danger }]}>
-                🗑
-              </ThemedText>
+              <Feather name="trash-2" size={16} color={Palette.textMuted} />
             </Pressable>
           )}
         </View>
@@ -1113,22 +1168,58 @@ function ModeCard({
 }
 
 const styles = StyleSheet.create({
-  topBar: {
+  // ── Big-title header ─────────────────────────────────────────────
+  backLink: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.semibold,
+    color: Palette.accent,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
     gap: Spacing.md,
+    marginBottom: Spacing.xs,
   },
-  backBtn: { paddingHorizontal: 10, paddingVertical: 6 },
-  backText: { fontSize: 17, fontWeight: Type.weight.semibold },
-  topTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: Type.size.md,
-    fontWeight: Type.weight.bold,
+  monogram: {
+    width: 44,
+    height: 44,
+    borderRadius: Radii.lg,
+    backgroundColor: ACCENT + '22',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monogramText: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.heavy,
+    color: ACCENT,
+    letterSpacing: -0.3,
+  },
+  headerTextCol: { flex: 1, gap: 2 },
+  headerSubtitle: {
+    color: Palette.textSecondary,
+    fontSize: Type.size.sm,
+    lineHeight: 18,
+  },
+  // ── Section headers ──────────────────────────────────────────────
+  sectionHeader: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.2,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  sectionHeaderMeta: {
+    color: Palette.textMuted,
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    fontVariant: ['tabular-nums'],
   },
 
   configContainer: {
@@ -1145,27 +1236,93 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     paddingHorizontal: HELP_CLEARANCE,
   },
+  // Sticky bottom CTA — filled green, full-width within the capped column.
+  startBtn: {
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
+    height: 52,
+    borderRadius: Radii.lg,
+    backgroundColor: ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Lift,
+  },
+  startBtnText: {
+    color: '#fff',
+    fontFamily: Fonts.sans,
+    fontWeight: Type.weight.heavy,
+    fontSize: Type.size.lg,
+  },
   configError: {
-    color: Status.danger,
+    color: Palette.danger,
     fontSize: 13,
     textAlign: 'center',
     marginBottom: Spacing.sm,
   },
-  divider: { height: 1, marginVertical: Spacing.sm, borderRadius: 1 },
+  divider: { height: 1, marginVertical: Spacing.sm, borderRadius: 1, backgroundColor: Palette.border },
   row: { flexDirection: 'row', gap: Spacing.md },
   rowPhone: { flexDirection: 'column', gap: Spacing.md },
   field: { flex: 1, gap: 6 },
-  label: { opacity: Opacity.subtle },
-  blurbText: { opacity: Opacity.muted, fontSize: Type.size.md, lineHeight: 20 },
-  blurbBold: { fontWeight: Type.weight.heavy, opacity: 1 },
-  chipRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
-  chip: {
-    borderWidth: Borders.thin,
-    borderRadius: 20,
+  fieldLabel: {
+    color: Palette.textSecondary,
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+  },
+  blurbBold: { fontWeight: Type.weight.heavy, color: Palette.text },
+  // ── Segmented controls (Climb by / Clean reps) ───────────────────
+  segmentsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.lg,
+  },
+  // minWidth must hold a full single row of three pills (~196px). If two
+  // groups can't both fit that side by side (phone), the segmentsRow wraps
+  // them to stack full-width — each pillRow then lays its pills out in one
+  // clean row instead of the confusing 2-then-1 wrap. Tablet/desktop keep
+  // them side by side.
+  segmentGroup: { gap: 6, flexGrow: 1, flexBasis: '40%', minWidth: 220 },
+  segmentLabel: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.1,
+  },
+  pillRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
+  pill: {
+    borderRadius: Radii.pill,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     minWidth: 56,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillText: {
+    fontWeight: Type.weight.bold,
+    fontSize: Type.size.md,
+    fontVariant: ['tabular-nums'],
+  },
+  // ── Helper note ──────────────────────────────────────────────────
+  helperNote: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    backgroundColor: ACCENT_SOFT,
+    borderRadius: Radii.lg,
+    padding: Spacing.md,
+  },
+  helperIcon: { marginTop: 1 },
+  helperText: {
+    flex: 1,
+    color: Palette.text,
+    fontSize: Type.size.sm,
+    lineHeight: 19,
+  },
+  previewNote: {
+    color: Palette.textSecondary,
+    fontSize: Type.size.sm,
+    lineHeight: 19,
+    marginTop: 6,
   },
   // ── Mode picker card grid ────────────────────────────────────────
   modeGrid: {
@@ -1181,20 +1338,31 @@ const styles = StyleSheet.create({
     flexBasis: '47%',
     minWidth: 140,
     minHeight: 78,
-    borderWidth: 1.5,
     borderRadius: Radii.lg,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     gap: 4,
     position: 'relative',
+    ...Lift,
+  },
+  modeCardCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  modeCardDashedIcon: {
+    marginBottom: 2,
   },
   modeCardTitle: {
+    fontFamily: Fonts.rounded,
     fontSize: Type.size.sm,
     fontWeight: Type.weight.heavy,
+    letterSpacing: -0.1,
   },
   modeCardSubtitle: {
     fontSize: Type.size.xs,
     lineHeight: 16,
+    color: Palette.textSecondary,
   },
   modeCardActions: {
     position: 'absolute',
@@ -1209,15 +1377,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modeCardEditGlyph: {
-    fontSize: 14,
-  },
   // ── Custom-mode preview box ──────────────────────────────────────
   customPreviewBox: {
     borderWidth: Borders.thin,
-    borderRadius: Radii.md,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
     padding: Spacing.md,
     gap: 6,
+    backgroundColor: Palette.card,
+    ...Lift,
   },
   editPatternBtn: {
     borderWidth: Borders.thin,
@@ -1228,7 +1396,154 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
 
-  playRoot: { flex: 1 },
+  playRoot: { flex: 1, backgroundColor: Palette.paper },
+
+  // ── Reskinned run top bar ────────────────────────────────────────
+  runTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  runSide: { flex: 1, justifyContent: 'center' },
+  runExit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    alignSelf: 'flex-start',
+  },
+  runExitText: {
+    color: Palette.danger,
+    fontWeight: Type.weight.heavy,
+    fontSize: Type.size.md,
+  },
+  runCenter: { alignItems: 'center', gap: 6 },
+  runTitleRow: { flexDirection: 'row', alignItems: 'center' },
+  runGreenDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Palette.success,
+    marginRight: 7,
+  },
+  runTitleText: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.2,
+  },
+  runTitleMeta: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textMuted,
+  },
+  runStatPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radii.pill,
+    backgroundColor: Palette.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    ...Lift,
+  },
+  runStatBpm: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    fontVariant: ['tabular-nums'],
+  },
+  runStatUnit: {
+    fontSize: 10,
+    fontWeight: Type.weight.bold,
+    letterSpacing: 0.5,
+    color: Palette.textMuted,
+    marginLeft: -4,
+  },
+  runStatDivider: { width: 1, height: 14, backgroundColor: Palette.border },
+  runStatDots: { flexDirection: 'row', gap: 5, alignItems: 'center' },
+  runStatDot: { width: 11, height: 11, borderRadius: 6, borderWidth: 2 },
+  runStatDotEmpty: { borderColor: Palette.textMuted, backgroundColor: 'transparent' },
+  runStatDotFilled: { borderColor: Palette.success, backgroundColor: Palette.success },
+  runStatCount: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.heavy,
+    color: Palette.textSecondary,
+    fontVariant: ['tabular-nums'],
+    marginLeft: 2,
+  },
+
+  // ── Bottom Miss / Clean ──────────────────────────────────────────
+  runBottomBar: {
+    paddingTop: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    gap: 6,
+  },
+  runBtnRow: {
+    flexDirection: 'row',
+    gap: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomBtn: {
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    minWidth: 150,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Lift,
+  },
+  cleanBtnWide: { minWidth: 200 },
+  missOutlineBtn: {
+    backgroundColor: Palette.card,
+    borderWidth: 1.5,
+    borderColor: Palette.danger,
+  },
+  cleanFilledBtn: { backgroundColor: Palette.success },
+  missBtnText: { color: Palette.danger, fontWeight: Type.weight.heavy, fontSize: 17 },
+  cleanBtnText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: 17 },
+  // Phone-landscape: same buttons pinned to the bottom corners.
+  cornerBtn: {
+    position: 'absolute',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 14,
+    minWidth: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Lift,
+    zIndex: 5,
+  },
+  runHintLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textMuted,
+    zIndex: 4,
+  },
+  runHintAuto: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: Palette.textMuted,
+    marginTop: 2,
+  },
+  runHintShortcut: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textSecondary,
+  },
   activeTopBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1257,7 +1572,7 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
     backgroundColor: 'transparent',
   },
-  dotFilled: { backgroundColor: '#2ecc71', borderColor: '#2ecc71' },
+  dotFilled: { backgroundColor: Palette.success, borderColor: Palette.success },
   contentArea: { flex: 1 },
   scoreContain: { flex: 1, width: '100%' },
   toolsMetroWrap: {
@@ -1273,8 +1588,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   repGap: { width: 28 },
-  cleanBtn: { backgroundColor: '#2ecc71' },
-  missBtn: { backgroundColor: '#c0392b' },
+  cleanBtn: { backgroundColor: Palette.success },
+  missBtn: { backgroundColor: Palette.danger },
   repBtnText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: 17 },
 
   // Small one-line keyboard / pedal hint under the top bar (laptop +
@@ -1319,7 +1634,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   phoneDotEmpty: { borderColor: '#ffffff77', backgroundColor: 'transparent' },
-  phoneDotFilled: { borderColor: '#2ecc71', backgroundColor: '#2ecc71' },
+  phoneDotFilled: { borderColor: Palette.success, backgroundColor: Palette.success },
   phoneEndBtn: {
     // Plain blue text, no chip — matches SessionTopBar's EXIT exactly so the
     // floating (no-top-bar) layout reads the same as every other screen.
@@ -1341,14 +1656,11 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
+    ...Lift,
     zIndex: 5,
   },
-  phoneMissBtn: { left: 16, backgroundColor: '#c0392b' },
-  phoneCleanBtn: { right: 16, backgroundColor: '#2ecc71' },
+  phoneMissBtn: { left: 16, backgroundColor: Palette.danger },
+  phoneCleanBtn: { right: 16, backgroundColor: Palette.success },
   phoneRepGlyph: {
     color: '#fff',
     fontSize: 28,

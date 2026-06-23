@@ -25,6 +25,17 @@ export default function Root({ children }: PropsWithChildren) {
         />
         <ScrollViewStyleReset />
 
+        {/* v2 redesign — brand fonts. Bricolage Grotesque (display) +
+            Hanken Grotesk (body) give the app a modern ed-tech editorial
+            feel. Loaded here so they're available app-wide; native falls
+            back to system fonts. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+
         {/* Override expo-reset's `height: 100%` with `100dvh` (dynamic
             viewport height) so the layout tracks the actually-visible
             area on mobile browsers. Without this, on iOS Safari and
@@ -39,7 +50,9 @@ export default function Root({ children }: PropsWithChildren) {
             100% fallback. */}
         <style
           dangerouslySetInnerHTML={{
-            __html: 'html,body,#root{height:100dvh;}',
+            __html:
+              "html,body,#root{height:100dvh;}" +
+              "body{font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:#E4E0D6;}",
           }}
         />
 

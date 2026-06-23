@@ -23,6 +23,7 @@ import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Palette } from '@/constants/palette';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
@@ -414,7 +415,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   errorText: {
-    color: '#c0392b',
+    color: Palette.danger,
     fontSize: Type.size.sm,
   },
 });

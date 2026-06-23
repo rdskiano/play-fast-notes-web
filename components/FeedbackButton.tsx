@@ -11,6 +11,7 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
+import { Palette } from '@/constants/palette';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSession } from '@/lib/supabase/auth';
@@ -243,7 +244,7 @@ const styles = StyleSheet.create({
     minHeight: 140,
     textAlignVertical: 'top',
   },
-  error: { color: '#c0392b', fontSize: Type.size.sm, textAlign: 'center' },
+  error: { color: Palette.danger, fontSize: Type.size.sm, textAlign: 'center' },
   done: {
     textAlign: 'center',
     fontWeight: Type.weight.heavy,

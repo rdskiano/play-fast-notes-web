@@ -2,6 +2,7 @@ import { Modal, Pressable, ScrollView, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
+import { Palette } from '@/constants/palette';
 import { Borders, Overlays, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -89,7 +90,7 @@ export function ActionSheet({
                 <ThemedText
                   style={[
                     styles.itemText,
-                    it.destructive ? { color: '#c0392b' } : { color: C.text },
+                    it.destructive ? { color: Palette.danger } : { color: C.text },
                   ]}>
                   {it.label}
                 </ThemedText>

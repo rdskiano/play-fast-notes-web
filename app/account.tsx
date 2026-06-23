@@ -1,17 +1,17 @@
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PaywallModal } from '@/components/PaywallModal';
-import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { Colors } from '@/constants/theme';
-import { Opacity, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Lift, Palette } from '@/constants/palette';
+import { Fonts } from '@/constants/theme';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useEntitlement } from '@/lib/billing/entitlements';
 import {
   countPracticeLogOlderThan,
@@ -33,8 +33,7 @@ function formatExpiry(unixMs: number): string {
 
 export default function AccountScreen() {
   const router = useRouter();
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
 
   const session = useSession();
   const userEmail = session?.user.email ?? null;
@@ -154,160 +153,177 @@ export default function AccountScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SessionTopBar
-        onExit={() => router.back()}
-        exitLabel="‹ Back"
-        center={
-          <ThemedText style={styles.topCenter} numberOfLines={1}>
-            Account
-          </ThemedText>
-        }
-      />
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {userEmail && (
-          <ThemedText style={styles.sectionHint}>
-            Signed in as {userEmail}.
-          </ThemedText>
-        )}
-        {/* Practice Pro status + the paywall preview/upgrade entry point.
-            While PAYWALL_ENABLED is false everyone reads as Pro and the
-            button just previews the sheet. A 'comp' tier is the 6-month
-            reward for pre-launch users and tester codes; 'pro' is paid. */}
-        <ThemedText style={[styles.sectionHint, { color: C.tint }]}>
-          {entitlement.reason === 'subscription'
-            ? subscription.tier === 'comp'
-              ? subscription.expiresAt
-                ? `Practice Pro — free through ${formatExpiry(subscription.expiresAt)}. Thank you for being here early.`
-                : 'Practice Pro — on the house. Thank you for being here early.'
-              : 'Practice Pro subscription active.'
-            : entitlement.reason === 'trial'
-              ? `Practice Pro trial — ${entitlement.trialDaysLeft} day${entitlement.trialDaysLeft === 1 ? '' : 's'} left.`
-              : entitlement.reason === 'none'
-                ? 'Free plan.'
-                : null}
-        </ThemedText>
-        {entitlement.reason !== 'subscription' && (
-            <View style={styles.accountActions}>
-              <Button
-                label={
-                  entitlement.reason === 'paywall-off'
-                    ? 'Preview Practice Pro'
-                    : 'Get Practice Pro'
-                }
-                size="sm"
-                onPress={() => setPaywallOpen(true)}
-              />
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.lg }]}>
+        <View style={styles.column}>
+          {/* Big-title header (DESIGN_RULES §3 — left-aligned page title) */}
+          <View style={styles.headerBlock}>
+            <Pressable onPress={() => router.back()} hitSlop={8}>
+              <ThemedText style={styles.backLink}>‹ Back</ThemedText>
+            </Pressable>
+            <ThemedText type="title">Account</ThemedText>
+          </View>
+
+          {/* Plan + status */}
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Your plan</ThemedText>
+            <View style={styles.card}>
+              {userEmail && (
+                <ThemedText style={styles.hint}>Signed in as {userEmail}.</ThemedText>
+              )}
+              {/* Practice Pro status. While PAYWALL_ENABLED is false everyone
+                  reads as Pro and the button just previews the sheet. 'comp' =
+                  the 6-month reward for early users/testers; 'pro' = paid. */}
+              <ThemedText style={styles.statusLine}>
+                {entitlement.reason === 'subscription'
+                  ? subscription.tier === 'comp'
+                    ? subscription.expiresAt
+                      ? `Practice Pro — free through ${formatExpiry(subscription.expiresAt)}. Thank you for being here early.`
+                      : 'Practice Pro — on the house. Thank you for being here early.'
+                    : 'Practice Pro subscription active.'
+                  : entitlement.reason === 'trial'
+                    ? `Practice Pro trial — ${entitlement.trialDaysLeft} day${entitlement.trialDaysLeft === 1 ? '' : 's'} left.`
+                    : entitlement.reason === 'none'
+                      ? 'Free plan.'
+                      : null}
+              </ThemedText>
+              {entitlement.reason !== 'subscription' && (
+                <View style={styles.accountActions}>
+                  <Button
+                    label={
+                      entitlement.reason === 'paywall-off'
+                        ? 'Preview Practice Pro'
+                        : 'Get Practice Pro'
+                    }
+                    size="sm"
+                    onPress={() => setPaywallOpen(true)}
+                  />
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Feedback */}
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Feedback</ThemedText>
+            <View style={styles.card}>
+              <ThemedText style={styles.hint}>
+                Hit a bug or have an idea — especially about the new “What should I
+                practice?” coach (beta)? Email me at rdskiano@gmail.com.
+              </ThemedText>
+              <View style={styles.accountActions}>
+                <Button label="Send feedback" variant="outline" size="sm" onPress={sendFeedback} />
+              </View>
+            </View>
+          </View>
+
+          {/* Native only: friendly entry to the web→device import that used to
+              hide behind the /import-supabase URL. */}
+          {Platform.OS !== 'web' && (
+            <View style={styles.section}>
+              <ThemedText style={styles.sectionTitle}>Web account</ThemedText>
+              <View style={styles.card}>
+                <ThemedText style={styles.hint}>
+                  Signs in to your playfastnotes.com account and copies its music,
+                  practice history, and photos onto this device.
+                </ThemedText>
+                <View style={styles.accountActions}>
+                  <Button
+                    label="Download my web library"
+                    variant="outline"
+                    size="sm"
+                    onPress={() => router.push('/import-supabase' as never)}
+                  />
+                </View>
+              </View>
             </View>
           )}
 
-        <ThemedText style={[styles.sectionHint, { marginTop: Spacing.md }]}>
-          Feedback
-        </ThemedText>
-        <View style={styles.accountActions}>
-          <Button label="Send feedback" variant="outline" size="sm" onPress={sendFeedback} />
-        </View>
-        <ThemedText style={styles.sectionHint}>
-          Hit a bug or have an idea — especially about the new “What should I
-          practice?” coach (beta)? Email me at rdskiano@gmail.com.
-        </ThemedText>
-
-        {/* Native only: friendly entry to the web→device import that used to
-            hide behind the /import-supabase URL. */}
-        {Platform.OS !== 'web' && (
-          <>
-            <ThemedText style={[styles.sectionHint, { marginTop: Spacing.md }]}>
-              Web account
-            </ThemedText>
-            <View style={styles.accountActions}>
-              <Button
-                label="Download my web library"
-                variant="outline"
-                size="sm"
-                onPress={() => router.push('/import-supabase' as never)}
-              />
+          {/* Practice history */}
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Practice history</ThemedText>
+            <View style={styles.card}>
+              <ThemedText style={styles.hint}>
+                Trimming permanently deletes older practice-log entries, including
+                any recordings saved with them. Your passages and exercises are not
+                touched.
+              </ThemedText>
+              <View style={styles.accountActions}>
+                <Button
+                  label="Keep last 6 months"
+                  variant="outline"
+                  size="sm"
+                  disabled={trimming}
+                  onPress={() => pickTrim(6, 'logged more than 6 months ago')}
+                />
+                <Button
+                  label="Keep last month"
+                  variant="outline"
+                  size="sm"
+                  disabled={trimming}
+                  onPress={() => pickTrim(1, 'logged more than a month ago')}
+                />
+                <Button
+                  label="Clear all history"
+                  variant="dangerGhost"
+                  size="sm"
+                  disabled={trimming}
+                  onPress={() => pickTrim(0, 'in your history')}
+                />
+              </View>
+              {trimNote && (
+                <ThemedText style={[styles.hint, { color: Palette.accent }]}>
+                  {trimNote}
+                </ThemedText>
+              )}
             </View>
-            <ThemedText style={styles.sectionHint}>
-              Signs in to your playfastnotes.com account and copies its music,
-              practice history, and photos onto this device.
-            </ThemedText>
-          </>
-        )}
+          </View>
 
-        <ThemedText style={[styles.sectionHint, { marginTop: Spacing.md }]}>
-          Practice history
-        </ThemedText>
-        <View style={styles.accountActions}>
-          <Button
-            label="Keep last 6 months"
-            variant="outline"
-            size="sm"
-            disabled={trimming}
-            onPress={() => pickTrim(6, 'logged more than 6 months ago')}
-          />
-          <Button
-            label="Keep last month"
-            variant="outline"
-            size="sm"
-            disabled={trimming}
-            onPress={() => pickTrim(1, 'logged more than a month ago')}
-          />
-          <Button
-            label="Clear all history"
-            variant="danger"
-            size="sm"
-            disabled={trimming}
-            onPress={() => pickTrim(0, 'in your history')}
-          />
+          {/* Account / danger zone */}
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Account</ThemedText>
+            <View style={styles.card}>
+              {/* DESIGN_RULES §5: one filled-danger per screen (Delete);
+                  everything lower-risk is tertiary or ghost. */}
+              <Button
+                label="Sign out"
+                variant="tertiary"
+                size="sm"
+                fullWidth
+                onPress={onSignOut}
+              />
+              <View style={styles.dangerRow}>
+                <Button
+                  label={wiping ? 'Resetting…' : 'Reset all my data'}
+                  variant="dangerGhost"
+                  size="sm"
+                  onPress={() => setWipeConfirmOpen(true)}
+                  disabled={wiping || deleting}
+                  style={styles.dangerHalf}
+                />
+                <Button
+                  label={deleting ? 'Deleting…' : 'Delete my account'}
+                  variant="danger"
+                  size="sm"
+                  onPress={() => {
+                    setDeleteError(null);
+                    setDeleteConfirmOpen(true);
+                  }}
+                  disabled={wiping || deleting}
+                  style={styles.dangerHalf}
+                />
+              </View>
+              <ThemedText style={[styles.hint, { textAlign: 'center' }]}>
+                Deleting your account is permanent and can’t be undone.
+              </ThemedText>
+              {deleteError && (
+                <ThemedText style={[styles.hint, { color: Palette.danger }]}>
+                  {deleteError}
+                </ThemedText>
+              )}
+            </View>
+          </View>
         </View>
-        <ThemedText style={styles.sectionHint}>
-          Trimming permanently deletes older practice-log entries, including
-          any recordings saved with them. Your passages and exercises are not
-          touched.
-        </ThemedText>
-        {trimNote && (
-          <ThemedText style={[styles.sectionHint, { color: C.tint }]}>
-            {trimNote}
-          </ThemedText>
-        )}
-
-        <View style={styles.accountActions}>
-          <Button
-            label="Sign out"
-            variant="outline"
-            size="sm"
-            onPress={onSignOut}
-          />
-          <Button
-            label={wiping ? 'Resetting…' : 'Reset all my data'}
-            variant="danger"
-            size="sm"
-            onPress={() => setWipeConfirmOpen(true)}
-            disabled={wiping || deleting}
-          />
-          <Button
-            label={deleting ? 'Deleting…' : 'Delete my account'}
-            variant="danger"
-            size="sm"
-            onPress={() => {
-              setDeleteError(null);
-              setDeleteConfirmOpen(true);
-            }}
-            disabled={wiping || deleting}
-          />
-        </View>
-
-        <ThemedText style={[styles.sectionHint, { marginTop: Spacing.xs }]}>
-          Reset deletes every passage, exercise, log entry, recording, and folder
-          you own, but keeps your sign-in so you can start fresh. Delete my account
-          removes everything plus your login and email — it is permanent and
-          cannot be undone.
-        </ThemedText>
-        {deleteError && (
-          <ThemedText style={[styles.sectionHint, { color: C.tint, marginTop: Spacing.xs }]}>
-            {deleteError}
-          </ThemedText>
-        )}
       </ScrollView>
 
       <PaywallModal
@@ -368,8 +384,37 @@ export default function AccountScreen() {
 }
 
 const styles = StyleSheet.create({
-  topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
-  content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'], gap: Spacing.lg },
+  content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'], alignItems: 'center' },
+  // Centered column on wide screens (iPad / laptop); full width on phone.
+  column: { width: '100%', maxWidth: 640, gap: Spacing.xl },
+  headerBlock: { gap: Spacing.xs, marginBottom: Spacing.xs },
+  backLink: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, color: Palette.accent },
+  section: { gap: Spacing.sm },
+  sectionTitle: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.2,
+  },
+  card: {
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
+    padding: Spacing.md,
+    gap: Spacing.sm,
+    ...Lift,
+  },
+  statusLine: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    color: Palette.accent,
+    fontVariant: ['tabular-nums'],
+  },
   accountActions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  sectionHint: { opacity: Opacity.muted, fontSize: Type.size.sm, lineHeight: 18 },
+  // Reset (ghost) + Delete (filled) share a row; each takes half.
+  dangerRow: { flexDirection: 'row', gap: Spacing.sm },
+  dangerHalf: { flex: 1 },
+  hint: { color: Palette.textSecondary, fontSize: Type.size.sm, lineHeight: 18 },
 });

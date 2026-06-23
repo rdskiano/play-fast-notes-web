@@ -11,10 +11,11 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { useHelpContext } from '@/components/HelpContext';
 import { ThemedText } from '@/components/themed-text';
+import { Palette } from '@/constants/palette';
 import { Radii, Type } from '@/constants/tokens';
 
 // Matches the web help button + tour ⓘ dots (same blue "i").
-const HELP_BLUE = '#0a7ea4';
+const HELP_BLUE = Palette.accent;
 
 export function HelpButton() {
   const { openManually, active } = useHelpContext();

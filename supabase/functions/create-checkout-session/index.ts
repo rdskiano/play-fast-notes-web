@@ -5,7 +5,7 @@
 // redirects the browser there. The subscriptions row is NOT written here;
 // the stripe-webhook function owns that, driven by Stripe's events.
 //
-// There is no Stripe-side trial: the app's own 14-day trial runs off the
+// There is no Stripe-side trial: the app's own 30-day trial runs off the
 // account's creation date with no card on file. By the time someone reaches
 // Checkout they're past (or skipping) the trial, so they're charged now.
 //
@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
       line_items: [{ price: priceId, quantity: 1 }],
       client_reference_id: user.id,
       subscription_data: { metadata: { user_id: user.id } },
-      // Lets beta testers redeem their 50%-off-year-one promotion code.
+      // Lets beta testers redeem their BETA6 (100% off, 6 months) promo code.
       allow_promotion_codes: true,
       success_url: `${appUrl}/?checkout=success`,
       cancel_url: `${appUrl}/?checkout=cancelled`,

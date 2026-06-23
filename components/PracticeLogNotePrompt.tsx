@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { Lift, Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Overlays, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -110,7 +111,7 @@ export function PracticeLogNotePrompt({
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.backdrop}>
-        <View style={[styles.card, { backgroundColor: C.background }]}>
+        <View style={styles.card}>
           <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
             {PROMPT_TITLE}
           </ThemedText>
@@ -184,6 +185,10 @@ const styles = StyleSheet.create({
     borderRadius: Radii['2xl'],
     padding: 20,
     gap: 14,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    ...Lift,
   },
   emoji: {
     fontSize: 56,

@@ -33,7 +33,7 @@ import { ZoomableImage } from '@/components/ZoomableImage';
 import { PassageRectDrawer } from '@/components/PassageRectDrawer';
 import { PassageRectResizer } from '@/components/PassageRectResizer';
 import { PostSaveSheet } from '@/components/PostSaveSheet';
-import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
+import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { PromptModal } from '@/components/PromptModal';
 import { SectionMarkerCapturer } from '@/components/SectionMarkerCapturer';
 import { SectionsModal } from '@/components/SectionsModal';
@@ -80,12 +80,24 @@ import {
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import { cropImage, stitchVerticallyUris, type Rect } from '@/lib/image/canvasCrop';
 import { persistPassageImage } from '@/lib/image/persistPassageImage';
-import { resolvePageImageUri } from '@/lib/pdf/pageImage';
+import { resolvePageForCrop } from '@/lib/pdf/pageImage';
 import { consumeLastPassageInDoc } from '@/lib/sessions/lastPassageInDoc';
 import { useDocumentAnnotation } from '@/hooks/useDocumentAnnotation';
 
 function newPassageId(): string {
   return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// Scale a page-space rect into a (sharper) rendered image's pixel space before
+// cropping. See resolvePageForCrop — the stored region stays in page-space.
+function scaleRect(rect: Rect, scale: number): Rect {
+  if (scale === 1) return rect;
+  return {
+    x: Math.round(rect.x * scale),
+    y: Math.round(rect.y * scale),
+    w: Math.round(rect.w * scale),
+    h: Math.round(rect.h * scale),
+  };
 }
 
 type Mode = 'idle' | 'draw' | 'resize';
@@ -650,8 +662,11 @@ export default function DocumentScreen() {
       for (const [pageIndex, rect] of ordered) {
         const page = pages.find((pp) => pp.index === pageIndex);
         if (!page) continue;
-        const pageUri = await resolvePageImageUri(doc, page);
-        const uri = await cropImage(pageUri, rect);
+        // Render the page sharp (an upscale for small stored pages) and scale the
+        // page-space rect to match, so the saved crop stays crisp in practice.
+        // The stored region stays in page-space (unscaled).
+        const { uri: pageUri, scale } = await resolvePageForCrop(doc, page);
+        const uri = await cropImage(pageUri, scaleRect(rect, scale));
         croppedUris.push(uri);
         regions.push({ page: pageIndex, x: rect.x, y: rect.y, w: rect.w, h: rect.h });
       }
@@ -801,8 +816,9 @@ export default function DocumentScreen() {
       for (const r of ordered) {
         const page = pages.find((pp) => pp.index === r.page);
         if (!page) continue;
-        const pageUri = await resolvePageImageUri(doc, page);
-        const uri = await cropImage(pageUri, { x: r.x, y: r.y, w: r.w, h: r.h });
+        // Render sharp + scale the page-space rect (see commitDraft).
+        const { uri: pageUri, scale } = await resolvePageForCrop(doc, page);
+        const uri = await cropImage(pageUri, scaleRect({ x: r.x, y: r.y, w: r.w, h: r.h }, scale));
         croppedUris.push(uri);
       }
       const finalUri = await stitchVerticallyUris(croppedUris);
@@ -905,15 +921,12 @@ export default function DocumentScreen() {
               // we already use elsewhere — labeled rows, no ambiguity
               // about what each glyph means.
               <View style={styles.headerRight}>
-                <Pressable
+                <Button
+                  label="+ Passage"
+                  variant="primary"
+                  size="xs"
                   onPress={startDraw}
-                  accessibilityLabel="Mark passage"
-                  style={[
-                    styles.headerIconBtn,
-                    { backgroundColor: C.tint, borderColor: C.tint },
-                  ]}>
-                  <ThemedText style={[styles.headerIconText, { color: '#fff' }]}>+</ThemedText>
-                </Pressable>
+                />
                 <Pressable
                   onPress={() => setPhoneMenuOpen(true)}
                   accessibilityLabel="More actions"
@@ -1288,7 +1301,15 @@ export default function DocumentScreen() {
           </>
         )}
         {mode === 'idle' && !coach && (
-          <PracticeToolsLayer pencil={pencilProp} recorderDocumentId={id} />
+          // Horizontal pill in the content area's top-right, in line with the
+          // page chevron (anchorRight clears the ‹/› buttons at right:8) so the
+          // tools no longer stack down the edge and cover the page in landscape.
+          <PracticeToolsBar
+            pencil={pencilProp}
+            recorderDocumentId={id}
+            anchorTop={8}
+            anchorRight={56}
+          />
         )}
       </View>
 

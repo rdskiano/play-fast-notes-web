@@ -5,6 +5,7 @@ import Animated from 'react-native-reanimated';
 import { RhythmNotation } from '@/components/RhythmNotation';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
+import { Palette } from '@/constants/palette';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDraggableCard } from '@/hooks/useDraggableCard';
@@ -83,7 +84,7 @@ export function FloatingRhythmCard({
               onPress={onToggleRhythm}
               style={[
                 styles.hearBtnCompact,
-                { backgroundColor: rhythmLooping ? '#c0392b' : C.tint },
+                { backgroundColor: rhythmLooping ? Palette.danger : C.tint },
               ]}>
               <ThemedText style={styles.hearText}>
                 {rhythmLooping ? '■ Stop' : '▶ Loop'}
@@ -112,7 +113,7 @@ export function FloatingRhythmCard({
               onPress={onToggleRhythm}
               style={[
                 styles.hearBtn,
-                { backgroundColor: rhythmLooping ? '#c0392b' : C.tint },
+                { backgroundColor: rhythmLooping ? Palette.danger : C.tint },
               ]}>
               <ThemedText style={styles.hearText}>
                 {rhythmLooping ? '■ Stop rhythm' : '▶ Loop rhythm'}

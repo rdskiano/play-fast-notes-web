@@ -5,16 +5,20 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
+// v2 redesign — brand petrol-blue sampled from the app icon (#0A7598).
+// Full design system lives in constants/palette.ts; this map is the live
+// light/dark scheme the existing components already read via useThemeColor.
+const tintColorLight = '#0A7598';
 const tintColorDark = '#fff';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    // v2 reskin tokens (see constants/palette.ts).
+    text: '#15191A',
+    background: '#F6F2EC',
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: '#6B7375',
+    tabIconDefault: '#6B7375',
     tabIconSelected: tintColorLight,
   },
   dark: {
@@ -45,9 +49,10 @@ export const Fonts = Platform.select({
     mono: 'monospace',
   },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
+    // v2 redesign — Hanken Grotesk (body) + Bricolage Grotesque (display).
+    sans: "'Hanken Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    serif: "'Bricolage Grotesque', Georgia, 'Times New Roman', serif",
+    rounded: "'Bricolage Grotesque', 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });

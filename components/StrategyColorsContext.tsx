@@ -33,14 +33,19 @@ export type StrategyKey =
 // Saved custom colors (settings key 'strategy_colors') still override these;
 // the loader drops any saved entry equal to its LEGACY_DEFAULT so these
 // upgrades reach accounts that only ever had defaults.
+// DESIGN_RULES §2 strategy palette (adopted 2026-06-22). One fixed hue per
+// practice method. click_up = "Interleaved Click-Up" = petrol; interleaved /
+// rep_rotator are the SAME strategy (Rep Rotator) = orange. chunking/recording
+// aren't in the doc (chunking folds into Macro; recording is a capture) so they
+// keep their prior near-neutral hues.
 export const DEFAULT_STRATEGY_COLORS: Record<StrategyKey, string> = {
-  tempo_ladder: '#2e9e5b', // green
-  click_up: '#3a6ea5', // denim blue — muted to match the family's depth
-  rhythmic: '#d07b1f', // amber
-  micro_chaining: '#8a4bd0', // violet
-  macro_chaining: '#c43e86', // rose
-  interleaved: '#128a8a', // teal (same strategy as rep_rotator)
-  rep_rotator: '#128a8a', // teal
+  tempo_ladder: '#2E9C66', // green
+  click_up: '#0A7598', // Interleaved Click-Up — petrol (brand)
+  rhythmic: '#7657C8', // violet
+  micro_chaining: '#3F5BD9', // indigo
+  macro_chaining: '#9B4F86', // plum
+  interleaved: '#C9772E', // Rep Rotator — orange (same strategy as rep_rotator)
+  rep_rotator: '#C9772E', // Rep Rotator — orange
   chunking: '#6f8e2a', // olive
   recording: '#5b6b7a', // slate — a capture, not a drill, so near-neutral
 };
@@ -53,14 +58,19 @@ const SETTINGS_KEY = 'strategy_colors';
 // them. On load, any saved entry equal to its old default is treated as
 // "never customized" and dropped, letting default-palette upgrades through
 // while real hand-picked colors still win.
-const LEGACY_DEFAULTS: Record<string, string> = {
-  tempo_ladder: '#2ecc71',
-  click_up: '#154360',
-  rhythmic: '#4a235a',
-  micro_chaining: '#7d3c98',
-  macro_chaining: '#b9770e',
-  interleaved: '#7b2d00',
-  rep_rotator: '#0d7377',
+// Superseded default palettes, per key. On load, any saved entry equal to one
+// of its old defaults is treated as "never customized" and dropped, so default
+// palette upgrades reach accounts that only ever had defaults while real
+// hand-picked colors still win. Two generations now: the pre-2026-06-12 palette
+// and the 2026-06-12 jewel tones (both superseded by DESIGN_RULES §2).
+const LEGACY_DEFAULTS: Record<string, string[]> = {
+  tempo_ladder: ['#2ecc71', '#2e9e5b'],
+  click_up: ['#154360', '#3a6ea5'],
+  rhythmic: ['#4a235a', '#d07b1f'],
+  micro_chaining: ['#7d3c98', '#8a4bd0'],
+  macro_chaining: ['#b9770e', '#c43e86'],
+  interleaved: ['#7b2d00', '#128a8a'],
+  rep_rotator: ['#0d7377', '#128a8a'],
 };
 
 type Ctx = {
@@ -85,7 +95,7 @@ export function StrategyColorsProvider({ children }: { children: ReactNode }) {
         if (parsed && typeof parsed === 'object') {
           const customized = Object.fromEntries(
             Object.entries(parsed as Record<string, string>).filter(
-              ([key, value]) => LEGACY_DEFAULTS[key] !== value,
+              ([key, value]) => !(LEGACY_DEFAULTS[key] ?? []).includes(value),
             ),
           );
           setColors({ ...DEFAULT_STRATEGY_COLORS, ...customized });

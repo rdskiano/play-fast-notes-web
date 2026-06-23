@@ -52,24 +52,43 @@ function loadPdfForDoc(doc: ResolvableDoc): Promise<PdfDocument> {
   return p;
 }
 
+// Render a generous long edge regardless of the page's stored size. Many older /
+// imported PDFs recorded their pages_json at a smaller scale (lots are 1584px,
+// one 25-page doc is only ~900px); rendering at that stored size and stretching
+// it to fill a Retina iPad looked pixelated/blurry — both for the full-page view
+// AND for the cropped passage shown in practice. We never render below this, and
+// never downscale a page stored even larger.
+const DISPLAY_MAX_EDGE = 2000;
+
 /**
  * Resolve a document page to a displayable / croppable image URI.
  * Returns the stored image_uri when present, otherwise renders the page from
  * the document's original PDF on demand (cached).
+ *
+ * `opts.maxEdge` overrides the render long edge. Crop callers should use
+ * resolvePageForCrop instead — it renders sharp AND hands back the factor needed
+ * to scale a page-space (page.w × page.h) rect into the rendered image's pixels.
  */
 export async function resolvePageImageUri(
   doc: ResolvableDoc,
   page: ResolvablePage,
+  opts: { maxEdge?: number } = {},
 ): Promise<string> {
   if (page.image_uri) return page.image_uri;
 
-  const key = `${doc.id}:${page.index}`;
+  const longEdge = Math.max(page.w, page.h) || 0;
+  const maxEdge = opts.maxEdge ?? Math.max(DISPLAY_MAX_EDGE, longEdge);
+
+  // Size is part of the cache key so renders at different long edges don't alias.
+  const key = `${doc.id}:${page.index}:${Math.round(maxEdge)}`;
   const existing = urlByPage.get(key);
   if (existing) return existing;
 
   const p = (async () => {
     const pdf = await loadPdfForDoc(doc);
-    const { blob } = await renderPdfPageToBlob(pdf, page.index);
+    const { blob } = await renderPdfPageToBlob(pdf, page.index, {
+      maxEdge: maxEdge || undefined,
+    });
     return URL.createObjectURL(blob);
   })().catch((err) => {
     urlByPage.delete(key);
@@ -77,4 +96,25 @@ export async function resolvePageImageUri(
   });
   urlByPage.set(key, p);
   return p;
+}
+
+/**
+ * Resolve a page for cropping a passage out of it.
+ *
+ * Passage rects are stored in the page's stored pixel space (page.w × page.h).
+ * To keep the cropped passage crisp in practice we render the page at the sharp
+ * display edge — which for a small stored page is an upscale — and return the
+ * `scale` to multiply the rect by so it lands on the same region in the larger
+ * render. A page with a stored per-page image is already at page.w × page.h, so
+ * its scale is 1.
+ */
+export async function resolvePageForCrop(
+  doc: ResolvableDoc,
+  page: ResolvablePage,
+): Promise<{ uri: string; scale: number }> {
+  if (page.image_uri) return { uri: page.image_uri, scale: 1 };
+  const longEdge = Math.max(page.w, page.h) || DISPLAY_MAX_EDGE;
+  const cropEdge = Math.max(DISPLAY_MAX_EDGE, longEdge);
+  const uri = await resolvePageImageUri(doc, page, { maxEdge: cropEdge });
+  return { uri, scale: cropEdge / longEdge };
 }

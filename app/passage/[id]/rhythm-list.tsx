@@ -17,6 +17,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
+import { Palette } from '@/constants/palette';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
@@ -220,8 +221,8 @@ export default function RhythmListScreen() {
               <Pressable
                 onPress={editMode ? undefined : () => openExercise(item.id)}
                 style={[styles.card, { borderColor: C.icon }]}>
-                <View style={[styles.iconWrap, { backgroundColor: '#9b59b622' }]}>
-                  <ThemedText style={[styles.iconText, { color: '#9b59b6' }]}>♩</ThemedText>
+                <View style={[styles.iconWrap, { backgroundColor: Palette.rhythmicSoft }]}>
+                  <ThemedText style={[styles.iconText, { color: Palette.rhythmic }]}>♩</ThemedText>
                 </View>
                 <View style={styles.cardText}>
                   <ThemedText type="defaultSemiBold" numberOfLines={1}>
@@ -271,7 +272,7 @@ export default function RhythmListScreen() {
                         hitSlop={6}
                         onPress={() => confirmDelete(item, label)}
                         style={styles.editActionBtn}>
-                        <ThemedText style={[styles.editActionText, { color: '#c0392b' }]}>
+                        <ThemedText style={[styles.editActionText, { color: Palette.danger }]}>
                           Delete
                         </ThemedText>
                       </Pressable>

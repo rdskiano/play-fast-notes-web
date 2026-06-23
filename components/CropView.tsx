@@ -11,6 +11,7 @@ import Animated, {
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
+import { Palette } from '@/constants/palette';
 import { Borders, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -312,13 +313,13 @@ const styles = StyleSheet.create({
   rect: {
     position: 'absolute',
     borderWidth: Borders.thick,
-    borderColor: '#2ecc71',
+    borderColor: Palette.success,
   },
   handle: {
     position: 'absolute',
     width: HANDLE,
     height: HANDLE,
-    backgroundColor: '#2ecc71aa',
+    backgroundColor: Palette.success + 'aa',
     borderColor: '#fff',
     borderWidth: Borders.thick,
     borderRadius: HANDLE / 2,

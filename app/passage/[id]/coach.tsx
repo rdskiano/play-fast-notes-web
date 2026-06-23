@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -6,9 +7,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Lift, Palette } from '@/constants/palette';
+import { Fonts } from '@/constants/theme';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { getPassage, updatePassageDueDate, type Passage } from '@/lib/db/repos/passages';
 import {
   getPracticeLogForPassage,
@@ -55,8 +56,6 @@ const DUE_OPTIONS: { label: string; weeks: number | null }[] = [
 export default function CoachScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
   const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
@@ -228,7 +227,13 @@ export default function CoachScreen() {
 
   function Option({ label, onPress }: { label: string; onPress: () => void }) {
     return (
-      <Pressable onPress={onPress} style={[styles.option, { borderColor: C.icon }]} hitSlop={4}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.option,
+          pressed && styles.optionPressed,
+        ]}
+        hitSlop={4}>
         <ThemedText style={styles.optionText}>{label}</ThemedText>
       </Pressable>
     );
@@ -237,19 +242,18 @@ export default function CoachScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={[styles.topBar, { borderBottomColor: C.icon + '44', paddingTop: insets.top + 14 }]}>
-        <Pressable onPress={() => router.back()} hitSlop={16} style={styles.backBtn}>
-          <ThemedText style={[styles.backArrow, { color: C.tint }]}>‹</ThemedText>
+
+      {/* Big-title header (DESIGN_RULES §3 — left-aligned page title) */}
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <ThemedText style={styles.backLink}>‹ Back</ThemedText>
         </Pressable>
-        <ThemedText style={styles.topTitle} numberOfLines={1}>
-          Practice coach · beta
-        </ThemedText>
-        <View style={styles.backBtn} />
+        <ThemedText type="title">Practice coach · beta</ThemedText>
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
         {loading ? (
-          <ThemedText style={{ opacity: Opacity.muted }}>Loading…</ThemedText>
+          <ThemedText style={styles.muted}>Loading…</ThemedText>
         ) : !passage ? (
           <ThemedText>Passage not found.</ThemedText>
         ) : step === 'feedback' && pendingFeedback ? (
@@ -264,19 +268,19 @@ export default function CoachScreen() {
             <View style={styles.thumbRow}>
               <Pressable
                 onPress={() => rateFeedback(true)}
-                style={[styles.thumb, { borderColor: C.icon }]}>
-                <ThemedText style={styles.thumbGlyph}>👍</ThemedText>
+                style={({ pressed }) => [styles.thumb, pressed && styles.optionPressed]}>
+                <Feather name="thumbs-up" size={26} color={Palette.text} />
                 <ThemedText style={styles.thumbLabel}>Helped</ThemedText>
               </Pressable>
               <Pressable
                 onPress={() => rateFeedback(false)}
-                style={[styles.thumb, { borderColor: C.icon }]}>
-                <ThemedText style={styles.thumbGlyph}>👎</ThemedText>
+                style={({ pressed }) => [styles.thumb, pressed && styles.optionPressed]}>
+                <Feather name="thumbs-down" size={26} color={Palette.text} />
                 <ThemedText style={styles.thumbLabel}>Not really</ThemedText>
               </Pressable>
             </View>
             <Pressable onPress={() => rateFeedback(null)} hitSlop={8} style={styles.startOver}>
-              <ThemedText style={[styles.startOverText, { color: C.icon }]}>skip</ThemedText>
+              <ThemedText style={styles.startOverText}>skip</ThemedText>
             </Pressable>
           </View>
         ) : step === 'due' ? (
@@ -299,7 +303,7 @@ export default function CoachScreen() {
               <ThemedText style={styles.leadStrong}>{passage.title}</ThemedText>.
             </ThemedText>
             {reminder ? (
-              <View style={[styles.noteCard, { backgroundColor: C.icon + '18' }]}>
+              <View style={styles.noteCard}>
                 <ThemedText style={styles.noteLabel}>Last time you noted</ThemedText>
                 <ThemedText style={styles.noteText}>“{reminder}”</ThemedText>
               </View>
@@ -320,12 +324,12 @@ export default function CoachScreen() {
               />
             ))}
             <Pressable onPress={reset} hitSlop={8} style={styles.startOver}>
-              <ThemedText style={[styles.startOverText, { color: C.icon }]}>‹ start over</ThemedText>
+              <ThemedText style={styles.startOverText}>‹ start over</ThemedText>
             </Pressable>
           </View>
         ) : step === 'rec' && rec ? (
           <View style={styles.section}>
-            <View style={[styles.recCard, { backgroundColor: C.icon + '14' }]}>
+            <View style={styles.recCard}>
               <ThemedText style={styles.recLead}>{rec.lead}</ThemedText>
               <ThemedText style={styles.recCall}>{rec.call}</ThemedText>
             </View>
@@ -333,19 +337,18 @@ export default function CoachScreen() {
               <Button
                 label={`Start ${TOOL_NAME[rec.startTool]}`}
                 onPress={() => launch(rec.startTool!)}
-                style={{ backgroundColor: C.tint }}
                 fullWidth
               />
             ) : null}
             {rec.escape ? (
-              <ThemedText style={[styles.escape, { color: C.icon }]}>{rec.escape}</ThemedText>
+              <ThemedText style={styles.escape}>{rec.escape}</ThemedText>
             ) : null}
             <Pressable onPress={reset} hitSlop={8} style={styles.startOver}>
-              <ThemedText style={[styles.startOverText, { color: C.icon }]}>‹ start over</ThemedText>
+              <ThemedText style={styles.startOverText}>‹ start over</ThemedText>
             </Pressable>
           </View>
         ) : (
-          <ThemedText style={{ opacity: Opacity.muted }}>Loading…</ThemedText>
+          <ThemedText style={styles.muted}>Loading…</ThemedText>
         )}
       </ScrollView>
     </ThemedView>
@@ -353,48 +356,82 @@ export default function CoachScreen() {
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
+  header: {
+    paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
-  backBtn: { paddingHorizontal: Spacing.sm, paddingVertical: 6, minWidth: 44 },
-  backArrow: { fontSize: 30, fontWeight: '400', lineHeight: 32 },
-  topTitle: { flex: 1, minWidth: 0, fontSize: 15, fontWeight: Type.weight.bold, textAlign: 'center' },
+  backLink: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.semibold,
+    color: Palette.accent,
+  },
   body: { padding: Spacing.lg, gap: Spacing.md, maxWidth: 560, width: '100%', alignSelf: 'center' },
   section: { gap: Spacing.sm },
-  lead: { fontSize: Type.size.lg, lineHeight: 26 },
-  leadStrong: { fontWeight: Type.weight.bold },
-  question: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, marginTop: Spacing.sm },
-  subtle: { fontSize: Type.size.sm, opacity: Opacity.muted },
+  muted: { color: Palette.textMuted },
+  lead: { fontSize: Type.size.lg, lineHeight: 26, color: Palette.text },
+  leadStrong: { fontWeight: Type.weight.bold, color: Palette.text },
+  question: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.2,
+    marginTop: Spacing.sm,
+  },
+  subtle: { fontSize: Type.size.sm, color: Palette.textSecondary, lineHeight: 18 },
   thumbRow: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.sm },
   thumb: {
     flex: 1,
+    backgroundColor: Palette.card,
     borderWidth: Borders.thin,
-    borderRadius: Radii.lg,
+    borderColor: Palette.border,
+    borderRadius: Radii['2xl'],
     paddingVertical: 18,
     alignItems: 'center',
     gap: 6,
+    ...Lift,
   },
-  thumbGlyph: { fontSize: 32, lineHeight: 38 },
-  thumbLabel: { fontSize: Type.size.sm },
+  thumbLabel: { fontSize: Type.size.sm, color: Palette.textSecondary },
   option: {
+    backgroundColor: Palette.card,
     borderWidth: Borders.thin,
-    borderRadius: Radii.lg,
+    borderColor: Palette.border,
+    borderRadius: Radii['2xl'],
     paddingVertical: 14,
     paddingHorizontal: 16,
+    minHeight: 44,
+    justifyContent: 'center',
+    ...Lift,
   },
-  optionText: { fontSize: Type.size.md },
-  noteCard: { borderRadius: Radii.lg, padding: 12, gap: 2 },
-  noteLabel: { fontSize: 12, opacity: Opacity.muted, textTransform: 'lowercase' },
-  noteText: { fontSize: Type.size.md, fontStyle: 'italic' },
-  recCard: { borderRadius: Radii.lg, padding: 16, gap: 8 },
-  recLead: { fontSize: Type.size.md, lineHeight: 24 },
-  recCall: { fontSize: Type.size.md, lineHeight: 24 },
-  escape: { fontSize: Type.size.sm, marginTop: 2, paddingHorizontal: 2 },
+  optionPressed: { transform: [{ scale: 0.985 }] },
+  optionText: { fontSize: Type.size.md, color: Palette.text },
+  noteCard: {
+    backgroundColor: Palette.accentSoft,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii['2xl'],
+    padding: 12,
+    gap: 2,
+  },
+  noteLabel: {
+    fontSize: 12,
+    color: Palette.textMuted,
+    textTransform: 'lowercase',
+  },
+  noteText: { fontSize: Type.size.md, fontStyle: 'italic', color: Palette.text },
+  recCard: {
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii['2xl'],
+    padding: 16,
+    gap: 8,
+    ...Lift,
+  },
+  recLead: { fontSize: Type.size.md, lineHeight: 24, color: Palette.text },
+  recCall: { fontSize: Type.size.md, lineHeight: 24, color: Palette.textSecondary },
+  escape: { fontSize: Type.size.sm, marginTop: 2, paddingHorizontal: 2, color: Palette.textMuted },
   startOver: { alignSelf: 'flex-start', paddingVertical: 8 },
-  startOverText: { fontSize: Type.size.sm },
+  startOverText: { fontSize: Type.size.sm, color: Palette.textMuted },
 });

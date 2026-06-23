@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -11,12 +12,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ActionSheet } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
 import { BpmStepper } from '@/components/BpmStepper';
 import { ClickUpCoach } from '@/components/ClickUpCoach';
 import { PedalCatcher } from '@/components/PedalCatcher';
+import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
+import { RotateForPractice } from '@/components/RotateForPractice';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import {
   ScoreWithMarkers,
@@ -28,8 +30,9 @@ import { SessionTopBar } from '@/components/SessionTopBar';
 import { TempoConfigFields } from '@/components/TempoConfigFields';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
+import { Colors, Fonts } from '@/constants/theme';
+import { Lift, Palette } from '@/constants/palette';
+import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
@@ -48,6 +51,17 @@ import {
   SCORE_FRAME_BG,
 } from '@/lib/layout/configForm';
 
+// Interleaved Click-Up's strategy color is the brand petrol (matches the
+// StrategyColors context + the log). Themes the run screen's NEXT button,
+// title dot, and quiet links.
+const ACCENT = Palette.accent;
+
+// How far (px, pre-zoom) the unit number/arrow floats ABOVE the tapped note —
+// so the user taps right on the note and the cue registers clearly above it.
+// Shared by the marking badges (place) and the playing ▼ arrows so a unit's
+// cue sits at the SAME height on both screens.
+const ICU_MARK_LIFT = 58;
+
 function formatActiveUnits(activeUnits: number[]): string {
   if (activeUnits.length === 0) return '';
   if (activeUnits.length === 1) return `UNIT ${activeUnits[0]}`;
@@ -64,7 +78,7 @@ const CU_MARKING_STEPS: TourStep[] = [
     body:
       'Interleaved Click-Up — developed by researcher Molly Gebrian — breaks your passage into small units and practices them at shuffled tempos, and in changing contexts, which builds more reliable playing under pressure.\n\n' +
       'The passage needs to be broken down into small, manageable units. You can decide to go by the single beat (usually a beat plus the first note of the next beat), or by the measure. If a single beat contains too many notes (like six to eight) and is too difficult, you should break it down further into half or a quarter of a beat. As you get better over multiple days, this can expand to every two bars or an entire line.\n\n' +
-      'Tap just above the music to mark where each unit begins (a beat or a measure), and add one extra mark at the very end. Pinch to zoom in for accuracy. Tap a mark again to remove it, or use UNDO / CLEAR up top.',
+      'Tap right on the note where each unit begins (a beat or a measure) — the number drops in above it automatically — and add one extra mark at the very end. Pinch to zoom in for accuracy. Tap a mark again to remove it, or use UNDO / CLEAR up top.',
     image: {
       source: require('@/assets/images/tutorial-click-up-marking.png'),
       aspectRatio: 2727 / 549,
@@ -115,7 +129,6 @@ export default function ClickUpScreen() {
   const isTouch = useIsTouchDevice();
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
-  const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
   const session = useClickUpSession(id, isGuided);
 
   useEffect(() => {
@@ -337,7 +350,7 @@ export default function ClickUpScreen() {
               <Pressable onPress={clearMarkers} disabled={markers.length === 0} hitSlop={6}>
                 <ThemedText
                   style={{
-                    color: '#c0392b',
+                    color: Palette.danger,
                     fontWeight: Type.weight.bold,
                     opacity: markers.length === 0 ? 0.35 : 1,
                   }}>
@@ -355,8 +368,8 @@ export default function ClickUpScreen() {
             </ThemedText>
             <ThemedText
               style={[styles.helper, { opacity: 1, textAlign: 'left', paddingHorizontal: 0, paddingVertical: 2 }]}>
-              Tap above each beat in order, plus one at the very end. Pinch to
-              zoom.{isPhone && winWidth < winHeight ? '  ↻ Turn sideways for more room.' : ''}
+              Tap right on each beat in order, plus one at the very end — the
+              number appears above it. Pinch to zoom.{isPhone && winWidth < winHeight ? '  ↻ Turn sideways for more room.' : ''}
             </ThemedText>
           </View>
           {/* Score fills all remaining space, contained + pinch-zoomable, so a
@@ -388,6 +401,7 @@ export default function ClickUpScreen() {
                 markers={markers}
                 mode="place"
                 captureTaps={false}
+                placeLiftPx={ICU_MARK_LIFT}
               />
             </ZoomableImage>
           </View>
@@ -463,7 +477,7 @@ export default function ClickUpScreen() {
                   styles.topBtn,
                   { opacity: markers.length === 0 ? 0.35 : 1 },
                 ]}>
-                <ThemedText style={[styles.topBtnText, { color: '#c0392b' }]}>
+                <ThemedText style={[styles.topBtnText, { color: Palette.danger }]}>
                   CLEAR
                 </ThemedText>
               </Pressable>
@@ -481,7 +495,7 @@ export default function ClickUpScreen() {
                 style={[
                   styles.topBtn,
                   {
-                    backgroundColor: canContinue ? '#2ecc71' : C.icon + '55',
+                    backgroundColor: canContinue ? Palette.success : C.icon + '55',
                   },
                 ]}>
                 <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>
@@ -496,9 +510,9 @@ export default function ClickUpScreen() {
               (auto-opens for first-timers); no inline panel here. */}
 
           <ThemedText style={styles.helper}>
-            Tap just above the music to mark the beginning of each unit. Pinch to
-            zoom in for accuracy. You need at least {MIN_MARKERS} marks. Tap an
-            existing mark to remove it.
+            Tap right on the note where each unit begins — the number drops in
+            above it automatically. Pinch to zoom in for accuracy. You need at
+            least {MIN_MARKERS} marks. Tap an existing mark to remove it.
           </ThemedText>
           {/* Pinch-zoomable marking surface. ZoomableImage owns the tap gesture
               and reports a normalized image point (inverting its zoom + the
@@ -529,6 +543,7 @@ export default function ClickUpScreen() {
                 markers={markers}
                 mode="place"
                 captureTaps={false}
+                placeLiftPx={ICU_MARK_LIFT}
               />
             </ZoomableImage>
           </View>
@@ -547,7 +562,7 @@ export default function ClickUpScreen() {
           title="Mark your units"
           body={
             "Interleaved Click-Up is a structured practice method developed by Molly Gebrian — a viola professor and researcher in the neuroscience of practice (her book: Learn Faster, Perform Better). Instead of repeating a passage start-to-finish, you break it into small units; the app interleaves them at climbing tempos, forcing your brain to keep retrieving and reconnecting sections. That builds deeper, more reliable playing under pressure.\n\n" +
-            "Mark your units: tap just above the music to mark the start of each unit (a beat, a measure — the smallest chunk you want to practice). Pinch to zoom in for accuracy. Drop one extra mark at the end of the last unit so the app knows where it stops. You need at least " +
+            "Mark your units: tap right on the note where each unit begins (a beat, a measure — the smallest chunk you want to practice) and the number drops in above it automatically. Pinch to zoom in for accuracy. Drop one extra mark at the end of the last unit so the app knows where it stops. You need at least " +
             String(MIN_MARKERS) +
             " marks total.\n\n" +
             "Fixing marks: tap a marker again to remove it, tap UNDO for just the last one, or CLEAR to start over. When you're done, tap NEXT → at the top right to set your tempo range.\n\n" +
@@ -710,81 +725,58 @@ export default function ClickUpScreen() {
           </Pressable>
         </View>
       )}
+      {/* ── Reskinned run top bar (all devices) — Exit (left) · live
+          "BPM · unit · step n/N" tracker pill (centre). The tools pill
+          floats top-right (rendered last, below). Mirrors Tempo Ladder. */}
       {!isGuided && (
         <>
-          <SessionTopBar
-        onExit={exitSession}
-        // "EXIT" on every size — matches the other practice screens; a bare
-        // back-arrow here read as "undo", not "leave the session".
-        exitLabel="EXIT"
-        center={
-          // Phone (esp. landscape): fold the instruction onto the SAME header
-          // line as a compact step fraction, so it doesn't eat a whole row of
-          // scarce vertical space above the music and the header stays one line.
-          // Larger screens keep the full unit label + the standalone line below.
-          isPhoneLandscape ? (
-            <ThemedText style={styles.topCenter} numberOfLines={1}>
-              {currentIndex + 1}/{storedConfig.steps.length}
-              <ThemedText style={styles.topCenterHint}>
-                {'   ·   Play from one green arrow ▼ to the next.'}
-              </ThemedText>
-            </ThemedText>
-          ) : (
-            <ThemedText style={styles.topCenter} numberOfLines={1}>
-              {unitLabel} · {currentIndex + 1}/{storedConfig.steps.length}
-            </ThemedText>
-          )
-        }
-        right={
-          isPhone ? (
-            // Phone: DONE stays as the primary save action; PEDAL toggle
-            // and Setup move into a ⋯ menu so the header fits in one
-            // row alongside the title.
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Pressable
-                onPress={() => setNotePromptVisible(true)}
-                hitSlop={6}
-                style={[styles.topBtn, styles.doneBtn]}>
-                <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>
-                  DONE
-                </ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => setPhoneMenuOpen(true)}
-                hitSlop={6}
-                accessibilityLabel="More actions"
-                style={styles.topBtn}>
-                <ThemedText style={[styles.topBtnText, { color: C.tint }]}>
-                  ⋯
-                </ThemedText>
+          <View style={[styles.runTopBar, { paddingTop: insets.top + 10 }]}>
+            <View style={styles.runSide}>
+              <Pressable onPress={exitSession} hitSlop={8} style={styles.runExit}>
+                <Feather name="log-out" size={15} color={Palette.danger} />
+                <ThemedText style={styles.runExitText}>Exit</ThemedText>
               </Pressable>
             </View>
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Pressable
-                onPress={goBackToConfig}
-                hitSlop={6}
-                accessibilityLabel="Back to tempo setup"
-                style={styles.topBtn}>
-                <ThemedText style={[styles.topBtnText, { color: C.tint }]}>
-                  ← Setup
+            <View style={styles.runCenter}>
+              {/* Strategy + passage title — desktop / iPad only. Dropped on
+                  phone to save a row (practice runs in landscape there). */}
+              {!isPhone && (
+                <View style={styles.runTitleRow}>
+                  <View style={styles.runAccentDot} />
+                  <ThemedText style={styles.runTitleText} numberOfLines={1}>
+                    Interleaved Click-Up
+                  </ThemedText>
+                  {!!passage?.title && (
+                    <ThemedText style={styles.runTitleMeta} numberOfLines={1}>
+                      {'  ·  '}
+                      {passage.title}
+                    </ThemedText>
+                  )}
+                </View>
+              )}
+              <View style={styles.runStatPill}>
+                <ThemedText style={styles.runStatBpm}>{metronome.bpm}</ThemedText>
+                <ThemedText style={styles.runStatUnit}>BPM</ThemedText>
+                {!!unitLabel && (
+                  <>
+                    <View style={styles.runStatDivider} />
+                    <ThemedText style={styles.runStatUnitLabel} numberOfLines={1}>
+                      {unitLabel}
+                    </ThemedText>
+                  </>
+                )}
+                <View style={styles.runStatDivider} />
+                <ThemedText style={styles.runStatCount}>
+                  {currentIndex + 1}/{storedConfig.steps.length}
                 </ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => setNotePromptVisible(true)}
-                hitSlop={6}
-                style={[styles.topBtn, styles.doneBtn]}>
-                <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>
-                  DONE
-                </ThemedText>
-              </Pressable>
+              </View>
             </View>
-          )
-        }
-      />
+            <View style={styles.runSide} />
+          </View>
 
-      {/* Phone LANDSCAPE folds this into the header line above (scarce vertical
-          space); portrait + larger screens keep the standalone reminder. */}
+          {/* Phone landscape drops the standalone reminder (scarce vertical
+              space — the green arrows + tracker carry it); portrait + larger
+              screens keep it. */}
           {!isPhoneLandscape && (
             <ThemedText style={styles.playHelper}>
               Play from one green arrow ▼ to the next.
@@ -856,6 +848,7 @@ export default function ClickUpScreen() {
                 markers={activeMarkers}
                 mode="play"
                 activePair={activePair}
+                playLiftPx={ICU_MARK_LIFT}
               />
             </ZoomableImage>
           ) : (
@@ -864,14 +857,16 @@ export default function ClickUpScreen() {
               markers={activeMarkers}
               mode="play"
               activePair={activePair}
+              playLiftPx={ICU_MARK_LIFT}
             />
           )}
           {ann.canvas}
         </View>
-        {isGuided ? (
-          // Guided: just a collapsed metronome tab (no note → starts closed),
-          // so a first-timer can tap it open to watch the tempo climb. No
-          // pencil/timer/recorder chrome.
+        {/* Guided: just a collapsed metronome tab (no note → starts closed),
+            so a first-timer can tap it open to watch the tempo climb. No
+            pencil/timer/recorder chrome. Non-guided uses the floating
+            PracticeToolsBar (rendered last, below) instead of the edge dock. */}
+        {isGuided && (
           <PracticeToolsLayer
             metronome={metronome}
             tools={
@@ -880,39 +875,123 @@ export default function ClickUpScreen() {
                 : { left: ['metronome'], right: [] }
             }
           />
-        ) : (
-          <PracticeToolsLayer
-            metronome={metronome}
-            metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."
-            pencil={ann.pencil}
-            recorderPassageId={passage?.id}
-          />
         )}
       </View>
 
-      <View style={styles.bottomBar}>
-        {/* Phone hides the input-method hint — phones have no keyboard
-            and no foot pedal in practice, so the line just eats two
-            rows of vertical space we'd rather give back to the score.
-            Laptop / desktop sees a single tidy line listing every way
-            to move between steps. */}
-        {!isPhone && (
-          <ThemedText style={styles.pedalNote}>
-            Space / Enter / right pedal = NEXT · ← / Backspace / left pedal = BACK
-          </ThemedText>
-        )}
-        <View style={styles.navRow}>
+      {/* ── BACK / NEXT (+ quiet Setup / Done links) ──────────────────
+          Guided keeps the original centred nav row. Non-guided gets the
+          reskinned bottom: big ← Back / Next → (corner-split in phone
+          landscape, mirroring Tempo Ladder's Miss/Clean), with Tempo setup
+          and Done — log it demoted to quiet text links. */}
+      {isGuided ? (
+        <View style={styles.bottomBar}>
+          {!isPhone && (
+            <ThemedText style={styles.pedalNote}>
+              Space / Enter / right pedal = NEXT · ← / Backspace / left pedal = BACK
+            </ThemedText>
+          )}
+          <View style={styles.navRow}>
+            <Pressable
+              onPress={currentIndex === 0 ? undefined : onPrev}
+              disabled={currentIndex === 0}
+              style={[styles.backBtn, { opacity: currentIndex === 0 ? 0.4 : 1 }]}>
+              <ThemedText style={styles.backBtnText}>← BACK</ThemedText>
+            </Pressable>
+            <Pressable onPress={handleNext} style={[styles.nextBtn, styles.nextBtnGrow]}>
+              <ThemedText style={styles.nextBtnText}>NEXT →</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      ) : isPhoneLandscape ? (
+        <>
+          {/* Shift BOTH corner buttons inward by 64 so the Next clears the
+              global help "i" in the bottom-right; Back matches it so the
+              pair stays symmetric (same trick as Tempo Ladder). */}
           <Pressable
             onPress={currentIndex === 0 ? undefined : onPrev}
             disabled={currentIndex === 0}
-            style={[styles.backBtn, { opacity: currentIndex === 0 ? 0.4 : 1 }]}>
-            <ThemedText style={styles.backBtnText}>← BACK</ThemedText>
+            hitSlop={6}
+            accessibilityLabel="Previous step"
+            style={[
+              styles.cornerBtn,
+              styles.runBackBtn,
+              {
+                bottom: insets.bottom + 4,
+                left: insets.left + 16 + 64,
+                opacity: currentIndex === 0 ? 0.4 : 1,
+              },
+            ]}>
+            <ThemedText style={styles.runBackBtnText}>← Back</ThemedText>
           </Pressable>
-          <Pressable onPress={handleNext} style={[styles.nextBtn, styles.nextBtnGrow]}>
-            <ThemedText style={styles.nextBtnText}>NEXT →</ThemedText>
+          <Pressable
+            onPress={handleNext}
+            hitSlop={6}
+            accessibilityLabel="Next step"
+            style={[
+              styles.cornerBtn,
+              styles.runNextBtn,
+              { bottom: insets.bottom + 4, right: insets.right + 16 + 64 },
+            ]}>
+            <ThemedText style={styles.runNextBtnText}>Next →</ThemedText>
           </Pressable>
+          <View style={[styles.runLinksLandscape, { bottom: insets.bottom + 8 }]}>
+            <Pressable onPress={goBackToConfig} hitSlop={6}>
+              <ThemedText style={styles.runLink}>← Setup</ThemedText>
+            </Pressable>
+            <ThemedText style={styles.runLinkDot}>·</ThemedText>
+            <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={6}>
+              <ThemedText style={styles.runLink}>Done — log it</ThemedText>
+            </Pressable>
+          </View>
+        </>
+      ) : (
+        <View style={[styles.runBottomBar, { paddingBottom: insets.bottom + 10 }]}>
+          <View style={styles.runBtnRow}>
+            <Pressable
+              onPress={currentIndex === 0 ? undefined : onPrev}
+              disabled={currentIndex === 0}
+              accessibilityLabel="Previous step"
+              style={[
+                styles.bottomBtn,
+                styles.runBackBtn,
+                { opacity: currentIndex === 0 ? 0.4 : 1 },
+              ]}>
+              <ThemedText style={styles.runBackBtnText}>← Back</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={handleNext}
+              accessibilityLabel="Next step"
+              style={[styles.bottomBtn, styles.runNextBtnWide, styles.runNextBtn]}>
+              <ThemedText style={styles.runNextBtnText}>Next →</ThemedText>
+            </Pressable>
+          </View>
+          <View style={styles.runLinks}>
+            <Pressable onPress={goBackToConfig} hitSlop={6}>
+              <ThemedText style={styles.runLink}>← Tempo setup</ThemedText>
+            </Pressable>
+            <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={6}>
+              <ThemedText style={styles.runLink}>Done — log it</ThemedText>
+            </Pressable>
+          </View>
+          {!isPhone && (
+            <ThemedText style={styles.runHintShortcut}>
+              Space / Enter / right pedal = NEXT · ← / Backspace / left pedal = BACK
+            </ThemedText>
+          )}
         </View>
-      </View>
+      )}
+
+      {/* Tools pill — floats top-right, panels drop below it. Rendered late
+          so it paints above the score. Guided keeps the inline collapsed
+          metronome tab instead (above). */}
+      {!isGuided && (
+        <PracticeToolsBar
+          metronome={metronome}
+          metronomeNote="Interleaved Click-Up sets the tempo for each step — just tap Next after each repetition."
+          pencil={{ ...ann.pencil, onUndo: ann.undo }}
+          recorderPassageId={passage?.id}
+        />
+      )}
 
       {isGuided && (celebrating || notePromptVisible) && (
         <View
@@ -980,23 +1059,6 @@ export default function ClickUpScreen() {
         }}
       />
 
-      <ActionSheet
-        visible={phoneMenuOpen}
-        items={[
-          // Pedal toggle removed — PedalCatcher is always live now, so
-          // any BT foot pedal that emits arrow / Space / Enter / PageDn
-          // keys works without a mode switch.
-          {
-            label: '← Back to tempo setup',
-            onPress: () => {
-              setPhoneMenuOpen(false);
-              goBackToConfig();
-            },
-          },
-        ]}
-        onCancel={() => setPhoneMenuOpen(false)}
-      />
-
       {!isGuided && <ClickUpCoach />}
 
       <TutorialStep
@@ -1007,10 +1069,12 @@ export default function ClickUpScreen() {
           "The score highlights the unit (or pair of units) you're playing right now. Play it at the current tempo, then tap NEXT → to advance.\n\n" +
           "The sequence interleaves individual units with progressively larger combinations — single units first, then pairs, then triples — climbing through your tempo range. Don't try to remember where you are; the app drives the order.\n\n" +
           "← BACK steps you back one stage (handy if you advanced too soon and want to retake that tempo); the metronome and active units rewind with you.\n\n" +
-          "Keyboard / pedal: Space / Enter / right pedal = NEXT, ← / Backspace / left pedal = BACK. The session logs itself when you reach the last step — tap DONE at the top right to log it early, or EXIT to leave without logging." +
+          "Keyboard / pedal: Space / Enter / right pedal = NEXT, ← / Backspace / left pedal = BACK. The session logs itself when you reach the last step — tap Done — log it (below the Next button) to log it early, or Exit (top-left) to leave without logging." +
           `\n\n${PRACTICE_TOOLS_HELP}`
         }
       />
+      {/* Phone: practice runs in landscape. Portrait → "rotate" prompt. */}
+      <RotateForPractice />
     </ThemedView>
   );
 }
@@ -1056,7 +1120,159 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     lineHeight: 18,
   },
-  doneBtn: { backgroundColor: Status.danger },
+  // ── Reskinned run top bar (mirrors Tempo Ladder) ─────────────────
+  runTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  runSide: { flex: 1, justifyContent: 'center' },
+  runExit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    alignSelf: 'flex-start',
+  },
+  runExitText: {
+    color: Palette.danger,
+    fontWeight: Type.weight.heavy,
+    fontSize: Type.size.md,
+  },
+  runCenter: { alignItems: 'center', gap: 6 },
+  runTitleRow: { flexDirection: 'row', alignItems: 'center' },
+  runAccentDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: ACCENT,
+    marginRight: 7,
+  },
+  runTitleText: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.2,
+  },
+  runTitleMeta: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textMuted,
+  },
+  runStatPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radii.pill,
+    backgroundColor: Palette.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    ...Lift,
+  },
+  runStatBpm: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    fontVariant: ['tabular-nums'],
+  },
+  runStatUnit: {
+    fontSize: 10,
+    fontWeight: Type.weight.bold,
+    letterSpacing: 0.5,
+    color: Palette.textMuted,
+    marginLeft: -4,
+  },
+  runStatDivider: { width: 1, height: 14, backgroundColor: Palette.border },
+  runStatUnitLabel: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: 0.3,
+  },
+  runStatCount: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.heavy,
+    color: Palette.textSecondary,
+    fontVariant: ['tabular-nums'],
+  },
+
+  // ── Reskinned bottom BACK / NEXT + quiet links ───────────────────
+  runBottomBar: {
+    paddingTop: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    gap: 8,
+  },
+  runBtnRow: {
+    flexDirection: 'row',
+    gap: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomBtn: {
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    minWidth: 150,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Lift,
+  },
+  runNextBtnWide: { minWidth: 200 },
+  runBackBtn: {
+    backgroundColor: Palette.card,
+    borderWidth: 1.5,
+    borderColor: Palette.borderStrong,
+  },
+  runBackBtnText: { color: Palette.text, fontWeight: Type.weight.heavy, fontSize: 17 },
+  runNextBtn: { backgroundColor: ACCENT },
+  runNextBtnText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: 17 },
+  runLinks: {
+    flexDirection: 'row',
+    gap: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  runLink: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.bold,
+    color: ACCENT,
+  },
+  runLinkDot: { color: Palette.textMuted, fontSize: Type.size.sm },
+  runLinksLandscape: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 6,
+  },
+  runHintShortcut: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textSecondary,
+  },
+  // Phone-landscape: BACK / NEXT pinned to the bottom corners.
+  cornerBtn: {
+    position: 'absolute',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 14,
+    minWidth: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Lift,
+    zIndex: 5,
+  },
   // Guided-onboarding playing header: a light, quiz-consistent bar that
   // replaces the full SessionTopBar so the first session never drops into
   // app chrome. Just the instruction + a Done escape hatch.
@@ -1091,7 +1307,7 @@ const styles = StyleSheet.create({
     opacity: Opacity.muted,
   },
   nextBtn: {
-    backgroundColor: '#2ecc71',
+    backgroundColor: Palette.success,
     paddingVertical: 16,
     borderRadius: Radii.md,
     alignItems: 'center',

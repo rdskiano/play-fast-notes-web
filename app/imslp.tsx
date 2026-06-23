@@ -9,17 +9,18 @@
 // Searching is free (the funnel); importing a full part is Pro (it's a PDF
 // document), so the import handoff is Pro-gated.
 
+import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { FlatList, Linking, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PaywallModal } from '@/components/PaywallModal';
-import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { Opacity, Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Palette, Lift } from '@/constants/palette';
+import { Fonts } from '@/constants/theme';
+import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useEntitlement } from '@/lib/billing/entitlements';
 import { searchImslp, type ImslpResult } from '@/lib/imslp/search';
 
@@ -33,8 +34,8 @@ function openExternal(url: string) {
 
 export default function ImslpScreen() {
   const router = useRouter();
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
+  const headerTopPad = Platform.OS === 'web' ? 56 : Math.max(insets.top, 12) + Spacing.sm;
   const params = useLocalSearchParams<{ q?: string }>();
   const entitlement = useEntitlement();
 
@@ -98,43 +99,40 @@ export default function ImslpScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SessionTopBar
-        onExit={() => router.back()}
-        exitLabel="‹ Library"
-        center={
-          <ThemedText style={styles.topCenter} numberOfLines={1}>
-            IMSLP
-          </ThemedText>
-        }
-      />
+      <View style={[styles.header, { paddingTop: headerTopPad }]}>
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <ThemedText style={styles.backLink}>‹ Library</ThemedText>
+        </Pressable>
+        <ThemedText type="title">IMSLP</ThemedText>
+      </View>
 
-      <View style={[styles.searchWrap, { borderColor: C.icon + '66' }]}>
-        <ThemedText style={[styles.searchIcon, { color: C.icon }]}>⌕</ThemedText>
+      <View style={[styles.searchWrap, { borderColor: Palette.border }]}>
+        <Feather name="search" size={18} color={Palette.textMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Search composer and work, e.g. Brahms Symphony 4"
-          placeholderTextColor={C.icon}
-          style={[styles.searchInput, { color: C.text }]}
+          placeholderTextColor={Palette.textMuted}
+          style={[styles.searchInput, { color: Palette.text }]}
           autoCorrect={false}
           autoCapitalize="none"
           returnKeyType="search"
         />
         {query.length > 0 && (
           <Pressable onPress={() => setQuery('')} hitSlop={8}>
-            <ThemedText style={[styles.searchClear, { color: C.icon }]}>✕</ThemedText>
+            <Feather name="x" size={18} color={Palette.textMuted} />
           </Pressable>
         )}
       </View>
 
-      <ThemedText style={[styles.intro, { color: C.icon }]}>
+      <ThemedText style={styles.intro}>
         Free public-domain sheet music from IMSLP. Pick a work to open it on
         IMSLP, download the PDF there, and it imports into your library.
       </ThemedText>
 
       {error ? (
         <View style={styles.empty}>
-          <ThemedText style={{ color: '#c0392b', textAlign: 'center' }}>{error}</ThemedText>
+          <ThemedText style={{ color: Palette.danger, textAlign: 'center' }}>{error}</ThemedText>
         </View>
       ) : loading ? (
         <View style={styles.empty}>
@@ -152,20 +150,20 @@ export default function ImslpScreen() {
         <FlatList
           data={results}
           keyExtractor={(r) => r.title}
-          contentContainerStyle={{ padding: Spacing.md, gap: Spacing.sm, paddingBottom: Spacing.xl }}
+          contentContainerStyle={{ padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xl }}
           renderItem={({ item }) => (
             <Pressable
               onPress={() => onImport(item)}
-              style={[styles.card, { borderColor: C.icon + '44' }]}>
-              <ThemedText type="defaultSemiBold" numberOfLines={2}>
+              style={[styles.card, { borderColor: Palette.border }]}>
+              <ThemedText type="defaultSemiBold" style={styles.cardTitle} numberOfLines={2}>
                 {item.work}
               </ThemedText>
               {item.composer ? (
-                <ThemedText style={[styles.cardMeta, { color: C.icon }]} numberOfLines={1}>
+                <ThemedText style={styles.cardMeta} numberOfLines={1}>
                   {item.composer}
                 </ThemedText>
               ) : null}
-              <ThemedText style={[styles.cardCta, { color: C.tint }]}>
+              <ThemedText style={styles.cardCta}>
                 Open on IMSLP & import →
               </ThemedText>
             </Pressable>
@@ -183,27 +181,50 @@ export default function ImslpScreen() {
 }
 
 const styles = StyleSheet.create({
-  topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  backLink: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.semibold,
+    color: Palette.accent,
+  },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginHorizontal: Spacing.md,
+    marginHorizontal: Spacing.lg,
     marginTop: Spacing.sm,
-    paddingHorizontal: Spacing.sm,
-    borderWidth: 1,
-    borderRadius: Radii.md,
-  },
-  searchIcon: { fontSize: Type.size.xl, fontWeight: Type.weight.bold },
-  searchInput: { flex: 1, fontSize: 15, paddingVertical: 8 },
-  searchClear: { fontSize: Type.size.md, fontWeight: Type.weight.heavy },
-  intro: {
-    fontSize: Type.size.xs,
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
+    borderWidth: Borders.thin,
+    borderRadius: Radii.xl,
+    backgroundColor: Palette.card,
+  },
+  searchInput: { flex: 1, fontSize: 15, paddingVertical: 12 },
+  intro: {
+    fontSize: Type.size.sm,
+    color: Palette.textSecondary,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    lineHeight: 19,
   },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  card: { borderWidth: 1, borderRadius: Radii.md, padding: Spacing.md, gap: 2 },
-  cardMeta: { fontSize: Type.size.sm },
-  cardCta: { fontSize: Type.size.sm, fontWeight: Type.weight.semibold, marginTop: 4 },
+  card: {
+    borderWidth: Borders.thin,
+    borderRadius: Radii.xl,
+    padding: Spacing.lg,
+    gap: 3,
+    backgroundColor: Palette.card,
+    ...Lift,
+  },
+  cardTitle: { fontFamily: Fonts.rounded, color: Palette.text },
+  cardMeta: { fontSize: Type.size.sm, color: Palette.textSecondary },
+  cardCta: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    color: Palette.accent,
+    marginTop: 4,
+  },
 });

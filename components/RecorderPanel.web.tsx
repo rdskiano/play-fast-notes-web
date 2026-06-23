@@ -1,13 +1,19 @@
 // The Recorder practice tool (web). Mirrors the native iPad panel: records
-// the instrument through the mic (MediaRecorder), shows a live input meter
-// (Web Audio API + AnalyserNode), plays takes back at 0.5×/0.75×/1× with
-// pitch preserved (HTMLAudioElement#preservesPitch), and saves keepers to
-// the passage's practice log via Supabase. The legacy
+// the instrument through the mic (MediaRecorder), shows a live input
+// waveform (Web Audio API + AnalyserNode), plays takes back at 0.5×/0.75×/1×
+// with pitch preserved (HTMLAudioElement#preservesPitch), and saves keepers
+// to the passage's practice log via Supabase. The legacy
 // `app/passage/[id]/self-led/recording.tsx` proves the MediaRecorder path on
 // every browser the web app supports — this panel reuses the same shape so
 // upload/playback compatibility (Safari → audio/mp4, Chrome → audio/webm)
 // stays in lockstep.
+//
+// v2 reskin (2026-06-22): redesigned to the "modern ed-tech" language — a
+// status-dot header with a take count, a paper "stage" holding the big record
+// circle + timer + live waveform, and takes rendered as soft white cards with
+// a play button, a NEW badge, relative time, duration, and save/trash actions.
 
+import Feather from '@expo/vector-icons/Feather';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,9 +26,9 @@ import {
 
 import { SignInModal } from '@/components/SignInModal';
 import { ThemedText } from '@/components/themed-text';
-import { Colors } from '@/constants/theme';
+import { Lift, Palette } from '@/constants/palette';
+import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSession } from '@/lib/supabase/auth';
 import { saveRecording, type RecordingTarget } from '@/lib/supabase/recordings';
 
@@ -31,16 +37,33 @@ type Take = {
   blob: Blob;
   url: string;
   durationSec: number;
+  createdAt: number;
   saved: boolean;
 };
 
 const SPEEDS = [1, 0.75, 0.5] as const;
 const METER_FLOOR = -50;
 const HOT_DB = -3;
+const BAR_COUNT = 13;
+// Faded resting waveform shown when nothing is being recorded — a gentle,
+// roughly symmetric silhouette so the stage never looks empty.
+const IDLE_BARS = [0.28, 0.5, 0.36, 0.72, 0.46, 0.9, 0.62, 0.84, 0.4, 0.66, 0.34, 0.52, 0.26];
 
 function fmt(sec: number): string {
   const s = Math.max(0, Math.floor(sec));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+// Human-friendly "when" for a take, relative to now. Recomputed each render;
+// it doesn't tick on its own, which is fine for a session-only list.
+function relativeTime(createdAt: number): string {
+  const diff = Math.max(0, Date.now() - createdAt);
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hr ago`;
+  return 'earlier';
 }
 
 export function RecorderPanel({
@@ -50,13 +73,11 @@ export function RecorderPanel({
   passageId?: string;
   documentId?: string;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
   const session = useSession();
   // Phone density: shorter side under 600 px (catches landscape too).
-  // We hide chrome (Playback-speed label, input-level caption, save
-  // hint) and tighten paddings so the card matches the trimmed phone
-  // dock height set in PracticeToolsLayer.
+  // We tighten the stage, shrink the record circle, and drop the playback-
+  // speed label so the card matches the trimmed phone dock height set in
+  // PracticeToolsLayer.
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
 
@@ -69,12 +90,13 @@ export function RecorderPanel({
   const [takes, setTakes] = useState<Take[]>([]);
   const [activeTakeId, setActiveTakeId] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [freshTakeId, setFreshTakeId] = useState<string | null>(null);
   const [rate, setRate] = useState<number>(1);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [meterLevel, setMeterLevel] = useState(0);
   const [meterDb, setMeterDb] = useState(METER_FLOOR);
+  const [bars, setBars] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
@@ -123,8 +145,8 @@ export function RecorderPanel({
       audioCtxRef.current = null;
     }
     analyserRef.current = null;
-    setMeterLevel(0);
     setMeterDb(METER_FLOOR);
+    setBars([]);
   }
 
   function stopTicker() {
@@ -149,20 +171,31 @@ export function RecorderPanel({
     analyserRef.current = analyser;
 
     const buf = new Float32Array(analyser.fftSize);
+    const seg = Math.floor(buf.length / BAR_COUNT);
     const tick = () => {
       const a = analyserRef.current;
       if (!a) return;
       a.getFloatTimeDomainData(buf);
+      // Overall level (for the "too loud" warning) + a per-bar RMS so the
+      // waveform actually dances with the signal rather than scaling uniformly.
       let sum = 0;
-      for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+      const next: number[] = [];
+      for (let b = 0; b < BAR_COUNT; b++) {
+        let segSum = 0;
+        const start = b * seg;
+        for (let i = 0; i < seg; i++) {
+          const v = buf[start + i];
+          segSum += v * v;
+          sum += v * v;
+        }
+        const segRms = Math.sqrt(segSum / seg);
+        // Boost a touch so quiet playing still shows visible motion.
+        next.push(Math.max(0.06, Math.min(1, segRms * 3.2)));
+      }
       const rms = Math.sqrt(sum / buf.length);
       const db = 20 * Math.log10(Math.max(rms, 1e-6));
-      const level = Math.max(
-        0,
-        Math.min(1, (db - METER_FLOOR) / -METER_FLOOR),
-      );
       setMeterDb(db);
-      setMeterLevel(level);
+      setBars(next);
       meterRafRef.current = requestAnimationFrame(tick);
     };
     meterRafRef.current = requestAnimationFrame(tick);
@@ -195,16 +228,12 @@ export function RecorderPanel({
         const blob = new Blob(chunksRef.current, { type });
         const url = URL.createObjectURL(blob);
         const durationSec = (Date.now() - recordStartRef.current) / 1000;
+        const id = `t_${Date.now()}`;
         setTakes((t) => [
           ...t,
-          {
-            id: `t_${Date.now()}`,
-            blob,
-            url,
-            durationSec,
-            saved: false,
-          },
+          { id, blob, url, durationSec, createdAt: Date.now(), saved: false },
         ]);
+        setFreshTakeId(id);
         stopStream();
         stopMeter();
       };
@@ -266,11 +295,20 @@ export function RecorderPanel({
     applyRate(a, rate);
     void a.play();
     setPlayingId(take.id);
+    if (freshTakeId === take.id) setFreshTakeId(null);
   }
 
   function pauseTake() {
     audioElRef.current?.pause();
     setPlayingId(null);
+  }
+
+  function removeTake(take: Take) {
+    if (playingId === take.id) pauseTake();
+    if (activeTakeId === take.id) setActiveTakeId(null);
+    if (freshTakeId === take.id) setFreshTakeId(null);
+    URL.revokeObjectURL(take.url);
+    setTakes((ts) => ts.filter((t) => t.id !== take.id));
   }
 
   function changeRate(r: number) {
@@ -302,6 +340,7 @@ export function RecorderPanel({
       setTakes((ts) =>
         ts.map((t) => (t.id === take.id ? { ...t, saved: true } : t)),
       );
+      if (freshTakeId === take.id) setFreshTakeId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save recording.');
     } finally {
@@ -309,145 +348,184 @@ export function RecorderPanel({
     }
   }
 
-  // Compact record button used in the phone layout — just the glyph
-  // (and the live elapsed time while recording), so it can sit inline
-  // with the meter instead of eating a whole row.
-  const recordButton = (
-    <Pressable
-      onPress={toggleRecord}
-      style={[
-        styles.recordBtn,
-        isPhone && styles.recordBtnPhone,
-        { backgroundColor: recording ? '#7d1d1d' : '#e74c3c' },
-      ]}>
-      <View style={recording ? styles.stopGlyph : styles.recordGlyph} />
-      {isPhone ? (
-        recording ? (
-          <ThemedText style={styles.recordLabelPhone}>{fmt(elapsed)}</ThemedText>
-        ) : null
-      ) : (
-        <ThemedText style={styles.recordLabel}>
-          {recording ? `Stop · ${fmt(elapsed)}` : 'Record'}
-        </ThemedText>
-      )}
-    </Pressable>
-  );
-
-  const meterTrack = (
-    <View style={[styles.meterTrack, isPhone && styles.meterTrackPhone]}>
-      <View
-        style={[
-          styles.meterFill,
-          {
-            width: `${(recording ? meterLevel : 0) * 100}%`,
-            backgroundColor: hot ? '#e74c3c' : '#2ecc71',
-          },
-        ]}
-      />
-    </View>
-  );
+  const circleSize = isPhone ? 56 : 76;
+  const innerSize = isPhone ? 22 : 30;
 
   return (
     <View style={[styles.panel, isPhone && styles.panelPhone]}>
-      {isPhone ? (
-        // Phone: record button + meter share a row to save vertical space.
-        <View style={styles.recordRowPhone}>
-          {recordButton}
-          {meterTrack}
+      {/* Header — status dot + title + live take count */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: recording ? Palette.danger : Palette.accent },
+            ]}
+          />
+          <ThemedText style={styles.title}>Recorder</ThemedText>
         </View>
-      ) : (
-        <>
-          {recordButton}
-          {meterTrack}
-        </>
-      )}
-      {/* Phone hides the static "Input level" caption — meter is self-
-          explanatory — but still surfaces the "too loud" warning. */}
-      {(!isPhone || hot) && (
-        <ThemedText style={[styles.meterNote, { color: hot ? '#e74c3c' : C.icon }]}>
-          {hot ? 'Too loud — move back or play softer' : 'Input level'}
+        <ThemedText style={styles.takeCount}>
+          {takes.length} take{takes.length === 1 ? '' : 's'}
+        </ThemedText>
+      </View>
+
+      {/* Stage — record circle + timer + live waveform */}
+      <View style={[styles.stage, isPhone && styles.stagePhone]}>
+        <Pressable
+          onPress={toggleRecord}
+          hitSlop={6}
+          style={[
+            styles.recordCircle,
+            { width: circleSize, height: circleSize, borderRadius: circleSize / 2 },
+          ]}>
+          <View
+            style={[
+              recording ? styles.stopGlyph : styles.recordGlyph,
+              !recording && {
+                width: innerSize,
+                height: innerSize,
+                borderRadius: innerSize / 2,
+              },
+            ]}
+          />
+        </Pressable>
+
+        <View style={styles.stageRight}>
+          <ThemedText style={[styles.timer, isPhone && styles.timerPhone]}>
+            {fmt(recording ? elapsed : 0)}
+          </ThemedText>
+          <View style={[styles.waveform, isPhone && styles.waveformPhone]}>
+            {(recording && bars.length ? bars : IDLE_BARS).map((h, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.waveBar,
+                  {
+                    height: `${Math.round(Math.max(0.08, h) * 100)}%`,
+                    backgroundColor: recording
+                      ? hot
+                        ? Palette.danger
+                        : Palette.accent
+                      : Palette.accentSoft,
+                    opacity: recording ? 1 : 0.9,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        </View>
+      </View>
+
+      {(hot || error) && (
+        <ThemedText
+          style={[styles.note, { color: Palette.danger }]}
+          numberOfLines={2}>
+          {error ?? 'Too loud — move back or play softer'}
         </ThemedText>
       )}
 
+      {/* Playback speed — slow down without changing pitch */}
       <View style={styles.speedRow}>
-        {!isPhone && (
-          <ThemedText style={[styles.speedLabel, { color: C.icon }]}>
-            Playback speed
-          </ThemedText>
-        )}
-        {SPEEDS.map((s) => (
-          <Pressable
-            key={s}
-            onPress={() => changeRate(s)}
-            style={[
-              styles.speedChip,
-              { borderColor: C.icon + '66' },
-              rate === s && { backgroundColor: C.tint, borderColor: C.tint },
-            ]}>
-            <ThemedText
+        {!isPhone && <ThemedText style={styles.speedLabel}>Playback</ThemedText>}
+        {SPEEDS.map((s) => {
+          const on = rate === s;
+          return (
+            <Pressable
+              key={s}
+              onPress={() => changeRate(s)}
               style={[
-                styles.speedChipText,
-                { color: rate === s ? '#fff' : C.text },
+                styles.speedChip,
+                on && { backgroundColor: Palette.accent, borderColor: Palette.accent },
               ]}>
-              {s}×
-            </ThemedText>
-          </Pressable>
-        ))}
+              <ThemedText
+                style={[styles.speedChipText, { color: on ? '#fff' : Palette.textSecondary }]}>
+                {s}×
+              </ThemedText>
+            </Pressable>
+          );
+        })}
       </View>
 
-      <ScrollView style={styles.takeList} contentContainerStyle={{ gap: 6 }}>
-        {error && (
-          <ThemedText style={styles.errorText}>{error}</ThemedText>
-        )}
+      {/* Takes — newest first, mirroring the stack in the mockup */}
+      <ScrollView style={styles.takeList} contentContainerStyle={{ gap: Spacing.sm }}>
         {takes.length === 0 ? (
-          <ThemedText style={[styles.empty, { color: C.icon }]}>
-            No takes yet. Tap Record to capture one.
+          <ThemedText style={styles.empty}>
+            No takes yet. Tap the red button to record one.
           </ThemedText>
         ) : (
-          takes.map((take, i) => {
-            const isPlaying = playingId === take.id;
-            return (
-              <View
-                key={take.id}
-                style={[styles.takeRow, { borderColor: C.icon + '33' }]}>
-                <Pressable
-                  onPress={() => (isPlaying ? pauseTake() : playTake(take))}
-                  hitSlop={6}
-                  style={[styles.playBtn, { borderColor: C.tint }]}>
-                  <ThemedText style={[styles.playGlyph, { color: C.tint }]}>
-                    {isPlaying ? '❚❚' : '▶'}
-                  </ThemedText>
-                </Pressable>
-                <ThemedText style={styles.takeLabel} numberOfLines={1}>
-                  Take {i + 1} · {fmt(take.durationSec)}
-                </ThemedText>
-                {take.saved ? (
-                  <ThemedText style={[styles.savedTag, { color: '#2ecc71' }]}>
-                    ✓ Saved
-                  </ThemedText>
-                ) : savingId === take.id ? (
-                  <ActivityIndicator size="small" color={C.tint} />
-                ) : (
+          [...takes]
+            .reverse()
+            .map((take) => {
+              const isPlaying = playingId === take.id;
+              const isNew = freshTakeId === take.id;
+              return (
+                <View
+                  key={take.id}
+                  style={[styles.takeRow, isNew && styles.takeRowNew]}>
                   <Pressable
-                    onPress={() => saveTake(take)}
-                    disabled={!target}
-                    style={[
-                      styles.saveBtn,
-                      { backgroundColor: C.tint },
-                      !target && styles.saveBtnDisabled,
-                    ]}>
-                    <ThemedText style={styles.saveBtnText}>Save</ThemedText>
+                    onPress={() => (isPlaying ? pauseTake() : playTake(take))}
+                    hitSlop={6}
+                    style={styles.playBtn}>
+                    <Feather
+                      name={isPlaying ? 'pause' : 'play'}
+                      size={16}
+                      color={Palette.text}
+                    />
                   </Pressable>
-                )}
-              </View>
-            );
-          })
+
+                  {/* Middle slot: NEW badge while fresh, otherwise the time.
+                      One element only — the dock card is narrow, so the two
+                      must never compete for the same width. */}
+                  <View style={styles.takeMid}>
+                    {isNew ? (
+                      <View style={styles.newBadge}>
+                        <ThemedText style={styles.newBadgeText}>NEW</ThemedText>
+                      </View>
+                    ) : (
+                      <ThemedText style={styles.takeLabel} numberOfLines={1}>
+                        {relativeTime(take.createdAt)}
+                      </ThemedText>
+                    )}
+                  </View>
+
+                  {/* Right cluster — fixed width, never shrinks/overlaps */}
+                  <View style={styles.takeRight}>
+                    <ThemedText style={styles.takeDur}>{fmt(take.durationSec)}</ThemedText>
+
+                    {take.saved ? (
+                      <View style={styles.savedPill}>
+                        <Feather name="check" size={14} color={Palette.success} />
+                      </View>
+                    ) : savingId === take.id ? (
+                      <View style={styles.savePill}>
+                        <ActivityIndicator size="small" color="#fff" />
+                      </View>
+                    ) : (
+                      <Pressable
+                        onPress={() => saveTake(take)}
+                        disabled={!target}
+                        hitSlop={6}
+                        style={[styles.savePill, !target && styles.iconBtnDisabled]}>
+                        <ThemedText style={styles.savePillText}>Save</ThemedText>
+                      </Pressable>
+                    )}
+
+                    <Pressable
+                      onPress={() => removeTake(take)}
+                      hitSlop={6}
+                      style={styles.iconBtn}>
+                      <Feather name="trash-2" size={16} color={Palette.textMuted} />
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })
         )}
       </ScrollView>
 
       {!target && takes.length > 0 && !isPhone && (
-        <ThemedText style={[styles.hint, { color: C.icon }]}>
-          Open a passage or PDF to save takes to the practice log.
+        <ThemedText style={styles.hint}>
+          Open a passage or PDF to save takes to your practice log.
         </ThemedText>
       )}
 
@@ -462,98 +540,193 @@ export function RecorderPanel({
 
 const styles = StyleSheet.create({
   // paddingTop clears the ToolDock collapse × that floats in the card's
-  // top-left corner — the record button is the first row and would sit under it.
+  // top-left corner.
   panel: {
     flex: 1,
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.md,
     paddingTop: 30,
+    gap: Spacing.md,
+  },
+  panelPhone: {
+    paddingHorizontal: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    paddingTop: 28,
     gap: Spacing.sm,
   },
-  // Phone: tighter padding + smaller gap so the trimmed dock isn't
-  // bottlenecked by chrome (top still cleared for the × button).
-  panelPhone: { paddingHorizontal: Spacing.sm, paddingBottom: Spacing.sm, paddingTop: 28, gap: 6 },
-  recordBtn: {
+
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  statusDot: { width: 11, height: 11, borderRadius: 6 },
+  title: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.xl,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.3,
+  },
+  takeCount: { fontSize: Type.size.sm, color: Palette.textMuted },
+
+  stage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.lg,
+    backgroundColor: Palette.inset,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.xl,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+  },
+  stagePhone: { gap: Spacing.md, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md },
+  recordCircle: {
+    borderWidth: 3,
+    borderColor: Palette.danger,
+    backgroundColor: Palette.card,
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
-    paddingVertical: 12,
-    borderRadius: Radii.lg,
+    ...Lift,
   },
-  recordBtnPhone: {
-    // Compact pill on phone — auto width, shorter, just the glyph
-    // (and live elapsed when recording).
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    minWidth: 56,
-    gap: 6,
+  recordGlyph: { backgroundColor: Palette.danger },
+  stopGlyph: { width: 22, height: 22, borderRadius: 5, backgroundColor: Palette.danger },
+
+  stageRight: { flex: 1, gap: Spacing.xs },
+  timer: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size['4xl'],
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -1,
+    lineHeight: 40,
   },
-  recordGlyph: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#fff' },
-  stopGlyph: { width: 14, height: 14, borderRadius: 3, backgroundColor: '#fff' },
-  recordLabel: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.md },
-  // Smaller weight on phone so a 5-character "12:34" fits the pill.
-  recordLabelPhone: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
-  recordRowPhone: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  meterTrack: {
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#00000022',
-    overflow: 'hidden',
+  timerPhone: { fontSize: Type.size['2xl'], lineHeight: 26 },
+  waveform: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    height: 34,
   },
-  meterTrackPhone: { flex: 1, height: 8 },
-  meterFill: { height: '100%', borderRadius: 5 },
-  meterNote: { fontSize: Type.size.xs, textAlign: 'center' },
+  waveformPhone: { height: 22, gap: 3 },
+  waveBar: {
+    flex: 1,
+    minHeight: 3,
+    borderRadius: Radii.pill,
+  },
+
+  note: { fontSize: Type.size.xs, textAlign: 'center', fontWeight: Type.weight.semibold },
+
   speedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   speedLabel: {
+    flex: 1,
     fontSize: Type.size.xs,
     fontWeight: Type.weight.semibold,
-    marginRight: Spacing.xs,
+    color: Palette.textMuted,
   },
   speedChip: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 5,
-    borderRadius: Radii.md,
+    borderRadius: Radii.pill,
     borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    backgroundColor: Palette.card,
   },
   speedChipText: { fontSize: Type.size.sm, fontWeight: Type.weight.bold },
+
   takeList: { flex: 1 },
   empty: {
     fontSize: Type.size.sm,
+    color: Palette.textMuted,
     textAlign: 'center',
     paddingVertical: Spacing.lg,
   },
-  errorText: {
-    color: '#c0392b',
-    fontSize: Type.size.xs,
-    textAlign: 'center',
-  },
+
   takeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Palette.card,
     borderWidth: Borders.thin,
-    borderRadius: Radii.md,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
+    ...Lift,
+  },
+  takeRowNew: {
+    backgroundColor: Palette.dangerSoft,
+    borderColor: Palette.danger + '55',
   },
   playBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: Radii.md,
+    backgroundColor: Palette.card,
     borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  takeMid: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  takeRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, flexShrink: 0 },
+  takeLabel: {
+    flexShrink: 1,
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textSecondary,
+  },
+  newBadge: {
+    backgroundColor: Palette.danger,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radii.pill,
+  },
+  newBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: Type.weight.heavy,
+    letterSpacing: 0.5,
+  },
+  takeDur: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+  },
+  iconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: Radii.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playGlyph: { fontSize: 12, fontWeight: Type.weight.heavy },
-  takeLabel: { flex: 1, fontSize: Type.size.sm, fontWeight: Type.weight.semibold },
-  savedTag: { fontSize: Type.size.xs, fontWeight: Type.weight.heavy },
-  saveBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Radii.md,
+  iconBtnDisabled: { opacity: 0.35 },
+  savePill: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
+    backgroundColor: Palette.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  saveBtnDisabled: { opacity: 0.4 },
-  saveBtnText: { color: '#fff', fontSize: Type.size.xs, fontWeight: Type.weight.heavy },
-  hint: { fontSize: Type.size.xs, textAlign: 'center' },
+  savePillText: { color: '#fff', fontSize: Type.size.xs, fontWeight: Type.weight.heavy },
+  savedPill: {
+    width: 28,
+    height: 28,
+    borderRadius: Radii.pill,
+    backgroundColor: Palette.successSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  hint: { fontSize: Type.size.xs, textAlign: 'center', color: Palette.textMuted },
 });

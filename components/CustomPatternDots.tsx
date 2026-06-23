@@ -18,6 +18,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { expandPatternToReps, type CustomPattern } from '@/lib/strategies/customPatterns';
+import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -60,7 +61,7 @@ export function CustomPatternDots({
   position = null,
   state = 'idle',
   size = 'medium',
-  accent = '#2ecc71',
+  accent = Palette.success,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const themeIcon = Colors[scheme].icon;

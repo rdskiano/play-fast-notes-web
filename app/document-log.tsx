@@ -8,17 +8,18 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { RecordingPlayer } from '@/components/RecordingPlayer';
-import { SessionTopBar } from '@/components/SessionTopBar';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Lift, Palette } from '@/constants/palette';
+import { Fonts } from '@/constants/theme';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import {
   deletePracticeLog,
   getPracticeLogForDocument,
@@ -103,8 +104,7 @@ export default function DocumentLogScreen() {
     documentId?: string;
     documentTitle?: string;
   }>();
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
   const { colors: STRATEGY_COLORS } = useStrategyColors();
   // Phone: stack passage cards single-column so each pill (e.g.
   // "Interleaved Click-Up 130/130") gets the full row width instead of
@@ -200,15 +200,15 @@ export default function DocumentLogScreen() {
       style={[
         styles.passageCard,
         isPhone && styles.passageCardPhone,
-        { borderColor: C.icon + '33' },
       ]}>
       <ThemedText style={styles.passageName} numberOfLines={1}>
         {pg.passageTitle}
       </ThemedText>
-      <View style={styles.pillRow}>
+      {/* DESIGN_RULES §2: strategies render as neutral rows with a small
+          colored dot + ink label, not fully-saturated filled pills. */}
+      <View style={styles.entryList}>
         {pg.entries.map((e) => {
           const label = strategyLabel(e);
-          const color = STRATEGY_COLORS[e.strategy] ?? C.icon;
           const detail = formatPracticeDetail(e, { compact: true });
           const exerciseName =
             e.exercise_name && e.exercise_name.trim().length > 0
@@ -216,24 +216,29 @@ export default function DocumentLogScreen() {
               : null;
           const { mood, note } = parseMoodNote(e);
           return (
-            <Pressable
-              key={e.id}
-              onPress={() => setEditing(e)}
-              style={styles.entry}>
-              <View style={[styles.pill, { backgroundColor: color }]}>
-                <ThemedText style={styles.pillText} numberOfLines={1}>
+            <View key={e.id} style={styles.entry}>
+              <Pressable
+                onPress={() => setEditing(e)}
+                style={styles.entryRow}>
+                <View
+                  style={[
+                    styles.entryDot,
+                    { backgroundColor: STRATEGY_COLORS[e.strategy] ?? Palette.textMuted },
+                  ]}
+                />
+                <ThemedText style={styles.entryRowLabel} numberOfLines={2}>
                   {label}
                   {exerciseName ? ` · ${exerciseName}` : ''}
                   {detail ? ` ${detail}` : ''}
                   {mood ? ` ${mood}` : ''}
                 </ThemedText>
-              </View>
+              </Pressable>
               {note && (
                 <ThemedText style={styles.noteText} numberOfLines={2}>
                   {note}
                 </ThemedText>
               )}
-            </Pressable>
+            </View>
           );
         })}
       </View>
@@ -248,18 +253,15 @@ export default function DocumentLogScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SessionTopBar
-        onExit={() => router.back()}
-        exitLabel="‹ Document"
-        center={
-          <ThemedText style={styles.topCenter} numberOfLines={1}>
-            {title} — Practice Log
-          </ThemedText>
-        }
-      />
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <ThemedText style={styles.backLink}>‹ Document</ThemedText>
+        </Pressable>
+        <ThemedText type="title">{title} — Practice Log</ThemedText>
+      </View>
       {days.length === 0 ? (
         <View style={styles.empty}>
-          <ThemedText style={{ opacity: 0.6, textAlign: 'center' }}>
+          <ThemedText style={{ color: Palette.textMuted, textAlign: 'center' }}>
             No practice sessions recorded yet.
           </ThemedText>
         </View>
@@ -268,11 +270,8 @@ export default function DocumentLogScreen() {
           {days.map((day) => (
             <View
               key={day.dateLabel}
-              style={[
-                styles.dayBlock,
-                { borderColor: C.icon + '55', backgroundColor: C.icon + '08' },
-              ]}>
-              <View style={[styles.dayHeaderBar, { backgroundColor: C.tint }]}>
+              style={styles.dayBlock}>
+              <View style={styles.dayHeaderBar}>
                 <ThemedText style={styles.dayHeaderText}>{day.dateLabel}</ThemedText>
               </View>
               <View style={styles.dayBody}>
@@ -280,11 +279,9 @@ export default function DocumentLogScreen() {
                   <View key={si} style={styles.sectionGroup}>
                     {sg.sectionName && (
                       <View style={styles.sectionLabelRow}>
-                        <View
-                          style={[styles.sectionBar, { backgroundColor: C.tint }]}
-                        />
+                        <View style={styles.sectionBar} />
                         <ThemedText
-                          style={[styles.sectionName, { color: C.text }]}
+                          style={styles.sectionName}
                           numberOfLines={1}>
                           {sg.sectionName}
                         </ThemedText>
@@ -341,7 +338,8 @@ export default function DocumentLogScreen() {
 }
 
 const styles = StyleSheet.create({
-  topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
+  header: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, gap: Spacing.xs },
+  backLink: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, color: Palette.accent },
   content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'], gap: 18 },
   empty: {
     flex: 1,
@@ -351,14 +349,18 @@ const styles = StyleSheet.create({
   },
   dayBlock: {
     borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    backgroundColor: Palette.inset,
     borderRadius: Radii.xl,
     overflow: 'hidden',
   },
   dayHeaderBar: {
+    backgroundColor: Palette.accent,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   dayHeaderText: {
+    fontFamily: Fonts.rounded,
     color: '#fff',
     fontSize: 15,
     fontWeight: Type.weight.heavy,
@@ -380,10 +382,13 @@ const styles = StyleSheet.create({
     width: Spacing.xs,
     height: 18,
     borderRadius: 2,
+    backgroundColor: Palette.accent,
   },
   sectionName: {
+    fontFamily: Fonts.rounded,
     fontSize: Type.size.md,
     fontWeight: Type.weight.heavy,
+    color: Palette.text,
     flex: 1,
   },
   passageGrid: {
@@ -394,10 +399,13 @@ const styles = StyleSheet.create({
   passageCard: {
     flexBasis: '48%',
     flexGrow: 1,
+    backgroundColor: Palette.card,
     borderWidth: Borders.thin,
+    borderColor: Palette.border,
     borderRadius: Radii.md,
     padding: 10,
     gap: 6,
+    ...Lift,
     // overflow:hidden clips any pill that's still wider than the card
     // (rare after `pill.maxWidth: 100%` below, but a belt-and-braces
     // guard so a long exercise_name can never bleed into a neighbor).
@@ -410,31 +418,16 @@ const styles = StyleSheet.create({
   passageName: {
     fontWeight: Type.weight.bold,
     fontSize: Type.size.sm,
+    color: Palette.text,
   },
-  pillRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.xs,
-  },
-  pill: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
-    borderRadius: Radii.sm,
-    // Stop the pill from exceeding the parent card width. Combined with
-    // `numberOfLines={1}` on the inner Text it ellipsises long labels
-    // like "Interleaved Click-Up 130/130 · my-exercise" instead of
-    // bleeding out of the card.
-    maxWidth: '100%',
-  },
-  pillText: {
-    color: '#fff',
-    fontSize: Type.size.xs,
-    fontWeight: Type.weight.bold,
-  },
+  entryList: { gap: 2 },
+  entryRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 6, minHeight: 32 },
+  entryDot: { width: 9, height: 9, borderRadius: 5, flexShrink: 0 },
+  entryRowLabel: { flex: 1, fontSize: Type.size.sm, fontWeight: Type.weight.semibold, color: Palette.text },
   entry: { gap: 2 },
   noteText: {
     fontSize: Type.size.xs,
-    opacity: Opacity.subtle,
+    color: Palette.textSecondary,
     marginLeft: Spacing.xs,
     fontStyle: 'italic',
   },

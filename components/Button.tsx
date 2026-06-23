@@ -1,11 +1,25 @@
 import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
-import { Borders, Radii, Spacing, Status, Type } from '@/constants/tokens';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-export type ButtonVariant = 'primary' | 'outline' | 'danger' | 'ghost';
+// DESIGN_RULES §5 button hierarchy:
+//  primary     — filled brand accent + white text
+//  outline     — secondary: white surface + hairline border, ink text
+//  tertiary    — sunk surface, ink text (low-emphasis neutral, e.g. Sign out)
+//  danger      — filled --danger (the ONE most-irreversible action per screen)
+//  dangerGhost — destructive secondary: white bg + danger-ghost border + danger text
+//  ghost       — text-only brand
+export type ButtonVariant =
+  | 'primary'
+  | 'outline'
+  | 'tertiary'
+  | 'danger'
+  | 'dangerGhost'
+  | 'ghost';
 export type ButtonSize = 'xs' | 'sm' | 'lg';
 
 type Props = {
@@ -44,27 +58,40 @@ export function Button({
   if (variant === 'primary') {
     bg = C.tint;
   } else if (variant === 'danger') {
-    bg = Status.danger;
+    // One destructive red app-wide (DESIGN_RULES §1) — not the old brick red.
+    bg = Palette.danger;
+  } else if (variant === 'dangerGhost') {
+    bg = Palette.card;
+    border = Palette.dangerGhostBorder;
+    labelColor = Palette.danger;
+  } else if (variant === 'tertiary') {
+    bg = Palette.surfaceSunk;
+    labelColor = C.text;
   } else if (variant === 'ghost') {
     labelColor = C.tint;
   } else {
-    border = C.icon;
+    // secondary = white surface + hairline border.
+    bg = Palette.card;
+    border = Palette.border;
     labelColor = C.text;
   }
+  const bordered = variant === 'outline' || variant === 'dangerGhost';
 
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       hitSlop={hitSlop}
-      style={[
+      style={({ pressed }) => [
         styles.base,
         sizeStyle,
         {
           backgroundColor: bg,
           borderColor: border,
-          borderWidth: variant === 'outline' ? Borders.thin : 0,
+          borderWidth: bordered ? Borders.thin : 0,
           opacity: disabled ? 0.5 : 1,
+          // v2 reskin — subtle press feedback.
+          transform: pressed && !disabled ? [{ scale: 0.985 }] : undefined,
         },
         fullWidth && { alignSelf: 'stretch' },
         style,

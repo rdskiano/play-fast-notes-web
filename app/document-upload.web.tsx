@@ -1,13 +1,14 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useId, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { Colors } from '@/constants/theme';
-import { Radii, Spacing, Type } from '@/constants/tokens';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Lift, Palette } from '@/constants/palette';
+import { Fonts } from '@/constants/theme';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { uploadPdfDocument, type UploadProgress } from '@/lib/pdf/upload';
 
 export default function DocumentUploadScreen() {
@@ -15,8 +16,7 @@ export default function DocumentUploadScreen() {
   const params = useLocalSearchParams<{ folder?: string; title?: string; composer?: string; imslp?: string }>();
   const targetFolderId = params.folder ? params.folder : null;
   const fromImslp = params.imslp === '1';
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
 
   const [picked, setPicked] = useState<File | null>(null);
   // Prefilled when arriving from IMSLP (the work title + composer of the score
@@ -64,17 +64,25 @@ export default function DocumentUploadScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <ThemedText style={styles.backLink}>‹ Back</ThemedText>
+        </Pressable>
+        <ThemedText type="title">Add a full part</ThemedText>
+      </View>
+
       <ScrollView contentContainerStyle={styles.scroll}>
-        <ThemedView style={{ gap: Spacing.md }}>
-          <ThemedText type="title">Add a full part</ThemedText>
+        <View style={{ gap: Spacing.md }}>
           {fromImslp ? (
-            <ThemedText style={{ fontSize: Type.size.sm, color: C.tint }}>
+            <ThemedText style={styles.imslpHint}>
               IMSLP opened in another tab. Accept their disclaimer, download the
               PDF (it&apos;s free — non-members wait ~15 seconds), then pick it
               below. The title and composer are filled in for you.
             </ThemedText>
           ) : (
-            <ThemedText style={{ opacity: 0.6, fontSize: Type.size.sm }}>
+            <ThemedText style={styles.hint}>
               Upload the full PDF — typically your part for an orchestral work or a
               multi-page solo. After upload, you can mark passages directly inside it.
             </ThemedText>
@@ -88,47 +96,45 @@ export default function DocumentUploadScreen() {
             htmlFor={fileInputId}
             style={{
               display: 'block',
-              backgroundColor: C.tint,
+              backgroundColor: Palette.accent,
               color: '#fff',
               padding: '14px 16px',
-              borderRadius: Radii.md,
+              borderRadius: Radii.lg,
               textAlign: 'center',
               cursor: 'pointer',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-              fontWeight: 600,
+              fontFamily: Fonts.sans as string,
+              fontWeight: 700,
               fontSize: Type.size.md,
               userSelect: 'none',
             }}>
             {picked ? `Selected: ${picked.name}` : 'Pick PDF'}
           </label>
 
-          <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.7 }}>Title</ThemedText>
+          <ThemedText style={styles.fieldLabel}>Title</ThemedText>
           <TextInput
             value={title}
             onChangeText={setTitle}
             placeholder="e.g. Mahler 9 — Clarinet I"
-            placeholderTextColor={C.icon}
-            style={[styles.input, { borderColor: C.icon, color: C.text }]}
+            placeholderTextColor={Palette.textMuted}
+            style={styles.input}
           />
 
-          <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.7 }}>
-            Composer (optional)
-          </ThemedText>
+          <ThemedText style={styles.fieldLabel}>Composer (optional)</ThemedText>
           <TextInput
             value={composer}
             onChangeText={setComposer}
             placeholder="e.g. Gustav Mahler"
-            placeholderTextColor={C.icon}
-            style={[styles.input, { borderColor: C.icon, color: C.text }]}
+            placeholderTextColor={Palette.textMuted}
+            style={styles.input}
           />
 
           {progress && (
-            <View style={[styles.progressCard, { borderColor: C.icon }]}>
-              <ThemedText style={{ fontWeight: Type.weight.bold }}>
+            <View style={styles.progressCard}>
+              <ThemedText style={styles.progressTitle}>
                 {progressLabel(progress)}
               </ThemedText>
               {progress.pages_total > 0 && (
-                <ThemedText style={{ opacity: 0.7, fontSize: Type.size.sm }}>
+                <ThemedText style={styles.progressMeta}>
                   {progress.pages_done} / {progress.pages_total} pages
                 </ThemedText>
               )}
@@ -136,7 +142,7 @@ export default function DocumentUploadScreen() {
           )}
 
           {error && <ThemedText style={styles.error}>{error}</ThemedText>}
-        </ThemedView>
+        </View>
       </ScrollView>
 
       <input
@@ -148,13 +154,15 @@ export default function DocumentUploadScreen() {
       />
 
       <Pressable
-        style={[styles.saveBtn, { backgroundColor: canSave ? C.tint : C.icon }]}
+        style={[styles.saveBtn, { backgroundColor: canSave ? Palette.accent : Palette.surfaceSunk }]}
         disabled={!canSave}
         onPress={onSave}>
         {saving ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <ThemedText style={styles.saveText}>Upload + render</ThemedText>
+          <ThemedText style={[styles.saveText, { color: canSave ? '#fff' : Palette.textMuted }]}>
+            Upload + render
+          </ThemedText>
         )}
       </Pressable>
 
@@ -184,28 +192,59 @@ function progressLabel(p: UploadProgress): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scroll: { padding: 20, gap: Spacing.md },
-  input: {
-    borderWidth: 1,
-    borderRadius: Radii.md,
-    padding: Spacing.md,
-    fontSize: Type.size.md,
-  },
-  progressCard: {
-    borderWidth: 1,
-    borderRadius: Radii.md,
-    padding: Spacing.md,
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
     gap: Spacing.xs,
   },
+  backLink: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.semibold,
+    color: Palette.accent,
+  },
+  scroll: { padding: Spacing.lg, gap: Spacing.md },
+  hint: { color: Palette.textSecondary, fontSize: Type.size.sm, lineHeight: 19 },
+  imslpHint: { color: Palette.accent, fontSize: Type.size.sm, lineHeight: 19 },
+  fieldLabel: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    color: Palette.text,
+  },
+  input: {
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
+    padding: Spacing.md,
+    fontSize: Type.size.md,
+    color: Palette.text,
+    ...Lift,
+  },
+  progressCard: {
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
+    padding: Spacing.md,
+    gap: Spacing.xs,
+    ...Lift,
+  },
+  progressTitle: {
+    fontFamily: Fonts.rounded,
+    fontWeight: Type.weight.bold,
+    color: Palette.text,
+  },
+  progressMeta: { color: Palette.textSecondary, fontSize: Type.size.sm },
   error: {
-    color: '#c0392b',
+    color: Palette.danger,
     fontSize: Type.size.sm,
   },
   saveBtn: {
-    margin: 20,
+    margin: Spacing.lg,
     borderRadius: Radii.lg,
     padding: 18,
     alignItems: 'center',
   },
-  saveText: { color: '#fff', fontWeight: Type.weight.bold, fontSize: Type.size.xl },
+  saveText: { fontWeight: Type.weight.bold, fontSize: Type.size.xl },
 });

@@ -1,15 +1,16 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SessionTopBar } from '@/components/SessionTopBar';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { Colors } from '@/constants/theme';
+import { Lift, Palette } from '@/constants/palette';
+import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { TOOLS_HUB_HELP } from '@/constants/toolsHelp';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { TOOLS_ONLY_ID } from '@/lib/strategies/toolsMode';
 
 // The library's "Tools" hub — practice tools you can use without attaching a
@@ -18,7 +19,7 @@ import { TOOLS_ONLY_ID } from '@/lib/strategies/toolsMode';
 // Metronome and Tempo Stepper are dedicated tools-mode screens.
 
 type ToolCard = {
-  emoji: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
   title: string;
   subtitle: string;
   color: string;
@@ -27,39 +28,38 @@ type ToolCard = {
 
 export default function ToolsHubScreen() {
   const router = useRouter();
-  const scheme = useColorScheme() ?? 'light';
-  const C = Colors[scheme];
+  const insets = useSafeAreaInsets();
   const { colors } = useStrategyColors();
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
 
   const cards: ToolCard[] = [
     {
-      emoji: '🥁',
+      icon: 'metronome',
       title: 'Metronome',
       subtitle: 'Tempo, meter, subdivisions, drum grooves, drone, and random gaps.',
-      color: '#3a3f44',
+      color: Palette.textSecondary,
       route: '/tools/metronome',
     },
     {
-      emoji: '🪜',
+      icon: 'stairs',
       title: 'Tempo Ladder',
       subtitle: 'Climb the tempo — Step, Cluster, or your Custom patterns.',
-      color: colors.tempo_ladder ?? '#2ecc71',
+      color: colors.tempo_ladder ?? Palette.tempoLadder,
       route: `/passage/${TOOLS_ONLY_ID}/tempo-ladder`,
     },
     {
-      emoji: '🎵',
+      icon: 'music-note',
       title: 'Rhythm Variations',
       subtitle: 'Cycle rhythm patterns against the click.',
-      color: colors.rhythmic ?? '#4a235a',
+      color: colors.rhythmic ?? Palette.rhythmic,
       route: `/passage/${TOOLS_ONLY_ID}/rhythmic`,
     },
     {
-      emoji: '🌐',
+      icon: 'account-group',
       title: 'Community Library',
       subtitle: 'Browse and download rhythm exercises shared by other players.',
-      color: '#0a7ea4',
+      color: Palette.accent,
       route: '/community',
     },
   ];
@@ -67,28 +67,32 @@ export default function ToolsHubScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SessionTopBar
-        onExit={() =>
-          router.canGoBack()
-            ? router.back()
-            : router.replace('/(tabs)/library' as never)
-        }
-        exitLabel="‹ Library"
-        center={
-          <ThemedText style={styles.topCenter} numberOfLines={1}>
-            Tools
-          </ThemedText>
-        }
-      />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.md }]}>
+        {/* Big-title header (DESIGN_RULES §3 — left-aligned page title) */}
+        <View style={styles.header}>
+          <Pressable
+            onPress={() =>
+              router.canGoBack()
+                ? router.back()
+                : router.replace('/(tabs)/library' as never)
+            }
+            hitSlop={8}>
+            <ThemedText style={styles.backLink}>‹ Library</ThemedText>
+          </Pressable>
+          <ThemedText type="title">Tools</ThemedText>
+        </View>
+
         {/* Headline on-ramp: the free tools below are the hook; bringing your
             own music in (coached, with saved progress) is the upgrade in
             engagement — and eventually the paid tier. Keep this first so the
             tools room is a door INTO the app, not a dead end. */}
         <Pressable
           onPress={() => router.push('/upload?coach=1' as never)}
-          style={[styles.hero, { backgroundColor: colors.tempo_ladder ?? '#2ecc71' }]}>
-          <ThemedText style={styles.heroEmoji}>🎵</ThemedText>
+          style={styles.hero}>
+          <View style={styles.heroIcon}>
+            <MaterialCommunityIcons name="music-note-plus" size={26} color="#fff" />
+          </View>
           <View style={styles.heroBody}>
             <ThemedText style={styles.heroTitle}>Add my music &amp; get some guidance</ThemedText>
             <ThemedText style={styles.heroSubtitle}>
@@ -98,7 +102,7 @@ export default function ToolsHubScreen() {
           </View>
           <ThemedText style={styles.heroArrow}>›</ThemedText>
         </Pressable>
-        <ThemedText style={[styles.intro, { color: C.icon }]}>
+        <ThemedText style={styles.intro}>
           Or just grab a tool — nothing to set up, nothing saved.
         </ThemedText>
         <View style={[styles.grid, isPhone && styles.gridPhone]}>
@@ -106,18 +110,18 @@ export default function ToolsHubScreen() {
             <Pressable
               key={card.title}
               onPress={() => router.push(card.route as never)}
-              style={[
+              style={({ pressed }) => [
                 styles.card,
                 isPhone && styles.cardPhone,
-                { borderColor: C.icon + '55', backgroundColor: C.background },
+                pressed && { transform: [{ scale: 0.985 }] },
               ]}>
               <View style={[styles.accent, { backgroundColor: card.color }]} />
               <View style={styles.cardBody}>
-                <ThemedText style={styles.cardEmoji}>{card.emoji}</ThemedText>
+                <View style={[styles.cardIcon, { backgroundColor: card.color + '1A' }]}>
+                  <MaterialCommunityIcons name={card.icon} size={22} color={card.color} />
+                </View>
                 <ThemedText style={styles.cardTitle}>{card.title}</ThemedText>
-                <ThemedText style={[styles.cardSubtitle, { color: C.icon }]}>
-                  {card.subtitle}
-                </ThemedText>
+                <ThemedText style={styles.cardSubtitle}>{card.subtitle}</ThemedText>
               </View>
             </Pressable>
           ))}
@@ -137,8 +141,9 @@ export default function ToolsHubScreen() {
 }
 
 const styles = StyleSheet.create({
-  topCenter: { textAlign: 'center', fontWeight: Type.weight.bold, fontSize: Type.size.sm },
   content: { padding: Spacing.lg, gap: Spacing.lg },
+  header: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, gap: Spacing.xs },
+  backLink: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, color: Palette.accent },
   hero: {
     width: '100%',
     maxWidth: 540,
@@ -147,14 +152,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
     padding: Spacing.lg,
-    borderRadius: Radii.xl,
+    borderRadius: Radii['2xl'],
+    backgroundColor: Palette.accent,
+    ...Lift,
   },
-  heroEmoji: { fontSize: 32 },
+  heroIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: Radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff2e',
+  },
   heroBody: { flex: 1, gap: 4 },
-  heroTitle: { fontSize: Type.size.lg, fontWeight: Type.weight.heavy, color: '#fff' },
+  heroTitle: { fontFamily: Fonts.rounded, fontSize: Type.size.lg, fontWeight: Type.weight.heavy, color: '#fff' },
   heroSubtitle: { fontSize: Type.size.sm, lineHeight: 18, color: '#ffffffe6' },
   heroArrow: { fontSize: 28, color: '#fff', fontWeight: Type.weight.bold },
-  intro: { fontSize: Type.size.sm, lineHeight: 20, textAlign: 'center' },
+  intro: {
+    fontSize: Type.size.sm,
+    lineHeight: 20,
+    textAlign: 'center',
+    color: Palette.textSecondary,
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -164,16 +183,31 @@ const styles = StyleSheet.create({
   gridPhone: { flexDirection: 'column' },
   card: {
     width: 260,
+    backgroundColor: Palette.card,
     borderWidth: Borders.thin,
-    borderRadius: Radii.xl,
+    borderColor: Palette.border,
+    borderRadius: Radii['2xl'],
     overflow: 'hidden',
     flexDirection: 'row',
     minHeight: 110,
+    ...Lift,
   },
   cardPhone: { width: '100%' },
   accent: { width: 8 },
   cardBody: { flex: 1, padding: Spacing.lg, gap: 6, justifyContent: 'center' },
-  cardEmoji: { fontSize: 30 },
-  cardTitle: { fontSize: Type.size.lg, fontWeight: Type.weight.heavy },
-  cardSubtitle: { fontSize: Type.size.sm, lineHeight: 18 },
+  cardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  cardTitle: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+  },
+  cardSubtitle: { fontSize: Type.size.sm, lineHeight: 18, color: Palette.textSecondary },
 });

@@ -2,8 +2,9 @@ import Slider from '@react-native-community/slider';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { Lift, Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
-import { Borders, Opacity, Spacing, Type } from '@/constants/tokens';
+import { Borders, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useMetronome } from '@/lib/audio/useMetronome';
 
@@ -15,6 +16,8 @@ type Props = {
   min?: number;
   max?: number;
   metronome?: Metronome;
+  /** Accent color for the slider + Hear-tempo button. Defaults to the theme tint. */
+  accent?: string;
 };
 
 function clamp(n: number, min: number, max: number) {
@@ -27,9 +30,11 @@ export function BpmStepper({
   min = 30,
   max = 300,
   metronome,
+  accent,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const accentColor = accent ?? C.tint;
 
   const parsed = parseInt(value, 10);
   const numValue = !isNaN(parsed) ? clamp(parsed, min, max) : min;
@@ -56,25 +61,25 @@ export function BpmStepper({
   }
 
   return (
-    <View style={[styles.card, { borderColor: C.icon + '55', backgroundColor: C.icon + '0a' }]}>
+    <View style={styles.card}>
       <View style={styles.tempoRow}>
         <Pressable
           onPress={() => setBpm(numValue - 1)}
           onLongPress={() => setBpm(numValue - 5)}
           hitSlop={6}
-          style={[styles.stepBtn, { borderColor: C.icon }]}>
-          <ThemedText style={[styles.stepText, { color: C.text }]}>−</ThemedText>
+          style={styles.stepBtn}>
+          <ThemedText style={styles.stepText}>−</ThemedText>
         </Pressable>
         <View style={styles.tempoDisplay}>
-          <ThemedText style={[styles.tempoNum, { color: C.text }]}>{numValue}</ThemedText>
-          <ThemedText style={[styles.tempoUnit, { color: C.icon }]}>BPM</ThemedText>
+          <ThemedText style={styles.tempoNum}>{numValue}</ThemedText>
+          <ThemedText style={styles.tempoUnit}>BPM</ThemedText>
         </View>
         <Pressable
           onPress={() => setBpm(numValue + 1)}
           onLongPress={() => setBpm(numValue + 5)}
           hitSlop={6}
-          style={[styles.stepBtn, { borderColor: C.icon }]}>
-          <ThemedText style={[styles.stepText, { color: C.text }]}>+</ThemedText>
+          style={styles.stepBtn}>
+          <ThemedText style={styles.stepText}>+</ThemedText>
         </Pressable>
       </View>
 
@@ -88,7 +93,7 @@ export function BpmStepper({
           onChange={(e) => setBpm(parseInt(e.target.value, 10))}
           style={{
             width: '100%',
-            accentColor: C.tint,
+            accentColor: accentColor,
             marginTop: -2,
           }}
         />
@@ -99,14 +104,14 @@ export function BpmStepper({
           step={1}
           value={numValue}
           onValueChange={(v) => setBpm(v)}
-          minimumTrackTintColor={C.tint}
-          maximumTrackTintColor={C.icon}
+          minimumTrackTintColor={accentColor}
+          maximumTrackTintColor={Palette.border}
           style={{ width: '100%', marginTop: -2 }}
         />
       )}
       <View style={styles.sliderLabels}>
-        <ThemedText style={[styles.sliderLabelText, { color: C.icon }]}>{min}</ThemedText>
-        <ThemedText style={[styles.sliderLabelText, { color: C.icon }]}>{max}</ThemedText>
+        <ThemedText style={styles.sliderLabelText}>{min}</ThemedText>
+        <ThemedText style={styles.sliderLabelText}>{max}</ThemedText>
       </View>
 
       {metronome && (
@@ -114,9 +119,10 @@ export function BpmStepper({
           onPress={toggle}
           hitSlop={8}
           accessibilityLabel={running ? 'Stop preview' : 'Hear this tempo'}
-          style={[styles.playBtn, { backgroundColor: running ? '#c0392b' : '#e67e22' }]}>
-          <ThemedText style={styles.playBtnText}>
-            {running ? '■  Stop' : '▶  Hear this tempo'}
+          style={styles.playBtn}>
+          <ThemedText
+            style={[styles.playBtnText, { color: running ? Palette.danger : accentColor }]}>
+            {running ? '■  Stop' : '▶  Hear tempo'}
           </ThemedText>
         </Pressable>
       )}
@@ -126,10 +132,13 @@ export function BpmStepper({
 
 const styles = StyleSheet.create({
   card: {
+    backgroundColor: Palette.card,
     borderWidth: Borders.thin,
+    borderColor: Palette.border,
     borderRadius: 16,
     padding: Spacing.md,
     gap: 10,
+    ...Lift,
   },
   tempoRow: {
     flexDirection: 'row',
@@ -141,20 +150,32 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     borderWidth: Borders.thin,
+    borderColor: Palette.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepText: { fontSize: Type.size['2xl'], fontWeight: Type.weight.bold, lineHeight: 26 },
+  stepText: {
+    fontSize: Type.size['2xl'],
+    fontWeight: Type.weight.bold,
+    lineHeight: 26,
+    color: Palette.text,
+  },
   tempoDisplay: { alignItems: 'center' },
-  tempoNum: { fontSize: 32, fontWeight: Type.weight.heavy, lineHeight: 36 },
-  tempoUnit: { fontSize: 10, opacity: Opacity.subtle, marginTop: -2 },
+  tempoNum: {
+    fontSize: 32,
+    fontWeight: Type.weight.heavy,
+    lineHeight: 36,
+    color: Palette.text,
+    fontVariant: ['tabular-nums'],
+  },
+  tempoUnit: { fontSize: 10, color: Palette.textMuted, marginTop: -2 },
   sliderLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: -6,
     marginHorizontal: Spacing.sm,
   },
-  sliderLabelText: { fontSize: 10, opacity: Opacity.muted },
+  sliderLabelText: { fontSize: 10, color: Palette.textMuted },
   playBtn: {
     alignSelf: 'center',
     height: 44,
@@ -162,9 +183,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
   playBtnText: {
-    color: '#fff',
     fontWeight: Type.weight.bold,
     fontSize: Type.size.sm,
     lineHeight: 18,

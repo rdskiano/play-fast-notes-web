@@ -14,6 +14,7 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Palette } from '@/constants/palette';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { continueWithPassword } from '@/lib/supabase/auth';
 
@@ -128,9 +129,9 @@ const styles = StyleSheet.create({
     fontSize: Type.size.md,
     color: '#11181C',
   },
-  error: { color: '#c0392b', fontSize: Type.size.sm, textAlign: 'center' },
+  error: { color: Palette.danger, fontSize: Type.size.sm, textAlign: 'center' },
   signInBtn: {
-    backgroundColor: '#2ecc71',
+    backgroundColor: Palette.success,
     borderRadius: Radii.md,
     paddingVertical: 14,
     alignItems: 'center',

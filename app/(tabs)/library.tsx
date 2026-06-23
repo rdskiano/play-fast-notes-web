@@ -1,6 +1,7 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -25,9 +26,18 @@ import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
+import { Colors, Fonts } from '@/constants/theme';
+import { Palette } from '@/constants/palette';
 import { Borders, Opacity, Overlays, Radii, Spacing, Type } from '@/constants/tokens';
+
+// v2 reskin — Tempo-progress bar color by how close the passage is to its goal
+// tempo (matches the prototype's red → amber → green gradient). Purely
+// presentational; derived from the same scuPct the old "Tempo %" badge used.
+function tempoBarColor(pct: number): string {
+  if (pct >= 85) return Palette.success;
+  if (pct >= 60) return '#E0863A';
+  return Palette.danger;
+}
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   getFolder,
@@ -104,91 +114,17 @@ type UndoMove = {
   label: string;
 };
 
-type FolderCardProps = {
-  folder: Folder;
-  borderColor: string;
-  tintColor: string;
-  moreColor: string;
-  editMode: boolean;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
-  isPhone?: boolean;
-  onEnter: () => void;
-  onLongPress: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onRename: () => void;
-  onMove: () => void;
-  onDelete: () => void;
-};
-
-function FolderCard({
-  folder,
-  borderColor,
-  tintColor,
-  moreColor,
-  editMode,
-  canMoveUp,
-  canMoveDown,
-  isPhone,
-  onEnter,
-  onLongPress,
-  onMoveUp,
-  onMoveDown,
-  onRename,
-  onMove,
-  onDelete,
-}: FolderCardProps) {
+// v2 reskin — the ⋯ actions button shared by the cards. Opens the item's
+// action sheet (rename / move / delete / reorder). Replaces the old "Edit mode"
+// inline controls.
+function MoreButton({ onPress }: { onPress: () => void }) {
   return (
     <Pressable
-      onPress={editMode ? undefined : onEnter}
-      onLongPress={editMode ? undefined : onLongPress}
-      delayLongPress={400}
-      style={[isPhone ? styles.cardPhone : styles.card, { borderColor }]}>
-      <View
-        style={[
-          isPhone ? styles.folderIconPhone : styles.folderIcon,
-          { backgroundColor: tintColor + '22' },
-        ]}>
-        <IconSymbol name="folder.fill" size={isPhone ? 28 : 44} color={tintColor} />
-      </View>
-      <ThemedView style={styles.cardText}>
-        <ThemedText type="defaultSemiBold">{folder.name}</ThemedText>
-        <ThemedText style={{ opacity: Opacity.muted, fontSize: Type.size.xs }}>
-          Folder
-        </ThemedText>
-      </ThemedView>
-      {editMode && (
-        <View style={styles.editActions}>
-          <View style={styles.reorderColumn}>
-            <Pressable
-              hitSlop={6}
-              onPress={canMoveUp ? onMoveUp : undefined}
-              disabled={!canMoveUp}
-              style={[styles.reorderBtn, { opacity: canMoveUp ? 1 : 0.25 }]}>
-              <ThemedText style={[styles.reorderArrow, { color: moreColor }]}>↑</ThemedText>
-            </Pressable>
-            <Pressable
-              hitSlop={6}
-              onPress={canMoveDown ? onMoveDown : undefined}
-              disabled={!canMoveDown}
-              style={[styles.reorderBtn, { opacity: canMoveDown ? 1 : 0.25 }]}>
-              <ThemedText style={[styles.reorderArrow, { color: moreColor }]}>↓</ThemedText>
-            </Pressable>
-          </View>
-          <View style={styles.editActionsColumn}>
-            <Pressable hitSlop={6} onPress={onRename} style={styles.editActionBtn}>
-              <ThemedText style={[styles.editActionText, { color: tintColor }]}>Rename</ThemedText>
-            </Pressable>
-            <Pressable hitSlop={6} onPress={onMove} style={styles.editActionBtn}>
-              <ThemedText style={[styles.editActionText, { color: tintColor }]}>Move</ThemedText>
-            </Pressable>
-            <Pressable hitSlop={6} onPress={onDelete} style={styles.editActionBtn}>
-              <ThemedText style={[styles.editActionText, { color: '#c0392b' }]}>Delete</ThemedText>
-            </Pressable>
-          </View>
-        </View>
-      )}
+      onPress={onPress}
+      hitSlop={8}
+      accessibilityLabel="More actions"
+      style={styles.moreBtn}>
+      <ThemedText style={styles.moreGlyph}>⋯</ThemedText>
     </Pressable>
   );
 }
@@ -197,43 +133,23 @@ type PassageCardProps = {
   passage: Passage;
   borderColor: string;
   tintColor: string;
-  tempoColor: string;
-  moreColor: string;
-  editMode: boolean;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
   isPhone?: boolean;
   scuPct: number | null;
   // Parent location shown under the title on search results ("in <folder>").
   breadcrumb?: string | null;
   onOpen: () => void;
-  onLongPress: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onRename: () => void;
-  onMove: () => void;
-  onDelete: () => void;
+  onMore: () => void;
 };
 
 function PassageCard({
   passage,
   borderColor,
   tintColor,
-  tempoColor,
-  moreColor,
-  editMode,
-  canMoveUp,
-  canMoveDown,
   isPhone,
   scuPct,
   breadcrumb,
   onOpen,
-  onLongPress,
-  onMoveUp,
-  onMoveDown,
-  onRename,
-  onMove,
-  onDelete,
+  onMore,
 }: PassageCardProps) {
   const thumbStyle = isPhone ? styles.thumbPhone : styles.thumb;
   // Prefer the dedicated thumbnail, but if it fails to load (missing/broken
@@ -243,69 +159,47 @@ function PassageCard({
   const thumbUri =
     !thumbFailed && passage.thumbnail_uri ? passage.thumbnail_uri : passage.source_uri;
   return (
-    <Pressable
-      onPress={editMode ? undefined : onOpen}
-      onLongPress={editMode ? undefined : onLongPress}
-      delayLongPress={400}
-      style={[isPhone ? styles.cardPhone : styles.card, { borderColor }]}>
-      {thumbUri ? (
-        <Image
-          source={{ uri: thumbUri }}
-          style={thumbStyle}
-          contentFit="cover"
-          onError={() => setThumbFailed(true)}
-        />
-      ) : (
-        <View style={[thumbStyle, { backgroundColor: tintColor + '11' }]} />
-      )}
-      <ThemedView style={styles.cardText}>
-        <ThemedText type="defaultSemiBold">{passage.title}</ThemedText>
-        {passage.composer && (
-          <ThemedText style={{ opacity: Opacity.muted }}>{passage.composer}</ThemedText>
+    <View style={[isPhone ? styles.cardPhone : styles.card, { borderColor }]}>
+      <Pressable onPress={onOpen} onLongPress={onMore} delayLongPress={400} style={styles.cardTap}>
+        {thumbUri ? (
+          <Image
+            source={{ uri: thumbUri }}
+            style={thumbStyle}
+            contentFit="cover"
+            onError={() => setThumbFailed(true)}
+          />
+        ) : (
+          <View style={[thumbStyle, { backgroundColor: tintColor + '11' }]} />
         )}
-        {breadcrumb ? (
-          <ThemedText style={[styles.breadcrumb, { color: moreColor }]} numberOfLines={1}>
-            in {breadcrumb}
-          </ThemedText>
-        ) : null}
-      </ThemedView>
-      {!editMode && scuPct !== null && (
-        <View style={[styles.scuBadge, { backgroundColor: tempoColor }]}>
-          <ThemedText style={styles.scuBadgeText}>Tempo {scuPct}%</ThemedText>
-        </View>
-      )}
-      {editMode && (
-        <View style={styles.editActions}>
-          <View style={styles.reorderColumn}>
-            <Pressable
-              hitSlop={6}
-              onPress={canMoveUp ? onMoveUp : undefined}
-              disabled={!canMoveUp}
-              style={[styles.reorderBtn, { opacity: canMoveUp ? 1 : 0.25 }]}>
-              <ThemedText style={[styles.reorderArrow, { color: moreColor }]}>↑</ThemedText>
-            </Pressable>
-            <Pressable
-              hitSlop={6}
-              onPress={canMoveDown ? onMoveDown : undefined}
-              disabled={!canMoveDown}
-              style={[styles.reorderBtn, { opacity: canMoveDown ? 1 : 0.25 }]}>
-              <ThemedText style={[styles.reorderArrow, { color: moreColor }]}>↓</ThemedText>
-            </Pressable>
-          </View>
-          <View style={styles.editActionsColumn}>
-            <Pressable hitSlop={6} onPress={onRename} style={styles.editActionBtn}>
-              <ThemedText style={[styles.editActionText, { color: tintColor }]}>Rename</ThemedText>
-            </Pressable>
-            <Pressable hitSlop={6} onPress={onMove} style={styles.editActionBtn}>
-              <ThemedText style={[styles.editActionText, { color: tintColor }]}>Move</ThemedText>
-            </Pressable>
-            <Pressable hitSlop={6} onPress={onDelete} style={styles.editActionBtn}>
-              <ThemedText style={[styles.editActionText, { color: '#c0392b' }]}>Delete</ThemedText>
-            </Pressable>
-          </View>
-        </View>
-      )}
-    </Pressable>
+        <ThemedView style={styles.cardText}>
+          <ThemedText type="defaultSemiBold">{passage.title}</ThemedText>
+          {passage.composer && (
+            <ThemedText style={{ opacity: Opacity.muted }}>{passage.composer}</ThemedText>
+          )}
+          {breadcrumb ? (
+            <ThemedText style={[styles.breadcrumb, { color: Palette.textMuted }]} numberOfLines={1}>
+              in {breadcrumb}
+            </ThemedText>
+          ) : null}
+          {scuPct !== null && (
+            <View style={styles.progressRow}>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${scuPct}%`, backgroundColor: tempoBarColor(scuPct) },
+                  ]}
+                />
+              </View>
+              <ThemedText style={[styles.progressPct, { color: tempoBarColor(scuPct) }]}>
+                {scuPct}%
+              </ThemedText>
+            </View>
+          )}
+        </ThemedView>
+      </Pressable>
+      <MoreButton onPress={onMore} />
+    </View>
   );
 }
 
@@ -313,39 +207,21 @@ type DocumentCardProps = {
   document: DocumentRow;
   borderColor: string;
   tintColor: string;
-  moreColor: string;
-  editMode: boolean;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
   isPhone?: boolean;
   // Parent location shown under the title on search results ("in <folder>").
   breadcrumb?: string | null;
   onOpen: () => void;
-  onLongPress: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onRename: () => void;
-  onMove: () => void;
-  onDelete: () => void;
+  onMore: () => void;
 };
 
 function DocumentCard({
   document,
   borderColor,
   tintColor,
-  moreColor,
-  editMode,
-  canMoveUp,
-  canMoveDown,
   isPhone,
   breadcrumb,
   onOpen,
-  onLongPress,
-  onMoveUp,
-  onMoveDown,
-  onRename,
-  onMove,
-  onDelete,
+  onMore,
 }: DocumentCardProps) {
   // Thumbnail = page 1. Older docs carry a stored page image; Stage-2 PDFs
   // render it from the original PDF on demand (DocumentPageImage handles both).
@@ -356,72 +232,152 @@ function DocumentCard({
   const firstPage = pages.length > 0 ? pages[0] : null;
   const thumbStyle = isPhone ? styles.thumbPhone : styles.thumb;
   return (
-    <Pressable
-      onPress={editMode ? undefined : onOpen}
-      onLongPress={editMode ? undefined : onLongPress}
-      delayLongPress={400}
-      style={[isPhone ? styles.cardPhone : styles.card, { borderColor }]}>
-      {firstPage ? (
-        <DocumentPageImage
-          doc={document}
-          page={firstPage}
-          style={thumbStyle}
-          contentFit="cover"
-          contentPosition="top"
-        />
-      ) : (
-        <View style={[thumbStyle, { backgroundColor: tintColor + '11' }]} />
-      )}
-      <ThemedView style={styles.cardText}>
-        <ThemedText type="defaultSemiBold">{document.title}</ThemedText>
-        {document.composer && (
-          <ThemedText style={{ opacity: Opacity.muted }}>{document.composer}</ThemedText>
+    <View style={[isPhone ? styles.cardPhone : styles.card, { borderColor }]}>
+      <Pressable onPress={onOpen} onLongPress={onMore} delayLongPress={400} style={styles.cardTap}>
+        {firstPage ? (
+          <DocumentPageImage
+            doc={document}
+            page={firstPage}
+            style={thumbStyle}
+            contentFit="cover"
+            contentPosition="top"
+          />
+        ) : (
+          <View style={[thumbStyle, { backgroundColor: tintColor + '11' }]} />
         )}
-        <ThemedText style={{ opacity: Opacity.muted, fontSize: 12 }}>
-          {document.source_kind === 'images'
-            ? `Photo${document.page_count > 1 ? ` · ${document.page_count} pages` : ''}`
-            : `Full part · ${document.page_count} page${document.page_count === 1 ? '' : 's'}`}
-        </ThemedText>
-        {breadcrumb ? (
-          <ThemedText style={[styles.breadcrumb, { color: moreColor }]} numberOfLines={1}>
-            in {breadcrumb}
+        <ThemedView style={styles.cardText}>
+          <ThemedText type="defaultSemiBold">{document.title}</ThemedText>
+          {document.composer && (
+            <ThemedText style={{ opacity: Opacity.muted }}>{document.composer}</ThemedText>
+          )}
+          <ThemedText style={{ opacity: Opacity.muted, fontSize: 12 }}>
+            {document.source_kind === 'images'
+              ? `Photo${document.page_count > 1 ? ` · ${document.page_count} pages` : ''}`
+              : `Full part · ${document.page_count} page${document.page_count === 1 ? '' : 's'}`}
           </ThemedText>
-        ) : null}
-      </ThemedView>
-      {editMode && (
-        <View style={styles.editActions}>
-          <View style={styles.reorderColumn}>
-            <Pressable
-              hitSlop={6}
-              onPress={canMoveUp ? onMoveUp : undefined}
-              disabled={!canMoveUp}
-              style={[styles.reorderBtn, { opacity: canMoveUp ? 1 : 0.25 }]}>
-              <ThemedText style={[styles.reorderArrow, { color: moreColor }]}>↑</ThemedText>
-            </Pressable>
-            <Pressable
-              hitSlop={6}
-              onPress={canMoveDown ? onMoveDown : undefined}
-              disabled={!canMoveDown}
-              style={[styles.reorderBtn, { opacity: canMoveDown ? 1 : 0.25 }]}>
-              <ThemedText style={[styles.reorderArrow, { color: moreColor }]}>↓</ThemedText>
-            </Pressable>
-          </View>
-          <View style={styles.editActionsColumn}>
-            <Pressable hitSlop={6} onPress={onRename} style={styles.editActionBtn}>
-              <ThemedText style={[styles.editActionText, { color: tintColor }]}>Rename</ThemedText>
-            </Pressable>
-            <Pressable hitSlop={6} onPress={onMove} style={styles.editActionBtn}>
-              <ThemedText style={[styles.editActionText, { color: tintColor }]}>Move</ThemedText>
-            </Pressable>
-            <Pressable hitSlop={6} onPress={onDelete} style={styles.editActionBtn}>
-              <ThemedText style={[styles.editActionText, { color: '#c0392b' }]}>Delete</ThemedText>
-            </Pressable>
-          </View>
+          {breadcrumb ? (
+            <ThemedText style={[styles.breadcrumb, { color: Palette.textMuted }]} numberOfLines={1}>
+              in {breadcrumb}
+            </ThemedText>
+          ) : null}
+        </ThemedView>
+      </Pressable>
+      <MoreButton onPress={onMore} />
+    </View>
+  );
+}
+
+// v2 reskin — petrol "why this app" banner shown at the library root.
+function HeroBanner() {
+  return (
+    <View style={styles.hero}>
+      <View style={{ flex: 1 }}>
+        <ThemedText style={styles.heroTitle}>
+          Crop the hard spots. Practice them with science-backed strategies.
+        </ThemedText>
+        <ThemedText style={styles.heroSub}>
+          Slow, fast, deliberate, interleaved — the way the research says
+          learning actually sticks.
+        </ThemedText>
+      </View>
+      <Image
+        source={require('../../assets/images/icon.png')}
+        style={styles.heroIcon}
+        contentFit="contain"
+        accessibilityIgnoresInvertColors
+        pointerEvents="none"
+      />
+    </View>
+  );
+}
+
+// v2 reskin — section label ("Folders", "All pieces") with an optional
+// right-side accessory (count or action).
+function SectionHeader({
+  label,
+  accessory,
+}: {
+  label: string;
+  accessory?: ReactNode;
+}) {
+  return (
+    <View style={styles.sectionHeader}>
+      <ThemedText style={styles.sectionLabel}>{label}</ThemedText>
+      {accessory}
+    </View>
+  );
+}
+
+// v2 reskin — soft-tint icon variants cycled across the folder grid so the
+// tiles read as a colorful set (purely presentational, keyed by position).
+const FOLDER_TINTS = [
+  { bg: Palette.accentSoft, fg: Palette.accent },
+  { bg: Palette.rhythmicSoft, fg: Palette.rhythmic },
+  { bg: Palette.interleavedSoft, fg: Palette.interleaved },
+  { bg: Palette.successSoft, fg: Palette.success },
+] as const;
+
+// v2 reskin — folder rendered as a grid tile (root view). Tap to enter; the ⋯
+// button (and long-press) opens the action sheet.
+function FolderTile({
+  name,
+  count,
+  tintIndex,
+  onEnter,
+  onMore,
+}: {
+  name: string;
+  count: number;
+  tintIndex: number;
+  onEnter: () => void;
+  onMore: () => void;
+}) {
+  const tint = FOLDER_TINTS[tintIndex % FOLDER_TINTS.length];
+  return (
+    <View style={styles.folderTile}>
+      <Pressable
+        onPress={onEnter}
+        onLongPress={onMore}
+        delayLongPress={400}
+        style={{ gap: Spacing.sm }}>
+        <View style={[styles.folderTileIcon, { backgroundColor: tint.bg }]}>
+          <Feather name="folder" size={20} color={tint.fg} />
         </View>
-      )}
+        <ThemedText type="defaultSemiBold" numberOfLines={1} style={styles.folderTileName}>
+          {name}
+        </ThemedText>
+        <ThemedText style={styles.folderTileMeta} numberOfLines={1}>
+          {count} item{count === 1 ? '' : 's'}
+        </ThemedText>
+      </Pressable>
+      <Pressable
+        onPress={onMore}
+        hitSlop={8}
+        accessibilityLabel="More actions"
+        style={styles.tileMore}>
+        <ThemedText style={styles.moreGlyph}>⋯</ThemedText>
+      </Pressable>
+    </View>
+  );
+}
+
+// v2 reskin — small brand-colored action that sits to the right of a section
+// title (e.g. "+ New folder", "+ Add").
+function SectionAction({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={6}>
+      <ThemedText style={styles.sectionAction}>{label}</ThemedText>
     </Pressable>
   );
 }
+
+// Loop guard for the onboarding-seen read fallback below. Module scope so it
+// survives component remounts within a single page load (but resets on a real
+// reload, which deserves a fresh attempt). In a sustained outage where BOTH the
+// read AND the write of `onboarding.seen` keep failing, this stops us from
+// redirecting a user into onboarding over and over: we force it at most once
+// per load via the error path, then assume seen.
+let onboardingReadFailedThisLoad = false;
 
 export default function LibraryScreen() {
   const router = useRouter();
@@ -476,7 +432,6 @@ export default function LibraryScreen() {
   const [allDocuments, setAllDocuments] = useState<DocumentRow[]>([]);
   const [scuProgress, setScuProgress] = useState<Record<string, number>>({});
   const [searchQuery, setSearchQuery] = useState('');
-  const [editMode, setEditMode] = useState(false);
   const [prompt, setPrompt] = useState<Prompt>(null);
   // Delete confirmation. On web we drive our own ConfirmModal — iPad Safari
   // silently suppresses window.confirm(), so a native dialog there returns
@@ -517,6 +472,11 @@ export default function LibraryScreen() {
   const [undoMove, setUndoMove] = useState<UndoMove | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // False until the first library fetch completes. Holds a blank screen (not
+  // the empty-library hero) during the initial load so a returning user with
+  // music doesn't see an empty-library flash before their pieces appear. Never
+  // reset, so re-focusing the tab refreshes data in place without re-blanking.
+  const [loaded, setLoaded] = useState(false);
   // Persisted "this account has already been through the first-run quiz" flag,
   // read from the per-user settings table. `null` = still loading. The demo
   // account (newbie@newbie.com) always reads null and never writes it, so it
@@ -530,16 +490,32 @@ export default function LibraryScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getSetting('onboarding.seen')
-      .then((v) => {
-        if (!cancelled) setOnboardingSeen(v === 'true');
-      })
-      .catch(() => {
-        // On a read error, assume seen so a flaky network can't trap the user on
-        // a blank screen or loop them into onboarding — the empty-library hero
-        // still guides a genuinely new user to add their first piece.
-        if (!cancelled) setOnboardingSeen(true);
-      });
+    (async () => {
+      // Retry the read a couple of times first — a transient network blip on a
+      // brand-new user's very first load was silently skipping onboarding (the
+      // old "assume seen on error" path), dumping first-timers on a bare library.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const v = await getSetting('onboarding.seen');
+          if (!cancelled) setOnboardingSeen(v === 'true');
+          return;
+        } catch {
+          if (attempt < 2) await new Promise((r) => setTimeout(r, 400));
+        }
+      }
+      if (cancelled) return;
+      // All reads failed. Rather than assume seen (which robs a genuinely new
+      // user of onboarding), treat them as NOT-seen so the redirect effect can
+      // fire — but that effect ONLY pushes onboarding for an empty, un-practiced
+      // library, so existing users are never affected. The module-level guard
+      // forces this at most once per load to avoid a sustained-outage loop.
+      if (onboardingReadFailedThisLoad) {
+        setOnboardingSeen(true);
+      } else {
+        onboardingReadFailedThisLoad = true;
+        setOnboardingSeen(false);
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -586,6 +562,8 @@ export default function LibraryScreen() {
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoaded(true);
     }
   }, [currentFolderId]);
 
@@ -651,6 +629,27 @@ export default function LibraryScreen() {
     ...filteredPassages.map((passage) => ({ kind: 'passage' as const, passage })),
   ];
 
+  // v2 reskin — in the non-edit view folders render as a grid in the list
+  // header and the FlatList scrolls only the "pieces" (documents + passages).
+  // Edit mode keeps the original unified `rows` list so reordering is untouched.
+  type PieceRow =
+    | { kind: 'document'; document: DocumentRow }
+    | { kind: 'passage'; passage: Passage };
+  const pieceRows: PieceRow[] = [
+    ...filteredDocuments.map((document) => ({ kind: 'document' as const, document })),
+    ...filteredPassages.map((passage) => ({ kind: 'passage' as const, passage })),
+  ];
+
+  // Direct-child count for a folder card's "N items" line, computed from the
+  // already-loaded whole-library lists (no extra fetch, purely presentational).
+  function folderChildCount(folderId: string): number {
+    let n = 0;
+    for (const p of allPassages) if (p.folder_id === folderId && !p.document_id) n++;
+    for (const d of allDocuments) if (d.folder_id === folderId) n++;
+    for (const f of allFolders) if (f.parent_folder_id === folderId) n++;
+    return n;
+  }
+
   // First run = the very first thing a brand-new user sees is the guided quiz,
   // not an empty library. Fire once the persisted flag says "not seen", the data
   // has loaded, and the top-level library is genuinely empty + un-practiced
@@ -678,12 +677,10 @@ export default function LibraryScreen() {
   function goUp() {
     const parent = path.length >= 2 ? path[path.length - 2].id : null;
     setCurrentFolderId(parent);
-    setEditMode(false);
   }
 
   function enterFolder(id: string) {
     setCurrentFolderId(id);
-    setEditMode(false);
   }
 
   async function moveItem(
@@ -990,7 +987,9 @@ export default function LibraryScreen() {
   }
 
   const isAtRoot = path.length === 0;
-  const currentFolderName = isAtRoot ? 'Play Fast Notes' : path[path.length - 1].name;
+  // v2 reskin — the root header reads "Library" (the brand sits in the eyebrow
+  // above it). Inside a folder it shows the folder name, as before.
+  const currentFolderName = isAtRoot ? 'Library' : path[path.length - 1].name;
 
   // Account entry point — lives at the bottom of the library page (replaces the
   // old ⚙ Settings button in the header). Shown as the list footer when there
@@ -1007,6 +1006,80 @@ export default function LibraryScreen() {
     </View>
   );
 
+  // Search scope + search box. Reused across the empty / edit / populated
+  // branches so it's available in every state (e.g. to clear a search that
+  // returned nothing). Behavior is unchanged from the original inline block.
+  const scopeAndSearch = (
+    <>
+      <View style={styles.scopeRow}>
+        <View style={[styles.scopeSeg, styles.scopeSegActive, { borderColor: C.tint, backgroundColor: C.tint }]}>
+          <ThemedText style={[styles.scopeSegText, { color: '#fff' }]}>My Library</ThemedText>
+        </View>
+        <Pressable
+          onPress={() =>
+            router.push({ pathname: '/community', params: { q: searchQuery } })
+          }
+          style={[styles.scopeSeg, { borderColor: Palette.border }]}>
+          <ThemedText style={[styles.scopeSegText, { color: C.text }]}>Community</ThemedText>
+        </Pressable>
+        {/* IMSLP scope hidden 2026-06-23 — the import flow is unreliable (broke
+            the app in real use). The /imslp route + screen are left intact so
+            this segment can be restored once the flow is fixed. */}
+      </View>
+
+      <View style={[styles.searchWrap, { borderColor: Palette.border }]}>
+        <ThemedText style={[styles.searchIcon, { color: C.icon }]}>⌕</ThemedText>
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search pieces and passages"
+          placeholderTextColor={C.icon}
+          style={[styles.searchInput, { color: C.text }]}
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="search"
+        />
+        {searchQuery.length > 0 && (
+          <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+            <ThemedText style={[styles.searchClear, { color: C.icon }]}>✕</ThemedText>
+          </Pressable>
+        )}
+      </View>
+    </>
+  );
+
+  // Renders one piece (document or passage) card — shared by the edit-mode
+  // unified list and the non-edit pieces list.
+  function renderPieceCard(item: PieceRow) {
+    if (item.kind === 'document') {
+      return (
+        <DocumentCard
+          document={item.document}
+          borderColor={Palette.border}
+          tintColor={C.tint}
+          isPhone={isPhone}
+          breadcrumb={documentParentLabel(item.document)}
+          onOpen={() => router.push(`/document/${item.document.id}` as never)}
+          onMore={() => setActionTarget({ kind: 'document', document: item.document })}
+        />
+      );
+    }
+    return (
+      <PassageCard
+        passage={item.passage}
+        borderColor={Palette.border}
+        tintColor={C.tint}
+        isPhone={isPhone}
+        scuPct={scuProgress[item.passage.id] ?? null}
+        breadcrumb={passageParentLabel(item.passage)}
+        onOpen={() => router.push(`/passage/${item.passage.id}`)}
+        onMore={() => setActionTarget({ kind: 'passage', passage: item.passage })}
+      />
+    );
+  }
+
+  const showFolderSection = filteredFolders.length > 0 || (isAtRoot && !q);
+
   // Hold a blank canvas (no empty-library chrome) while we're still deciding
   // whether to send a brand-new user straight into the quiz — either the flag
   // is still loading or it says "not seen" and the library is empty and about
@@ -1022,7 +1095,11 @@ export default function LibraryScreen() {
     ((onboardingSeen === false && practiceCount === 0) ||
       (onboardingSeen === null && (practiceCount === null || practiceCount === 0)));
 
-  if (decidingFirstRun) {
+  // Initial load: hold a blank screen until the first fetch resolves, so a
+  // returning user with music never sees the empty-library hero flash before
+  // their pieces load in. (After the first load, `loaded` stays true, so
+  // re-focusing the tab refreshes in place without blanking.)
+  if (!loaded || decidingFirstRun) {
     return <ThemedView style={[styles.container, { paddingTop: headerTopPad }]} />;
   }
 
@@ -1049,6 +1126,9 @@ export default function LibraryScreen() {
             </Pressable>
           )}
           <View style={{ flex: 1 }}>
+            {isAtRoot && (
+              <ThemedText style={styles.eyebrow}>PLAY FAST NOTES</ThemedText>
+            )}
             <ThemedText type="title" numberOfLines={1}>
               {currentFolderName}
             </ThemedText>
@@ -1062,214 +1142,72 @@ export default function LibraryScreen() {
             // of the original single-row header is preserved.
             isPhonePortrait && { justifyContent: 'flex-end' },
           ]}>
-          {editMode ? (
-            <>
-              {Platform.OS !== 'web' && (
-                <Button
-                  label="Import from Supabase"
-                  variant="outline"
-                  size="sm"
-                  onPress={() => router.push('/import-supabase' as never)}
-                />
-              )}
-              <Button label="Done" size="sm" onPress={() => setEditMode(false)} />
-            </>
-          ) : isPhone ? (
-            // Phone: icon-only secondary actions on the left, primary
-            // "+ Add" stays labeled on the right. Buttons sized like the
-            // chevron / undo overlays used elsewhere in the app so the
-            // header feels familiar.
-            <>
-              {/* Buy Me a Coffee is web-only — App Store guideline 3.1.1
-                  forbids linking out to an external payment for the app, so
-                  the iOS build hides it. */}
-              {Platform.OS === 'web' && (
-                <Pressable
-                  onPress={() => Linking.openURL(bmacUrl())}
-                  accessibilityLabel="Support the developer"
-                  style={[styles.iconBtn, { borderColor: C.icon }]}>
-                  <ThemedText style={styles.iconBtnText}>☕</ThemedText>
-                </Pressable>
-              )}
-              <Pressable
-                onPress={() => {
-                  if (currentFolderId) {
-                    router.push({
-                      pathname: '/folder-log',
-                      params: {
-                        folderId: currentFolderId,
-                        folderName: currentFolderName,
-                      },
-                    });
-                  } else {
-                    router.push('/library-log');
-                  }
-                }}
-                accessibilityLabel="Practice log"
-                style={[styles.iconBtn, { borderColor: C.icon }]}>
-                <ThemedText style={styles.iconBtnText}>📋</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => router.push('/interleaved')}
-                accessibilityLabel="Rep Rotator"
-                style={[styles.iconBtn, { borderColor: C.icon }]}>
-                <ThemedText style={styles.iconBtnText}>🔀</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => router.push('/tools')}
-                accessibilityLabel="Tools"
-                style={[styles.iconBtn, { borderColor: C.icon }]}>
-                <ThemedText style={styles.iconBtnText}>🛠</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => setEditMode(true)}
-                accessibilityLabel="Edit"
-                style={[styles.iconBtn, { borderColor: C.icon }]}>
-                <ThemedText style={styles.iconBtnText}>✎</ThemedText>
-              </Pressable>
-              <Button label="+ Add" size="sm" onPress={() => setAddOpen(true)} />
-            </>
-          ) : (
-            <>
-              {/* Web-only — App Store 3.1.1 forbids external-payment links. */}
-              {Platform.OS === 'web' && (
-                <Button
-                  label="☕"
-                  variant="outline"
-                  size="sm"
-                  onPress={() => Linking.openURL(bmacUrl())}
-                />
-              )}
-              <Button
-                label="Practice Log"
-                variant="outline"
-                size="sm"
-                onPress={() => {
-                  if (currentFolderId) {
-                    router.push({
-                      pathname: '/folder-log',
-                      params: {
-                        folderId: currentFolderId,
-                        folderName: currentFolderName,
-                      },
-                    });
-                  } else {
-                    router.push('/library-log');
-                  }
-                }}
-              />
-              <Button
-                label="🔀 Rep Rotator"
-                variant="outline"
-                size="sm"
-                onPress={() => router.push('/interleaved')}
-              />
-              <Button
-                label="🛠 Tools"
-                variant="outline"
-                size="sm"
-                onPress={() => router.push('/tools')}
-              />
-              <Button
-                label="Edit"
-                variant="outline"
-                size="sm"
-                onPress={() => setEditMode(true)}
-              />
-              <Button label="+ Add" size="sm" onPress={() => setAddOpen(true)} />
-            </>
+          {/* Buy Me a Coffee is web-only — App Store guideline 3.1.1 forbids
+              linking out to an external payment for the app. */}
+          {Platform.OS === 'web' && (
+            <Pressable
+              onPress={() => Linking.openURL(bmacUrl())}
+              accessibilityLabel="Support the developer"
+              style={styles.coffeeBtn}>
+              <Feather name="coffee" size={18} color={Palette.interleaved} />
+            </Pressable>
           )}
+          {/* Practice log · Rep Rotator · Tools, grouped as one chip. */}
+          <View style={styles.actionGroup}>
+            <Pressable
+              onPress={() => {
+                if (currentFolderId) {
+                  router.push({
+                    pathname: '/folder-log',
+                    params: {
+                      folderId: currentFolderId,
+                      folderName: currentFolderName,
+                    },
+                  });
+                } else {
+                  router.push('/library-log');
+                }
+              }}
+              accessibilityLabel="Practice log"
+              style={styles.groupBtn}>
+              <Feather name="clock" size={18} color={Palette.text} />
+            </Pressable>
+            <View style={styles.groupDivider} />
+            <Pressable
+              onPress={() => router.push('/interleaved')}
+              accessibilityLabel="Rep Rotator"
+              style={styles.groupBtn}>
+              <Feather name="rotate-cw" size={18} color={Palette.text} />
+            </Pressable>
+            <View style={styles.groupDivider} />
+            <Pressable
+              onPress={() => router.push('/tools')}
+              accessibilityLabel="Tools"
+              style={styles.groupBtn}>
+              <Feather name="tool" size={18} color={Palette.text} />
+            </Pressable>
+          </View>
         </View>
       </ThemedView>
 
-      {/* One-line getting-started prompt at the library root. Replaces
-          a previous three-line tagline + organizing-advice block that
-          was making the page feel busy. The line mirrors the two
-          options inside the "+ Add" menu — uploading a PDF, or taking
-          a photo of a passage — so a first-time user sees the obvious
-          next action without scanning options. */}
-      {isAtRoot && !editMode && (
-        <ThemedText style={[styles.addHint, { color: C.icon }]}>
-          Add full parts, or take a photo of a page and mark the spots. Or tap 🛠 Tools
-          to practice without uploading music.
-        </ThemedText>
-      )}
-
-      {editMode && (
-        <View style={[styles.editHintBanner, { borderColor: C.tint + '44', backgroundColor: C.tint + '11' }]}>
-          <ThemedText style={[styles.editHintText, { color: C.text }]}>
-            Tap <ThemedText style={styles.editHintBold}>↑ ↓</ThemedText> to reorder ·{' '}
-            <ThemedText style={styles.editHintBold}>Move</ThemedText> to send to another folder ·{' '}
-            <ThemedText style={styles.editHintBold}>Rename</ThemedText> /{' '}
-            <ThemedText style={styles.editHintBold}>Delete</ThemedText> as needed
-          </ThemedText>
-          <ThemedText style={[styles.editHintSub, { color: C.icon }]}>
-            Outside Edit: tap to open, or long-press for more options.
-          </ThemedText>
-        </View>
-      )}
-
-      {/* Search scope — answers the first-time-user expectation that the
-          search bar reaches beyond their own shelf. "My Library" filters
-          locally (this screen); "Community" and "IMSLP" launch those
-          libraries, carrying whatever's typed. */}
-      <View style={styles.scopeRow}>
-        <View style={[styles.scopeSeg, styles.scopeSegActive, { borderColor: C.tint, backgroundColor: C.tint }]}>
-          <ThemedText style={[styles.scopeSegText, { color: '#fff' }]}>My Library</ThemedText>
-        </View>
-        <Pressable
-          onPress={() =>
-            router.push({ pathname: '/community', params: { q: searchQuery } })
-          }
-          style={[styles.scopeSeg, { borderColor: C.icon + '66' }]}>
-          <ThemedText style={[styles.scopeSegText, { color: C.text }]}>Community</ThemedText>
-        </Pressable>
-        <Pressable
-          onPress={() =>
-            router.push({ pathname: '/imslp', params: { q: searchQuery } })
-          }
-          style={[styles.scopeSeg, { borderColor: C.icon + '66' }]}>
-          <ThemedText style={[styles.scopeSegText, { color: C.text }]}>IMSLP</ThemedText>
-        </Pressable>
-      </View>
-
-      <View style={[styles.searchWrap, { borderColor: C.icon + '66' }]}>
-        <ThemedText style={[styles.searchIcon, { color: C.icon }]}>⌕</ThemedText>
-        <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search folders and passages"
-          placeholderTextColor={C.icon}
-          style={[styles.searchInput, { color: C.text }]}
-          autoCorrect={false}
-          autoCapitalize="none"
-          returnKeyType="search"
-        />
-        {searchQuery.length > 0 && (
-          <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-            <ThemedText style={[styles.searchClear, { color: C.icon }]}>✕</ThemedText>
-          </Pressable>
-        )}
-      </View>
-
       {error ? (
         <ThemedView style={styles.empty}>
-          <ThemedText style={{ color: '#c0392b', textAlign: 'center' }}>
+          <ThemedText style={{ color: Palette.danger, textAlign: 'center' }}>
             Could not load your library: {error}
           </ThemedText>
           <Button label="Retry" variant="outline" size="sm" onPress={refresh} />
         </ThemedView>
       ) : rows.length === 0 ? (
-        <ThemedView style={styles.empty}>
+        <>
+          {scopeAndSearch}
+          <ThemedView style={styles.empty}>
           {q || currentFolderId ? (
             <>
               <ThemedText style={{ opacity: Opacity.muted, textAlign: 'center' }}>
                 {q ? 'Nothing matches that search.' : 'This folder is empty.'}
               </ThemedText>
               {!q && (
-                <ThemedText style={{ opacity: Opacity.muted }}>
-                  Tap "+ Add" to get started.
-                </ThemedText>
+                <Button label="+ Add" size="sm" onPress={() => setAddOpen(true)} />
               )}
             </>
           ) : (
@@ -1311,102 +1249,69 @@ export default function LibraryScreen() {
             </>
           )}
           {accountFooter}
-        </ThemedView>
+          </ThemedView>
+        </>
       ) : (
         <FlatList
-          data={rows}
-          extraData={editMode}
+          data={pieceRows}
           keyExtractor={(row) =>
-            row.kind === 'folder'
-              ? `f:${row.folder.id}`
-              : row.kind === 'document'
-                ? `d:${row.document.id}`
-                : `p:${row.passage.id}`
+            row.kind === 'document' ? `d:${row.document.id}` : `p:${row.passage.id}`
           }
           contentContainerStyle={{ gap: Spacing.md, paddingBottom: Spacing.xl }}
-          ListFooterComponent={accountFooter}
-          renderItem={({ item }) => {
-            if (item.kind === 'folder') {
-              const folderIdx = filteredFolders.findIndex((f) => f.id === item.folder.id);
-              return (
-                <FolderCard
-                  folder={item.folder}
-                  borderColor={C.icon}
-                  tintColor={C.tint}
-                  moreColor={C.icon}
-                  editMode={editMode}
-                  canMoveUp={folderIdx > 0}
-                  canMoveDown={folderIdx >= 0 && folderIdx < filteredFolders.length - 1}
-                  isPhone={isPhone}
-                  onEnter={() => enterFolder(item.folder.id)}
-                  onLongPress={() => setActionTarget({ kind: 'folder', folder: item.folder })}
-                  onMoveUp={() => moveItem('folder', item.folder.id, -1)}
-                  onMoveDown={() => moveItem('folder', item.folder.id, 1)}
-                  onRename={() =>
-                    setPrompt({ kind: 'rename_folder', id: item.folder.id, initial: item.folder.name })
-                  }
-                  onMove={() => setMoveTarget({ kind: 'folder', id: item.folder.id })}
-                  onDelete={() => onDeleteFolder(item.folder)}
-                />
-              );
-            }
-            if (item.kind === 'document') {
-              const documentIdx = filteredDocuments.findIndex((d) => d.id === item.document.id);
-              return (
-                <DocumentCard
-                  document={item.document}
-                  borderColor={C.icon}
-                  tintColor={C.tint}
-                  moreColor={C.icon}
-                  editMode={editMode}
-                  canMoveUp={documentIdx > 0}
-                  canMoveDown={documentIdx >= 0 && documentIdx < filteredDocuments.length - 1}
-                  isPhone={isPhone}
-                  breadcrumb={documentParentLabel(item.document)}
-                  onOpen={() => router.push(`/document/${item.document.id}` as never)}
-                  onLongPress={() =>
-                    setActionTarget({ kind: 'document', document: item.document })
-                  }
-                  onMoveUp={() => moveItem('document', item.document.id, -1)}
-                  onMoveDown={() => moveItem('document', item.document.id, 1)}
-                  onRename={() =>
-                    setPrompt({
-                      kind: 'rename_document',
-                      id: item.document.id,
-                      initial: item.document.title,
-                    })
-                  }
-                  onMove={() => setMoveTarget({ kind: 'document', id: item.document.id })}
-                  onDelete={() => onDeleteDocument(item.document)}
-                />
-              );
-            }
-            const passageIdx = filteredPassages.findIndex((p) => p.id === item.passage.id);
-            return (
-              <PassageCard
-                passage={item.passage}
-                borderColor={C.icon}
-                tintColor={C.tint}
-                tempoColor={strategyColors.tempo_ladder ?? C.tint}
-                moreColor={C.icon}
-                editMode={editMode}
-                canMoveUp={passageIdx > 0}
-                canMoveDown={passageIdx >= 0 && passageIdx < filteredPassages.length - 1}
-                isPhone={isPhone}
-                scuPct={scuProgress[item.passage.id] ?? null}
-                breadcrumb={passageParentLabel(item.passage)}
-                onOpen={() => router.push(`/passage/${item.passage.id}`)}
-                onLongPress={() => setActionTarget({ kind: 'passage', passage: item.passage })}
-                onMoveUp={() => moveItem('passage', item.passage.id, -1)}
-                onMoveDown={() => moveItem('passage', item.passage.id, 1)}
-                onRename={() =>
-                  setPrompt({ kind: 'rename_passage', id: item.passage.id, initial: item.passage.title })
+          ListHeaderComponent={
+            <View style={{ gap: Spacing.lg }}>
+              {isAtRoot && !q && <HeroBanner />}
+              {scopeAndSearch}
+              {showFolderSection && (
+                <View style={{ gap: Spacing.md }}>
+                  <SectionHeader
+                    label="Folders"
+                    accessory={
+                      isAtRoot && !q ? (
+                        <SectionAction
+                          label="+ New folder"
+                          onPress={() => setPrompt({ kind: 'new_folder' })}
+                        />
+                      ) : undefined
+                    }
+                  />
+                  <View style={styles.folderGrid}>
+                    {filteredFolders.map((folder, i) => (
+                      <FolderTile
+                        key={folder.id}
+                        name={folder.name}
+                        count={folderChildCount(folder.id)}
+                        tintIndex={i}
+                        onEnter={() => enterFolder(folder.id)}
+                        onMore={() => setActionTarget({ kind: 'folder', folder })}
+                      />
+                    ))}
+                  </View>
+                </View>
+              )}
+              <SectionHeader
+                label="Pieces"
+                accessory={
+                  <View style={styles.sectionAccessory}>
+                    <ThemedText style={styles.sectionCount}>
+                      {pieceRows.length}{' '}
+                      {pieceRows.length === 1 ? 'piece' : 'pieces'}
+                    </ThemedText>
+                    {!q && (
+                      <SectionAction label="+ Add" onPress={() => setAddOpen(true)} />
+                    )}
+                  </View>
                 }
-                onMove={() => setMoveTarget({ kind: 'passage', id: item.passage.id })}
-                onDelete={() => onDeletePassage(item.passage)}
               />
-            );
-          }}
+            </View>
+          }
+          ListEmptyComponent={
+            <ThemedText style={styles.noPieces}>
+              No individual pieces here yet.
+            </ThemedText>
+          }
+          ListFooterComponent={accountFooter}
+          renderItem={({ item }) => renderPieceCard(item)}
         />
       )}
 
@@ -1530,7 +1435,7 @@ export default function LibraryScreen() {
           '🔀 Rep Rotator — practice several passages in shuffled order.\n' +
           '🛠 Tools — the metronome, tempo ladder, and rhythm variations on their own, without uploading any music.\n' +
           '✎ Edit — reorder with ↑ ↓, plus rename, move, or delete each item; tap Done to leave.\n\n' +
-          'Search — pick a scope above the box: My Library filters your own folders and passages by title or composer; Community searches rhythm exercises shared by other players; IMSLP searches the public-domain sheet-music library so you can pull a score straight into your library (all free to browse).\n\n' +
+          'Search — pick a scope above the box: My Library filters your own folders and passages by title or composer; Community searches rhythm exercises shared by other players (all free to browse).\n\n' +
           'Account — at the bottom of this page: sign out, reset your data, or delete your account.\n\n' +
           'On any folder, passage, or PDF card: tap to open it, or long-press for quick actions (rename, move, edit/crop, delete).'
         }
@@ -1694,6 +1599,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderWidth: Borders.thin,
     borderRadius: 16,
+    // v2 reskin — inactive scopes are white chips on paper.
+    backgroundColor: Palette.card,
   },
   scopeSegActive: {},
   scopeSegText: { fontSize: Type.size.sm, fontWeight: Type.weight.semibold },
@@ -1702,9 +1609,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
     borderWidth: Borders.thin,
-    borderRadius: Radii.md,
+    borderRadius: Radii.xl,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
+    // v2 reskin — white search field on the paper surface.
+    backgroundColor: Palette.card,
   },
   searchIcon: { fontSize: Type.size.xl, fontWeight: Type.weight.bold },
   searchInput: { flex: 1, fontSize: 15, paddingVertical: 2 },
@@ -1719,9 +1628,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.md,
     borderWidth: Borders.thin,
-    borderRadius: Radii.lg,
-    padding: Spacing.md,
+    borderRadius: Radii['2xl'],
+    padding: Spacing.lg,
     alignItems: 'center',
+    // v2 reskin — raised white card on the paper surface, soft low lift.
+    backgroundColor: Palette.card,
+    shadowColor: 'rgb(20, 30, 30)',
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   thumb: {
     width: 72,
@@ -1756,10 +1672,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.sm,
     borderWidth: Borders.thin,
-    borderRadius: Radii.md,
-    paddingVertical: 10,
+    borderRadius: Radii.xl,
+    paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     alignItems: 'center',
+    // v2 reskin — white surface + soft lift, matching the desktop card.
+    backgroundColor: Palette.card,
+    shadowColor: 'rgb(20, 30, 30)',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   // Compact icon-only buttons in the phone header row.
   iconBtn: {
@@ -1769,20 +1692,83 @@ const styles = StyleSheet.create({
     borderWidth: Borders.thin,
     alignItems: 'center',
     justifyContent: 'center',
+    // v2 reskin — white chip on the paper header.
+    backgroundColor: Palette.card,
   },
   iconBtnText: { fontSize: 18, lineHeight: 20 },
-  cardText: { flex: 1, gap: Spacing.xs },
+  // v2 reskin — header action buttons. Coffee = warm amber chip; the three
+  // utilities (log / rep rotator / tools) share one white grouped chip.
+  coffeeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Palette.interleavedSoft,
+  },
+  actionGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.md,
+    overflow: 'hidden',
+  },
+  groupBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  groupDivider: { width: 1, height: 22, backgroundColor: Palette.border },
+  // Transparent so the text block inherits the white card rather than the
+  // themed (paper) background.
+  cardText: { flex: 1, gap: Spacing.xs, backgroundColor: 'transparent' },
+  // The tappable (open) region of a row card; the ⋯ button sits beside it.
+  cardTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  moreBtn: {
+    width: 32,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreGlyph: { fontSize: 22, fontWeight: '700', color: Palette.textMuted, lineHeight: 22 },
+  tileMore: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   breadcrumb: {
     fontSize: 11,
     fontStyle: 'italic',
     marginTop: 2,
   },
-  scuBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: Radii.md,
+  // v2 reskin — Tempo-progress bar (replaces the old "Tempo %" pill). 6px
+  // rounded track + colored fill + tabular % readout.
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
   },
-  scuBadgeText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.xs },
+  progressTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Palette.track,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 6,
+    borderRadius: 3,
+  },
+  progressPct: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.heavy,
+    fontVariant: ['tabular-nums'],
+    minWidth: 36,
+    textAlign: 'right',
+  },
   editActions: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   editActionsColumn: { alignItems: 'flex-end', gap: 6 },
   editActionBtn: { paddingHorizontal: 6, paddingVertical: 2 },
@@ -1835,4 +1821,121 @@ const styles = StyleSheet.create({
   toastText: { color: '#fff', fontWeight: Type.weight.semibold, fontSize: Type.size.md },
   toastBtn: { paddingHorizontal: Spacing.xs, paddingVertical: 2 },
   toastBtnText: { fontWeight: Type.weight.heavy, fontSize: Type.size.md },
+
+  // ── v2 reskin ──────────────────────────────────────────────────────────────
+  eyebrow: {
+    fontFamily: Fonts.sans,
+    fontSize: 12.5,
+    fontWeight: Type.weight.bold,
+    letterSpacing: 0.8,
+    color: Palette.accent,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  hero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Palette.accent,
+    borderRadius: 20,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    overflow: 'hidden',
+  },
+  heroTitle: {
+    fontFamily: Fonts.rounded,
+    color: '#fff',
+    fontSize: 21,
+    lineHeight: 27,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  heroSub: {
+    color: '#FFFFFFD9',
+    fontSize: Type.size.md,
+    lineHeight: 19,
+    marginTop: Spacing.sm,
+  },
+  // "Fast notes" motif = the real app-icon artwork (beamed notes + speed
+  // lines). In-flow on the right of the hero; faded so it reads as accent art.
+  heroIcon: {
+    width: 140,
+    height: 140,
+    opacity: 0.28,
+    marginRight: -16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionLabel: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.xl,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    color: Palette.text,
+  },
+  sectionCount: {
+    fontSize: Type.size.sm,
+    color: Palette.textMuted,
+  },
+  folderGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: Spacing.md,
+  },
+  folderTile: {
+    width: '48%',
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii['2xl'],
+    padding: Spacing.md,
+    gap: Spacing.sm,
+    shadowColor: 'rgb(20, 30, 30)',
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+  folderTileTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  folderTileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  folderChevron: {
+    fontSize: 22,
+    color: Palette.textMuted,
+    lineHeight: 24,
+  },
+  folderTileName: {
+    color: Palette.text,
+  },
+  folderTileMeta: {
+    fontSize: Type.size.sm,
+    color: Palette.textMuted,
+  },
+  noPieces: {
+    fontSize: Type.size.sm,
+    color: Palette.textMuted,
+    paddingVertical: Spacing.sm,
+  },
+  sectionAccessory: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  sectionAction: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    color: Palette.accent,
+  },
 });
