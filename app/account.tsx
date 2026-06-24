@@ -187,19 +187,19 @@ export default function AccountScreen() {
                       ? 'Free plan.'
                       : null}
               </ThemedText>
-              {entitlement.reason !== 'subscription' && (
-                <View style={styles.accountActions}>
-                  <Button
-                    label={
-                      entitlement.reason === 'paywall-off'
-                        ? 'Preview Practice Pro'
-                        : 'Get Practice Pro'
-                    }
-                    size="sm"
-                    onPress={() => setPaywallOpen(true)}
-                  />
-                </View>
-              )}
+              {/* Hide the upgrade entry point while the paywall is off — there's
+                  nothing to buy yet. The 'paywall-off' state is the preview; once
+                  PAYWALL_ENABLED flips on, trial/none users see "Get Practice Pro". */}
+              {entitlement.reason !== 'subscription' &&
+                entitlement.reason !== 'paywall-off' && (
+                  <View style={styles.accountActions}>
+                    <Button
+                      label="Get Practice Pro"
+                      size="sm"
+                      onPress={() => setPaywallOpen(true)}
+                    />
+                  </View>
+                )}
             </View>
           </View>
 
