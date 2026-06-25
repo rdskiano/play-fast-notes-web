@@ -33,6 +33,12 @@ const cache = new Map<string, unknown>();
 const loading = new Set<string>();
 let current: { stop: () => void } | null = null;
 let endTimer: ReturnType<typeof setTimeout> | null = null;
+// Bumped on every play/stop. A playMelody call captures the token AFTER its own
+// stopMelody(); if the token changes during its `await getInstrument` (another
+// play started, or stopMelody was called), it bails WITHOUT scheduling. Without
+// this, tapping several variations while the samples are still loading lets them
+// all schedule at once when the instrument resolves — 4 playing over each other.
+let playToken = 0;
 
 function getCtx(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -45,7 +51,13 @@ function getCtx(): AudioContext | null {
   return ctx;
 }
 
-async function getInstrument(gm: string): Promise<{ start: (e: object) => void; stop: () => void } | null> {
+// smplr's `start()` returns a per-note StopFn that BOTH cancels the note if it
+// hasn't played yet (scheduler) and stops it if it has (voice). The
+// instrument-level `stop()` only does the latter — it can't cancel notes still
+// queued in the scheduler — so we must keep and call these per-note stops.
+type StopFn = (time?: number) => void;
+
+async function getInstrument(gm: string): Promise<{ start: (e: object) => StopFn; stop: () => void } | null> {
   const c = getCtx();
   if (!c) return null;
   if (c.state === 'suspended') {
@@ -55,7 +67,7 @@ async function getInstrument(gm: string): Promise<{ start: (e: object) => void; 
       // ignore — a later user gesture will resume it
     }
   }
-  let inst = cache.get(gm) as { load: Promise<unknown>; start: (e: object) => void; stop: () => void } | undefined;
+  let inst = cache.get(gm) as { load: Promise<unknown>; start: (e: object) => StopFn; stop: () => void } | undefined;
   if (!inst) {
     const Ctor = Soundfont as unknown as new (
       context: AudioContext,
@@ -93,7 +105,11 @@ export async function playMelody(
   onEnd?: () => void,
 ): Promise<void> {
   stopMelody();
+  const myToken = ++playToken;
   const inst = await getInstrument(gm);
+  // Superseded while we were loading (another play started, or stopMelody was
+  // called) — bail without scheduling so we don't stack on top of the new one.
+  if (myToken !== playToken) return;
   const c = getCtx();
   if (!inst || !c || notes.length === 0) {
     onEnd?.();
@@ -101,17 +117,32 @@ export async function playMelody(
   }
   const t0 = c.currentTime + 0.15;
   let end = 0;
+  const stops: StopFn[] = [];
   for (const n of notes) {
-    inst.start({
-      note: n.midi,
-      time: t0 + n.time,
-      duration: n.duration,
-      velocity: 96,
-      ampRelease: NOTE_RELEASE,
-    });
+    stops.push(
+      inst.start({
+        note: n.midi,
+        time: t0 + n.time,
+        duration: n.duration,
+        velocity: 96,
+        ampRelease: NOTE_RELEASE,
+      }),
+    );
     end = Math.max(end, n.time + n.duration);
   }
-  current = inst;
+  // Stop = cancel every note (scheduled-but-unplayed AND sounding). The
+  // instrument-level stop() can't reach notes still queued in the scheduler.
+  current = {
+    stop: () => {
+      for (const s of stops) {
+        try {
+          s();
+        } catch {
+          // ignore
+        }
+      }
+    },
+  };
   if (endTimer) clearTimeout(endTimer);
   endTimer = setTimeout(
     () => {
@@ -124,6 +155,9 @@ export async function playMelody(
 
 /** Stop all sampled playback immediately. */
 export function stopMelody(): void {
+  // Invalidate any in-flight playMelody still awaiting its instrument so it
+  // won't schedule after we've stopped.
+  playToken++;
   if (endTimer) {
     clearTimeout(endTimer);
     endTimer = null;
