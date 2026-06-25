@@ -18,6 +18,7 @@ import { setSetting } from '@/lib/db/repos/settings';
 import { bucketById } from '@/lib/onboarding/bumblebee';
 import { takePendingHandoff } from '@/lib/onboarding/pendingHandoff';
 import { seedBumblebeePiece } from '@/lib/onboarding/seedBumblebee';
+import { logOnboardingStep } from '@/lib/onboarding/telemetry';
 
 const MIN_PASSWORD = 6;
 
@@ -63,6 +64,9 @@ export default function SignInScreen() {
         } catch {
           // best-effort — never block landing
         }
+        // Funnel: the conversion. Same anon id as the pre-signup steps, so the
+        // whole journey (landed → … → signed_up) stitches together.
+        void logOnboardingStep('signed_up', { intent: pending.intent });
         router.replace(pending.intent === 'upload' ? '/upload?coach=1' : '/library');
       } else {
         // The auth listener in _layout sees the session, but the URL is still

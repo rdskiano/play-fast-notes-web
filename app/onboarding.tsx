@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -104,9 +104,18 @@ export default function OnboardingScreen() {
   }, [params.passageId, router]);
 
   useEffect(() => {
-    void logOnboardingStep('rhythm_intro_started');
+    void logOnboardingStep('landed');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Funnel: fire once when the payoff screen is first reached.
+  const payoffLoggedRef = useRef(false);
+  useEffect(() => {
+    if (step === 'payoff' && !payoffLoggedRef.current) {
+      payoffLoggedRef.current = true;
+      void logOnboardingStep('reached_payoff');
+    }
+  }, [step]);
 
   // Stop any playback when the screen unmounts.
   useEffect(() => {
@@ -220,7 +229,7 @@ export default function OnboardingScreen() {
     if (leaving) return;
     setLeaving(true);
     stopAllAudio();
-    void logOnboardingStep(intent === 'upload' ? 'chose_add_music' : 'chose_later');
+    void logOnboardingStep(intent === 'upload' ? 'tapped_add_music' : 'tapped_save');
     if (signedIn) {
       if (bucket) {
         try {
