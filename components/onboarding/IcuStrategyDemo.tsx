@@ -147,8 +147,15 @@ export function IcuStrategyDemo({ bucket, gm, soundShift = 0, onDone }: Props) {
     autoRef.current = on;
     setAutoPlay(on);
     clearTimers();
-    // Turning auto on at the end replays from the top; otherwise resume here.
-    enterStep(on && idxRef.current >= steps.length - 1 ? 0 : idxRef.current);
+    if (on) {
+      // Resume — or replay from the top if we'd finished.
+      enterStep(idxRef.current >= steps.length - 1 ? 0 : idxRef.current);
+    } else {
+      // Pause — stop the audio + pulse and hold the current step lit. Do NOT
+      // re-enter the step (that replayed the chunk on top of the dying audio).
+      stopMelody();
+      setResting(false);
+    }
   }
 
   useEffect(() => {
