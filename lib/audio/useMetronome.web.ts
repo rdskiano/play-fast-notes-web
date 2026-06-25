@@ -592,13 +592,26 @@ export function useMetronome(initialBpm = 60) {
   function setVolume(v: number) {
     setVolumeState(Math.max(0, Math.min(1, v)));
   }
+  // Wake the AudioContext from inside a user gesture. Browsers (mobile
+  // Safari/Chrome especially) suspend the context after an audio-session
+  // interruption — e.g. the full-screen "Play it cold" overlay — and will
+  // only un-suspend it when resume() is called synchronously from a real
+  // tap. The scheduler effect's resume() runs from a React effect (no
+  // gesture) so it can't recover on its own; without this the metronome
+  // gets stuck silent and the toggle button "won't turn back on".
+  function wakeAudio() {
+    const ctx = ensureContext();
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => undefined);
+  }
   function start() {
+    wakeAudio();
     setRunning(true);
   }
   function stop() {
     setRunning(false);
   }
   function toggle() {
+    wakeAudio();
     setRunning((prev) => !prev);
   }
 
