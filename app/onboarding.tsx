@@ -34,6 +34,7 @@ import { TempoLadderDemo } from '@/components/onboarding/TempoLadderDemo';
 import { RhythmVariationsDemo } from '@/components/onboarding/RhythmVariationsDemo';
 import { MicroChainingDemo } from '@/components/onboarding/MicroChainingDemo';
 import { MacroChainingDemo } from '@/components/onboarding/MacroChainingDemo';
+import { RepRotatorDemo } from '@/components/onboarding/RepRotatorDemo';
 import { DEFAULT_STRATEGY_COLORS, type StrategyKey } from '@/components/StrategyColorsContext';
 import { useSession } from '@/lib/supabase/auth';
 import {
@@ -76,7 +77,7 @@ const STEP_ORDER: Step[] = ['instrument', 'hook', 'variations', 'payoff'];
 const STRATEGIES: {
   name: string;
   hero?: boolean;
-  demo?: 'icu' | 'tempo' | 'rv' | 'micro' | 'macro' | null;
+  demo?: 'icu' | 'tempo' | 'rv' | 'micro' | 'macro' | 'rep' | null;
   colorKey: StrategyKey;
 }[] = [
   { name: 'Rhythm variations', hero: true, demo: 'rv', colorKey: 'rhythmic' },
@@ -84,7 +85,7 @@ const STRATEGIES: {
   { name: 'Interleaved click-up', demo: 'icu', colorKey: 'click_up' },
   { name: 'Micro-chaining', demo: 'micro', colorKey: 'micro_chaining' },
   { name: 'Macro-chaining', demo: 'macro', colorKey: 'macro_chaining' },
-  { name: 'Rep rotator', demo: null, colorKey: 'rep_rotator' },
+  { name: 'Rep rotator', demo: 'rep', colorKey: 'rep_rotator' },
 ];
 
 export default function OnboardingScreen() {
@@ -139,7 +140,8 @@ export default function OnboardingScreen() {
       params.demo === 'tempo' ||
       params.demo === 'rv' ||
       params.demo === 'micro' ||
-      params.demo === 'macro'
+      params.demo === 'macro' ||
+      params.demo === 'rep'
     ) {
       if (!instrumentName) setInstrumentName('Flute');
       setStep('payoff');
@@ -619,6 +621,8 @@ export default function OnboardingScreen() {
                 soundShift={soundShift}
                 onDone={() => setOpenDemo(null)}
               />
+            ) : openDemo === 'rep' ? (
+              <RepRotatorDemo onDone={() => setOpenDemo(null)} />
             ) : null}
           </View>
         </View>
