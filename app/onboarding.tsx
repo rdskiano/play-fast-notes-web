@@ -29,6 +29,8 @@ import { buildPitchAbc } from '@/lib/notation/buildPitchAbc';
 import { logOnboardingStep } from '@/lib/onboarding/telemetry';
 import { setPendingHandoff, type HandoffIntent } from '@/lib/onboarding/pendingHandoff';
 import { seedBumblebeePiece } from '@/lib/onboarding/seedBumblebee';
+import { IcuStrategyDemo } from '@/components/onboarding/IcuStrategyDemo';
+import { DEFAULT_STRATEGY_COLORS, type StrategyKey } from '@/components/StrategyColorsContext';
 import { useSession } from '@/lib/supabase/auth';
 import {
   bucketForInstrument,
@@ -62,18 +64,28 @@ import type { RhythmPattern } from '@/lib/strategies/rhythmPatterns';
 type Step = 'instrument' | 'hook' | 'variations' | 'payoff';
 const STEP_ORDER: Step[] = ['instrument', 'hook', 'variations', 'payoff'];
 
-const STRATEGIES = [
-  { name: 'Rhythm variations', hero: true },
-  { name: 'Tempo ladder', hero: false },
-  { name: 'Interleaved click-up', hero: false },
-  { name: 'Micro-chaining', hero: false },
-  { name: 'Macro-chaining', hero: false },
-  { name: 'Rep rotator', hero: false },
+// Each chip starts as a neutral outline; once its demo has been seen it fills
+// with the strategy's real in-app color (StrategyColorsContext), pre-teaching
+// the color coding users meet later in the app. The hero (Rhythm variations)
+// is pre-seen — they just did it. Only strategies with a built `demo` are
+// tappable today; the rest are inert outlines until their demos exist.
+const STRATEGIES: {
+  name: string;
+  hero?: boolean;
+  demo?: 'icu' | null;
+  colorKey: StrategyKey;
+}[] = [
+  { name: 'Rhythm variations', hero: true, demo: null, colorKey: 'rhythmic' },
+  { name: 'Tempo ladder', demo: null, colorKey: 'tempo_ladder' },
+  { name: 'Interleaved click-up', demo: 'icu', colorKey: 'click_up' },
+  { name: 'Micro-chaining', demo: null, colorKey: 'micro_chaining' },
+  { name: 'Macro-chaining', demo: null, colorKey: 'macro_chaining' },
+  { name: 'Rep rotator', demo: null, colorKey: 'rep_rotator' },
 ];
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ passageId?: string }>();
+  const params = useLocalSearchParams<{ passageId?: string; demo?: string }>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const session = useSession();
@@ -90,6 +102,13 @@ export default function OnboardingScreen() {
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
   // Variations reveal in batches so the full list doesn't overwhelm.
   const [shownVariations, setShownVariations] = useState(4);
+  // Which strategy demo overlay is open (e.g. 'icu'), if any.
+  const [openDemo, setOpenDemo] = useState<string | null>(null);
+  // Strategy chips whose demo has been opened — they fill with their color.
+  // The hero (Rhythm variations) is pre-seen because they just experienced it.
+  const [seenStrategies, setSeenStrategies] = useState<Set<string>>(
+    () => new Set(['Rhythm variations']),
+  );
 
   const gm = instrumentName ? gmForInstrument(instrumentName) : null;
   const soundShift = instrumentName ? soundShiftForInstrument(instrumentName) : 0;
@@ -107,6 +126,17 @@ export default function OnboardingScreen() {
     void logOnboardingStep('landed');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Dev/preview shortcut: ?demo=icu jumps straight to the ICU strategy demo
+  // (defaults the instrument to flute if none was picked).
+  useEffect(() => {
+    if (params.demo === 'icu') {
+      if (!instrumentName) setInstrumentName('Flute');
+      setStep('payoff');
+      setOpenDemo('icu');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.demo]);
 
   // Funnel: fire once when the payoff screen is first reached.
   const payoffLoggedRef = useRef(false);
@@ -241,7 +271,9 @@ export default function OnboardingScreen() {
       router.replace((intent === 'upload' ? '/upload?coach=1' : '/library') as never);
     } else {
       if (bucket) setPendingHandoff({ intent, bucketId: bucket.id });
-      router.replace('/sign-in' as never);
+      // ?new=1 puts the sign-in screen in create-account mode (the default
+      // screen is login-only — new users only reach signup via this funnel).
+      router.replace('/sign-in?new=1' as never);
     }
   }
 
@@ -324,25 +356,31 @@ export default function OnboardingScreen() {
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
 
+      {/* The payoff is the end of the funnel — no "back" to the variations and
+          no progress bar; keep the row only as safe-area top spacing. */}
       <View style={[styles.topRow, { paddingTop: insets.top + 10 }]}>
-        {step !== 'instrument' ? (
-          <Pressable
-            onPress={() => goStep(STEP_ORDER[STEP_ORDER.indexOf(step) - 1])}
-            hitSlop={8}
-            style={styles.backBtn}>
-            <ThemedText style={[styles.backText, { color: Palette.accent }]}>
-              ‹ Back
-            </ThemedText>
-          </Pressable>
-        ) : (
-          <View style={{ width: 48 }} />
-        )}
-        <View style={[styles.track, { backgroundColor: Palette.track }]}>
-          <View
-            style={[styles.fill, { backgroundColor: Palette.accent, width: `${progress}%` }]}
-          />
-        </View>
-        <View style={{ width: 48 }} />
+        {step !== 'payoff' ? (
+          <>
+            {step !== 'instrument' ? (
+              <Pressable
+                onPress={() => goStep(STEP_ORDER[STEP_ORDER.indexOf(step) - 1])}
+                hitSlop={8}
+                style={styles.backBtn}>
+                <ThemedText style={[styles.backText, { color: Palette.accent }]}>
+                  ‹ Back
+                </ThemedText>
+              </Pressable>
+            ) : (
+              <View style={{ width: 48 }} />
+            )}
+            <View style={[styles.track, { backgroundColor: Palette.track }]}>
+              <View
+                style={[styles.fill, { backgroundColor: Palette.accent, width: `${progress}%` }]}
+              />
+            </View>
+            <View style={{ width: 48 }} />
+          </>
+        ) : null}
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
@@ -469,28 +507,49 @@ export default function OnboardingScreen() {
               exercises like these from the music you’re actually learning.
             </ThemedText>
             <View style={styles.chips}>
-              {STRATEGIES.map((s) => (
-                <View
-                  key={s.name}
-                  style={[
-                    styles.chip,
-                    s.hero
-                      ? { backgroundColor: Palette.accent }
-                      : { backgroundColor: Palette.surfaceSunk },
-                  ]}>
-                  <ThemedText
+              {STRATEGIES.map((s) => {
+                const filled = seenStrategies.has(s.name);
+                const color = DEFAULT_STRATEGY_COLORS[s.colorKey];
+                return (
+                  <Pressable
+                    key={s.name}
+                    disabled={!s.demo}
+                    onPress={
+                      s.demo
+                        ? () => {
+                            setSeenStrategies((prev) => new Set(prev).add(s.name));
+                            setOpenDemo(s.demo ?? null);
+                          }
+                        : undefined
+                    }
                     style={[
-                      styles.chipText,
-                      { color: s.hero ? '#fff' : Palette.textSecondary },
+                      styles.chip,
+                      filled
+                        ? { backgroundColor: color, borderColor: color }
+                        : { backgroundColor: 'transparent', borderColor: Palette.borderStrong },
                     ]}>
-                    {s.name}
-                  </ThemedText>
-                </View>
-              ))}
+                    <ThemedText
+                      style={[
+                        styles.chipText,
+                        { color: filled ? '#fff' : Palette.textSecondary },
+                      ]}>
+                      {s.name}
+                      {!filled && s.demo ? '  ▸' : ''}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
             </View>
             <View style={styles.actions}>
+              {!signedIn ? (
+                <ThemedText
+                  style={[styles.accountNote, { color: Palette.textSecondary }]}>
+                  Make a free account to keep going — it saves Flight of the
+                  Bumblebee and your progress.
+                </ThemedText>
+              ) : null}
               <Button
-                label="Now try it on your own music"
+                label="Add my own music →"
                 onPress={() => void handoff('upload')}
                 disabled={leaving}
                 fullWidth
@@ -501,21 +560,29 @@ export default function OnboardingScreen() {
                     ? 'One sec…'
                     : signedIn
                       ? 'Maybe later'
-                      : 'Save it for later'
+                      : 'I’ll add music later'
                 }
                 variant="ghost"
                 onPress={() => void handoff('library')}
                 disabled={leaving}
               />
-              {!signedIn ? (
-                <ThemedText style={[styles.fineprint, { color: Palette.textMuted }]}>
-                  Free account — keeps Flight of the Bumblebee and your progress.
-                </ThemedText>
-              ) : null}
             </View>
           </View>
         )}
       </ScrollView>
+
+      {openDemo === 'icu' && (bucket || instrumentName) ? (
+        <View style={[styles.demoOverlay, { paddingTop: insets.top + 12 }]}>
+          <View style={styles.demoSheet}>
+            <IcuStrategyDemo
+              bucket={bucket ?? bucketForInstrument(instrumentName ?? 'Flute')}
+              gm={gm ?? gmForInstrument(instrumentName ?? 'Flute')}
+              soundShift={soundShift}
+              onDone={() => setOpenDemo(null)}
+            />
+          </View>
+        </View>
+      ) : null}
     </ThemedView>
   );
 }
@@ -639,13 +706,26 @@ const styles = StyleSheet.create({
     borderRadius: Radii.pill,
     paddingVertical: 6,
     paddingHorizontal: 12,
+    borderWidth: 1,
   },
   chipText: { fontSize: Type.size.sm, fontWeight: Type.weight.semibold },
-  fineprint: {
-    fontSize: Type.size.xs,
+  demoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(20,25,26,0.55)',
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  demoSheet: { width: '100%', maxWidth: 380 },
+  accountNote: {
+    fontSize: Type.size.sm,
     textAlign: 'center',
-    marginTop: Spacing.xs,
-    lineHeight: 16,
+    lineHeight: 20,
+    marginBottom: Spacing.xs,
   },
   signInRow: { alignSelf: 'center', marginTop: Spacing.lg, padding: Spacing.sm },
   signInText: { fontSize: Type.size.sm },

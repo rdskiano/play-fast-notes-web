@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
@@ -13,6 +13,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   continueWithPassword,
   requestPasswordReset,
+  signInOnly,
 } from '@/lib/supabase/auth';
 import { setSetting } from '@/lib/db/repos/settings';
 import { bucketById } from '@/lib/onboarding/bumblebee';
@@ -29,6 +30,11 @@ type Status =
 
 export default function SignInScreen() {
   const router = useRouter();
+  // ?new=1 = arriving from the end of the value-first funnel to CREATE an
+  // account. Default (no param) = login only for an existing user — new visitors
+  // are sent to /onboarding via "Get started", they don't sign up from here.
+  const params = useLocalSearchParams<{ new?: string }>();
+  const isSignup = params.new === '1';
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const [email, setEmail] = useState('');
@@ -50,7 +56,8 @@ export default function SignInScreen() {
     if (!canSubmit) return;
     setStatus({ kind: 'submitting' });
     try {
-      await continueWithPassword(email, password);
+      // Funnel completion creates the account; the default screen is login-only.
+      await (isSignup ? continueWithPassword : signInOnly)(email, password);
       // Successful sign-in/up. If the user came from the value-first onboarding
       // (did the Bumblebee taste, then tapped a handoff that needed an account),
       // finish the job: seed the sample into their new library and mark
@@ -107,8 +114,9 @@ export default function SignInScreen() {
           Play Fast Notes
         </ThemedText>
         <ThemedText style={styles.body}>
-          Enter your email and a password. New emails create an account; existing
-          emails sign in.
+          {isSignup
+            ? 'Pick an email and password to save Flight of the Bumblebee and your progress.'
+            : 'Sign in with your email and password.'}
         </ThemedText>
 
         <View style={styles.inputWrap}>
@@ -143,7 +151,15 @@ export default function SignInScreen() {
         </View>
 
         <Button
-          label={status.kind === 'submitting' ? 'Signing in…' : 'Continue'}
+          label={
+            status.kind === 'submitting'
+              ? isSignup
+                ? 'Creating account…'
+                : 'Signing in…'
+              : isSignup
+                ? 'Create account'
+                : 'Sign in'
+          }
           onPress={onSubmit}
           disabled={!canSubmit}
           fullWidth
@@ -154,7 +170,7 @@ export default function SignInScreen() {
           <ThemedText style={[styles.error, { color: Palette.danger }]}>{status.message}</ThemedText>
         )}
 
-        {resetState.kind === 'hidden' ? (
+        {isSignup ? null : resetState.kind === 'hidden' ? (
           <Pressable
             onPress={() => setResetState({ kind: 'idle' })}
             hitSlop={6}
@@ -199,6 +215,35 @@ export default function SignInScreen() {
               </>
             )}
           </View>
+        )}
+
+        {isSignup ? (
+          // Funnel completers: a quiet way back to login if they realize they
+          // already have an account.
+          <Pressable
+            onPress={() => router.replace('/sign-in' as never)}
+            hitSlop={6}
+            style={styles.tourBtn}>
+            <ThemedText style={[styles.tourText, { color: Palette.textSecondary }]}>
+              Already have an account?{' '}
+              <ThemedText style={[styles.tourText, { color: C.tint }]}>Sign in</ThemedText>
+            </ThemedText>
+          </Pressable>
+        ) : (
+          // New visitors self-select into the value-first funnel here.
+          <>
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <ThemedText style={styles.dividerText}>new here?</ThemedText>
+              <View style={styles.dividerLine} />
+            </View>
+            <Button
+              label="Get started →"
+              variant="outline"
+              onPress={() => router.push('/onboarding' as never)}
+              fullWidth
+            />
+          </>
         )}
       </View>
     </ThemedView>
@@ -267,6 +312,27 @@ const styles = StyleSheet.create({
   forgotText: {
     fontSize: Type.size.sm,
     fontWeight: Type.weight.semibold,
+  },
+  tourBtn: {
+    alignSelf: 'center',
+    paddingVertical: Spacing.sm,
+  },
+  tourText: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    textAlign: 'center',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: Palette.border },
+  dividerText: {
+    fontSize: Type.size.xs,
+    color: Palette.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   resetCard: {
     gap: Spacing.sm,

@@ -49,6 +49,26 @@ export async function continueWithPassword(
   throw signUpError;
 }
 
+/**
+ * Sign in an EXISTING account ONLY — never creates one. The default sign-in
+ * screen uses this so a new visitor can't bypass the value-first funnel by
+ * typing a fresh email here; new users go through /onboarding and their account
+ * is created at the end via continueWithPassword. Supabase doesn't reveal
+ * whether the failure was "no account" vs "wrong password" (by design), so the
+ * error nudges toward both the password and the Get-started path.
+ */
+export async function signInOnly(email: string, password: string): Promise<void> {
+  const { error } = await supabase.auth.signInWithPassword({
+    email: email.trim(),
+    password,
+  });
+  if (error) {
+    throw new Error(
+      'We couldn’t sign you in. Double-check your email and password — or if you’re new, tap “Get started” below.',
+    );
+  }
+}
+
 export async function signOut(): Promise<void> {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;

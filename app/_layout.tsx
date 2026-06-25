@@ -102,7 +102,10 @@ export default function RootLayout() {
               <Stack.Screen name="sign-in" />
               <Stack.Screen name="reset-password" />
             </Stack>
-            {!isPublic && <Redirect href="/onboarding" />}
+            {/* Logged-out default = sign-in (existing users). New visitors
+                self-select into the value-first funnel via "Get started" on the
+                sign-in screen; their account is created at the funnel's end. */}
+            {!isPublic && <Redirect href="/sign-in" />}
             {/* Install prompt lives here too so a friend opening the link on
                 their phone still gets coached into Add-to-Home-Screen. */}
             <InstallPrompt />
