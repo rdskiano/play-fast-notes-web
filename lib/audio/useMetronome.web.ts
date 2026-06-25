@@ -849,6 +849,45 @@ export function useMetronome(initialBpm = 60) {
     osc.stop(t + durationSec + 0.05);
   }
 
+  // A clearer melodic voice for pitch playback (the Bumblebee onboarding run +
+  // the Rhythm Builder ▶ previews). A pure sine smears at speed and is hard to
+  // pitch; a brighter triangle fundamental, a quiet octave partial, and a
+  // plucked (fast-decaying) envelope make each note articulate so fast runs
+  // read clearly. `dur` is the note's full slot; the tone rings out before the
+  // slot ends so legato runs don't blur.
+  function scheduleMelodyVoice(
+    ctx: AudioContext,
+    dest: AudioNode,
+    freq: number,
+    t: number,
+    dur: number,
+    peak: number,
+  ) {
+    const gain = ctx.createGain();
+    gain.connect(dest);
+    const decay = Math.min(Math.max(dur * 0.9, 0.09), 0.45);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+
+    // Quiet octave-up partial sharpens pitch clarity without adding harshness.
+    const partial = ctx.createOscillator();
+    const partialGain = ctx.createGain();
+    partial.type = 'sine';
+    partial.frequency.value = freq * 2;
+    partialGain.gain.value = 0.28;
+    partial.connect(partialGain).connect(gain);
+    partial.start(t);
+    partial.stop(t + dur + 0.02);
+  }
+
   function playPitchSequence(freqs: number[], secondsPerNote: number): number {
     const ctx = ensureContext();
     if (!ctx || freqs.length === 0) return 0;
@@ -856,17 +895,7 @@ export function useMetronome(initialBpm = 60) {
     const start = ctx.currentTime + 0.05;
     for (let i = 0; i < freqs.length; i++) {
       const t = start + i * secondsPerNote;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freqs[i];
-      const peak = 0.5 * volRef.current;
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + secondsPerNote * 0.85);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(t);
-      osc.stop(t + secondsPerNote);
+      scheduleMelodyVoice(ctx, ctx.destination, freqs[i], t, secondsPerNote, 0.5 * volRef.current);
     }
     const totalSec = freqs.length * secondsPerNote;
     setPlayingSequence(true);
@@ -908,17 +937,7 @@ export function useMetronome(initialBpm = 60) {
       const token = tokens[i % tokens.length];
       const dur = TOKEN_QUARTER_FRACTIONS[token] * secondsPerQuarter;
       const t = pitchNextStartRef.current;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freqs[i];
-      const peak = 0.5 * volRef.current;
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.85);
-      osc.connect(gain).connect(gate);
-      osc.start(t);
-      osc.stop(t + dur);
+      scheduleMelodyVoice(ctx, gate, freqs[i], t, dur, 0.5 * volRef.current);
       pitchNextStartRef.current += dur;
       pitchIdxRef.current = i + 1;
     }

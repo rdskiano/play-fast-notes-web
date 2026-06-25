@@ -85,20 +85,29 @@ export default function RootLayout() {
   if (IS_WEB) {
     if (session === undefined) return null;
     if (session === null) {
-      const isPublic = pathname === '/sign-in' || pathname === '/reset-password';
+      // Value-first funnel: a stranger's landing page is the Bumblebee taste
+      // (/onboarding), NOT a sign-in wall. Onboarding is fully client-side, so
+      // it runs with no account; it only asks for email at the handoff. /sign-in
+      // + /reset-password stay reachable for returning users (the welcome screen
+      // links to sign-in). Everything else falls back to the onboarding landing.
+      const isPublic =
+        pathname === '/sign-in' ||
+        pathname === '/reset-password' ||
+        pathname === '/onboarding';
       return (
         <ThemeProvider value={DefaultTheme}>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="sign-in" />
-            <Stack.Screen name="reset-password" />
-          </Stack>
-          {!isPublic && <Redirect href="/sign-in" />}
-          {/* The friend-link landing page is /sign-in for not-yet-signed-up
-              visitors, so the install prompt has to live in this branch
-              too — otherwise a friend opening the link on their phone
-              would never be coached into Add-to-Home-Screen. */}
-          <InstallPrompt />
-          <StatusBar style="dark" />
+          <SafeAreaProvider>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="onboarding" />
+              <Stack.Screen name="sign-in" />
+              <Stack.Screen name="reset-password" />
+            </Stack>
+            {!isPublic && <Redirect href="/onboarding" />}
+            {/* Install prompt lives here too so a friend opening the link on
+                their phone still gets coached into Add-to-Home-Screen. */}
+            <InstallPrompt />
+            <StatusBar style="dark" />
+          </SafeAreaProvider>
         </ThemeProvider>
       );
     }

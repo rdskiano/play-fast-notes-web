@@ -64,6 +64,8 @@ type Props = {
   autoHeight?: boolean;
   /** Shown when abcjs fails to render. */
   fallbackText?: string;
+  /** Web-only: shrink a long single-line phrase to fit `width`. No-op on native. */
+  fitWidth?: boolean;
   /** Maps a tapped note's SVG element to its index in the ABC body. */
   onNoteTap?: (noteIndex: number) => void;
   /** Draws a coloured highlight on the note at this index. */

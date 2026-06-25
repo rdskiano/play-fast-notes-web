@@ -52,6 +52,13 @@ type Props = {
   /** Shown when abcjs fails to render (corrupt ABC, missing CDN, etc.). */
   fallbackText?: string;
   /**
+   * Shrink the rendered staff to fit `width` when its natural (centered)
+   * content is wider — keeps the viewBox and scales the SVG down so a long
+   * single-line phrase fits a narrow card instead of overflowing. Only shrinks,
+   * never upscales. Used by the onboarding hook.
+   */
+  fitWidth?: boolean;
+  /**
    * Maps a note-tap on the rendered SVG back to the index of the
    * space-separated note in the ABC body. Used by PitchStaff to open
    * NoteCardEditor on the tapped note.
@@ -75,6 +82,7 @@ export function AbcStaffView({
   fallbackText,
   onNoteTap,
   activeNoteIndex,
+  fitWidth,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -185,8 +193,13 @@ export function AbcStaffView({
                 'viewBox',
                 `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`,
               );
-              svg.setAttribute('width', String(bbox.width));
-              svg.setAttribute('height', String(bbox.height));
+              // fitWidth: cap the rendered width at the container so a long
+              // phrase scales DOWN to fit (viewBox preserves aspect ratio).
+              // Never upscales. Without it, use the natural content width.
+              const cap = fitWidth && width ? Math.min(bbox.width, width) : bbox.width;
+              const renderH = bbox.height * (cap / bbox.width);
+              svg.setAttribute('width', String(cap));
+              svg.setAttribute('height', String(renderH));
             }
           } catch {
             // safe to skip
@@ -207,6 +220,7 @@ export function AbcStaffView({
     wrap,
     preferredMeasuresPerLine,
     onNoteTap,
+    fitWidth,
   ]);
 
   // Highlight the active note in a separate pass so changing it doesn't

@@ -28,11 +28,20 @@ export function buildPitchAbc(
   pitches: Pitch[],
   keySignature: KeySignature,
   clef: Clef,
+  opts?: { beamGroup?: number; barEveryGroups?: number },
 ): string {
+  // beamGroup > 0 renders the notes as sixteenths beamed in groups of that
+  // size (e.g. 4 → the Bumblebee run reads as four-note beamed groups). Default
+  // (0) keeps the original meterless quarter-note layout for the pitch-entry
+  // staff. barEveryGroups > 0 inserts a barline every N beamed groups so abcjs
+  // can WRAP the line into measures — without barlines the whole phrase is one
+  // un-wrappable measure that overflows a narrow card.
+  const beamGroup = opts?.beamGroup ?? 0;
+  const barEveryGroups = opts?.barEveryGroups ?? 0;
   const head = [
     'X:1',
     'M:none',
-    'L:1/4',
+    `L:${beamGroup > 0 ? '1/16' : '1/4'}`,
     `K:${keySignature.abcKey} clef=${clef.abcClef}`,
   ].join('\n');
   if (pitches.length === 0) return `${head}\nx8|`;
@@ -65,6 +74,23 @@ export function buildPitchAbc(
     const prefix = needed || outOfKey || p.courtesy ? ACC_PREFIX[want] : '';
     if (needed) active.set(key, want);
     tokens.push(prefix + toAbcBody(L, octave));
+  }
+  if (beamGroup > 0) {
+    // Concatenate notes within a group (no space → abcjs beams them) and put a
+    // space between groups (breaks the beam).
+    const groups: string[] = [];
+    for (let i = 0; i < tokens.length; i += beamGroup) {
+      groups.push(tokens.slice(i, i + beamGroup).join(''));
+    }
+    if (barEveryGroups > 0) {
+      const parts: string[] = [];
+      groups.forEach((g, i) => {
+        parts.push(g);
+        if (i < groups.length - 1 && (i + 1) % barEveryGroups === 0) parts.push('|');
+      });
+      return `${head}\n${parts.join(' ')}|`;
+    }
+    return `${head}\n${groups.join(' ')}|`;
   }
   return `${head}\n${tokens.join(' ')}|`;
 }

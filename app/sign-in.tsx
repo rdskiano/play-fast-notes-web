@@ -14,6 +14,10 @@ import {
   continueWithPassword,
   requestPasswordReset,
 } from '@/lib/supabase/auth';
+import { setSetting } from '@/lib/db/repos/settings';
+import { bucketById } from '@/lib/onboarding/bumblebee';
+import { takePendingHandoff } from '@/lib/onboarding/pendingHandoff';
+import { seedBumblebeePiece } from '@/lib/onboarding/seedBumblebee';
 
 const MIN_PASSWORD = 6;
 
@@ -46,10 +50,25 @@ export default function SignInScreen() {
     setStatus({ kind: 'submitting' });
     try {
       await continueWithPassword(email, password);
-      // Successful sign-in. The auth state listener in _layout will see the
-      // session, but the URL is still /sign-in — push to Library explicitly so
-      // the user lands somewhere on success.
-      router.replace('/library');
+      // Successful sign-in/up. If the user came from the value-first onboarding
+      // (did the Bumblebee taste, then tapped a handoff that needed an account),
+      // finish the job: seed the sample into their new library and mark
+      // onboarding seen so the library doesn't redirect them back into it. Then
+      // land them where they intended — the upload flow or their library.
+      const pending = takePendingHandoff();
+      if (pending) {
+        try {
+          await setSetting('onboarding.seen', 'true');
+          await seedBumblebeePiece(bucketById(pending.bucketId));
+        } catch {
+          // best-effort — never block landing
+        }
+        router.replace(pending.intent === 'upload' ? '/upload?coach=1' : '/library');
+      } else {
+        // The auth listener in _layout sees the session, but the URL is still
+        // /sign-in — push somewhere explicitly so the user lands on success.
+        router.replace('/library');
+      }
     } catch (e) {
       setStatus({ kind: 'error', message: e instanceof Error ? e.message : String(e) });
     }
