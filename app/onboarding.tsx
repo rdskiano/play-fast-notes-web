@@ -32,6 +32,7 @@ import { seedBumblebeePiece } from '@/lib/onboarding/seedBumblebee';
 import { IcuStrategyDemo } from '@/components/onboarding/IcuStrategyDemo';
 import { TempoLadderDemo } from '@/components/onboarding/TempoLadderDemo';
 import { RhythmVariationsDemo } from '@/components/onboarding/RhythmVariationsDemo';
+import { MicroChainingDemo } from '@/components/onboarding/MicroChainingDemo';
 import { DEFAULT_STRATEGY_COLORS, type StrategyKey } from '@/components/StrategyColorsContext';
 import { useSession } from '@/lib/supabase/auth';
 import {
@@ -74,13 +75,13 @@ const STEP_ORDER: Step[] = ['instrument', 'hook', 'variations', 'payoff'];
 const STRATEGIES: {
   name: string;
   hero?: boolean;
-  demo?: 'icu' | 'tempo' | 'rv' | null;
+  demo?: 'icu' | 'tempo' | 'rv' | 'micro' | null;
   colorKey: StrategyKey;
 }[] = [
   { name: 'Rhythm variations', hero: true, demo: 'rv', colorKey: 'rhythmic' },
   { name: 'Tempo ladder', demo: 'tempo', colorKey: 'tempo_ladder' },
   { name: 'Interleaved click-up', demo: 'icu', colorKey: 'click_up' },
-  { name: 'Micro-chaining', demo: null, colorKey: 'micro_chaining' },
+  { name: 'Micro-chaining', demo: 'micro', colorKey: 'micro_chaining' },
   { name: 'Macro-chaining', demo: null, colorKey: 'macro_chaining' },
   { name: 'Rep rotator', demo: null, colorKey: 'rep_rotator' },
 ];
@@ -132,7 +133,12 @@ export default function OnboardingScreen() {
   // Dev/preview shortcut: ?demo=icu or ?demo=tempo jumps straight to that
   // strategy demo (defaults the instrument to flute if none was picked).
   useEffect(() => {
-    if (params.demo === 'icu' || params.demo === 'tempo' || params.demo === 'rv') {
+    if (
+      params.demo === 'icu' ||
+      params.demo === 'tempo' ||
+      params.demo === 'rv' ||
+      params.demo === 'micro'
+    ) {
       if (!instrumentName) setInstrumentName('Flute');
       setStep('payoff');
       setOpenDemo(params.demo);
@@ -592,6 +598,13 @@ export default function OnboardingScreen() {
               />
             ) : openDemo === 'rv' ? (
               <RhythmVariationsDemo
+                bucket={bucket ?? bucketForInstrument(instrumentName ?? 'Flute')}
+                gm={gm ?? gmForInstrument(instrumentName ?? 'Flute')}
+                soundShift={soundShift}
+                onDone={() => setOpenDemo(null)}
+              />
+            ) : openDemo === 'micro' ? (
+              <MicroChainingDemo
                 bucket={bucket ?? bucketForInstrument(instrumentName ?? 'Flute')}
                 gm={gm ?? gmForInstrument(instrumentName ?? 'Flute')}
                 soundShift={soundShift}
