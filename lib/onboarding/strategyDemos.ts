@@ -12,7 +12,18 @@
 // sequence is faithful to the actual tool.
 
 import { bucketConcertMidi, type BumblebeeBucket } from '@/lib/onboarding/bumblebee';
+import { generateMacroSteps } from '@/lib/strategies/macroChain';
 import type { SampleNote } from '@/lib/audio/sampler';
+
+/**
+ * Micro- and Macro-chaining are practiced AT PERFORMANCE TEMPO (unlike Tempo
+ * Ladder / Click-Up, which ramp slow→fast). Ralph's spec: quarter note = 136.
+ * The phrase runs in sixteenths, so each note lasts 60/136/4 ≈ 0.110 s. Both
+ * chaining demos read this so they always play at the same performance tempo.
+ */
+export const CHAIN_DEMO_TEMPO_BPM = 136;
+/** Seconds per (sixteenth) note at the chaining demos' performance tempo. */
+export const CHAIN_DEMO_NOTE_SEC = 60 / CHAIN_DEMO_TEMPO_BPM / 4;
 
 /** Notes per chunk (the four sixteenths before the landing note). */
 export const DEMO_CHUNK = 4 as const;
@@ -149,4 +160,228 @@ export function fullPhraseSchedule(
     duration: secPerSixteenth * 0.92,
   }));
   return { notes, durationSec: concert.length * secPerSixteenth };
+}
+
+// ── Macro-chaining demo ──────────────────────────────────────────────────────
+// Faithful to the real generateMacroSteps: at each chunk size, ISOLATE each
+// chunk (drill it a few times — "repeat until comfortable") then CHAIN the
+// chunks with rest-beats between them, knocking the rests down from 2 → 1 → 0;
+// then the chunk size DOUBLES and you isolate + chain again, up to the whole
+// phrase. The Bumblebee phrase is 16 running sixteenths = 4 beats (note 17 is
+// the final landing note). Chunk sizes for 4 beats: 1, 2, 4.
+//
+// The demo expands that step list into a flat timeline of FRAMES the player
+// walks: a play-frame greens + sounds a chunk; a rest-frame shows a blinking
+// "REST" above the staff (one blink per rest beat). Performance tempo (q = 136).
+
+/** Sixteenth-notes per beat in the phrase. */
+export const MACRO_BEAT_NOTES = 4 as const;
+/** Beats in the phrase (16 sixteenths). */
+export const MACRO_BEATS = 4 as const;
+/** Times each chunk is drilled in its ISOLATE step ("repeat until comfortable"). */
+export const MACRO_ISOLATE_REPS = 3;
+
+/**
+ * The 0-based phrase note indices for one chunk. Chunks are the chunkSize beats
+ * starting at chunkIndex; the LAST chunk also takes the final landing note
+ * (index 16) so the phrase resolves. Non-overlapping, so chained playback is
+ * clean (no doubled downbeats).
+ */
+export function macroUnitNotes(
+  beatCount: number,
+  chunkSize: number,
+  chunkIndex: number,
+): number[] {
+  const chunkCount = Math.ceil(beatCount / chunkSize);
+  const from = chunkIndex * chunkSize * MACRO_BEAT_NOTES;
+  const isLast = chunkIndex >= chunkCount - 1;
+  const to = isLast ? beatCount * MACRO_BEAT_NOTES : from + chunkSize * MACRO_BEAT_NOTES - 1;
+  const out: number[] = [];
+  for (let n = from; n <= to; n++) out.push(n);
+  return out;
+}
+
+/**
+ * Notes for a CHAIN chunk — its beats PLUS the next downbeat (you play the chunk
+ * INTO the landing note), clamped to the final note. The landing note is why the
+ * real silence runs one beat longer than the displayed REST count.
+ */
+export function macroChainNotes(
+  beatCount: number,
+  chunkSize: number,
+  chunkIndex: number,
+): number[] {
+  const from = chunkIndex * chunkSize * MACRO_BEAT_NOTES;
+  const to = Math.min(from + chunkSize * MACRO_BEAT_NOTES, beatCount * MACRO_BEAT_NOTES);
+  const out: number[] = [];
+  for (let n = from; n <= to; n++) out.push(n);
+  return out;
+}
+
+/** Short label for the stage indicator, by chunk size in beats. */
+export function macroChunkBeatsLabel(chunkBeats: number, beatCount: number): string {
+  if (chunkBeats >= beatCount) return 'Whole phrase';
+  return chunkBeats === 1 ? '1-beat chunks' : `${chunkBeats}-beat chunks`;
+}
+
+/** The distinct chunk sizes the demo passes through, in order (1, 2, … whole). */
+export function macroChunkSizes(beatCount: number = MACRO_BEATS): number[] {
+  const sizes = new Set<number>();
+  for (let c = 1; c * 2 <= beatCount; c++) if (beatCount % c === 0) sizes.add(c);
+  sizes.add(beatCount);
+  return [...sizes].sort((a, b) => a - b);
+}
+
+export type MacroFrame = {
+  /** 0-based phrase note indices to color (the chunk in play); [] during a rest. */
+  green: number[];
+  /** Note indices to sound, or null on a silent rest beat. */
+  sound: number[] | null;
+  /** True on a rest beat. */
+  rest: boolean;
+  /** Whether the REST label is lit (rest beats split on→off so it blinks). */
+  restOn: boolean;
+  /** Chunk size (beats) of the current step — drives the stage indicator. */
+  chunkBeats: number;
+  /** Short caption for the current step. */
+  label: string;
+  /** How long this frame holds, ms. */
+  durMs: number;
+};
+
+/**
+ * Expand the real macro step list into the demo's frame timeline.
+ *
+ * - ISOLATE: drill the chunk MACRO_ISOLATE_REPS times.
+ * - CHAIN: play each chunk INTO the next downbeat (landing note included), then
+ *   the landing beat passes silently-but-unlabeled, then `restBeats` blinking
+ *   "REST" beats — so the real silence is always ONE beat longer than the REST
+ *   count shown. Rests count down 2 → 1 → 0.
+ * - SEAMLESS (the step that completes each chunk size): the chunks played
+ *   straight through with no gap at all. Added after the rest-0 chain step.
+ * - Chunk size doubles each round, up to the whole phrase.
+ */
+export function buildMacroDemoFrames(beatCount: number = MACRO_BEATS): MacroFrame[] {
+  const steps = generateMacroSteps(beatCount);
+  const noteMs = CHAIN_DEMO_NOTE_SEC * 1000;
+  const beatMs = MACRO_BEAT_NOTES * noteMs;
+  // A clear break at the END of every step, so the last chunk never bleeds into
+  // the next step's first chunk when we return to the start of the passage.
+  const stepBreakMs = Math.round(beatMs * 1.5);
+  const frames: MacroFrame[] = [];
+
+  const pushBreak = (chunkBeats: number, label: string) =>
+    frames.push({
+      green: [],
+      sound: null,
+      rest: false,
+      restOn: false,
+      chunkBeats,
+      label,
+      durMs: stepBreakMs,
+    });
+
+  for (const step of steps) {
+    if (step.kind === 'isolate') {
+      const isWhole = step.chunkCount === 1;
+      // Drill the chunk INTO the next downbeat (landing-inclusive) even on its
+      // own — a 1-beat chunk is 5 notes, a 2-beat chunk is 9 — so isolate and
+      // chain cover the same notes. (The whole-phrase finale is the full run.)
+      const notes = macroChainNotes(beatCount, step.chunkSize, step.chunkIndex);
+      const label = isWhole
+        ? 'The whole phrase'
+        : step.chunkSize === 1
+          ? `Drill unit ${step.chunkIndex + 1} until it’s comfortable`
+          : `Drill chunk ${step.chunkIndex + 1} (${step.chunkSize} beats) until comfortable`;
+      // Drill a chunk a few times; play the whole phrase just once.
+      const reps = isWhole ? 1 : MACRO_ISOLATE_REPS;
+      for (let r = 0; r < reps; r++) {
+        frames.push({
+          green: notes,
+          sound: notes,
+          rest: false,
+          restOn: false,
+          chunkBeats: step.chunkSize,
+          label,
+          durMs: notes.length * noteMs + (r < reps - 1 ? 260 : 0),
+        });
+      }
+      pushBreak(step.chunkSize, label);
+    } else {
+      const chunkCount = Math.ceil(beatCount / step.chunkSize);
+      const label =
+        step.restBeats === 0
+          ? 'Join them — a beat between'
+          : `Join them — rest ${step.restBeats}, then back in`;
+      for (let j = 0; j < chunkCount; j++) {
+        const notes = macroChainNotes(beatCount, step.chunkSize, j);
+        frames.push({
+          green: notes,
+          sound: notes,
+          rest: false,
+          restOn: false,
+          chunkBeats: step.chunkSize,
+          label,
+          durMs: notes.length * noteMs,
+        });
+        if (j < chunkCount - 1) {
+          // The landing beat: you played onto the downbeat, now it rests out —
+          // silent but NOT labeled, which is the extra beat beyond the REST count.
+          frames.push({
+            green: [],
+            sound: null,
+            rest: false,
+            restOn: false,
+            chunkBeats: step.chunkSize,
+            label,
+            durMs: Math.round(beatMs * 0.75),
+          });
+          for (let b = 0; b < step.restBeats; b++) {
+            frames.push({
+              green: [],
+              sound: null,
+              rest: true,
+              restOn: true,
+              chunkBeats: step.chunkSize,
+              label,
+              durMs: Math.round(beatMs * 0.62),
+            });
+            frames.push({
+              green: [],
+              sound: null,
+              rest: true,
+              restOn: false,
+              chunkBeats: step.chunkSize,
+              label,
+              durMs: Math.round(beatMs * 0.38),
+            });
+          }
+        }
+      }
+      // The missing step: once the rests are gone, join the chunks SEAMLESSLY —
+      // played straight through with no gap. (Added after the rest-0 chain.)
+      if (step.restBeats === 0) {
+        // A break BEFORE the seamless join, so the last "chunk · chunk · chunk"
+        // rep doesn't bleed straight into the all-joined-together pass.
+        pushBreak(step.chunkSize, label);
+        const seamlessLabel = 'Now join them seamlessly';
+        for (let j = 0; j < chunkCount; j++) {
+          const notes = macroUnitNotes(beatCount, step.chunkSize, j);
+          frames.push({
+            green: notes,
+            sound: notes,
+            rest: false,
+            restOn: false,
+            chunkBeats: step.chunkSize,
+            label: seamlessLabel,
+            durMs: notes.length * noteMs,
+          });
+        }
+      }
+      // A clear break before the next step (so the last chunk doesn't bleed
+      // into the next step's first chunk at the start of the passage).
+      pushBreak(step.chunkSize, label);
+    }
+  }
+  return frames;
 }

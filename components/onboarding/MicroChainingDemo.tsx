@@ -10,6 +10,7 @@ import {
   stopMelody,
 } from '@/lib/audio/sampler';
 import { bucketConcertMidi, type BumblebeeBucket } from '@/lib/onboarding/bumblebee';
+import { CHAIN_DEMO_NOTE_SEC } from '@/lib/onboarding/strategyDemos';
 import { generateMicroSteps, type MicroMode } from '@/lib/strategies/microChain';
 import { ChainNotes } from '@/components/onboarding/ChainNotes';
 
@@ -22,12 +23,13 @@ import { ChainNotes } from '@/components/onboarding/ChainNotes';
 const INDIGO = '#3F5BD9'; // micro_chaining strategy color
 const INDIGO_SOFT = '#E7EAFB';
 
-// An arbitrary "difficult spot" — an 8-note run inside the 17-note phrase.
-const SPAN_START = 4; // 0-based → phrase notes 5–12
-const SPAN_LEN = 8;
-const NOTE_SEC = 0.3; // slowish, so you can hear the chain build
-const PROBLEM_A = 4; // middle of the span (1-based), for Problem mode
-const PROBLEM_B = 5;
+// The demo rebuilds the WHOLE phrase so each mode starts at a meaningful place:
+// Forward from the first note, Backward from the last note, Problem from the
+// middle. (Marks are 1-based into the phrase.)
+// Micro-chaining is done AT PERFORMANCE TEMPO (quarter = 136).
+const NOTE_SEC = CHAIN_DEMO_NOTE_SEC;
+// Repeat each step this many times before advancing (mimics "repeat until comfortable").
+const STEP_REPS = 2;
 
 const MODES: { key: MicroMode; label: string; hint: string }[] = [
   { key: 'forward', label: 'Forward', hint: 'add a note to the end each step' },
@@ -51,9 +53,12 @@ export function MicroChainingDemo({ bucket, gm, soundShift = 0, onDone }: Props)
   const stepsRef = useRef<ReturnType<typeof generateMicroSteps>>([]);
 
   const concert = useMemo(() => bucketConcertMidi(bucket), [bucket]);
+  const N = concert.length; // rebuild the whole phrase
+  const problemA = Math.floor(N / 2); // a spot in the middle, for Problem mode
+  const problemB = problemA + 1;
   const steps = useMemo(
-    () => generateMicroSteps(mode, SPAN_LEN, PROBLEM_A, PROBLEM_B),
-    [mode],
+    () => generateMicroSteps(mode, N, problemA, problemB),
+    [mode, N, problemA, problemB],
   );
 
   function clearTimers() {
@@ -61,24 +66,29 @@ export function MicroChainingDemo({ bucket, gm, soundShift = 0, onDone }: Props)
     timers.current = [];
   }
 
-  function runFrom(i: number) {
+  function runFrom(i: number, rep = 0) {
     const arr = stepsRef.current;
     if (!alive.current || arr.length === 0) return;
     const active = arr[i].activeIndices;
     setStepIdx(i);
     if (SAMPLER_AVAILABLE) {
       const sched = active.map((f, k) => ({
-        midi: concert[SPAN_START + f - 1] + soundShift,
+        midi: concert[f - 1] + soundShift,
         time: k * NOTE_SEC,
         duration: NOTE_SEC * 0.9,
       }));
       void playMelody(gm, sched);
     }
-    const dur = active.length * NOTE_SEC * 1000 + 550;
+    // Play each step twice (a real user repeats a link until it's comfortable):
+    // a short breath between the two reps, a longer gap before the next step.
+    const playMs = active.length * NOTE_SEC * 1000;
+    const last = rep >= STEP_REPS - 1;
     timers.current.push(
       setTimeout(() => {
-        if (alive.current) runFrom((i + 1) % arr.length);
-      }, dur),
+        if (!alive.current) return;
+        if (last) runFrom((i + 1) % arr.length, 0);
+        else runFrom(i, rep + 1);
+      }, playMs + (last ? 550 : 260)),
     );
   }
 
@@ -95,18 +105,22 @@ export function MicroChainingDemo({ bucket, gm, soundShift = 0, onDone }: Props)
   }, []);
 
   // (Re)start the loop whenever the mode (steps) changes — keeps looping.
+  // Cut the previous mode's audio + reset to step 0 first, so switching modes
+  // doesn't overlap the two playbacks.
   useEffect(() => {
     stepsRef.current = steps;
     clearTimers();
-    const t = setTimeout(() => runFrom(0), 250);
+    stopMelody();
+    setStepIdx(0);
+    const t = setTimeout(() => runFrom(0), 200);
     timers.current.push(t);
     return clearTimers;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [steps]);
 
   const step = steps[stepIdx];
-  // Map the active fragment indices (1-based) to absolute 0-based phrase indices.
-  const activeAbs = (step?.activeIndices ?? []).map((f) => SPAN_START + f - 1);
+  // Active note numbers (1-based) → 0-based phrase indices for the green highlight.
+  const activeAbs = (step?.activeIndices ?? []).map((f) => f - 1);
   const hint = MODES.find((m) => m.key === mode)?.hint ?? '';
 
   return (

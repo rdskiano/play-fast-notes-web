@@ -33,6 +33,7 @@ import { IcuStrategyDemo } from '@/components/onboarding/IcuStrategyDemo';
 import { TempoLadderDemo } from '@/components/onboarding/TempoLadderDemo';
 import { RhythmVariationsDemo } from '@/components/onboarding/RhythmVariationsDemo';
 import { MicroChainingDemo } from '@/components/onboarding/MicroChainingDemo';
+import { MacroChainingDemo } from '@/components/onboarding/MacroChainingDemo';
 import { DEFAULT_STRATEGY_COLORS, type StrategyKey } from '@/components/StrategyColorsContext';
 import { useSession } from '@/lib/supabase/auth';
 import {
@@ -75,14 +76,14 @@ const STEP_ORDER: Step[] = ['instrument', 'hook', 'variations', 'payoff'];
 const STRATEGIES: {
   name: string;
   hero?: boolean;
-  demo?: 'icu' | 'tempo' | 'rv' | 'micro' | null;
+  demo?: 'icu' | 'tempo' | 'rv' | 'micro' | 'macro' | null;
   colorKey: StrategyKey;
 }[] = [
   { name: 'Rhythm variations', hero: true, demo: 'rv', colorKey: 'rhythmic' },
   { name: 'Tempo ladder', demo: 'tempo', colorKey: 'tempo_ladder' },
   { name: 'Interleaved click-up', demo: 'icu', colorKey: 'click_up' },
   { name: 'Micro-chaining', demo: 'micro', colorKey: 'micro_chaining' },
-  { name: 'Macro-chaining', demo: null, colorKey: 'macro_chaining' },
+  { name: 'Macro-chaining', demo: 'macro', colorKey: 'macro_chaining' },
   { name: 'Rep rotator', demo: null, colorKey: 'rep_rotator' },
 ];
 
@@ -137,7 +138,8 @@ export default function OnboardingScreen() {
       params.demo === 'icu' ||
       params.demo === 'tempo' ||
       params.demo === 'rv' ||
-      params.demo === 'micro'
+      params.demo === 'micro' ||
+      params.demo === 'macro'
     ) {
       if (!instrumentName) setInstrumentName('Flute');
       setStep('payoff');
@@ -605,6 +607,13 @@ export default function OnboardingScreen() {
               />
             ) : openDemo === 'micro' ? (
               <MicroChainingDemo
+                bucket={bucket ?? bucketForInstrument(instrumentName ?? 'Flute')}
+                gm={gm ?? gmForInstrument(instrumentName ?? 'Flute')}
+                soundShift={soundShift}
+                onDone={() => setOpenDemo(null)}
+              />
+            ) : openDemo === 'macro' ? (
+              <MacroChainingDemo
                 bucket={bucket ?? bucketForInstrument(instrumentName ?? 'Flute')}
                 gm={gm ?? gmForInstrument(instrumentName ?? 'Flute')}
                 soundShift={soundShift}
