@@ -30,6 +30,7 @@ import { logOnboardingStep } from '@/lib/onboarding/telemetry';
 import { setPendingHandoff, type HandoffIntent } from '@/lib/onboarding/pendingHandoff';
 import { seedBumblebeePiece } from '@/lib/onboarding/seedBumblebee';
 import { IcuStrategyDemo } from '@/components/onboarding/IcuStrategyDemo';
+import { TempoLadderDemo } from '@/components/onboarding/TempoLadderDemo';
 import { DEFAULT_STRATEGY_COLORS, type StrategyKey } from '@/components/StrategyColorsContext';
 import { useSession } from '@/lib/supabase/auth';
 import {
@@ -72,11 +73,11 @@ const STEP_ORDER: Step[] = ['instrument', 'hook', 'variations', 'payoff'];
 const STRATEGIES: {
   name: string;
   hero?: boolean;
-  demo?: 'icu' | null;
+  demo?: 'icu' | 'tempo' | null;
   colorKey: StrategyKey;
 }[] = [
   { name: 'Rhythm variations', hero: true, demo: null, colorKey: 'rhythmic' },
-  { name: 'Tempo ladder', demo: null, colorKey: 'tempo_ladder' },
+  { name: 'Tempo ladder', demo: 'tempo', colorKey: 'tempo_ladder' },
   { name: 'Interleaved click-up', demo: 'icu', colorKey: 'click_up' },
   { name: 'Micro-chaining', demo: null, colorKey: 'micro_chaining' },
   { name: 'Macro-chaining', demo: null, colorKey: 'macro_chaining' },
@@ -127,13 +128,13 @@ export default function OnboardingScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Dev/preview shortcut: ?demo=icu jumps straight to the ICU strategy demo
-  // (defaults the instrument to flute if none was picked).
+  // Dev/preview shortcut: ?demo=icu or ?demo=tempo jumps straight to that
+  // strategy demo (defaults the instrument to flute if none was picked).
   useEffect(() => {
-    if (params.demo === 'icu') {
+    if (params.demo === 'icu' || params.demo === 'tempo') {
       if (!instrumentName) setInstrumentName('Flute');
       setStep('payoff');
-      setOpenDemo('icu');
+      setOpenDemo(params.demo);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.demo]);
@@ -571,15 +572,24 @@ export default function OnboardingScreen() {
         )}
       </ScrollView>
 
-      {openDemo === 'icu' && (bucket || instrumentName) ? (
+      {openDemo && (bucket || instrumentName) ? (
         <View style={[styles.demoOverlay, { paddingTop: insets.top + 12 }]}>
           <View style={styles.demoSheet}>
-            <IcuStrategyDemo
-              bucket={bucket ?? bucketForInstrument(instrumentName ?? 'Flute')}
-              gm={gm ?? gmForInstrument(instrumentName ?? 'Flute')}
-              soundShift={soundShift}
-              onDone={() => setOpenDemo(null)}
-            />
+            {openDemo === 'icu' ? (
+              <IcuStrategyDemo
+                bucket={bucket ?? bucketForInstrument(instrumentName ?? 'Flute')}
+                gm={gm ?? gmForInstrument(instrumentName ?? 'Flute')}
+                soundShift={soundShift}
+                onDone={() => setOpenDemo(null)}
+              />
+            ) : openDemo === 'tempo' ? (
+              <TempoLadderDemo
+                bucket={bucket ?? bucketForInstrument(instrumentName ?? 'Flute')}
+                gm={gm ?? gmForInstrument(instrumentName ?? 'Flute')}
+                soundShift={soundShift}
+                onDone={() => setOpenDemo(null)}
+              />
+            ) : null}
           </View>
         </View>
       ) : null}

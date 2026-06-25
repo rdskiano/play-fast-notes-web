@@ -124,3 +124,29 @@ export function icuStepSchedule(
   }));
   return { notes, durationSec: slice.length * secPerSixteenth };
 }
+
+// ── Tempo Ladder demo ────────────────────────────────────────────────────────
+// One rep = the whole phrase at the current tempo. The demo runs a 3-clean-in-
+// a-row set at ~80 bpm; a miss resets the streak to zero, and completing the set
+// celebrates + offers to bump the tempo (the "ladder"). Mirrors the real
+// useTempoLadderSession step mode (target_reps / current_streak / increment).
+
+export const TL_BASE_TEMPO = 80;
+export const TL_INCREMENT = 5;
+export const TL_TARGET_REPS = 3;
+
+/** The whole 17-note phrase as even sixteenths at `tempo` — one tempo-ladder rep. */
+export function fullPhraseSchedule(
+  bucket: BumblebeeBucket,
+  tempo: number,
+  soundShift = 0,
+): { notes: SampleNote[]; durationSec: number } {
+  const concert = bucketConcertMidi(bucket);
+  const secPerSixteenth = 60 / tempo / 4;
+  const notes: SampleNote[] = concert.map((midi, k) => ({
+    midi: midi + soundShift,
+    time: k * secPerSixteenth,
+    duration: secPerSixteenth * 0.92,
+  }));
+  return { notes, durationSec: concert.length * secPerSixteenth };
+}
