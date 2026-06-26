@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -64,8 +64,14 @@ import {
   type Passage,
 } from '@/lib/db/repos/passages';
 import { PaywallModal } from '@/components/PaywallModal';
-import { FREE_PASSAGE_LIMIT } from '@/constants/billing';
+import {
+  FREE_PASSAGE_LIMIT,
+  LOCK_BADGE_LABEL,
+  LOCKED_PDF_CONTEXT_LINE,
+  lockedContextLine,
+} from '@/constants/billing';
 import { useEntitlement } from '@/lib/billing/entitlements';
+import { computeLocks } from '@/lib/billing/locks';
 import {
   getDocument,
   listAllDocuments,
@@ -129,11 +135,24 @@ function MoreButton({ onPress }: { onPress: () => void }) {
   );
 }
 
+// Lock-don't-lose stamp on the thumbnail of a card the free plan has locked.
+// Overlay only — the card stays visible (the music isn't gone), it just can't
+// be opened until the user upgrades; tapping it routes to the paywall.
+function LockBadge() {
+  return (
+    <View style={styles.lockBadge} pointerEvents="none">
+      <ThemedText style={styles.lockBadgeText}>🔒 {LOCK_BADGE_LABEL}</ThemedText>
+    </View>
+  );
+}
+
 type PassageCardProps = {
   passage: Passage;
   borderColor: string;
   tintColor: string;
   isPhone?: boolean;
+  /** Free-plan lock-don't-lose: dim + badge the card, tap routes to paywall. */
+  locked?: boolean;
   scuPct: number | null;
   // Parent location shown under the title on search results ("in <folder>").
   breadcrumb?: string | null;
@@ -146,6 +165,7 @@ function PassageCard({
   borderColor,
   tintColor,
   isPhone,
+  locked,
   scuPct,
   breadcrumb,
   onOpen,
@@ -164,13 +184,14 @@ function PassageCard({
         {thumbUri ? (
           <Image
             source={{ uri: thumbUri }}
-            style={thumbStyle}
+            style={[thumbStyle, locked && styles.lockedDim]}
             contentFit="cover"
             onError={() => setThumbFailed(true)}
           />
         ) : (
-          <View style={[thumbStyle, { backgroundColor: tintColor + '11' }]} />
+          <View style={[thumbStyle, { backgroundColor: tintColor + '11' }, locked && styles.lockedDim]} />
         )}
+        {locked && <LockBadge />}
         <ThemedView style={styles.cardText}>
           <ThemedText type="defaultSemiBold">{passage.title}</ThemedText>
           {passage.composer && (
@@ -208,6 +229,8 @@ type DocumentCardProps = {
   borderColor: string;
   tintColor: string;
   isPhone?: boolean;
+  /** Free-plan lock-don't-lose: dim + badge the card, tap routes to paywall. */
+  locked?: boolean;
   // Parent location shown under the title on search results ("in <folder>").
   breadcrumb?: string | null;
   onOpen: () => void;
@@ -219,6 +242,7 @@ function DocumentCard({
   borderColor,
   tintColor,
   isPhone,
+  locked,
   breadcrumb,
   onOpen,
   onMore,
@@ -238,13 +262,14 @@ function DocumentCard({
           <DocumentPageImage
             doc={document}
             page={firstPage}
-            style={thumbStyle}
+            style={[thumbStyle, locked && styles.lockedDim]}
             contentFit="cover"
             contentPosition="top"
           />
         ) : (
-          <View style={[thumbStyle, { backgroundColor: tintColor + '11' }]} />
+          <View style={[thumbStyle, { backgroundColor: tintColor + '11' }, locked && styles.lockedDim]} />
         )}
+        {locked && <LockBadge />}
         <ThemedView style={styles.cardText}>
           <ThemedText type="defaultSemiBold">{document.title}</ThemedText>
           {document.composer && (
@@ -464,6 +489,18 @@ export default function LibraryScreen() {
   // always true then).
   const [paywallContext, setPaywallContext] = useState<string | null>(null);
   const entitlement = useEntitlement();
+  // Lock-don't-lose: which already-saved pieces are locked on the free plan.
+  // Inert while the paywall is off (isPro is true → computeLocks returns empty),
+  // so nothing dims or intercepts until PAYWALL_ENABLED flips and a trial ends.
+  const locks = useMemo(
+    () =>
+      computeLocks({
+        passages: allPassages,
+        documents: allDocuments,
+        isPro: entitlement.isPro,
+      }),
+    [allPassages, allDocuments, entitlement.isPro],
+  );
   // `practiceCount === null` = still loading. Gates the first-run
   // "Add your first piece" TutorialStep (practiceCount === 0).
   const [practiceCount, setPracticeCount] = useState<number | null>(null);
@@ -1052,27 +1089,39 @@ export default function LibraryScreen() {
   // unified list and the non-edit pieces list.
   function renderPieceCard(item: PieceRow) {
     if (item.kind === 'document') {
+      const locked = locks.lockedDocumentIds.has(item.document.id);
       return (
         <DocumentCard
           document={item.document}
           borderColor={Palette.border}
           tintColor={C.tint}
           isPhone={isPhone}
+          locked={locked}
           breadcrumb={documentParentLabel(item.document)}
-          onOpen={() => router.push(`/document/${item.document.id}` as never)}
+          onOpen={() =>
+            locked
+              ? setPaywallContext(LOCKED_PDF_CONTEXT_LINE)
+              : router.push(`/document/${item.document.id}` as never)
+          }
           onMore={() => setActionTarget({ kind: 'document', document: item.document })}
         />
       );
     }
+    const locked = locks.lockedPassageIds.has(item.passage.id);
     return (
       <PassageCard
         passage={item.passage}
         borderColor={Palette.border}
         tintColor={C.tint}
         isPhone={isPhone}
+        locked={locked}
         scuPct={scuProgress[item.passage.id] ?? null}
         breadcrumb={passageParentLabel(item.passage)}
-        onOpen={() => router.push(`/passage/${item.passage.id}`)}
+        onOpen={() =>
+          locked
+            ? setPaywallContext(lockedContextLine())
+            : router.push(`/passage/${item.passage.id}`)
+        }
         onMore={() => setActionTarget({ kind: 'passage', passage: item.passage })}
       />
     );
@@ -1729,6 +1778,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   moreGlyph: { fontSize: 22, fontWeight: '700', color: Palette.textMuted, lineHeight: 22 },
+  // Lock-don't-lose: a locked card reads as present-but-greyed, with a small
+  // pill over the thumbnail. Not a hard block — a tap opens the paywall.
+  lockedDim: { opacity: 0.4 },
+  lockBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radii.sm,
+    backgroundColor: 'rgba(0,0,0,0.62)',
+  },
+  lockBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   tileMore: {
     position: 'absolute',
     top: Spacing.sm,

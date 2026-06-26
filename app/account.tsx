@@ -12,6 +12,12 @@ import { TutorialStep } from '@/components/TutorialStep';
 import { Lift, Palette } from '@/constants/palette';
 import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import {
+  DOWNGRADE_TITLE,
+  TRIAL_WARNING_DAYS,
+  downgradeBody,
+  trialEndingBody,
+} from '@/constants/billing';
 import { useEntitlement } from '@/lib/billing/entitlements';
 import {
   countPracticeLogOlderThan,
@@ -187,6 +193,21 @@ export default function AccountScreen() {
                       ? 'Free plan.'
                       : null}
               </ThemedText>
+              {/* Trial-ending warning — only in the final stretch. Honest about
+                  what changes, reassuring that nothing is deleted. */}
+              {entitlement.reason === 'trial' &&
+                entitlement.trialDaysLeft != null &&
+                entitlement.trialDaysLeft <= TRIAL_WARNING_DAYS && (
+                  <ThemedText style={styles.hint}>
+                    {trialEndingBody(entitlement.trialDaysLeft)}
+                  </ThemedText>
+                )}
+              {/* Downgrade — once on the free plan, lead with reassurance. */}
+              {entitlement.reason === 'none' && (
+                <ThemedText style={styles.hint}>
+                  {DOWNGRADE_TITLE}. {downgradeBody(0)}
+                </ThemedText>
+              )}
               {/* Hide the upgrade entry point while the paywall is off — there's
                   nothing to buy yet. The 'paywall-off' state is the preview; once
                   PAYWALL_ENABLED flips on, trial/none users see "Get Practice Pro". */}
