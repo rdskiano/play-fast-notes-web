@@ -1325,7 +1325,10 @@ export default function LibraryScreen() {
           keyExtractor={(row) =>
             row.kind === 'document' ? `d:${row.document.id}` : `p:${row.passage.id}`
           }
-          contentContainerStyle={{ gap: Spacing.md, paddingBottom: Spacing.xl }}
+          // Extra bottom room so the last items clear the floating info +
+          // feedback buttons (each 36px tall, 16px off the bottom) when
+          // scrolled all the way down.
+          contentContainerStyle={{ gap: Spacing.md, paddingBottom: 80 }}
           ListHeaderComponent={
             <View style={{ gap: Spacing.lg }}>
               {isAtRoot && !q && entitlement.reason === 'trial' && !welcomeDismissed && (
