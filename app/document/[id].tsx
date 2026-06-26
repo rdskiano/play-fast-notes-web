@@ -1301,14 +1301,15 @@ export default function DocumentScreen() {
           </>
         )}
         {mode === 'idle' && !coach && (
-          // Horizontal pill in the content area's top-right, in line with the
-          // page chevron (anchorRight clears the ‹/› buttons at right:8) so the
-          // tools no longer stack down the edge and cover the page in landscape.
+          // Horizontal pill in the content area's top-right. Reserve room for
+          // the page chevron (the ‹/› buttons at right:8) ONLY when the doc has
+          // more than one page — a single-page piece never shows a chevron, so
+          // the pill should sit flush right instead of leaving an empty gap.
           <PracticeToolsBar
             pencil={pencilProp}
             recorderDocumentId={id}
             anchorTop={8}
-            anchorRight={56}
+            anchorRight={screenCount > 1 ? 56 : 12}
           />
         )}
       </View>
