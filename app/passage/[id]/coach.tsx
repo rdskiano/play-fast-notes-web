@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
+import { StrategyDemoModal, type StrategyDemoId } from '@/components/onboarding/StrategyDemoModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Lift, Palette } from '@/constants/palette';
@@ -43,6 +44,17 @@ type PendingRec = {
 };
 const recKey = (pieceId: string) => 'coach:lastRec:' + pieceId;
 
+// The coach's ToolKey → the strategy-demo id used by StrategyDemoModal. Only
+// 'ladder' differs (its demo id is 'tempo'); the rest match by name.
+const DEMO_FOR_TOOL: Record<ToolKey, StrategyDemoId> = {
+  ladder: 'tempo',
+  icu: 'icu',
+  rep: 'rep',
+  rv: 'rv',
+  micro: 'micro',
+  macro: 'macro',
+};
+
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 const DUE_OPTIONS: { label: string; weeks: number | null }[] = [
@@ -68,6 +80,7 @@ export default function CoachScreen() {
   // session navigates back here so we can ask "did that help?".
   const launchedRecRef = useRef<PendingRec | null>(null);
 
+  const [demoId, setDemoId] = useState<StrategyDemoId | null>(null);
   const [step, setStep] = useState<Step>('challenge');
   const [challenge, setChallenge] = useState<ChallengeKey | null>(null);
   const [follow, setFollow] = useState<string | undefined>(undefined);
@@ -242,6 +255,7 @@ export default function CoachScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
+      <StrategyDemoModal demoId={demoId} onClose={() => setDemoId(null)} />
 
       {/* Big-title header (DESIGN_RULES §3 — left-aligned page title) */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
@@ -334,11 +348,19 @@ export default function CoachScreen() {
               <ThemedText style={styles.recCall}>{rec.call}</ThemedText>
             </View>
             {rec.startTool ? (
-              <Button
-                label={`Start ${TOOL_NAME[rec.startTool]}`}
-                onPress={() => launch(rec.startTool!)}
-                fullWidth
-              />
+              <>
+                <Button
+                  label={`Start ${TOOL_NAME[rec.startTool]}`}
+                  onPress={() => launch(rec.startTool!)}
+                  fullWidth
+                />
+                <Pressable
+                  onPress={() => setDemoId(DEMO_FOR_TOOL[rec.startTool!])}
+                  hitSlop={8}
+                  style={styles.seeDemo}>
+                  <ThemedText style={styles.seeDemoText}>▷ See how it works</ThemedText>
+                </Pressable>
+              </>
             ) : null}
             {rec.escape ? (
               <ThemedText style={styles.escape}>{rec.escape}</ThemedText>
@@ -434,4 +456,6 @@ const styles = StyleSheet.create({
   escape: { fontSize: Type.size.sm, marginTop: 2, paddingHorizontal: 2, color: Palette.textMuted },
   startOver: { alignSelf: 'flex-start', paddingVertical: 8 },
   startOverText: { fontSize: Type.size.sm, color: Palette.textMuted },
+  seeDemo: { alignSelf: 'center', paddingVertical: 6 },
+  seeDemoText: { fontSize: Type.size.sm, fontWeight: Type.weight.semibold, color: Palette.accent },
 });
