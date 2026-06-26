@@ -20,6 +20,7 @@ import { bucketById } from '@/lib/onboarding/bumblebee';
 import { takePendingHandoff } from '@/lib/onboarding/pendingHandoff';
 import { seedBumblebeePiece } from '@/lib/onboarding/seedBumblebee';
 import { logOnboardingStep } from '@/lib/onboarding/telemetry';
+import { suggestEmailCorrection } from '@/lib/validation/emailTypo';
 
 const MIN_PASSWORD = 6;
 
@@ -49,6 +50,9 @@ export default function SignInScreen() {
   >({ kind: 'hidden' });
 
   const emailOk = email.trim().length > 0 && email.includes('@');
+  // A likely-mistyped domain (gmsil.com, gmail.con, …). Suggest, never force —
+  // a bouncing address silently locks the user out of their account forever.
+  const emailSuggestion = suggestEmailCorrection(email);
   const passwordOk = password.length >= MIN_PASSWORD;
   const canSubmit = emailOk && passwordOk && status.kind !== 'submitting';
 
@@ -133,6 +137,23 @@ export default function SignInScreen() {
             editable={status.kind !== 'submitting'}
           />
         </View>
+
+        {emailSuggestion && (
+          <Pressable
+            onPress={() => setEmail(emailSuggestion)}
+            hitSlop={6}
+            accessibilityRole="button"
+            style={styles.suggestionBtn}>
+            <MaterialIcons name="error-outline" size={16} color={Palette.danger} />
+            <ThemedText style={[styles.suggestionText, { color: Palette.textSecondary }]}>
+              Did you mean{' '}
+              <ThemedText style={[styles.suggestionText, { color: C.tint }]}>
+                {emailSuggestion}
+              </ThemedText>
+              ?
+            </ThemedText>
+          </Pressable>
+        )}
 
         <View style={styles.inputWrap}>
           <MaterialIcons name="lock-outline" size={20} color={Palette.textMuted} />
@@ -304,6 +325,19 @@ const styles = StyleSheet.create({
   error: {
     textAlign: 'center',
     fontSize: Type.size.sm,
+  },
+  // Inline "did you mean…?" nudge sits just beneath the email field, left-aligned
+  // with the field's content. Tapping it accepts the correction.
+  suggestionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
+    marginTop: -Spacing.sm,
+  },
+  suggestionText: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
   },
   forgotBtn: {
     alignSelf: 'center',
