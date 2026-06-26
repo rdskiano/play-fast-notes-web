@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -6,6 +7,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +18,7 @@ import { TutorialStep } from '@/components/TutorialStep';
 import { Lift, Palette } from '@/constants/palette';
 import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import type { DocumentPage } from '@/lib/db/repos/documents';
 import { insertDocument } from '@/lib/db/repos/documents';
 import { logOnboardingStep } from '@/lib/onboarding/telemetry';
 import { supabase } from '@/lib/supabase/client';
@@ -25,8 +28,22 @@ import { uploadDocumentPageImage } from '@/lib/supabase/storage';
 // same coordinate space as PDF pages (regions_json boxes are in these pixels).
 const MAX_PAGE_EDGE = 2000;
 
+// Dismiss key for the top direction banner. People tap "Take a photo" before
+// reading the small hint, so the key instruction (snap the WHOLE page, you'll
+// mark spots next) gets a prominent dismissible callout. Remembered so repeat
+// users aren't nagged.
+const HINT_DISMISS_KEY = 'pfn:upload-hint-dismissed:v1';
+
+// A page the user has picked but not yet saved. `rawUrl` is an object URL for
+// the thumbnail preview; `file` is re-encoded to the reference scale at save.
+type PickedPage = { id: string; file: File; rawUrl: string };
+
 function newDocId(): string {
   return `d_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function newPageId(): string {
+  return `pg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 // Pull a readable string out of any thrown value. Supabase/Postgres errors are
@@ -57,6 +74,10 @@ function isHeic(file: File): boolean {
 
 const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i;
 
+function isImageFile(file: File): boolean {
+  return file.type.startsWith('image/') || IMAGE_EXT_RE.test(file.name);
+}
+
 // Chrome and Firefox have no HEIC codec, so new Image()/canvas can't decode an
 // iPhone HEIC at all — re-encoding can't help because the DECODE itself fails.
 // Convert HEIC to JPEG first with the libheif WASM decoder, lazily imported so
@@ -72,8 +93,7 @@ async function toDisplayableBlob(file: File): Promise<Blob> {
 // Produce a JPEG page image at the document reference scale, and read its
 // dimensions in the same pass. HEIC is decoded to JPEG first (above); then the
 // browser-decodable blob is drawn to a canvas so the stored page renders
-// everywhere (the old flow re-encoded via the crop canvas; there's no crop step
-// now).
+// everywhere.
 async function fileToPageImage(file: File): Promise<{ blob: Blob; w: number; h: number }> {
   const displayable = await toDisplayableBlob(file);
   const url = URL.createObjectURL(displayable);
@@ -131,13 +151,35 @@ export default function UploadScreen() {
   const pieceTitle = params.piece?.trim();
   const insets = useSafeAreaInsets();
 
+  const [pages, setPages] = useState<PickedPage[]>([]);
+  const [title, setTitle] = useState(pieceTitle ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [hintDismissed, setHintDismissed] = useState(() => {
+    try {
+      return typeof window !== 'undefined' && window.localStorage.getItem(HINT_DISMISS_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  function dismissHint() {
+    setHintDismissed(true);
+    try {
+      window.localStorage.setItem(HINT_DISMISS_KEY, '1');
+    } catch {
+      // private mode / storage disabled — fine, it just shows again next time.
+    }
+  }
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const dropZoneRef = useRef<View | null>(null);
+  // Refs mirror state so the once-bound drop listener + the coach auto-save see
+  // current values rather than stale closure captures.
+  const coachRef = useRef(coach);
+  coachRef.current = coach;
 
   function openFilePicker() {
     fileInputRef.current?.click();
@@ -145,6 +187,113 @@ export default function UploadScreen() {
 
   function openCamera() {
     cameraInputRef.current?.click();
+  }
+
+  // Save a multi-page image-document: re-encode each page to the reference
+  // scale, upload it, then insert one `documents` row the user marks passage
+  // boxes on (the same flow as a PDF). Takes the page list explicitly so the
+  // coach auto-save path can pass a freshly-picked file without waiting on a
+  // state update.
+  async function saveDocument(list: PickedPage[]) {
+    if (list.length === 0) return;
+    setSaving(true);
+    setError(null);
+    const docId = newDocId();
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) throw new Error('Not signed in');
+      const docPages: DocumentPage[] = [];
+      for (let i = 0; i < list.length; i++) {
+        const { blob, w, h } = await fileToPageImage(list[i].file);
+        const pageNum = i + 1;
+        const publicUrl = await uploadDocumentPageImage(userId, docId, pageNum, blob);
+        docPages.push({ index: pageNum, image_uri: publicUrl, w, h });
+      }
+      await insertDocument({
+        id: docId,
+        title: title.trim() || pieceTitle || defaultTitleFromFile(list[0].file),
+        composer: null,
+        source_kind: 'images',
+        page_count: list.length,
+        pages: docPages,
+        folder_id: targetFolderId,
+      });
+      // Free the preview object URLs now that we're navigating away.
+      list.forEach((p) => URL.revokeObjectURL(p.rawUrl));
+      // Coach (guided onboarding): the viewer hands a passage id back to the
+      // quiz after the user marks their first box. Non-coach: just open it.
+      if (coach) void logOnboardingStep('photo_uploaded');
+      router.replace((coach ? `/document/${docId}?coach=1` : `/document/${docId}`) as never);
+    } catch (e) {
+      const msg = errToMessage(e);
+      const heicInList = list.some((p) => isHeic(p.file));
+      setError(
+        heicInList
+          ? `Couldn't read one of those HEIC photos (${msg}). Try a JPG or PNG, or retake it.`
+          : msg,
+      );
+      setSaving(false);
+    }
+  }
+
+  // Add picked/dropped files to the page list. In coach mode the onboarding
+  // wants a single quick photo, so the first valid file saves immediately with
+  // the name already collected up front — preserving the old fast path.
+  function addFiles(files: File[]) {
+    const valid = files.filter(isImageFile);
+    if (valid.length === 0) {
+      setError('That file isn’t an image. Drop a PNG, JPG, or HEIC.');
+      return;
+    }
+    setError(null);
+    if (coachRef.current) {
+      const page: PickedPage = {
+        id: newPageId(),
+        file: valid[0],
+        rawUrl: URL.createObjectURL(valid[0]),
+      };
+      void saveDocument([page]);
+      return;
+    }
+    const added: PickedPage[] = valid.map((file) => ({
+      id: newPageId(),
+      file,
+      rawUrl: URL.createObjectURL(file),
+    }));
+    setPages((prev) => {
+      // Default the title from the very first page added.
+      if (prev.length === 0 && !title.trim()) {
+        setTitle(defaultTitleFromFile(valid[0]));
+      }
+      return [...prev, ...added];
+    });
+  }
+
+  function removePage(id: string) {
+    setPages((prev) => {
+      const target = prev.find((p) => p.id === id);
+      if (target) URL.revokeObjectURL(target.rawUrl);
+      return prev.filter((p) => p.id !== id);
+    });
+  }
+
+  function movePage(id: string, dir: -1 | 1) {
+    setPages((prev) => {
+      const i = prev.findIndex((p) => p.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length) addFiles(files);
+    // Reset so re-picking the same file re-fires onChange.
+    e.target.value = '';
   }
 
   // Open the picker the user chose in onboarding straight away. Best-effort:
@@ -158,58 +307,6 @@ export default function UploadScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // A photo is now a one-PAGE image document: we store the whole page and the
-  // user marks as many passage boxes on it as they like (the PDF flow). So we
-  // mint an image-backed `documents` row and open the document viewer — no
-  // crop step. The viewer's "+ Mark passage" creates each passage from a box.
-  async function ingestAsDocument(file: File) {
-    // iOS often hands HEIC files with an empty file.type, so fall back to the
-    // extension before rejecting.
-    if (!file.type.startsWith('image/') && !IMAGE_EXT_RE.test(file.name)) {
-      setError('That file isn’t an image. Drop a PNG, JPG, or HEIC.');
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    const docId = newDocId();
-    try {
-      const { blob, w, h } = await fileToPageImage(file);
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user.id;
-      if (!userId) throw new Error('Not signed in');
-      const publicUrl = await uploadDocumentPageImage(userId, docId, 1, blob);
-      await insertDocument({
-        id: docId,
-        title: pieceTitle || defaultTitleFromFile(file),
-        composer: null,
-        source_kind: 'images',
-        page_count: 1,
-        pages: [{ index: 1, image_uri: publicUrl, w, h }],
-        folder_id: targetFolderId,
-      });
-      // Coach (guided onboarding): the viewer hands a passage id back to the
-      // quiz after the user marks their first box. Non-coach: just open it.
-      if (coach) void logOnboardingStep('photo_uploaded');
-      router.replace((coach ? `/document/${docId}?coach=1` : `/document/${docId}`) as never);
-    } catch (e) {
-      const msg = errToMessage(e);
-      setError(
-        isHeic(file)
-          ? `Couldn't read that HEIC photo (${msg}). Try a JPG or PNG, or retake it.`
-          : msg,
-      );
-      setSaving(false);
-    }
-  }
-
-  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await ingestAsDocument(file);
-    // Reset so re-picking the same file re-fires onChange.
-    e.target.value = '';
-  }
-
   // RN-Web's Pressable doesn't forward HTML drag events, so we wire them on
   // the underlying DOM node directly. The ref is typed as View for the JSX
   // contract but resolves to an HTMLDivElement at runtime on web.
@@ -219,8 +316,8 @@ export default function UploadScreen() {
     function handleDrop(e: DragEvent) {
       e.preventDefault();
       setDragOver(false);
-      const file = e.dataTransfer?.files?.[0];
-      if (file) void ingestAsDocument(file);
+      const files = e.dataTransfer?.files ? Array.from(e.dataTransfer.files) : [];
+      if (files.length) addFiles(files);
     }
     function handleOver(e: DragEvent) {
       e.preventDefault();
@@ -241,6 +338,8 @@ export default function UploadScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const hasPages = pages.length > 0;
+
   return (
     <ThemedView style={styles.container}>
       <ScrollView
@@ -254,11 +353,29 @@ export default function UploadScreen() {
             <ThemedText type="title">Add a photo</ThemedText>
           </View>
 
+          {/* Prominent, dismissible direction. The small hint below was missed —
+              people tap "Take a photo" first — so the key instruction gets a
+              callout right where the eye lands. Hidden in coach onboarding
+              (which has its own guidance) and once dismissed. */}
+          {!coach && !hintDismissed && (
+            <View style={styles.directionCard}>
+              <Feather name="info" size={18} color={Palette.accent} style={styles.directionIcon} />
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.directionTitle}>Snap the whole page</ThemedText>
+                <ThemedText style={styles.directionBody}>
+                  Get the full page in frame — you’ll mark the exact spots you want
+                  to practice right on it next. More than one page? Add them all and
+                  they’ll turn like a PDF.
+                </ThemedText>
+              </View>
+              <Pressable onPress={dismissHint} hitSlop={8} accessibilityLabel="Dismiss">
+                <Feather name="x" size={18} color={Palette.textMuted} />
+              </Pressable>
+            </View>
+          )}
+
           {/* The drop zone IS the picker — click it to open the OS file
-              picker, or drag a file from Finder/Explorer onto it. Drag-and-
-              drop handlers are web-only (HTMLDivElement events) — fine here
-              because this whole screen is web-shaped; native imports go
-              through a different path. */}
+              picker, or drag file(s) from Finder/Explorer onto it. */}
           <Pressable
             ref={dropZoneRef}
             onPress={openFilePicker}
@@ -273,56 +390,132 @@ export default function UploadScreen() {
             ]}>
             <Feather name="image" size={28} color={Palette.textMuted} />
             <ThemedText style={styles.dropTitle}>
-              Choose a photo of the page
+              {hasPages ? 'Add another page' : 'Choose a photo of the page'}
             </ThemedText>
             <ThemedText style={styles.dropSub}>
-              tap to pick one — or drag a file here
+              tap to pick — or drag file(s) here
             </ThemedText>
           </Pressable>
 
-          {/* On phones the camera button is the in-lesson shortcut: snap
-              the page on the music stand and crop. Tapping it invokes the
-              hidden `<input capture="environment">` below, which iOS/
-              Android Safari/Chrome route to the rear camera. On desktop
-              browsers the `capture` attribute is ignored and the user
-              gets a regular file picker — so the button stays harmless
-              there too, just less useful. */}
+          {/* Camera shortcut: snap the page on the music stand. Tapping it
+              invokes the hidden `<input capture="environment">` below, which
+              iOS/Android route to the rear camera. Desktop ignores `capture`
+              and shows a normal file picker, so it stays harmless there. */}
           <Pressable
             onPress={openCamera}
             disabled={saving}
             style={[styles.cameraBtn, { opacity: saving ? 0.5 : 1 }]}>
             <Feather name="camera" size={18} color={Palette.accent} />
             <ThemedText style={styles.cameraBtnText}>
-              Take a photo
+              {hasPages ? 'Take another page' : 'Take a photo'}
             </ThemedText>
           </Pressable>
+
+          {/* Picked pages — order is the page order, like a PDF. */}
+          {hasPages && (
+            <View style={styles.pagesBlock}>
+              <ThemedText style={styles.pagesHeading}>
+                {pages.length === 1 ? '1 page' : `${pages.length} pages`} — they’ll
+                turn like a PDF
+              </ThemedText>
+              {pages.map((p, i) => (
+                <View key={p.id} style={styles.pageRow}>
+                  <Image
+                    source={{ uri: p.rawUrl }}
+                    style={styles.pageThumb}
+                    contentFit="cover"
+                  />
+                  <ThemedText style={styles.pageLabel}>Page {i + 1}</ThemedText>
+                  <View style={styles.pageActions}>
+                    <Pressable
+                      onPress={() => movePage(p.id, -1)}
+                      disabled={i === 0 || saving}
+                      hitSlop={6}
+                      style={[styles.pageIconBtn, (i === 0 || saving) && styles.pageIconDisabled]}>
+                      <Feather name="arrow-up" size={16} color={Palette.text} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => movePage(p.id, 1)}
+                      disabled={i === pages.length - 1 || saving}
+                      hitSlop={6}
+                      style={[
+                        styles.pageIconBtn,
+                        (i === pages.length - 1 || saving) && styles.pageIconDisabled,
+                      ]}>
+                      <Feather name="arrow-down" size={16} color={Palette.text} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => removePage(p.id)}
+                      disabled={saving}
+                      hitSlop={6}
+                      style={styles.pageIconBtn}>
+                      <Feather name="x" size={16} color={Palette.danger} />
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Name field — give the piece a title before saving (like a PDF). */}
+          {hasPages && (
+            <View style={styles.nameBlock}>
+              <ThemedText style={styles.nameLabel}>Name</ThemedText>
+              <TextInput
+                value={title}
+                onChangeText={setTitle}
+                placeholder="e.g. Bach Invention 4, mm. 1–16"
+                placeholderTextColor={Palette.textMuted}
+                editable={!saving}
+                style={styles.nameInput}
+              />
+            </View>
+          )}
 
           <ThemedText style={styles.hint}>
             {coach
               ? 'A photo or screenshot of the full page with the spot you want to work on — you’ll mark it right on the page next.'
-              : 'A photo or screenshot of the full page — then you’ll mark the spots you want to practice right on it (as many as you like).'}
+              : hasPages
+                ? 'Then you’ll mark the spots you want to practice right on each page (as many as you like).'
+                : 'A photo or screenshot of the full page — then you’ll mark the spots you want to practice right on it. Add more pages for a multi-page piece.'}
           </ThemedText>
 
-          <Pressable
-            style={styles.multiPageBtn}
-            disabled={saving}
-            onPress={() =>
-              router.push({
-                pathname: '/multi-page',
-                params: { folder: targetFolderId ?? '' },
-              })
-            }>
-            <ThemedText style={styles.multiPageText}>
-              Passage spans two pages?
-            </ThemedText>
-          </Pressable>
+          {!hasPages && (
+            <Pressable
+              style={styles.multiPageBtn}
+              disabled={saving}
+              onPress={() =>
+                router.push({
+                  pathname: '/multi-page',
+                  params: { folder: targetFolderId ?? '' },
+                })
+              }>
+              <ThemedText style={styles.multiPageText}>
+                One passage spans two pages?
+              </ThemedText>
+            </Pressable>
+          )}
 
-          {saving && (
+          {/* Save — only once at least one page is in (coach saves on pick). */}
+          {hasPages && !coach && (
+            <Pressable
+              style={[styles.saveBtn, { opacity: saving ? 0.6 : 1 }]}
+              disabled={saving}
+              onPress={() => saveDocument(pages)}>
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <ThemedText style={styles.saveBtnText}>
+                  Save{pages.length > 1 ? ` ${pages.length} pages` : ''}
+                </ThemedText>
+              )}
+            </Pressable>
+          )}
+
+          {saving && coach && (
             <View style={styles.savingRow}>
               <ActivityIndicator color={Palette.accent} />
-              <ThemedText style={styles.savingText}>
-                {coach ? 'Saving your photo…' : 'Saving photo — opening it up…'}
-              </ThemedText>
+              <ThemedText style={styles.savingText}>Saving your photo…</ThemedText>
             </View>
           )}
 
@@ -334,13 +527,13 @@ export default function UploadScreen() {
         ref={fileInputRef}
         type="file"
         accept="image/*"
+        multiple
         onChange={onFileChange}
         style={{ display: 'none' }}
       />
-      {/* `capture="environment"` asks the OS to open the rear camera
-          directly on mobile browsers. Desktop browsers ignore it and
-          fall through to the standard file picker — same behavior as
-          the regular input, just an extra entry point. */}
+      {/* `capture="environment"` asks the OS to open the rear camera directly
+          on mobile browsers. Desktop browsers ignore it and fall through to the
+          standard file picker. */}
       <input
         ref={cameraInputRef}
         type="file"
@@ -356,8 +549,9 @@ export default function UploadScreen() {
         title="Add a photo of the page"
         body={
           "Snap or upload a photo of the whole page. Drop an image onto the box, or tap it to choose a file. On phone, \"Take a photo\" opens the camera directly — point at the music and shoot.\n\n" +
-          "You'll land on the page itself; tap \"+ Mark passage\" and draw a box around each spot you want to practice — mark as many as you like. \"Hide boxes\" shows the clean full page anytime.\n\n" +
-          "If a spot runs across the bottom of one page and onto the next, tap \"Passage spans two pages?\" to photograph both halves and stitch them into one continuous score."
+          "Adding more than one page? Tap \"Add another page\" (or pick several at once) and they'll turn like a PDF. Use the arrows to reorder, the ✕ to remove a page. Give the piece a name, then Save.\n\n" +
+          "You'll land on the page itself; tap \"+ Mark passage\" and draw a box around each spot you want to practice — mark as many as you like, on any page. \"Hide boxes\" shows the clean full page anytime.\n\n" +
+          "If one passage runs across two pages, draw the box on the first page, tap \"Add next page →\", and finish it on the next — the two halves join into one passage."
         }
       />
     </ThemedView>
@@ -371,6 +565,28 @@ const styles = StyleSheet.create({
   column: { width: '100%', maxWidth: 640, gap: Spacing.lg },
   header: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, gap: Spacing.xs },
   backLink: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, color: Palette.accent },
+  directionCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    backgroundColor: Palette.accentSoft,
+    borderWidth: Borders.thin,
+    borderColor: Palette.accent,
+    borderRadius: Radii.lg,
+    padding: Spacing.md,
+  },
+  directionIcon: { marginTop: 1 },
+  directionTitle: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.bold,
+    color: Palette.accentDeep,
+  },
+  directionBody: {
+    fontSize: Type.size.sm,
+    color: Palette.text,
+    lineHeight: 19,
+    marginTop: 2,
+  },
   dropZone: {
     borderWidth: Borders.medium,
     borderStyle: 'dashed',
@@ -411,6 +627,69 @@ const styles = StyleSheet.create({
     fontWeight: Type.weight.bold,
     color: Palette.accent,
   },
+  pagesBlock: {
+    gap: Spacing.sm,
+  },
+  pagesHeading: {
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.bold,
+    color: Palette.textSecondary,
+    paddingHorizontal: Spacing.xs,
+  },
+  pageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
+    padding: Spacing.sm,
+    ...Lift,
+  },
+  pageThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: Radii.sm,
+    backgroundColor: Palette.surfaceSunk,
+  },
+  pageLabel: {
+    flex: 1,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.semibold,
+    color: Palette.text,
+  },
+  pageActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  pageIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Palette.surfaceSunk,
+  },
+  pageIconDisabled: { opacity: 0.35 },
+  nameBlock: { gap: Spacing.xs },
+  nameLabel: {
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.bold,
+    color: Palette.textSecondary,
+    paddingHorizontal: Spacing.xs,
+  },
+  nameInput: {
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    fontSize: Type.size.md,
+    color: Palette.text,
+    backgroundColor: Palette.card,
+  },
   hint: {
     color: Palette.textMuted,
     fontSize: Type.size.xs,
@@ -428,6 +707,13 @@ const styles = StyleSheet.create({
     fontSize: Type.size.sm,
     color: Palette.textSecondary,
   },
+  saveBtn: {
+    borderRadius: Radii.lg,
+    padding: 18,
+    alignItems: 'center',
+    backgroundColor: Palette.accent,
+  },
+  saveBtnText: { color: '#fff', fontWeight: Type.weight.bold, fontSize: Type.size.xl },
   savingRow: {
     flexDirection: 'row',
     alignItems: 'center',

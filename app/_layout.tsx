@@ -29,6 +29,7 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { HelpButton } from '@/components/HelpButton';
+import { FeedbackButton } from '@/components/FeedbackButton';
 import { HelpModal } from '@/components/HelpModal';
 import { HelpProvider } from '@/components/HelpContext';
 import { InstallPrompt } from '@/components/InstallPrompt';
@@ -232,6 +233,10 @@ export default function RootLayout() {
                     web and native — see components/HelpContext. */}
                 <HelpModal />
                 <HelpButton />
+                {/* Feedback: round bottom-LEFT button (mirrors HelpButton's
+                    bottom-right). Web-only + self-hides on practice screens —
+                    see components/FeedbackButton. */}
+                <FeedbackButton />
                 {/* Phone-only Add-to-Home-Screen coach. On the iPad app
                     the component resolves to a no-op via .tsx / .web.tsx
                     Metro split, so this line is safe to render on both

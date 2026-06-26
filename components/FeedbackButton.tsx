@@ -1,3 +1,17 @@
+// FeedbackButton — a round "chat bubble" button that sits in a fixed corner
+// (bottom-LEFT) as a sibling to the help "i" button (bottom-right). Tapping it
+// opens a small box to email the developer; the current page, the device
+// (userAgent), the signed-in email, and a timestamp are attached automatically,
+// so a report lands with everything needed to look into it.
+//
+// Mounted once globally by _layout.tsx. It hides itself on the deep practice /
+// session screens, where every corner is already taken by the rep buttons
+// (✗ Miss bottom-left, ✓ Clean bottom-right), the EXIT button, and the dots
+// pill — and where the player is mid-rep anyway. On those screens feedback is
+// still reachable from Account → Send feedback.
+
+import Feather from '@expo/vector-icons/Feather';
+import { usePathname } from 'expo-router';
 import { useState } from 'react';
 import {
   Modal,
@@ -5,9 +19,9 @@ import {
   Pressable,
   StyleSheet,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
@@ -21,25 +35,49 @@ import { useSession } from '@/lib/supabase/auth';
 const FORMSPREE_URL =
   process.env.EXPO_PUBLIC_FORMSPREE_URL ?? 'https://formspree.io/f/mjglgqve';
 
+// Route fragments that indicate an active practice/session screen, where the
+// corners are crowded with rep buttons and the dots pill. The button hides on
+// any path containing one of these. Covers both real passages
+// (/passage/<id>/tempo-ladder) and the tools-only versions
+// (/passage/__tools__/tempo-ladder, /tools/metronome), plus Rep Rotator and the
+// onboarding quiz (which is its own guide).
+const PRACTICE_FRAGMENTS = [
+  'tempo-ladder',
+  'click-up',
+  'rhythmic',
+  'chunking',
+  'macro-chaining',
+  'micro-chaining',
+  'rhythm-builder',
+  'self-led',
+  'interleaved',
+  'metronome',
+  'onboarding',
+];
+
+function isHiddenRoute(pathname: string): boolean {
+  const p = pathname.toLowerCase();
+  return PRACTICE_FRAGMENTS.some((frag) => p.includes(frag));
+}
+
 export function FeedbackButton() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const session = useSession();
-  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Web (desktop) only, by a past explicit request. NOTE: native currently has
-  // NO in-app feedback/contact channel — if that's wanted for the App Store
-  // build, add one (e.g. in Settings) rather than relying on this.
+  // The "three devices" are all web surfaces (laptop, iPad Safari, phone
+  // Safari). Native has no in-app feedback channel here — if that's wanted for
+  // the App Store build, add one in Account rather than relying on this.
   if (Platform.OS !== 'web') return null;
-  // Phone screens don't have the edge space to spare — every pixel goes to
-  // the score, the practice rep buttons, and the tool tabs. The user can
-  // still hit the Formspree endpoint by widening the window on a laptop.
-  if (Math.min(width, height) < 600) return null;
+  // Hide on the crowded practice screens (see PRACTICE_FRAGMENTS).
+  if (isHiddenRoute(pathname)) return null;
 
   async function submit() {
     const trimmed = text.trim();
@@ -105,12 +143,21 @@ export function FeedbackButton() {
     <>
       <Pressable
         onPress={() => setOpen(true)}
-        style={[styles.fab, { backgroundColor: C.tint }]}
-        accessibilityLabel="Send feedback">
-        <ThemedText style={styles.fabText}>💬 Feedback</ThemedText>
+        accessibilityRole="button"
+        accessibilityLabel="Send feedback"
+        style={({ pressed }) => [
+          styles.fab,
+          {
+            left: insets.left + 16,
+            bottom: insets.bottom + 16,
+            opacity: pressed ? 0.85 : 1,
+          },
+        ]}>
+        <Feather name="message-square" size={20} color="#fff" />
       </Pressable>
 
-      <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+      <Modal
+        supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
         visible={open}
         transparent
         animationType="fade"
@@ -125,8 +172,8 @@ export function FeedbackButton() {
               Send feedback
             </ThemedText>
             <ThemedText style={[styles.hint, { color: C.icon }]}>
-              Your email, the current page, and a timestamp are included
-              automatically.
+              Your email, the current page, and your device are included
+              automatically — so I can look into it.
             </ThemedText>
 
             <TextInput
@@ -189,31 +236,26 @@ export function FeedbackButton() {
 }
 
 const styles = StyleSheet.create({
-  // Bottom-right pill on laptop/desktop — the original placement that
-  // sits clear of the tool tabs (which run down the left/right edges
-  // at score level) and the page-nav chevrons (top corners). Phone
-  // hides the whole component above the styles via the
-  // min(width, height) < 600 early return, so this pill never has to
-  // compete with the floating ✗/✓ rep buttons on phone practice
-  // screens.
+  // Round bottom-LEFT button, mirroring the help "i" (bottom-right) so the two
+  // read as one chrome family. A warm color (vs the help button's petrol blue)
+  // + the speech-bubble glyph distinguish "talk to me" from "info". Position is
+  // inset-aware so the notch / home indicator never clips it in any orientation.
   fab: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radii['2xl'],
+    width: 44,
+    height: 44,
+    borderRadius: Radii.circle,
+    borderWidth: 2,
+    borderColor: '#fff',
+    backgroundColor: Palette.interleaved,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.25,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-    zIndex: 1000,
-  },
-  fabText: {
-    color: '#fff',
-    fontWeight: Type.weight.heavy,
-    fontSize: Type.size.sm,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    zIndex: 100,
   },
   backdrop: {
     flex: 1,

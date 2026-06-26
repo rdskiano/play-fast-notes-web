@@ -5,7 +5,6 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import {
   Alert,
   FlatList,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -88,7 +87,6 @@ import {
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { getTempoLadderProgressForPassages } from '@/lib/db/repos/tempoLadder';
-import { bmacUrl } from '@/lib/links';
 import { logOnboardingStep } from '@/lib/onboarding/telemetry';
 
 type ListRow =
@@ -1211,16 +1209,17 @@ export default function LibraryScreen() {
             // of the original single-row header is preserved.
             isPhonePortrait && { justifyContent: 'flex-end' },
           ]}>
-          {/* Buy Me a Coffee is web-only — App Store guideline 3.1.1 forbids
-              linking out to an external payment for the app. */}
-          {Platform.OS === 'web' && (
-            <Pressable
-              onPress={() => Linking.openURL(bmacUrl())}
-              accessibilityLabel="Support the developer"
-              style={styles.coffeeBtn}>
-              <Feather name="coffee" size={18} color={Palette.interleaved} />
-            </Pressable>
-          )}
+          {/* Primary action — a filled accent pill in the FIXED top bar so it's
+              always visible (a plain link in the scrolling list header was easy
+              to miss, especially on phone). */}
+          <Pressable
+            onPress={() => setAddOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Add a piece"
+            style={({ pressed }) => [styles.sectionAddBtn, pressed && { opacity: 0.85 }]}>
+            <Feather name="plus" size={18} color="#fff" />
+            <ThemedText style={styles.sectionAddText}>Add</ThemedText>
+          </Pressable>
           {/* Practice log · Rep Rotator · Tools, grouped as one chip. */}
           <View style={styles.actionGroup}>
             <Pressable
@@ -1349,7 +1348,7 @@ export default function LibraryScreen() {
                     accessory={
                       isAtRoot && !q ? (
                         <SectionAction
-                          label="+ New folder"
+                          label="+ Add folder"
                           onPress={() => setPrompt({ kind: 'new_folder' })}
                         />
                       ) : undefined
@@ -1378,7 +1377,7 @@ export default function LibraryScreen() {
                       {pieceRows.length === 1 ? 'piece' : 'pieces'}
                     </ThemedText>
                     {!q && (
-                      <SectionAction label="+ Add" onPress={() => setAddOpen(true)} />
+                      <SectionAction label="+ Add piece" onPress={() => setAddOpen(true)} />
                     )}
                   </View>
                 }
@@ -1508,9 +1507,6 @@ export default function LibraryScreen() {
         body={
           '+ Add (top right) — snap a photo of a page, upload a PDF of the full part, or make a folder. The easiest first move: a photo of the page, then mark the spots you want to practice right on it.\n\n' +
           'Header buttons:\n' +
-          (Platform.OS === 'web'
-            ? '☕ — buy me a coffee, if the app helps you.\n'
-            : '') +
           '📋 Practice Log — every session you\'ve logged, for this folder or the whole library.\n' +
           '🔀 Rep Rotator — practice several passages in shuffled order.\n' +
           '🛠 Tools — the metronome, tempo ladder, and rhythm variations on their own, without uploading any music.\n' +
@@ -1778,14 +1774,6 @@ const styles = StyleSheet.create({
   iconBtnText: { fontSize: 18, lineHeight: 20 },
   // v2 reskin — header action buttons. Coffee = warm amber chip; the three
   // utilities (log / rep rotator / tools) share one white grouped chip.
-  coffeeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: Radii.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Palette.interleavedSoft,
-  },
   actionGroup: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2059,5 +2047,25 @@ const styles = StyleSheet.create({
     fontSize: Type.size.sm,
     fontWeight: Type.weight.semibold,
     color: Palette.accent,
+  },
+  sectionAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Palette.accent,
+    paddingLeft: Spacing.sm,
+    paddingRight: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radii.pill,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  sectionAddText: {
+    color: '#fff',
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.heavy,
   },
 });

@@ -1,7 +1,8 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   Image as RNImage,
   Platform,
   Pressable,
@@ -181,6 +182,36 @@ export default function ClickUpScreen() {
   } = session;
 
   const ann = useScoreAnnotation(passage);
+
+  // On phone landscape the floating metronome (and its "+N" bump graphic) is
+  // collapsed off-screen, so a tempo step-up has no visual tell. Pulse the BPM
+  // pill — grow + flash red — off the SAME signal the metronome bump uses
+  // (metronome.bump.token, bumped only on setBpm(_, {animateBump:true}), i.e.
+  // the NEXT step-up). Works on every device; it's just most needed here.
+  const bpmPulse = useRef(new Animated.Value(0)).current;
+  const bumpToken = metronome.bump.token;
+  useEffect(() => {
+    if (bumpToken === 0) return;
+    bpmPulse.setValue(0);
+    Animated.sequence([
+      Animated.timing(bpmPulse, { toValue: 1, duration: 150, useNativeDriver: false }),
+      Animated.delay(450),
+      Animated.timing(bpmPulse, { toValue: 0, duration: 320, useNativeDriver: false }),
+    ]).start();
+  }, [bumpToken, bpmPulse]);
+  const pillScale = bpmPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.22] });
+  const pillBg = bpmPulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [Palette.card, Palette.dangerSoft],
+  });
+  const pillBorder = bpmPulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [Palette.border, Palette.danger],
+  });
+  const bpmColor = bpmPulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [Palette.text, Palette.danger],
+  });
 
   // Guided onboarding: a one-time reassurance the first time they tap Next in
   // the playing phase — confirms the button did something (the tempo climbed)
@@ -755,8 +786,18 @@ export default function ClickUpScreen() {
                   )}
                 </View>
               )}
-              <View style={styles.runStatPill}>
-                <ThemedText style={styles.runStatBpm}>{metronome.bpm}</ThemedText>
+              <Animated.View
+                style={[
+                  styles.runStatPill,
+                  {
+                    backgroundColor: pillBg,
+                    borderColor: pillBorder,
+                    transform: [{ scale: pillScale }],
+                  },
+                ]}>
+                <Animated.Text style={[styles.runStatBpm, { color: bpmColor }]}>
+                  {metronome.bpm}
+                </Animated.Text>
                 <ThemedText style={styles.runStatUnit}>BPM</ThemedText>
                 {!!unitLabel && (
                   <>
@@ -770,7 +811,7 @@ export default function ClickUpScreen() {
                 <ThemedText style={styles.runStatCount}>
                   {currentIndex + 1}/{storedConfig.steps.length}
                 </ThemedText>
-              </View>
+              </Animated.View>
             </View>
             <View style={styles.runSide} />
           </View>
