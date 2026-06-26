@@ -1,56 +1,55 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Palette } from '@/constants/palette';
 import { Type } from '@/constants/tokens';
 
-// "Watch how it works" demo of Rep Rotator. Unlike the other strategies it can't
-// be shown on one phrase — it's about rotating between DIFFERENT passages. So
-// this is a little mock of the real flow: pick 3 of 5 passages (tap, or shuffle),
-// then run a mock interleaved session — the passage name changes in random order,
-// you mark Clean/Miss toward 3-in-a-row on each, and every rep surfaces a
-// different bit of the science behind why rotating like this works. No audio
-// (there are no real passages loaded), so it's user-driven, not self-playing.
+// "Watch how it works" demo of Rep Rotator. It can't be shown on one phrase —
+// it's about rotating between DIFFERENT passages — so it's a little mock of the
+// real flow: pick 3 of 5 passages (tap, or shuffle), then a ROTATION BOARD shows
+// all three at once with their own streaks. You mark Clean/Miss on the
+// highlighted one; it visibly jumps to a random other one each rep (a miss
+// empties that passage's streak). Get 3 clean in a row on each and it's done.
+// Seeing all three + the jumping spotlight is what makes the process click.
+// One persistent "why it works" line, not a rotating wall of facts. No audio.
 
 const ORANGE = '#C9772E'; // rep_rotator strategy color
 const ORANGE_SOFT = '#F6E9DC';
+const CLEAN_FLASH = '#E4F1E8';
+const MISS_FLASH = '#F6E5E2';
 
 const PASSAGES = ['Passage 1', 'Passage 2', 'Passage 3', 'Passage 4', 'Passage 5'];
 const PICK = 3;
 const GOAL = 3; // clean reps in a row, per passage
 
-// Each rep surfaces a different bit of the science behind interleaving (Ralph's
-// curated facts; bodies lightly tightened for the card).
-const FACTS: { title: string; body: string }[] = [
-  {
-    title: 'It trains your brain to reconstruct a skill from scratch.',
-    body: 'In a performance or audition you get one chance to play a passage perfectly. Interleaving mimics that — you adjust on the fly and execute a complex skill flawlessly on the first try, with no warm-up reps.',
-  },
-  {
-    title: 'It takes advantage of the brain’s need to forget.',
-    body: 'Switching passages makes your brain briefly forget the feel of playing one. Cycling back, it has to test itself to recall it — working harder and cementing the skill into long-term storage.',
-  },
-  {
-    title: 'It builds nimbleness through “contextual interference.”',
-    body: 'Rapidly switching between slightly different skills makes them interfere in the brain. That friction is harder, but it trains you to switch gears and execute different movements perfectly in the moment.',
-  },
-  {
-    title: 'It shatters the “illusion of mastery.”',
-    body: 'Repeating one passage back-to-back lets you go on autopilot — a false sense of security. Interleaving removes that illusion and gives an accurate test of your real performance readiness.',
-  },
-  {
-    title: 'It makes performing feel effortless.',
-    body: 'fMRI scans show interleaving makes the brain work hard while practicing — but on stage those skills need minimal activation. Less work on the technical frees up capacity for musical expression.',
-  },
-  {
-    title: 'It improves your reaction time.',
-    body: 'Interleaving raises “motor cortex excitability” — which correlates with faster reaction times and more efficient retrieval of motor memory.',
-  },
-  {
-    title: 'It jump-starts long-term storage.',
-    body: 'It activates the sensorimotor cortex and posterior putamen together — areas that normally only communicate once a skill is already in stable, long-term storage.',
-  },
-];
+// ONE persistent fact (Ralph: the rotating wall of facts was distracting — pick
+// the most powerful and leave it). His lead fact, which fits the visual: the
+// constant jumping means you summon each passage cold. Swap `FACT` for any of
+// the curated alternatives below.
+const FACT = {
+  title: 'It trains your brain to reconstruct a skill from scratch.',
+  body: 'In a performance or audition you get one chance to play it right — no warm-up reps. Rotating like this rehearses exactly that: summoning each passage cold and nailing it first try.',
+};
+// Other curated facts (Ralph's), kept for easy swapping:
+//  - 'It takes advantage of the brain’s need to forget.' — Switching passages
+//    makes your brain briefly forget the feel of one; cycling back forces it to
+//    retrieve the skill, which cements it into long-term storage.
+//  - 'It builds nimbleness through “contextual interference.”' — Rapidly
+//    switching similar skills makes them interfere; that friction trains you to
+//    switch gears and execute the right movement in the moment.
+//  - 'It shatters the “illusion of mastery.”' — Back-to-back repetition lets you
+//    autopilot into false security; interleaving gives an honest test of
+//    performance readiness.
+//  - 'It makes performing feel effortless.' — fMRI shows interleaving works the
+//    brain hard in practice but needs minimal activation on stage, freeing
+//    capacity for musical expression.
+//  - 'It improves your reaction time.' — Raises motor-cortex excitability,
+//    correlated with faster reaction times and more efficient motor recall.
+//  - 'It jump-starts long-term storage.' — Activates the sensorimotor cortex and
+//    posterior putamen together — areas that normally only talk once a skill is
+//    already in stable storage.
+
+type Flash = { id: string; kind: 'clean' | 'miss' } | null;
 
 type Props = { onDone: () => void };
 
@@ -59,7 +58,15 @@ export function RepRotatorDemo({ onDone }: Props) {
   const [selected, setSelected] = useState<string[]>([]);
   const [streaks, setStreaks] = useState<Record<string, number>>({});
   const [current, setCurrent] = useState('');
-  const [reps, setReps] = useState(0);
+  const [flash, setFlash] = useState<Flash>(null);
+
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(
+    () => () => {
+      timers.current.forEach(clearTimeout);
+    },
+    [],
+  );
 
   function toggle(p: string) {
     setSelected((prev) =>
@@ -68,8 +75,7 @@ export function RepRotatorDemo({ onDone }: Props) {
   }
 
   function shuffle() {
-    const pick = [...PASSAGES].sort(() => Math.random() - 0.5).slice(0, PICK);
-    setSelected(pick);
+    setSelected([...PASSAGES].sort(() => Math.random() - 0.5).slice(0, PICK));
   }
 
   function start() {
@@ -78,12 +84,10 @@ export function RepRotatorDemo({ onDone }: Props) {
     selected.forEach((p) => (s[p] = 0));
     setStreaks(s);
     setCurrent(selected[Math.floor(Math.random() * selected.length)]);
-    setReps(0);
+    setFlash(null);
     setPhase('rotate');
   }
 
-  // Next passage: random among those not yet at the goal, preferring a different
-  // one than the current so the rotation is visible.
   function pickNext(after: string, s: Record<string, number>): string | null {
     const incomplete = selected.filter((p) => (s[p] ?? 0) < GOAL);
     if (incomplete.length === 0) return null;
@@ -92,23 +96,33 @@ export function RepRotatorDemo({ onDone }: Props) {
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
+  // Mark the highlighted passage, then — after a beat so the result registers —
+  // jump the spotlight to a random other one (or finish).
   function mark(clean: boolean) {
+    if (flash) return; // ignore taps mid-jump
+    const marked = current;
     const s = {
       ...streaks,
-      [current]: clean ? Math.min(GOAL, (streaks[current] ?? 0) + 1) : 0,
+      [marked]: clean ? Math.min(GOAL, (streaks[marked] ?? 0) + 1) : 0,
     };
     setStreaks(s);
-    setReps((r) => r + 1);
-    const nxt = pickNext(current, s);
-    if (!nxt) setPhase('done');
-    else setCurrent(nxt);
+    setFlash({ id: marked, kind: clean ? 'clean' : 'miss' });
+    timers.current.push(
+      setTimeout(() => {
+        setFlash(null);
+        const nxt = pickNext(marked, s);
+        if (!nxt) setPhase('done');
+        else setCurrent(nxt);
+      }, 600),
+    );
   }
 
   function reset() {
+    timers.current.forEach(clearTimeout);
     setSelected([]);
     setStreaks({});
     setCurrent('');
-    setReps(0);
+    setFlash(null);
     setPhase('select');
   }
 
@@ -154,54 +168,72 @@ export function RepRotatorDemo({ onDone }: Props) {
         </>
       ) : phase === 'rotate' ? (
         <>
-          <Text style={styles.miniCaption}>Pulls them in random order — 3 clean in a row on each.</Text>
-          <View style={styles.stage}>
-            <Text style={styles.current}>{current}</Text>
-            <View style={styles.dots}>
-              {Array.from({ length: GOAL }, (_, i) => {
-                const on = (streaks[current] ?? 0) > i;
-                return (
-                  <View
-                    key={i}
-                    style={[styles.dot, on ? { backgroundColor: ORANGE, borderColor: ORANGE } : null]}
-                  />
-                );
-              })}
-            </View>
-          </View>
+          <Text style={styles.miniCaption}>
+            Mark the highlighted one — it jumps around. 3 clean in a row on each.
+          </Text>
 
-          <View style={styles.factCard}>
-            <Text style={styles.factLabel}>WHY IT WORKS</Text>
-            <Text style={styles.factTitle}>{FACTS[reps % FACTS.length].title}</Text>
-            <Text style={styles.factText}>{FACTS[reps % FACTS.length].body}</Text>
+          <View style={styles.board}>
+            {selected.map((p) => {
+              const streak = streaks[p] ?? 0;
+              const complete = streak >= GOAL;
+              const active = p === current && !complete;
+              const isFlash = flash?.id === p;
+              const bg = isFlash
+                ? flash!.kind === 'clean'
+                  ? CLEAN_FLASH
+                  : MISS_FLASH
+                : active
+                  ? ORANGE_SOFT
+                  : Palette.card;
+              return (
+                <View
+                  key={p}
+                  style={[
+                    styles.boardRow,
+                    { backgroundColor: bg },
+                    active ? { borderColor: ORANGE } : null,
+                    complete ? { opacity: 0.55 } : null,
+                  ]}>
+                  <Text style={styles.boardMark}>{complete ? '✓' : active ? '▶' : ''}</Text>
+                  <Text style={[styles.boardName, active ? { fontWeight: Type.weight.semibold } : null]}>{p}</Text>
+                  <View style={styles.boardDots}>
+                    {Array.from({ length: GOAL }, (_, i) => {
+                      const on = streak > i;
+                      return (
+                        <View
+                          key={i}
+                          style={[
+                            styles.bdot,
+                            on ? { backgroundColor: ORANGE, borderColor: ORANGE } : null,
+                          ]}
+                        />
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            })}
           </View>
 
           <View style={styles.actions}>
-            <Pressable style={[styles.markBtn, { borderColor: Palette.borderStrong }]} onPress={() => mark(false)}>
+            <Pressable
+              style={[styles.markBtn, { borderColor: Palette.borderStrong }]}
+              disabled={!!flash}
+              onPress={() => mark(false)}>
               <Text style={[styles.markText, { color: Palette.textSecondary }]}>✗ Miss</Text>
             </Pressable>
-            <Pressable style={[styles.markBtn, { backgroundColor: ORANGE, borderColor: ORANGE }]} onPress={() => mark(true)}>
+            <Pressable
+              style={[styles.markBtn, { backgroundColor: ORANGE, borderColor: ORANGE }]}
+              disabled={!!flash}
+              onPress={() => mark(true)}>
               <Text style={[styles.markText, { color: '#fff' }]}>✓ Clean</Text>
             </Pressable>
           </View>
 
-          <View style={styles.progRow}>
-            {selected.map((p) => {
-              const complete = (streaks[p] ?? 0) >= GOAL;
-              const isCur = p === current;
-              return (
-                <Text
-                  key={p}
-                  style={[
-                    styles.progItem,
-                    complete ? { color: ORANGE, fontWeight: Type.weight.semibold } : null,
-                    isCur ? { color: Palette.text } : null,
-                  ]}>
-                  {complete ? '✓ ' : isCur ? '▸ ' : ''}
-                  {p.replace('Passage ', 'P')}
-                </Text>
-              );
-            })}
+          <View style={styles.factCard}>
+            <Text style={styles.factLabel}>WHY IT WORKS</Text>
+            <Text style={styles.factTitle}>{FACT.title}</Text>
+            <Text style={styles.factText}>{FACT.body}</Text>
           </View>
         </>
       ) : (
@@ -210,8 +242,10 @@ export function RepRotatorDemo({ onDone }: Props) {
             <Text style={styles.doneEmoji}>🎉</Text>
             <Text style={styles.doneTitle}>Cleaned all {PICK} passages!</Text>
             <Text style={styles.doneBody}>
-              That’s rep rotator — three clean in a row on each, in random order, the way you’ll
-              have to deliver them.
+              Rapidly switching between slightly different skills causes them to “interfere” with
+              each other in the brain. This cognitive friction makes the process harder but
+              ultimately trains the brain to rapidly switch gears and remember how to execute
+              different movements perfectly in the moment.
             </Text>
           </View>
           <Pressable style={[styles.ghostBtn, styles.startOver, { borderColor: ORANGE }]} onPress={reset}>
@@ -220,9 +254,7 @@ export function RepRotatorDemo({ onDone }: Props) {
         </>
       )}
 
-      <Pressable
-        style={styles.exitBtn}
-        onPress={onDone}>
+      <Pressable style={styles.exitBtn} onPress={onDone}>
         <Text style={styles.exitText}>I got it →</Text>
       </Pressable>
     </View>
@@ -268,26 +300,24 @@ const styles = StyleSheet.create({
   checkMark: { color: '#fff', fontSize: 12, fontWeight: Type.weight.bold },
   rowText: { fontSize: 14, color: Palette.text },
 
-  miniCaption: { fontSize: 12, color: Palette.textSecondary, textAlign: 'center', marginBottom: 10 },
-  stage: { alignItems: 'center', marginBottom: 12 },
-  current: { fontSize: 22, fontWeight: Type.weight.semibold, color: Palette.text, marginBottom: 10 },
-  dots: { flexDirection: 'row', gap: 10 },
-  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: Palette.borderStrong },
+  miniCaption: { fontSize: 12, color: Palette.textSecondary, textAlign: 'center', marginBottom: 12 },
 
-  factCard: {
-    backgroundColor: Palette.card,
-    borderWidth: 0.5,
-    borderColor: Palette.border,
+  board: { gap: 8, marginBottom: 14 },
+  boardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     borderRadius: 10,
-    padding: 12,
-    marginBottom: 14,
-    minHeight: 150,
+    borderWidth: 1.5,
+    borderColor: Palette.border,
   },
-  factLabel: { fontSize: 10, letterSpacing: 0.8, color: ORANGE, fontWeight: Type.weight.semibold, marginBottom: 5 },
-  factTitle: { fontSize: 14, lineHeight: 19, fontWeight: Type.weight.semibold, color: Palette.text, marginBottom: 4 },
-  factText: { fontSize: 13, lineHeight: 19, color: Palette.textSecondary },
+  boardMark: { width: 18, fontSize: 14, color: ORANGE, fontWeight: Type.weight.bold },
+  boardName: { flex: 1, fontSize: 15, color: Palette.text },
+  boardDots: { flexDirection: 'row', gap: 7 },
+  bdot: { width: 13, height: 13, borderRadius: 7, borderWidth: 1.5, borderColor: Palette.borderStrong },
 
-  actions: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  actions: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   ghostBtn: {
     paddingHorizontal: 14,
     paddingVertical: 11,
@@ -310,8 +340,17 @@ const styles = StyleSheet.create({
   },
   markText: { fontSize: 15, fontWeight: Type.weight.semibold },
 
-  progRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 4 },
-  progItem: { fontSize: 12, color: Palette.textMuted },
+  factCard: {
+    backgroundColor: Palette.card,
+    borderWidth: 0.5,
+    borderColor: Palette.border,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 6,
+  },
+  factLabel: { fontSize: 10, letterSpacing: 0.8, color: ORANGE, fontWeight: Type.weight.semibold, marginBottom: 5 },
+  factTitle: { fontSize: 14, lineHeight: 19, fontWeight: Type.weight.semibold, color: Palette.text, marginBottom: 4 },
+  factText: { fontSize: 13, lineHeight: 19, color: Palette.textSecondary },
 
   doneStage: { alignItems: 'center', paddingVertical: 8, marginBottom: 8 },
   doneEmoji: { fontSize: 56, marginBottom: 8 },
