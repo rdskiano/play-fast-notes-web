@@ -576,6 +576,10 @@ function DroneOverlay({
     if (next !== m.droneMidi) m.setDroneMidi(next);
   }
 
+  // Cap the body height so the card never runs off a short screen (phone
+  // landscape) — it scrolls beyond that.
+  const { height: vpH } = useWindowDimensions();
+
   return (
     <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
       visible={visible}
@@ -596,6 +600,10 @@ function DroneOverlay({
             </Pressable>
           </View>
 
+          <ScrollView
+            style={{ maxHeight: Math.max(140, vpH - 180) }}
+            contentContainerStyle={styles.overlayScrollBody}
+            showsVerticalScrollIndicator={false}>
           <View style={styles.droneRow}>
             <ThemedText style={styles.droneRowLabel}>DRONE TONE</ThemedText>
             <Pressable
@@ -675,6 +683,7 @@ function DroneOverlay({
               );
             })}
           </View>
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
@@ -792,6 +801,8 @@ function GapsOverlay({
   onClose: () => void;
 }) {
   const pct = Math.round(m.dropChance * 100);
+  // Cap the body height so it scrolls instead of running off a short screen.
+  const { height: vpH } = useWindowDimensions();
   return (
     <Modal
       supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
@@ -808,6 +819,10 @@ function GapsOverlay({
             </Pressable>
           </View>
 
+          <ScrollView
+            style={{ maxHeight: Math.max(140, vpH - 180) }}
+            contentContainerStyle={styles.overlayScrollBody}
+            showsVerticalScrollIndicator={false}>
           <View style={styles.gapDisplay}>
             <ThemedText style={styles.gapPct}>{pct > 0 ? `${pct}%` : 'OFF'}</ThemedText>
             <ThemedText style={styles.gapPctLabel}>OF BEATS DROPPED</ThemedText>
@@ -850,6 +865,7 @@ function GapsOverlay({
             Randomly silences this share of beats — beat 1 included — so you keep
             time on your own. The click never shows which beats it drops.
           </ThemedText>
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
@@ -1070,6 +1086,7 @@ const styles = StyleSheet.create({
     padding: 22,
     gap: 14,
   },
+  overlayScrollBody: { gap: 14 },
   overlayHeader: {
     flexDirection: 'row',
     alignItems: 'center',
