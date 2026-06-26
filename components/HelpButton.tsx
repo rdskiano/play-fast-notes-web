@@ -44,8 +44,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 16,
     right: 16,
-    width: 44,
-    height: 44,
+    width: 36,
+    height: 36,
     borderRadius: Radii.circle,
     borderWidth: 2,
     backgroundColor: HELP_BLUE,
@@ -61,9 +61,9 @@ const styles = StyleSheet.create({
   },
   glyph: {
     color: '#fff',
-    fontSize: Type.size.lg,
+    fontSize: Type.size.md,
     fontWeight: Type.weight.heavy,
     fontStyle: 'italic',
-    lineHeight: Type.size.lg + 2,
+    lineHeight: Type.size.md + 2,
   },
 });

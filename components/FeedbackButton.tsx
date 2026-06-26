@@ -21,8 +21,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { Palette } from '@/constants/palette';
@@ -64,7 +62,6 @@ export function FeedbackButton() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const session = useSession();
-  const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -147,13 +144,9 @@ export function FeedbackButton() {
         accessibilityLabel="Send feedback"
         style={({ pressed }) => [
           styles.fab,
-          {
-            left: insets.left + 16,
-            bottom: insets.bottom + 16,
-            opacity: pressed ? 0.85 : 1,
-          },
+          { opacity: pressed ? 0.85 : 1 },
         ]}>
-        <Feather name="message-square" size={20} color="#fff" />
+        <Feather name="message-square" size={16} color="#fff" />
       </Pressable>
 
       <Modal
@@ -242,8 +235,13 @@ const styles = StyleSheet.create({
   // inset-aware so the notch / home indicator never clips it in any orientation.
   fab: {
     position: 'absolute',
-    width: 44,
-    height: 44,
+    // Flat 16 to mirror the help "i" button (bottom-right) exactly — using the
+    // safe-area inset here made it ride higher than the help button on phones
+    // with a home-indicator inset.
+    bottom: 16,
+    left: 16,
+    width: 36,
+    height: 36,
     borderRadius: Radii.circle,
     borderWidth: 2,
     borderColor: '#fff',
