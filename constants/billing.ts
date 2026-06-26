@@ -43,6 +43,14 @@ export const TRIAL_DAYS = 30;
 export const REWARD_MONTHS = 6;
 export const TESTER_PROMO_CODE = 'BETA6';
 
+// "Lifetime" comp rows are granted with a far-future expiry (the 2099 sentinel).
+// Anything dated past this counts as forever — the account screen then shows
+// "on the house" instead of a literal (and ugly) far-future date.
+export const LIFETIME_AFTER_MS = 4_000_000_000_000; // ~ year 2096
+export function isLifetimeExpiry(expiresAtMs: number | null): boolean {
+  return expiresAtMs != null && expiresAtMs > LIFETIME_AFTER_MS;
+}
+
 // FLIP-DAY COMP GRANTS — run ONCE at the moment PAYWALL_ENABLED goes true.
 // The full, runnable SQL lives in supabase/comp-grants.sql; do NOT inline a
 // stale copy here. Two cohorts (decided 2026-06-25):

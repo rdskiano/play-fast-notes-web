@@ -16,6 +16,7 @@ import {
   DOWNGRADE_TITLE,
   TRIAL_WARNING_DAYS,
   downgradeBody,
+  isLifetimeExpiry,
   trialEndingBody,
 } from '@/constants/billing';
 import { useEntitlement } from '@/lib/billing/entitlements';
@@ -183,9 +184,9 @@ export default function AccountScreen() {
               <ThemedText style={styles.statusLine}>
                 {entitlement.reason === 'subscription'
                   ? subscription.tier === 'comp'
-                    ? subscription.expiresAt
+                    ? subscription.expiresAt && !isLifetimeExpiry(subscription.expiresAt)
                       ? `Practice Pro — free through ${formatExpiry(subscription.expiresAt)}. Thank you for being here early.`
-                      : 'Practice Pro — on the house. Thank you for being here early.'
+                      : 'Practice Pro — free, on the house. Thank you for being here early.'
                     : 'Practice Pro subscription active.'
                   : entitlement.reason === 'trial'
                     ? `Practice Pro trial — ${entitlement.trialDaysLeft} day${entitlement.trialDaysLeft === 1 ? '' : 's'} left.`
