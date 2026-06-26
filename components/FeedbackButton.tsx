@@ -19,6 +19,7 @@ import {
   Pressable,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
@@ -33,12 +34,14 @@ import { useSession } from '@/lib/supabase/auth';
 const FORMSPREE_URL =
   process.env.EXPO_PUBLIC_FORMSPREE_URL ?? 'https://formspree.io/f/mjglgqve';
 
-// Route fragments that indicate an active practice/session screen, where the
-// corners are crowded with rep buttons and the dots pill. The button hides on
-// any path containing one of these. Covers both real passages
-// (/passage/<id>/tempo-ladder) and the tools-only versions
-// (/passage/__tools__/tempo-ladder, /tools/metronome), plus Rep Rotator and the
-// onboarding quiz (which is its own guide).
+// Route fragments that indicate an active practice/session screen. Practice is
+// forced to LANDSCAPE, where the ✗ Miss / ✓ Clean rep buttons are inset
+// (centered) and the bottom-left corner — where this button sits — is free. The
+// only layout that parks a rep button in the bottom-left is PHONE PORTRAIT, so
+// that's the sole case we hide. Covers real passages
+// (/passage/<id>/tempo-ladder), the tools-only versions
+// (/passage/__tools__/tempo-ladder, /tools/metronome), Rep Rotator, and the
+// onboarding quiz (its own guide).
 const PRACTICE_FRAGMENTS = [
   'tempo-ladder',
   'click-up',
@@ -63,6 +66,10 @@ export function FeedbackButton() {
   const C = Colors[scheme];
   const session = useSession();
   const pathname = usePathname();
+  const { width, height } = useWindowDimensions();
+  // Only phone PORTRAIT parks a rep button in the bottom-left corner; practice
+  // is forced landscape, so during practice the corner is free.
+  const isPhonePortrait = Math.min(width, height) < 600 && height >= width;
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -73,8 +80,10 @@ export function FeedbackButton() {
   // Safari). Native has no in-app feedback channel here — if that's wanted for
   // the App Store build, add one in Account rather than relying on this.
   if (Platform.OS !== 'web') return null;
-  // Hide on the crowded practice screens (see PRACTICE_FRAGMENTS).
-  if (isHiddenRoute(pathname)) return null;
+  // Hide on practice screens ONLY in phone portrait (the one layout that puts a
+  // rep button in the bottom-left corner). Practice is forced landscape, so it
+  // shows there; see PRACTICE_FRAGMENTS.
+  if (isPhonePortrait && isHiddenRoute(pathname)) return null;
 
   async function submit() {
     const trimmed = text.trim();
