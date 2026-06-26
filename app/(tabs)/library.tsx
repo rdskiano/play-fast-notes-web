@@ -68,7 +68,9 @@ import {
   FREE_PASSAGE_LIMIT,
   LOCK_BADGE_LABEL,
   LOCKED_PDF_CONTEXT_LINE,
+  TRIAL_WELCOME_TITLE,
   lockedContextLine,
+  trialWelcomeBody,
 } from '@/constants/billing';
 import { useEntitlement } from '@/lib/billing/entitlements';
 import { computeLocks } from '@/lib/billing/locks';
@@ -501,6 +503,24 @@ export default function LibraryScreen() {
       }),
     [allPassages, allDocuments, entitlement.isPro],
   );
+  // One-time "welcome to your free month of Pro" banner for trial users. Web
+  // only (the paywall is a web surface); dismissal persists in localStorage.
+  const [welcomeDismissed, setWelcomeDismissed] = useState<boolean>(() => {
+    if (Platform.OS !== 'web') return true;
+    try {
+      return localStorage.getItem('pfn:seen-trial-welcome:v1') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const dismissWelcome = useCallback(() => {
+    try {
+      localStorage.setItem('pfn:seen-trial-welcome:v1', '1');
+    } catch {
+      /* private mode / no storage — fine, it just shows again next load */
+    }
+    setWelcomeDismissed(true);
+  }, []);
   // `practiceCount === null` = still loading. Gates the first-run
   // "Add your first piece" TutorialStep (practiceCount === 0).
   const [practiceCount, setPracticeCount] = useState<number | null>(null);
@@ -1309,6 +1329,17 @@ export default function LibraryScreen() {
           contentContainerStyle={{ gap: Spacing.md, paddingBottom: Spacing.xl }}
           ListHeaderComponent={
             <View style={{ gap: Spacing.lg }}>
+              {isAtRoot && !q && entitlement.reason === 'trial' && !welcomeDismissed && (
+                <View style={styles.welcomeCard}>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={styles.welcomeTitle}>🎉 {TRIAL_WELCOME_TITLE}</ThemedText>
+                    <ThemedText style={styles.welcomeBody}>{trialWelcomeBody()}</ThemedText>
+                  </View>
+                  <Pressable onPress={dismissWelcome} hitSlop={8} accessibilityLabel="Dismiss">
+                    <ThemedText style={styles.welcomeClose}>✕</ThemedText>
+                  </Pressable>
+                </View>
+              )}
               {isAtRoot && !q && <HeroBanner />}
               {scopeAndSearch}
               {showFolderSection && (
@@ -1902,6 +1933,35 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.lg,
     overflow: 'hidden',
+  },
+  // Trial-welcome banner — teal "good news", distinct from the petrol hero.
+  welcomeCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+    backgroundColor: '#0E7C66',
+    borderRadius: 20,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+  },
+  welcomeTitle: {
+    fontFamily: Fonts.rounded,
+    color: '#fff',
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: '700',
+  },
+  welcomeBody: {
+    color: '#FFFFFFE6',
+    fontSize: Type.size.md,
+    lineHeight: 19,
+    marginTop: 4,
+  },
+  welcomeClose: {
+    color: '#FFFFFFCC',
+    fontSize: 18,
+    fontWeight: '700',
+    paddingHorizontal: 4,
   },
   heroTitle: {
     fontFamily: Fonts.rounded,
