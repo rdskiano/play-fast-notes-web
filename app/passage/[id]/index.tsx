@@ -21,6 +21,11 @@ import { Button } from '@/components/Button';
 import type { Grouping } from '@/lib/strategies/rhythmPatterns';
 
 import { PassageReminders } from '@/components/PassageReminders';
+import {
+  StrategyDemoModal,
+  demoIdForStrategy,
+  type StrategyDemoId,
+} from '@/components/onboarding/StrategyDemoModal';
 import { PaywallModal } from '@/components/PaywallModal';
 import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { useEntitlement } from '@/lib/billing/entitlements';
@@ -140,6 +145,7 @@ export default function PassageDetailScreen() {
   // null = still loading; 0 means the user has added pieces but never
   // practiced, which is the trigger for the "pick a strategy" tutorial.
   const [practiceLogCount, setPracticeLogCount] = useState<number | null>(null);
+  const [demoId, setDemoId] = useState<StrategyDemoId | null>(null);
   const [rhythmicSheetOpen, setRhythmicSheetOpen] = useState(false);
   const [rhythmicStep, setRhythmicStep] = useState<'mode' | 'grouping'>('mode');
   const [selfLedOpen, setSelfLedOpen] = useState(false);
@@ -405,6 +411,7 @@ export default function PassageDetailScreen() {
       s.key === 'tempo_ladder' && tempoLadderProgress !== null
         ? Math.round(tempoLadderProgress * 100)
         : null;
+    const demo = demoIdForStrategy(s.key);
     return (
       <Pressable
         key={s.key}
@@ -415,11 +422,25 @@ export default function PassageDetailScreen() {
           <View style={[styles.stratMono, { backgroundColor: color + '22' }]}>
             <ThemedText style={[styles.stratMonoText, { color }]}>{s.mono}</ThemedText>
           </View>
-          {pct !== null && (
-            <View style={[styles.stratPct, { backgroundColor: color + '22' }]}>
-              <ThemedText style={[styles.stratPctText, { color }]}>{pct}%</ThemedText>
-            </View>
-          )}
+          <View style={styles.stratTopRight}>
+            {pct !== null && (
+              <View style={[styles.stratPct, { backgroundColor: color + '22' }]}>
+                <ThemedText style={[styles.stratPctText, { color }]}>{pct}%</ThemedText>
+              </View>
+            )}
+            {demo && (
+              <Pressable
+                accessibilityLabel={`How ${s.label} works`}
+                hitSlop={8}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  setDemoId(demo);
+                }}
+                style={[styles.stratHelp, { borderColor: color + '55' }]}>
+                <ThemedText style={[styles.stratHelpText, { color }]}>?</ThemedText>
+              </Pressable>
+            )}
+          </View>
         </View>
         <ThemedText style={styles.stratCardName} numberOfLines={1}>
           {s.label}
@@ -438,6 +459,7 @@ export default function PassageDetailScreen() {
       s.key === 'tempo_ladder' && tempoLadderProgress !== null
         ? Math.round(tempoLadderProgress * 100)
         : null;
+    const demo = demoIdForStrategy(s.key);
     return (
       <Pressable
         key={s.key}
@@ -463,6 +485,19 @@ export default function PassageDetailScreen() {
             <ThemedText style={[styles.stratPctText, { color }]}>{pct}%</ThemedText>
           </View>
         )}
+        {demo && (
+          <Pressable
+            accessibilityLabel={`How ${s.label} works`}
+            hitSlop={8}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              setPracticeOpen(false);
+              setDemoId(demo);
+            }}
+            style={[styles.stratHelp, { borderColor: color + '55' }]}>
+            <ThemedText style={[styles.stratHelpText, { color }]}>?</ThemedText>
+          </Pressable>
+        )}
         <Feather name="chevron-right" size={18} color={Palette.textMuted} />
       </Pressable>
     );
@@ -472,6 +507,7 @@ export default function PassageDetailScreen() {
   // tablet/desktop layout below.
   const overlays = (
     <>
+      <StrategyDemoModal demoId={demoId} onClose={() => setDemoId(null)} />
       <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
         visible={rhythmicSheetOpen}
         transparent
@@ -1266,6 +1302,16 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   stratCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  stratTopRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stratHelp: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: Borders.thin,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stratHelpText: { fontSize: Type.size.sm, fontWeight: Type.weight.heavy, lineHeight: Type.size.sm + 4 },
   stratMono: {
     width: 38,
     height: 38,

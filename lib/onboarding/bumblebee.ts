@@ -169,6 +169,17 @@ export function bucketForInstrument(name: string): BumblebeeBucket {
   return bucketById(entry?.bucketId ?? 'c_treble');
 }
 
+/**
+ * A representative instrument NAME for a bucket — the first picker entry that
+ * maps to it (e.g. c_treble → Flute, c_bass → Cello). Used to backfill the
+ * onboarding instrument for users who onboarded before we started saving it:
+ * the seeded Bumblebee piece records the bucket, so we recover their clef even
+ * though the exact instrument sound is gone.
+ */
+export function representativeInstrumentForBucket(bucketId: string): string {
+  return ONBOARDING_INSTRUMENTS.find((i) => i.bucketId === bucketId)?.name ?? 'Flute';
+}
+
 /** The General-MIDI soundfont voice for an onboarding instrument choice. */
 export function gmForInstrument(name: string): string {
   return ONBOARDING_INSTRUMENTS.find((i) => i.name === name)?.gm ?? 'flute';

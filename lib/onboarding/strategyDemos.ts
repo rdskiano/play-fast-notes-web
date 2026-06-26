@@ -11,9 +11,69 @@
 // here so the demo's add-a-chunk / solo / rolling-window / climb-the-tempo
 // sequence is faithful to the actual tool.
 
-import { bucketConcertMidi, type BumblebeeBucket } from '@/lib/onboarding/bumblebee';
+import {
+  bucketConcertMidi,
+  BUMBLEBEE_BUCKETS,
+  representativeInstrumentForBucket,
+  type BumblebeeBucket,
+} from '@/lib/onboarding/bumblebee';
 import { generateMacroSteps } from '@/lib/strategies/macroChain';
 import type { SampleNote } from '@/lib/audio/sampler';
+import { getSetting, setSetting } from '@/lib/db/repos/settings';
+import { listPassages } from '@/lib/db/repos/passages';
+import { listExercisesForPassage } from '@/lib/db/repos/exercises';
+
+/**
+ * Settings key holding the instrument the user picked during onboarding. Used
+ * to replay the Bumblebee strategy demos in their clef long after onboarding —
+ * e.g. the "?" on each passage-hub strategy card.
+ */
+export const ONBOARDING_INSTRUMENT_KEY = 'onboarding:instrument';
+
+/** Title the Bumblebee seed piece is stored under (see seedBumblebee.ts). */
+const SEED_TITLE = 'Flight of the Bumblebee';
+
+/**
+ * The instrument to replay the strategy demos with. Prefers the one the user
+ * picked during onboarding (saved to settings). For users who onboarded before
+ * we saved it, falls back to deriving the bucket from their seeded Bumblebee
+ * piece's rhythm exercise — recovering at least the correct CLEF — and backfills
+ * the setting so we only pay that lookup once. Defaults to Flute (concert pitch)
+ * for anyone with neither. Always resolves; never throws.
+ */
+export async function resolveOnboardingInstrument(): Promise<string> {
+  const saved = await getSetting(ONBOARDING_INSTRUMENT_KEY).catch(() => null);
+  if (saved) return saved;
+
+  try {
+    const piece = (await listPassages()).find((p) => p.title === SEED_TITLE);
+    if (piece) {
+      const ex = (await listExercisesForPassage(piece.id)).find((e) => e.strategy === 'rhythmic');
+      if (ex) {
+        const cfg = JSON.parse(ex.config_json) as {
+          instrumentId?: string;
+          keyId?: string;
+          clefId?: string;
+        };
+        const bucket = BUMBLEBEE_BUCKETS.find(
+          (b) =>
+            b.instrumentId === cfg.instrumentId &&
+            b.keyId === cfg.keyId &&
+            b.clefId === cfg.clefId,
+        );
+        if (bucket) {
+          const name = representativeInstrumentForBucket(bucket.id);
+          void setSetting(ONBOARDING_INSTRUMENT_KEY, name).catch(() => undefined);
+          return name;
+        }
+      }
+    }
+  } catch {
+    // best-effort — fall through to the default
+  }
+
+  return 'Flute';
+}
 
 /**
  * Micro- and Macro-chaining are practiced AT PERFORMANCE TEMPO (unlike Tempo

@@ -54,6 +54,8 @@ import {
   VARIATION_PATTERNS,
   type BumblebeeBucket,
 } from '@/lib/onboarding/bumblebee';
+import { ONBOARDING_INSTRUMENT_KEY } from '@/lib/onboarding/strategyDemos';
+import { setSetting } from '@/lib/db/repos/settings';
 import type { RhythmPattern } from '@/lib/strategies/rhythmPatterns';
 
 // Value-first onboarding. A brand-new user feels the rhythm-variation strategy
@@ -196,6 +198,9 @@ export default function OnboardingScreen() {
     setBucket(b);
     // Warm the instrument's samples so the hook's ▶ plays without a wait.
     if (SAMPLER_AVAILABLE) preloadInstrument(gmForInstrument(name));
+    // Remember it so the strategy demos can replay in this clef later (the "?"
+    // on each passage-hub strategy card). Best-effort.
+    void setSetting(ONBOARDING_INSTRUMENT_KEY, name).catch(() => undefined);
     void logOnboardingStep('instrument_picked', { instrument: name, bucket: b.id });
     goStep('hook');
   }
