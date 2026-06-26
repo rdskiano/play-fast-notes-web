@@ -20,6 +20,7 @@ import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { RotateForPractice } from '@/components/RotateForPractice';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import {
+  SCORE_MARK_LIFT,
   ScoreWithMarkers,
   markerTapRadius,
   nearestMarkerNormalized,
@@ -68,7 +69,7 @@ const MC_MARKING_STEPS: TourStep[] = [
     title: 'Mark each beat',
     body:
       'Macro-Chaining works the passage in chunks at your goal tempo. At each chunk size you first drill each chunk on its own, then chain them together with full beats of rest between — and you remove those rests, then grow the chunks, until it\'s continuous.\n\n' +
-      'First, tap just above the start of each beat, and add one mark at the very end. Pinch to zoom in for accuracy. Tap a mark again to remove it.',
+      'First, tap right on the start of each beat, and add one mark at the very end — the number drops in above it. Pinch to zoom in for accuracy. Tap a mark again to remove it.',
   },
   {
     target: 'mac-next',
@@ -241,8 +242,8 @@ export default function MacroChainingScreen() {
         />
         <ScrollView contentContainerStyle={styles.markingContent}>
           <ThemedText style={styles.helper}>
-            Tap just above the start of each beat, and add one mark at the very end.
-            Pinch to zoom in for accuracy. Tap a mark to remove it.
+            Tap right on the start of each beat, and add one mark at the very end —
+            the number drops in above it. Pinch to zoom in for accuracy. Tap a mark to remove it.
           </ThemedText>
           <View
             {...tourTag('mac-score')}
@@ -260,6 +261,7 @@ export default function MacroChainingScreen() {
                 markers={marks}
                 mode="place"
                 captureTaps={false}
+                placeLiftPx={SCORE_MARK_LIFT}
               />
             </ZoomableImage>
           </View>
@@ -274,7 +276,7 @@ export default function MacroChainingScreen() {
           title="Macro-Chaining — mark each beat"
           body={
             'Macro-Chaining works the passage in chunks at your goal tempo. At each chunk size you first drill each chunk on its own, then chain them together with full beats of rest between, removing the rests one at a time. Then the chunks grow and you repeat — until the whole passage is continuous. High-quality reps at speed without fatigue.\n\n' +
-            'First, mark the beats: tap just above the start of each beat, and drop one mark at the very end. Pinch to zoom in for accuracy.\n\n' +
+            'First, mark the beats: tap right on the start of each beat, and drop one mark at the very end — the number drops in above it. Pinch to zoom in for accuracy.\n\n' +
             'Fixing marks: tap a mark to remove it, UNDO for the last one, or CLEAR to start over. When you\'re done, tap NEXT → to set your goal tempo.'
           }
         />
@@ -419,10 +421,10 @@ export default function MacroChainingScreen() {
         <View style={{ flex: 1, width: '100%', position: 'relative' }}>
           {isTouch ? (
             <ZoomableImage style={StyleSheet.absoluteFill} persistKey={passage.id}>
-              <ScoreWithMarkers uri={passage.source_uri} markers={scoreMarks} mode="play" compact phoneArrows={isPhone} />
+              <ScoreWithMarkers uri={passage.source_uri} markers={scoreMarks} mode="play" compact phoneArrows={isPhone} playLiftPx={SCORE_MARK_LIFT} />
             </ZoomableImage>
           ) : (
-            <ScoreWithMarkers uri={passage.source_uri} markers={scoreMarks} mode="play" compact phoneArrows={isPhone} />
+            <ScoreWithMarkers uri={passage.source_uri} markers={scoreMarks} mode="play" compact phoneArrows={isPhone} playLiftPx={SCORE_MARK_LIFT} />
           )}
           {ann.canvas}
         </View>

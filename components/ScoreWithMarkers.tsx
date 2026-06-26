@@ -49,6 +49,14 @@ type Props = {
 
 const MARKER_HIT_RADIUS = 24;
 
+// Shared vertical lift (px, pre-zoom) for the numbered marking badges (place)
+// and the ▼ play arrows, used by EVERY strategy that marks the score (Click-Up,
+// Micro-Chaining, Macro-Chaining). One consistent gesture everywhere: the user
+// taps RIGHT ON the note and the cue registers clearly above it. Pass this as
+// both placeLiftPx and playLiftPx so a mark sits at the same height on the
+// marking and playing screens.
+export const SCORE_MARK_LIFT = 58;
+
 export function ScoreWithMarkers({
   uri,
   markers,

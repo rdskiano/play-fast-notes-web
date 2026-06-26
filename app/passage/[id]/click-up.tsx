@@ -21,6 +21,7 @@ import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { RotateForPractice } from '@/components/RotateForPractice';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import {
+  SCORE_MARK_LIFT,
   ScoreWithMarkers,
   markerTapRadius,
   nearestMarkerNormalized,
@@ -60,7 +61,7 @@ const ACCENT = Palette.accent;
 // so the user taps right on the note and the cue registers clearly above it.
 // Shared by the marking badges (place) and the playing ▼ arrows so a unit's
 // cue sits at the SAME height on both screens.
-const ICU_MARK_LIFT = 58;
+const ICU_MARK_LIFT = SCORE_MARK_LIFT;
 
 function formatActiveUnits(activeUnits: number[]): string {
   if (activeUnits.length === 0) return '';
@@ -275,8 +276,8 @@ export default function ClickUpScreen() {
           <ThemedText type="title">Here’s how you’ll mark it</ThemedText>
           <ThemedText
             style={[styles.helper, { opacity: 1, textAlign: 'left', paddingHorizontal: 0, paddingVertical: 0 }]}>
-            You’ll tap above the start of each beat, in order — plus one mark at
-            the very end. Like this:
+            You’ll tap right on the start of each beat, in order — plus one mark
+            at the very end. The number drops in above it. Like this:
           </ThemedText>
           {isPhone && winWidth < winHeight && (
             <View style={[styles.rotateHint, { backgroundColor: C.tint + '18' }]}>

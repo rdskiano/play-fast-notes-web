@@ -20,6 +20,7 @@ import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { RotateForPractice } from '@/components/RotateForPractice';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import {
+  SCORE_MARK_LIFT,
   ScoreWithMarkers,
   markerTapRadius,
   nearestMarkerNormalized,
@@ -80,7 +81,7 @@ const MC_MARKING_STEPS: TourStep[] = [
     title: 'Mark each note',
     body:
       'Micro-Chaining builds a short, muddy fragment back up one note at a time — always at your performance tempo — so each connection gets clean reps in context.\n\n' +
-      'Tap just above each note to add a link to the chain. Pinch to zoom in so you can place each mark accurately. Use UNDO / CLEAR up top to fix a mistake.',
+      'Tap right on each note to add a link to the chain — the number drops in above it. Pinch to zoom in so you can place each mark accurately. Use UNDO / CLEAR up top to fix a mistake.',
   },
   {
     target: 'mc-next',
@@ -273,8 +274,8 @@ export default function MicroChainingScreen() {
               Mark the notes to lock in
             </ThemedText>
             <ThemedText style={{ opacity: 0.7, fontSize: Type.size.sm, lineHeight: 18 }}>
-              Tap just above each note in your tricky spot. Pinch to zoom for
-              accuracy.
+              Tap right on each note in your tricky spot — the number drops in
+              above it. Pinch to zoom for accuracy.
             </ThemedText>
           </View>
           <View
@@ -296,6 +297,7 @@ export default function MicroChainingScreen() {
                 mode="place"
                 captureTaps={false}
                 compact
+                placeLiftPx={SCORE_MARK_LIFT}
               />
             </ZoomableImage>
           </View>
@@ -360,8 +362,8 @@ export default function MicroChainingScreen() {
         />
         <ScrollView contentContainerStyle={styles.markingContent}>
           <ThemedText style={styles.helper}>
-            Tap just above each note to add a link to the chain. Pinch to zoom in for
-            accuracy. Use UNDO to fix a mistake.
+            Tap right on each note to add a link to the chain — the number drops in
+            above it. Pinch to zoom in for accuracy. Use UNDO to fix a mistake.
           </ThemedText>
           <View
             {...tourTag('mc-score')}
@@ -380,6 +382,7 @@ export default function MicroChainingScreen() {
                 mode="place"
                 captureTaps={false}
                 compact
+                placeLiftPx={SCORE_MARK_LIFT}
               />
             </ZoomableImage>
           </View>
@@ -391,7 +394,7 @@ export default function MicroChainingScreen() {
           title="Micro-Chaining — mark each note"
           body={
             'Micro-Chaining builds a short, muddy fragment back up one note at a time, always at your performance tempo. Each connection gets clean, in-context reps so the whole fragment locks in.\n\n' +
-            'Mark each note: tap just above each note head to add a link to the chain. Pinch to zoom in so you can place each mark accurately.\n\n' +
+            'Mark each note: tap right on each note head to add a link to the chain — the number drops in above it. Pinch to zoom in so you can place each mark accurately.\n\n' +
             'Fixing marks: tap UNDO to remove the last one, or CLEAR to start over. When you\'re done, tap NEXT → to choose Forward, Backward, or Problem chaining.'
           }
         />
@@ -508,10 +511,10 @@ export default function MicroChainingScreen() {
     const lo = bothPicked ? Math.min(problemA!, problemB!) : null;
     const hi = bothPicked ? Math.max(problemA!, problemB!) : null;
     const prompt = bothPicked
-      ? `Problem spot: notes ${lo}–${hi}. Tap a note to change it, or Start practicing.`
+      ? `Problem spot: notes ${lo}–${hi}. Tap a note on the staff to change it (not its number), or Start practicing.`
       : problemA != null
-        ? 'Now tap the second note of the problem spot (next to it, or further along).'
-        : 'Tap the first note of the muddy spot.';
+        ? 'Now tap the second note of the problem spot on the staff (next to it, or further along) — tap the note, not its number.'
+        : 'Tap the first note of the muddy spot on the staff — tap the note itself, not the number above it.';
     const highlights = [problemA, problemB].filter((n): n is number => n != null);
     return (
       <ThemedView style={{ flex: 1 }}>
@@ -571,6 +574,7 @@ export default function MicroChainingScreen() {
                 captureTaps={false}
                 compact
                 highlightIndices={highlights}
+                placeLiftPx={SCORE_MARK_LIFT}
               />
             </ZoomableImage>
           </View>
@@ -710,6 +714,7 @@ export default function MicroChainingScreen() {
                 mode="play"
                 compact
                 phoneArrows={isPhone}
+                playLiftPx={SCORE_MARK_LIFT}
               />
             </ZoomableImage>
           ) : (
