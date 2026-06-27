@@ -1509,14 +1509,13 @@ export default function LibraryScreen() {
         title="Your library"
         body={
           '+ Add (top right) — snap a photo of a page, upload a PDF of the full part, or make a folder. The easiest first move: a photo of the page, then mark the spots you want to practice right on it.\n\n' +
-          'Header buttons:\n' +
-          '📋 Practice Log — every session you\'ve logged, for this folder or the whole library.\n' +
-          '🔀 Rep Rotator — practice several passages in shuffled order.\n' +
-          '🛠 Tools — the metronome, tempo ladder, and rhythm variations on their own, without uploading any music.\n' +
-          '✎ Edit — reorder with ↑ ↓, plus rename, move, or delete each item; tap Done to leave.\n\n' +
+          'The icons next to + Add:\n' +
+          'Clock — Practice Log: every session you\'ve logged, for this folder or the whole library.\n' +
+          'Circular arrow — Rep Rotator: practice several passages in shuffled order.\n' +
+          'Wrench — Tools: the metronome, tempo ladder, and rhythm variations on their own, without uploading any music.\n\n' +
           'Search — pick a scope above the box: My Library filters your own folders and passages by title or composer; Community searches rhythm exercises shared by other players (all free to browse).\n\n' +
           'Account — at the bottom of this page: sign out, reset your data, or delete your account.\n\n' +
-          'On any folder, passage, or PDF card: tap to open it, or long-press for quick actions (rename, move, edit/crop, delete).'
+          'On any folder, passage, or PDF card: tap to open it, or long-press for quick actions (rename, move, reorder, edit/crop, delete).'
         }
       />
 

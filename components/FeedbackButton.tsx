@@ -168,7 +168,7 @@ export function FeedbackButton() {
           <View
             style={[
               styles.card,
-              { backgroundColor: C.background, borderColor: C.icon },
+              { backgroundColor: '#fff', borderColor: C.icon },
             ]}>
             <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
               Send feedback

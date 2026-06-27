@@ -643,7 +643,7 @@ export default function PassageDetailScreen() {
           "Rhythmic Variation — play the passage with different rhythm patterns to expose weak spots and even out your technique.\n\n" +
           "Micro-Chaining — build a tricky spot back one note at a time (forward, backward, or out from the problem note).\n\n" +
           "Macro-Chaining — play it in chunks at goal tempo with beats of rest between, then remove the rests as it locks in.\n\n" +
-          "Rep Rotator — 🔀 drill this passage shuffled together with its siblings.\n\n" +
+          "Rep Rotator — drill this passage shuffled together with its siblings.\n\n" +
           "Practice History — every session you've logged on this passage.\n\n" +
           "Crop — re-trim the boxed region of the score.\n\n" +
           "Move between passages with the ‹ › arrows, by swiping, or with the ← / → keys.\n\n" +
@@ -1170,7 +1170,9 @@ const styles = StyleSheet.create({
   },
   heroScroll: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing['2xl'],
+    // Extra bottom room so the last cards clear the floating info + feedback
+    // buttons (each 36px tall, 16px off the bottom) when scrolled all the way.
+    paddingBottom: 80,
     alignItems: 'center',
   },
   heroTitle: {
