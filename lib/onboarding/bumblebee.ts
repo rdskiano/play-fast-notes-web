@@ -130,6 +130,9 @@ export type OnboardingInstrument = {
 };
 
 export const ONBOARDING_INSTRUMENTS: OnboardingInstrument[] = [
+  // Piano reads the right-hand line in treble at concert pitch — the same
+  // written part as flute/violin (c_treble bucket).
+  { group: 'Concert pitch', name: 'Piano', bucketId: 'c_treble', gm: 'acoustic_grand_piano' },
   { group: 'Concert pitch', name: 'Flute', bucketId: 'c_treble', gm: 'flute' },
   { group: 'Concert pitch', name: 'Oboe', bucketId: 'c_treble', gm: 'oboe' },
   { group: 'Concert pitch', name: 'Violin', bucketId: 'c_treble', gm: 'violin' },
