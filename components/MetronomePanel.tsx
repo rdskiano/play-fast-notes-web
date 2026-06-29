@@ -29,9 +29,11 @@ import {
 import {
   Animated,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -67,6 +69,23 @@ export const DEVICE = {
 
 const BPM_MIN = 30;
 const BPM_MAX = 240;
+
+// Web-only: stop finger taps on the metronome's buttons from being read as a
+// text selection or a long-press "copy" callout — the "buttons just get
+// highlighted instead of pressing" bug on touchscreens. user-select,
+// tap-highlight, and touch-callout all inherit, so applying this to the card
+// root covers every control inside it; touch-action: manipulation also drops
+// the browser's double-tap delay so quick repeated taps land.
+const WEB_TAP =
+  Platform.OS === 'web'
+    ? ({
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+        WebkitTapHighlightColor: 'transparent',
+        touchAction: 'manipulation',
+      } as any)
+    : null;
 
 // Drone-click pitch range (MIDI) and the A4 tuning references.
 const DRONE_LO = 36; // C2
@@ -205,6 +224,19 @@ export function MetronomePanel({
   const [droneOpen, setDroneOpen] = useState(false);
   const [rhythmsOpen, setRhythmsOpen] = useState(false);
   const [gapsOpen, setGapsOpen] = useState(false);
+  // Tap the BPM readout to type an exact tempo instead of stepping there.
+  const [editingBpm, setEditingBpm] = useState(false);
+  const [bpmDraft, setBpmDraft] = useState('');
+
+  function startBpmEdit() {
+    setBpmDraft(String(m.bpm));
+    setEditingBpm(true);
+  }
+  function commitBpmEdit() {
+    const n = parseInt(bpmDraft, 10);
+    if (!isNaN(n)) m.setBpm(Math.max(BPM_MIN, Math.min(BPM_MAX, n)));
+    setEditingBpm(false);
+  }
 
   // The DRONE / RHYTHMS / GAPS layers are mutually exclusive — each is its
   // own practice mode. Turning one on clears the other two so the metronome
@@ -331,7 +363,7 @@ export function MetronomePanel({
   const isPhone = Math.min(vpW, vpH) < 600;
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, WEB_TAP]}>
       {note && !isPhone ? (
         <View style={styles.note}>
           <ThemedText style={styles.noteText}>{note}</ThemedText>
@@ -391,27 +423,49 @@ export function MetronomePanel({
             style={[styles.stepBtn, styles.raised]}>
             <ThemedText style={styles.stepGlyph}>−</ThemedText>
           </Pressable>
-          <View style={styles.display}>
-            <ThemedText style={styles.bpmNum}>{m.bpm}</ThemedText>
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.bumpOverlay,
-                {
-                  opacity: bumpAnim,
-                  transform: [
-                    {
-                      scale: bumpAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [1.3, 1],
-                      }),
-                    },
-                  ],
-                },
-              ]}>
-              <ThemedText style={styles.bumpText}>+{bumpDelta}</ThemedText>
-            </Animated.View>
-          </View>
+          {editingBpm ? (
+            <View style={styles.display}>
+              <TextInput
+                style={[styles.bpmNum, styles.bpmInput]}
+                value={bpmDraft}
+                onChangeText={(t) => setBpmDraft(t.replace(/[^0-9]/g, ''))}
+                onBlur={commitBpmEdit}
+                onSubmitEditing={commitBpmEdit}
+                keyboardType="number-pad"
+                inputMode="numeric"
+                returnKeyType="done"
+                autoFocus
+                selectTextOnFocus
+                maxLength={3}
+                placeholderTextColor={DEVICE.dim}
+              />
+            </View>
+          ) : (
+            <Pressable
+              onPress={startBpmEdit}
+              accessibilityLabel="Type a tempo"
+              style={styles.display}>
+              <ThemedText style={styles.bpmNum}>{m.bpm}</ThemedText>
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.bumpOverlay,
+                  {
+                    opacity: bumpAnim,
+                    transform: [
+                      {
+                        scale: bumpAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1.3, 1],
+                        }),
+                      },
+                    ],
+                  },
+                ]}>
+                <ThemedText style={styles.bumpText}>+{bumpDelta}</ThemedText>
+              </Animated.View>
+            </Pressable>
+          )}
           <Pressable
             onPress={() => m.setBpm(Math.min(BPM_MAX, m.bpm + 1))}
             onLongPress={() => m.setBpm(Math.min(BPM_MAX, m.bpm + 5))}
@@ -979,6 +1033,12 @@ const styles = StyleSheet.create({
     lineHeight: 50,
     color: DEVICE.text,
     fontVariant: ['tabular-nums'],
+  },
+  bpmInput: {
+    minWidth: 110,
+    textAlign: 'center',
+    padding: 0,
+    margin: 0,
   },
   tapBtn: {
     flex: 1,
