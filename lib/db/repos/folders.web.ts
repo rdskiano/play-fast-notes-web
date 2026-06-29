@@ -4,6 +4,8 @@ export type Folder = {
   id: string;
   name: string;
   parent_folder_id: string | null;
+  /** Palette key (e.g. 'petrol', 'green') or null for auto color by position. */
+  color: string | null;
   created_at: number;
   updated_at: number;
   deleted_at: number | null;
@@ -22,7 +24,18 @@ export async function insertFolder(
   const row = { id, name, parent_folder_id, created_at: now, updated_at: now };
   const { error } = await supabase.from('folders').insert(row);
   if (error) throw error;
-  return { ...row, deleted_at: null };
+  return { ...row, color: null, deleted_at: null };
+}
+
+export async function setFolderColor(
+  id: string,
+  color: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from('folders')
+    .update({ color, updated_at: Date.now() })
+    .eq('id', id);
+  if (error) throw error;
 }
 
 export async function listFoldersInParent(

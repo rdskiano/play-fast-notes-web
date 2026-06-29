@@ -26,7 +26,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { Colors, Fonts } from '@/constants/theme';
-import { Palette } from '@/constants/palette';
+import { Lift, Palette } from '@/constants/palette';
 import { Borders, Opacity, Overlays, Radii, Spacing, Type } from '@/constants/tokens';
 
 // v2 reskin — Tempo-progress bar color by how close the passage is to its goal
@@ -47,6 +47,7 @@ import {
   moveFolder,
   rehomeOrphans,
   renameFolder,
+  setFolderColor,
   softDeleteFolder,
   updateFolderSortOrder,
   type Folder,
@@ -335,29 +336,55 @@ function SectionHeader({
 
 // v2 reskin — soft-tint icon variants cycled across the folder grid so the
 // tiles read as a colorful set (purely presentational, keyed by position).
+// Named folder colors the user can pick. Stored as the KEY (e.g. 'petrol') on
+// the folder row, not a hex, so the tile stays theme-consistent (soft fill +
+// strong icon). To add a choice, add a row here — the picker reads this list.
+const FOLDER_COLORS: { key: string; bg: string; fg: string; label: string }[] = [
+  { key: 'petrol', bg: Palette.accentSoft, fg: Palette.accent, label: 'Petrol' },
+  { key: 'violet', bg: Palette.rhythmicSoft, fg: Palette.rhythmic, label: 'Violet' },
+  { key: 'amber', bg: Palette.interleavedSoft, fg: Palette.interleaved, label: 'Amber' },
+  { key: 'green', bg: Palette.successSoft, fg: Palette.success, label: 'Green' },
+  { key: 'coral', bg: Palette.dangerSoft, fg: Palette.danger, label: 'Coral' },
+];
+
+// Auto color by position, used when the user hasn't chosen one. Keeps the
+// original v2 reskin rotation (petrol / violet / amber / green) so existing
+// folders look unchanged.
 const FOLDER_TINTS = [
-  { bg: Palette.accentSoft, fg: Palette.accent },
-  { bg: Palette.rhythmicSoft, fg: Palette.rhythmic },
-  { bg: Palette.interleavedSoft, fg: Palette.interleaved },
-  { bg: Palette.successSoft, fg: Palette.success },
+  FOLDER_COLORS[0],
+  FOLDER_COLORS[1],
+  FOLDER_COLORS[2],
+  FOLDER_COLORS[3],
 ] as const;
+
+// Resolve a folder's tile colors: an explicit choice wins; otherwise auto by
+// position. An unrecognized stored key (e.g. removed later) falls back to auto.
+function folderTint(color: string | null, tintIndex: number) {
+  if (color) {
+    const found = FOLDER_COLORS.find((c) => c.key === color);
+    if (found) return found;
+  }
+  return FOLDER_TINTS[tintIndex % FOLDER_TINTS.length];
+}
 
 // v2 reskin — folder rendered as a grid tile (root view). Tap to enter; the ⋯
 // button (and long-press) opens the action sheet.
 function FolderTile({
   name,
   count,
+  color,
   tintIndex,
   onEnter,
   onMore,
 }: {
   name: string;
   count: number;
+  color: string | null;
   tintIndex: number;
   onEnter: () => void;
   onMore: () => void;
 }) {
-  const tint = FOLDER_TINTS[tintIndex % FOLDER_TINTS.length];
+  const tint = folderTint(color, tintIndex);
   return (
     <View style={styles.folderTile}>
       <Pressable
@@ -524,6 +551,8 @@ export default function LibraryScreen() {
   const [practiceCount, setPracticeCount] = useState<number | null>(null);
   const [moveTarget, setMoveTarget] = useState<MoveTarget>(null);
   const [actionTarget, setActionTarget] = useState<ActionTarget>(null);
+  // Folder whose color the user is choosing (null = picker closed).
+  const [colorTarget, setColorTarget] = useState<Folder | null>(null);
   const [undoMove, setUndoMove] = useState<UndoMove | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -788,6 +817,18 @@ export default function LibraryScreen() {
     refresh();
   }
 
+  async function onPickColor(colorKey: string | null) {
+    const target = colorTarget;
+    setColorTarget(null);
+    if (!target) return;
+    try {
+      await setFolderColor(target.id, colorKey);
+    } catch (e) {
+      console.warn('[library] set folder color failed', e);
+    }
+    refresh();
+  }
+
   async function onDeleteFolder(f: Folder) {
     if (
       !(await confirmDelete(
@@ -906,6 +947,13 @@ export default function LibraryScreen() {
           onPress: () => {
             close();
             setMoveTarget({ kind: 'folder', id: f.id });
+          },
+        },
+        {
+          label: 'Change color…',
+          onPress: () => {
+            close();
+            setColorTarget(f);
           },
         },
       ];
@@ -1363,6 +1411,7 @@ export default function LibraryScreen() {
                         key={folder.id}
                         name={folder.name}
                         count={folderChildCount(folder.id)}
+                        color={folder.color}
                         tintIndex={i}
                         onEnter={() => enterFolder(folder.id)}
                         onMore={() => setActionTarget({ kind: 'folder', folder })}
@@ -1498,6 +1547,38 @@ export default function LibraryScreen() {
         items={buildActionItems()}
         onCancel={() => setActionTarget(null)}
       />
+
+      <Modal
+        visible={colorTarget !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setColorTarget(null)}>
+        <Pressable style={styles.colorBackdrop} onPress={() => setColorTarget(null)}>
+          <Pressable style={styles.colorCard} onPress={(e) => e.stopPropagation()}>
+            <ThemedText style={styles.colorTitle}>Folder color</ThemedText>
+            <View style={styles.colorSwatchRow}>
+              {FOLDER_COLORS.map((c) => {
+                const selected = colorTarget?.color === c.key;
+                return (
+                  <Pressable
+                    key={c.key}
+                    onPress={() => onPickColor(c.key)}
+                    accessibilityLabel={c.label}
+                    style={[
+                      styles.colorSwatch,
+                      { backgroundColor: c.bg, borderColor: selected ? c.fg : 'transparent' },
+                    ]}>
+                    <Feather name="folder" size={20} color={c.fg} />
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable onPress={() => onPickColor(null)} hitSlop={6} style={styles.colorReset}>
+              <ThemedText style={styles.colorResetText}>Reset to automatic</ThemedText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* The guided onboarding (the empty-library redirect to /onboarding)
           is now the first-run experience, so this no longer auto-fires — it
@@ -2022,6 +2103,51 @@ const styles = StyleSheet.create({
     borderRadius: Radii.lg,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  colorBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(20,30,30,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  colorCard: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: Palette.card,
+    borderRadius: Radii.xl,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    ...Lift,
+  },
+  colorTitle: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.bold,
+    color: Palette.text,
+    textAlign: 'center',
+  },
+  colorSwatchRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: Spacing.md,
+  },
+  colorSwatch: {
+    width: 52,
+    height: 52,
+    borderRadius: Radii.lg,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorReset: {
+    alignSelf: 'center',
+    paddingVertical: Spacing.xs,
+  },
+  colorResetText: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textSecondary,
   },
   folderChevron: {
     fontSize: 22,

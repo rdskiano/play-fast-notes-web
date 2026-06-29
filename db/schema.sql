@@ -11,6 +11,10 @@ create table if not exists folders (
   name text not null,
   parent_folder_id text references folders(id),
   sort_order integer default 0,
+  -- User-chosen folder color: a palette KEY (e.g. 'petrol', 'green'), not a
+  -- hex, so it stays theme-consistent. NULL = auto color by position.
+  -- Existing DBs: alter table folders add column if not exists color text;
+  color text,
   created_at bigint not null,
   updated_at bigint not null,
   deleted_at bigint

@@ -4,6 +4,8 @@ export type Folder = {
   id: string;
   name: string;
   parent_folder_id: string | null;
+  /** Palette key (e.g. 'petrol', 'green') or null for auto color by position. */
+  color: string | null;
   created_at: number;
   updated_at: number;
   deleted_at: number | null;
@@ -33,10 +35,24 @@ export async function insertFolder(
     id,
     name,
     parent_folder_id,
+    color: null,
     created_at: now,
     updated_at: now,
     deleted_at: null,
   };
+}
+
+export async function setFolderColor(
+  id: string,
+  color: string | null,
+): Promise<void> {
+  const db = getDb();
+  await db.runAsync(
+    `UPDATE folders SET color = ?, updated_at = ? WHERE id = ?;`,
+    color,
+    Date.now(),
+    id,
+  );
 }
 
 export async function listFoldersInParent(

@@ -54,8 +54,10 @@ const MARKER_HIT_RADIUS = 24;
 // Micro-Chaining, Macro-Chaining). One consistent gesture everywhere: the user
 // taps RIGHT ON the note and the cue registers clearly above it. Pass this as
 // both placeLiftPx and playLiftPx so a mark sits at the same height on the
-// marking and playing screens.
-export const SCORE_MARK_LIFT = 58;
+// marking and playing screens. Bumped 58 → 70 so a mark clears the note with a
+// little more room at normal (un-zoomed) scale — at home zoom the old value sat
+// too close to the notehead, especially noticeable after zooming back out.
+export const SCORE_MARK_LIFT = 70;
 
 export function ScoreWithMarkers({
   uri,

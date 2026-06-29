@@ -207,4 +207,9 @@ export const MIGRATIONS: string[] = [
   -- NULL = never asked; 0 = explicitly "no deadline"; >0 = a date.
   ALTER TABLE pieces ADD COLUMN due_date INTEGER;
   `,
+  `
+  -- User-chosen folder color. Stores a palette KEY (e.g. 'petrol', 'green'),
+  -- not a hex, so it stays theme-consistent. NULL = auto color by position.
+  ALTER TABLE folders ADD COLUMN color TEXT;
+  `,
 ];
