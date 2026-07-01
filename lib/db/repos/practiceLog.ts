@@ -390,10 +390,14 @@ export async function getPracticeLogForFolder(
   folder_id: string | null,
 ): Promise<PracticeLogWithTitle[]> {
   const db = getDb();
+  // A passage marked inside a document carries its folder membership on the
+  // DOCUMENT (its own folder_id is null), so match on the EFFECTIVE folder:
+  // the document's folder when it has one, else the piece's own. Filtering on
+  // p.folder_id alone dropped every document-child passage from the folder log.
   const where =
     folder_id === null
-      ? 'p.folder_id IS NULL'
-      : 'p.folder_id = ?';
+      ? 'COALESCE(d.folder_id, p.folder_id) IS NULL'
+      : 'COALESCE(d.folder_id, p.folder_id) = ?';
   const params = folder_id === null ? [] : [folder_id];
   type Row = {
     id: number;

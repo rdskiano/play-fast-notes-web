@@ -614,17 +614,18 @@ export async function getPracticeLogForDocument(
 export async function getPracticeLogForFolder(
   folder_id: string | null,
 ): Promise<PracticeLogWithTitle[]> {
+  // Load ALL pieces (not pre-filtered by folder). A passage marked inside a
+  // document carries its folder membership on the DOCUMENT, not on the piece
+  // row (the piece's own folder_id is null), so we resolve each piece's
+  // *effective* folder below and filter in JS. Pre-filtering on p.folder_id
+  // dropped every document-child passage's history from the folder log.
   const piecesQuery = supabase
     .from('pieces')
     .select('id, title, folder_id, document_id, regions_json')
     .is('deleted_at', null);
-  const filteredPiecesQuery =
-    folder_id === null
-      ? piecesQuery.is('folder_id', null)
-      : piecesQuery.eq('folder_id', folder_id);
 
   const [piecesRes, logsRes, exercisesRes, documentsRes] = await Promise.all([
-    filteredPiecesQuery,
+    piecesQuery,
     supabase
       .from('practice_log')
       .select('id, piece_id, document_id, strategy, practiced_at, data_json, exercise_id')
@@ -673,6 +674,13 @@ export async function getPracticeLogForFolder(
       if (r.piece_id) {
         const piece = pieceById.get(r.piece_id);
         if (!piece) return null;
+        // Keep only pieces that live in this folder. A document-child passage's
+        // membership is its parent document's folder (its own folder_id is
+        // null); a standalone passage's is its own folder_id.
+        const effectiveFolder = piece.document_id
+          ? documents.get(piece.document_id)?.folder_id ?? null
+          : piece.folder_id;
+        if (effectiveFolder !== folder_id) return null;
         const { document_title, section_name } = resolveSection(piece, documents);
         return {
           ...base,
