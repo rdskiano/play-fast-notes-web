@@ -15,6 +15,7 @@ import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import {
   DOWNGRADE_TITLE,
   TRIAL_WARNING_DAYS,
+  compEndingBody,
   downgradeBody,
   isLifetimeExpiry,
   trialEndingBody,
@@ -200,6 +201,18 @@ export default function AccountScreen() {
                 entitlement.trialDaysLeft <= TRIAL_WARNING_DAYS && (
                   <ThemedText style={styles.hint}>
                     {trialEndingBody(entitlement.trialDaysLeft)}
+                  </ThemedText>
+                )}
+              {/* Comp-ending warning — same final stretch, for dated comps
+                  (free-month / six-month cohorts) that skip the trial path. */}
+              {entitlement.reason === 'subscription' &&
+                subscription.tier === 'comp' &&
+                subscription.expiresAt != null &&
+                !isLifetimeExpiry(subscription.expiresAt) &&
+                subscription.expiresAt - Date.now() <=
+                  TRIAL_WARNING_DAYS * 24 * 60 * 60 * 1000 && (
+                  <ThemedText style={styles.hint}>
+                    {compEndingBody(formatExpiry(subscription.expiresAt))}
                   </ThemedText>
                 )}
               {/* Downgrade — once on the free plan, lead with reassurance. */}

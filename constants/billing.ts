@@ -112,6 +112,19 @@ export function trialEndingBody(daysLeft: number): string {
   );
 }
 
+// (2b) Comp ending — the comp-cohort sibling of the trial warning. Dated
+// comps (the free-month / six-month grants) don't go through the trial path,
+// so the Account screen shows this in their final stretch instead. The daily
+// expiry-reminder email (supabase/functions/expiry-reminder) reaches the
+// users who aren't opening the app.
+export function compEndingBody(dateLabel: string): string {
+  return (
+    `Your free access wraps up ${dateLabel}. Nothing is deleted — your first ` +
+    `${FREE_PASSAGE_LIMIT} passages stay free forever. Keep everything with ` +
+    `the one-time unlock: ${PRICE_LIFETIME_LABEL}, ${PRICE_LIFETIME_SUBLABEL}.`
+  );
+}
+
 // (3) Downgrade — shown once after the trial (or a paid plan) lapses. The
 // whole point of "lock-don't-lose": reassure first, then explain the lock.
 export const DOWNGRADE_TITLE = 'You’re on the free plan now';

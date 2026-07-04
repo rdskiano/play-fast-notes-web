@@ -28,3 +28,8 @@ verify_jwt = false
 # IMSLP's robots-permitted api.php; never the gated download pages.
 [functions.imslp-search]
 verify_jwt = true
+
+# Expiry reminder: called by pg_cron, which has no Supabase JWT — it
+# authenticates with the shared CRON_SECRET header instead.
+[functions.expiry-reminder]
+verify_jwt = false
