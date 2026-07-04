@@ -119,9 +119,16 @@ export default function SignInScreen() {
         </ThemedText>
         <ThemedText style={styles.body}>
           {isSignup
-            ? 'Pick an email and password to save Flight of the Bumblebee and your progress.'
+            ? 'Your first month is free — the whole app, no card, no subscription, nothing to cancel.'
             : 'Sign in with your email and password.'}
         </ThemedText>
+        {isSignup && (
+          <ThemedText style={[styles.body, styles.bodySecondary]}>
+            Your email is only how we save your music and progress — Flight of
+            the Bumblebee, your parts, your practice — so they're here when you
+            come back.
+          </ThemedText>
+        )}
 
         <View style={styles.inputWrap}>
           <MaterialIcons name="mail-outline" size={20} color={Palette.textMuted} />
@@ -299,6 +306,13 @@ const styles = StyleSheet.create({
     fontSize: Type.size.md,
     lineHeight: 20,
     marginBottom: Spacing.sm,
+  },
+  // Second reassurance line on the signup card — smaller, tucked under the
+  // free-month line, above the email field.
+  bodySecondary: {
+    fontSize: Type.size.sm,
+    lineHeight: 18,
+    marginTop: -Spacing.md,
   },
   // White field with a hairline border + leading icon. The TextInput sits
   // inside flex:1 and carries no border of its own.

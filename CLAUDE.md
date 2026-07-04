@@ -391,7 +391,7 @@ A per-piece **"What should I practice? · beta"** recommender, live (beta-flagge
 - Commits (all on master + pushed/live): `6b4bad7` core · `1c6f6bd` label + "just getting started" path · `06802fc` miss-rate rules · `0768899` Account feedback section.
 - **Open:** authed live click-through; the grinding rules are forward-only (need fresh sessions to fire); optional later — in-modal 👍/👎 for higher capture, a Supabase feedback form, logging "gave up" (0-set) Tempo Ladder sessions so the worst grind is visible.
 
-## ✅ 2026-07-03 — Pricing pivot Phase 1: one-time $19.99 unlock (NOT committed/pushed, edge functions NOT deployed)
+## ✅ 2026-07-03/04 — Pricing pivot Phase 1: one-time $19.99 unlock — LIVE (commit `91f3272` pushed 2026-07-04; both edge functions deployed v11)
 
 Subscription ($39/yr / $4.99/mo) → **one-time $19.99 purchase, owned forever**. Verified first: **zero paid subscriptions exist** (all 77 users hold active comp rows — 7 lifetime, 70 dated ~2026-12), so no refunds/migration needed. The one Stripe-connected row is Ralph's own BETA6 test sub.
 
@@ -405,7 +405,7 @@ Subscription ($39/yr / $4.99/mo) → **one-time $19.99 purchase, owned forever**
 - `supabase/functions/stripe-webhook` — handles ONLY paid `checkout.session.completed` (mode payment) → lifetime pro upsert; **subscription events now ignored** (so cancelling Ralph's BETA6 Stripe sub can't overwrite his comp row — do the cancel after this deploys).
 - `supabase/founders-forever.sql` — NEW, idempotent: extends the 70 dated comps to lifetime. Run at announcement (Phase 3), needs Ralph's OK. (Plan's "grandfathering = zero work" was wrong — dated comps expire ~Dec 2026.)
 
-**Price = $19.99 (decided 2026-07-04 after competitor research: forScore $24.99 one-time, Modacity $129/yr — $9.99 was underpriced).** Stripe live one-time price created by Ralph: `price_1TpXSZC1HWgXmdPC0uihVt1z` (main account). **Steps 1–3 DONE 2026-07-04:** secret saved; both edge functions deployed (v11, ACTIVE, webhook verify_jwt=false; smoke: OPTIONS 200 / unsigned webhook 400). ⚠️ Live site still shows the old annual/monthly buttons but the deployed checkout now sells only the $19.99 one-time unlock — push master soon to close the gap. **Next:** cancel Ralph's BETA6 Stripe sub (now safe); push master (ask first); authed paywall click-through (user is the verifier); Phase 2 = Apple IAP; Phase 3 = founders email + landing copy + founders-forever.sql.
+**Price = $19.99 (decided 2026-07-04 after competitor research: forScore $24.99 one-time, Modacity $129/yr — $9.99 was underpriced).** Stripe live one-time price created by Ralph: `price_1TpXSZC1HWgXmdPC0uihVt1z` (main account). **Steps 1–3 DONE 2026-07-04:** secret saved; both edge functions deployed (v11, ACTIVE, webhook verify_jwt=false; smoke: OPTIONS 200 / unsigned webhook 400). Web pushed 2026-07-04 (`91f3272`) — buttons and checkout now match. **Next:** Ralph's authed click-through (Account → Unlock Practice Pro → single $19.99 button; his comped account should bounce back via the double-charge guard); confirm BETA6 Stripe sub cancelled; Phase 2 = Apple IAP; Phase 3 = founders email + landing copy + founders-forever.sql.
 
 ## Where to pick up next
 

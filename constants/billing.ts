@@ -70,6 +70,7 @@ export const PRO_FEATURES = [
   'Unlimited passages and folders',
   'Full PDF parts — page turns, pencil, foot pedal',
   'Every practice strategy on all of them',
+  'An automatic practice log — every session, with your recordings and notes',
   'Supports a musician-built indie app',
 ] as const;
 
