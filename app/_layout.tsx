@@ -28,6 +28,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { CheckoutResultModal } from '@/components/CheckoutResultModal';
 import { HelpButton } from '@/components/HelpButton';
 import { FeedbackButton } from '@/components/FeedbackButton';
 import { HelpModal } from '@/components/HelpModal';
@@ -242,6 +243,10 @@ export default function RootLayout() {
                     Metro split, so this line is safe to render on both
                     platforms. */}
                 <InstallPrompt />
+                {/* Post-Stripe confirmation (?checkout=success / already /
+                    cancelled) — the "did my payment work?" answer. Web-only
+                    via the .tsx / .web.tsx split. */}
+                <CheckoutResultModal />
                 <StatusBar style="dark" />
               </ThemeProvider>
               </TourProvider>

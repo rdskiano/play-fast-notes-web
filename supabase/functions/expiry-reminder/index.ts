@@ -6,10 +6,14 @@
 // Lifetime comps and purchased (pro) rows never match the window.
 //
 // Called by pg_cron (see supabase/expiry-reminder-cron.sql) once a day at
-// 13:00 UTC (~9am Detroit). Window = expiry in [now+2d, now+3d), so each
-// account is caught on exactly one daily run; the expiry_reminders table
-// dedupes re-runs and edge overlaps. No JWT (config.toml verify_jwt=false);
-// instead the caller must present the shared CRON_SECRET header.
+// 13:00 UTC (~9am Detroit). Window = expiry in [now, now+3d) — deliberately
+// WIDE. A narrow [now+2d, now+3d) slice would mean one failed run (or one
+// failed send) loses that cohort forever, because tomorrow's slice has
+// already slid past them. With the wide window, anyone missed yesterday is
+// still inside today's window, and the expiry_reminders table (PK user_id +
+// expires_at) guarantees each person still gets exactly one email. No JWT
+// (config.toml verify_jwt=false); the caller must present the shared
+// CRON_SECRET header.
 //
 // Required secrets:
 //   RESEND_API_KEY   re_... from resend.com (domain playfastnotes.com verified)
@@ -46,7 +50,7 @@ function emailText(dateLabel: string): { subject: string; text: string } {
     text:
       `Hi there,\n\n` +
       `A quick heads-up: your free month of full Practice Pro access wraps up ` +
-      `on ${dateLabel} — about three days from now.\n\n` +
+      `on ${dateLabel}.\n\n` +
       `Nothing dramatic happens. Your first three passages stay free to ` +
       `practice with every tool, forever, and everything else stays saved ` +
       `exactly where you left it.\n\n` +
@@ -100,7 +104,10 @@ Deno.serve(async (req) => {
   );
 
   const now = Date.now();
-  const windowStart = now + 2 * DAY_MS;
+  // Wide catch-up window — see the header comment. Normal operation still
+  // emails everyone ~3 days out (the dedupe insert fires on their first run
+  // in-window); the extra days below only matter after a failure.
+  const windowStart = now;
   const windowEnd = now + 3 * DAY_MS;
 
   // Every subscriptions row once — small table (≈ user count). Used both to

@@ -221,11 +221,17 @@ export default function AccountScreen() {
                   {DOWNGRADE_TITLE}. {downgradeBody(0)}
                 </ThemedText>
               )}
-              {/* Hide the upgrade entry point while the paywall is off — there's
-                  nothing to buy yet. The 'paywall-off' state is the preview; once
-                  PAYWALL_ENABLED flips on, trial/none users see "Unlock Practice Pro". */}
-              {entitlement.reason !== 'subscription' &&
-                entitlement.reason !== 'paywall-off' && (
+              {/* Upgrade entry point: trial + free users, PLUS dated-comp
+                  holders (their access ends — the expiry emails invite them to
+                  buy, so the button must exist while the comp is still live).
+                  Hidden for lifetime holders (bought or lifetime comp — nothing
+                  to sell) and while the paywall is off ('paywall-off' preview). */}
+              {(entitlement.reason === 'trial' ||
+                entitlement.reason === 'none' ||
+                (entitlement.reason === 'subscription' &&
+                  subscription.tier === 'comp' &&
+                  subscription.expiresAt != null &&
+                  !isLifetimeExpiry(subscription.expiresAt))) && (
                   <View style={styles.accountActions}>
                     <Button
                       label="Unlock Practice Pro"

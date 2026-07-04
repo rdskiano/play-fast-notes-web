@@ -7,27 +7,20 @@
 //     database that's a subscriptions row with tier 'pro' and a far-future
 //     current_period_end (the same lifetime sentinel the comp grants use),
 //     so every existing "is this active?" read works unchanged.
-//   • The 77 pre-pivot users keep their comp rows (7 lifetime, 70 dated).
-//     Founding-user promise = extend the dated 70 to lifetime; the SQL for
-//     that lives in supabase/comp-grants.sql territory (run at announcement).
+//   • The 77 pre-pivot users keep their comp rows: 7 lifetime, 50 dated
+//     2026-07-26, 20 dated 2026-12-26. Dated comps expire NATURALLY and
+//     those users then buy the $19.99 unlock like anyone else. (The earlier
+//     "founders-forever" plan — extend all dated comps to lifetime — was
+//     REVERSED by Ralph on 2026-07-04, commit f74926f. Do NOT resurrect it
+//     without asking him.)
 //
 // PAYWALL_ENABLED is the master switch. While false, every account reads as
 // Pro and nothing is gated. It has been true (live) since 2026-06-26.
 //
-// ── ONE-TIME PIVOT RUNBOOK (do these in order) ──────────────────────────────
-//   1. Stripe Dashboard → live mode: create a one-time price ($19.99,
-//      "Play Fast Notes — full unlock"). Note the price_… id.
-//   2. Supabase → Edge Functions → Secrets (dashboard; no MCP): set
-//      STRIPE_PRICE_LIFETIME to that id. (STRIPE_SECRET_KEY and
-//      STRIPE_WEBHOOK_SECRET are already set from the subscription era.)
-//   3. Deploy the two updated edge functions (create-checkout-session,
-//      stripe-webhook). The webhook now ignores subscription events, so
-//      cancelling Ralph's leftover BETA6 test subscription in Stripe is safe
-//      to do any time after this deploy.
-//   4. Run the founders-forever SQL (extend the 70 dated comps to lifetime).
-//   5. Deploy the app (`git push web-origin-archive master`) with this copy.
-//   6. Smoke-test: fresh account → trial; free account → lock → $19.99
-//      checkout (test mode first) → row flips to lifetime pro.
+// The one-time pivot SHIPPED 2026-07-04: live Stripe price + secrets set,
+// both edge functions deployed, web pushed. Dated comp holders can start
+// checkout while their comp is still active (the double-charge guard only
+// blocks lifetime rows); a purchase upserts their row to lifetime pro.
 // Native checkout still throws (Apple IAP is Phase 2).
 export const PAYWALL_ENABLED = true;
 
@@ -47,9 +40,9 @@ export function isLifetimeExpiry(expiresAtMs: number | null): boolean {
 }
 
 // COMP GRANTS — the flip-day grants ran 2026-06-26: all 77 pre-pivot users
-// hold active comp rows (7 lifetime, 70 dated ~2026-12). The one-time pivot's
-// founders-forever step extends those 70 to the lifetime sentinel (step 4 of
-// the runbook above). Runnable SQL stays out of the repo — local only.
+// hold active comp rows (7 lifetime, 50 dated 2026-07-26, 20 dated
+// 2026-12-26). Dated comps lapse to the free tier on their date — lock-don't-
+// lose handles it; no SQL to run. Runnable SQL stays out of the repo.
 
 // Free tier: this many active photo passages — marked passages that aren't from
 // a PDF (legacy standalone photos + passages marked on photo/image-documents),

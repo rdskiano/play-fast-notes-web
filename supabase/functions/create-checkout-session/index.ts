@@ -72,16 +72,20 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    // Already unlocked (bought, or holding an active comp)? Don't let them
-    // pay twice — send them home instead of to Checkout.
+    // Already unlocked FOREVER (bought, or holding a lifetime comp)? Don't
+    // let them pay twice — send them home instead of to Checkout. A DATED
+    // comp (the free-month / six-month cohorts) is different: those users
+    // are exactly who the expiry emails invite to buy, so they pass through;
+    // the webhook upserts their row to the lifetime pro shape on payment.
+    const LIFETIME_AFTER_MS = 4_000_000_000_000; // ~2096; matches constants/billing.ts
     const appUrl = Deno.env.get("APP_URL") ?? "https://playfastnotes.com";
-    const alreadyActive =
+    const alreadyForever =
       subRow &&
-      (subRow.tier === "pro" || subRow.tier === "comp") &&
       subRow.status === "active" &&
       typeof subRow.current_period_end === "number" &&
-      subRow.current_period_end > Date.now();
-    if (alreadyActive) return json(200, { url: `${appUrl}/?checkout=already` });
+      subRow.current_period_end > Date.now() &&
+      (subRow.tier === "pro" || subRow.current_period_end > LIFETIME_AFTER_MS);
+    if (alreadyForever) return json(200, { url: `${appUrl}/?checkout=already` });
 
     let customerId = subRow?.stripe_customer_id as string | null | undefined;
     if (!customerId) {
