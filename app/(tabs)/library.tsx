@@ -1094,21 +1094,6 @@ export default function LibraryScreen() {
   // above it). Inside a folder it shows the folder name, as before.
   const currentFolderName = isAtRoot ? 'Library' : path[path.length - 1].name;
 
-  // Account entry point — lives at the bottom of the library page (replaces the
-  // old ⚙ Settings button in the header). Shown as the list footer when there
-  // are passages, and in the empty state so a fresh / post-reset user can still
-  // reach sign-out.
-  const accountFooter = (
-    <View style={styles.accountFooter}>
-      <Button
-        label="Account"
-        variant="outline"
-        size="sm"
-        onPress={() => router.push('/account')}
-      />
-    </View>
-  );
-
   // Search scope + search box. Reused across the empty / edit / populated
   // branches so it's available in every state (e.g. to clear a search that
   // returned nothing). Behavior is unchanged from the original inline block.
@@ -1303,6 +1288,17 @@ export default function LibraryScreen() {
               <Feather name="tool" size={18} color={Palette.text} />
             </Pressable>
           </View>
+          {/* Account — its own bordered button (not part of the practice chip:
+              log/rotator/tools are practice actions, this is you). Moved here
+              from the old list-footer "Account" button, which was easy to miss
+              at the bottom of a long library. */}
+          <Pressable
+            onPress={() => router.push('/account')}
+            accessibilityRole="button"
+            accessibilityLabel="Account"
+            style={styles.accountBtn}>
+            <Feather name="user" size={18} color={Palette.text} />
+          </Pressable>
         </View>
       </ThemedView>
 
@@ -1364,7 +1360,6 @@ export default function LibraryScreen() {
               />
             </>
           )}
-          {accountFooter}
           </ThemedView>
         </>
       ) : (
@@ -1441,7 +1436,6 @@ export default function LibraryScreen() {
               No individual pieces here yet.
             </ThemedText>
           }
-          ListFooterComponent={accountFooter}
           renderItem={({ item }) => renderPieceCard(item)}
         />
       )}
@@ -1593,9 +1587,9 @@ export default function LibraryScreen() {
           'The icons next to + Add:\n' +
           'Clock — Practice Log: every session you\'ve logged, for this folder or the whole library.\n' +
           'Circular arrow — Rep Rotator: practice several passages in shuffled order.\n' +
-          'Wrench — Tools: the metronome, tempo ladder, and rhythm variations on their own, without uploading any music.\n\n' +
+          'Wrench — Tools: the metronome, tempo ladder, and rhythm variations on their own, without uploading any music.\n' +
+          'Person — Account: your plan, sign out, reset your data, or delete your account.\n\n' +
           'Search — pick a scope above the box: My Library filters your own folders and passages by title or composer; Community searches rhythm exercises shared by other players (all free to browse).\n\n' +
-          'Account — at the bottom of this page: sign out, reset your data, or delete your account.\n\n' +
           'On any folder, passage, or PDF card: tap to open it, or long-press for quick actions (rename, move, reorder, edit/crop, delete).'
         }
       />
@@ -1638,7 +1632,7 @@ export default function LibraryScreen() {
               <ThemedText style={{ lineHeight: 22 }}>
                 •{' '}
                 <ThemedText style={{ fontWeight: Type.weight.bold }}>Your account</ThemedText>{' '}
-                — at the very bottom (sign out, settings).
+                — the person icon at the top (plan, sign out).
               </ThemedText>
             </View>
             <Button label="Got it" onPress={() => setShowWelcome(false)} />
@@ -1706,9 +1700,15 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
     paddingTop: 60,
   },
-  accountFooter: {
+  accountBtn: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
-    paddingTop: Spacing.lg,
+    justifyContent: 'center',
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.md,
   },
   header: {
     flexDirection: 'row',
