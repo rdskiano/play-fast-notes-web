@@ -6,7 +6,7 @@
 // Checkout is web-only for now: on native the button explains where to buy
 // instead of calling Stripe.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
@@ -36,6 +36,30 @@ export function PaywallModal({ visible, contextLine, onClose }: Props) {
   const C = Colors[scheme];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // `busy` locks the buy button while we hand off to Stripe, and the success
+  // path never unlocks it ("the browser navigates away"). Two ways the user
+  // comes BACK with the old state still mounted, both of which must unlock:
+  //   • they reopen the modal after "Not now" (component stays mounted), and
+  //   • the browser's back/forward cache restores the page mid-`busy` when
+  //     they back out of the Stripe page without paying.
+  useEffect(() => {
+    if (visible) {
+      setBusy(false);
+      setError(null);
+    }
+  }, [visible]);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setBusy(false);
+        setError(null);
+      }
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
 
   async function buy() {
     if (Platform.OS !== 'web') {
