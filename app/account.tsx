@@ -39,6 +39,13 @@ function formatExpiry(unixMs: number): string {
   });
 }
 
+// "12 days left" / "last day" — the same countdown trial users get, for the
+// dated-comp status line. Ceil so a partial day still counts as a day.
+function daysLeftLabel(expiresAtMs: number): string {
+  const days = Math.max(1, Math.ceil((expiresAtMs - Date.now()) / (24 * 60 * 60 * 1000)));
+  return days === 1 ? 'last day' : `${days} days left`;
+}
+
 export default function AccountScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -185,7 +192,7 @@ export default function AccountScreen() {
                 {entitlement.reason === 'subscription'
                   ? subscription.tier === 'comp'
                     ? subscription.expiresAt && !isLifetimeExpiry(subscription.expiresAt)
-                      ? `Practice Pro — free through ${formatExpiry(subscription.expiresAt)}. Thank you for being here early.`
+                      ? `Practice Pro — free through ${formatExpiry(subscription.expiresAt)} (${daysLeftLabel(subscription.expiresAt)}). Thank you for being here early.`
                       : 'Practice Pro — free, on the house. Thank you for being here early.'
                     : 'Practice Pro — unlocked, yours forever.'
                   : entitlement.reason === 'trial'
