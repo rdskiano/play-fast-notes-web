@@ -1,11 +1,10 @@
-// The Practice Pro upgrade sheet. Shown when a free user hits a Pro gate
-// (4th passage, PDF upload) or taps an Upgrade affordance. Same modal shell
+// The Practice Pro unlock sheet. Shown when a free user hits a Pro gate
+// (4th passage, PDF upload) or taps an Unlock affordance. Same modal shell
 // as ConfirmModal/PromptModal so it fits the app visually.
 //
-// Checkout is web-only for now: on native the buttons explain where to
-// subscribe instead of calling Stripe. While PAYWALL_ENABLED is false this
-// component is never mounted by the gates, but it can be opened from the
-// account screen for preview/testing.
+// One-time purchase: a single $19.99 payment unlocks everything forever.
+// Checkout is web-only for now: on native the button explains where to buy
+// instead of calling Stripe.
 
 import { useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
@@ -13,13 +12,12 @@ import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
 import {
-  PRICE_ANNUAL_LABEL,
-  PRICE_ANNUAL_SUBLABEL,
-  PRICE_MONTHLY_LABEL,
+  PRICE_LIFETIME_LABEL,
+  PRICE_LIFETIME_SUBLABEL,
   PRO_FEATURES,
   TRIAL_DAYS,
 } from '@/constants/billing';
-import { startCheckout, type CheckoutPlan } from '@/lib/billing/checkout';
+import { startCheckout } from '@/lib/billing/checkout';
 import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Overlays, Radii, Spacing, Type } from '@/constants/tokens';
@@ -36,22 +34,22 @@ type Props = {
 export function PaywallModal({ visible, contextLine, onClose }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
-  const [busy, setBusy] = useState<CheckoutPlan | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function pick(plan: CheckoutPlan) {
+  async function buy() {
     if (Platform.OS !== 'web') {
-      setError('Subscribe on the web at playfastnotes.com — your account syncs here.');
+      setError('Buy on the web at playfastnotes.com — your account syncs here.');
       return;
     }
-    setBusy(plan);
+    setBusy(true);
     setError(null);
     try {
-      await startCheckout(plan);
+      await startCheckout();
       // The browser navigates away on success; nothing more to do here.
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start checkout.');
-      setBusy(null);
+      setBusy(false);
     }
   }
 
@@ -84,22 +82,18 @@ export function PaywallModal({ visible, contextLine, onClose }: Props) {
           </View>
 
           <Button
-            label={`${PRICE_ANNUAL_LABEL} — ${PRICE_ANNUAL_SUBLABEL}`}
-            onPress={() => pick('annual')}
-            disabled={busy !== null}
+            label={`Unlock forever — ${PRICE_LIFETIME_LABEL}`}
+            onPress={buy}
+            disabled={busy}
           />
-          <Button
-            label={PRICE_MONTHLY_LABEL}
-            variant="outline"
-            size="sm"
-            onPress={() => pick('monthly')}
-            disabled={busy !== null}
-          />
+          <ThemedText style={[styles.subLabel, { color: C.icon }]}>
+            {PRICE_LIFETIME_SUBLABEL}
+          </ThemedText>
 
           <ThemedText style={[styles.finePrint, { color: C.icon }]}>
-            New accounts start with {TRIAL_DAYS} days of full Pro, free. Cancel
-            anytime — your music stays; extra passages just lock until you
-            return. Beta tester? Add your code at checkout.
+            No subscription, nothing recurring. New accounts start with{' '}
+            {TRIAL_DAYS} days of full Pro, free — and if you never buy, your
+            music stays; extra passages just lock until you unlock.
           </ThemedText>
 
           {error && (
@@ -138,6 +132,11 @@ const styles = StyleSheet.create({
   },
   feature: {
     fontSize: Type.size.sm,
+  },
+  subLabel: {
+    textAlign: 'center',
+    fontSize: Type.size.sm,
+    marginTop: -Spacing.sm,
   },
   finePrint: {
     textAlign: 'center',

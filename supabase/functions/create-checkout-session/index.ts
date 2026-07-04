@@ -1,6 +1,7 @@
-// create-checkout-session — starts a Stripe Checkout for Practice Pro.
+// create-checkout-session — starts a Stripe Checkout for the one-time
+// Practice Pro unlock ($19.99, buy once, keep forever).
 //
-// POST { plan: "annual" | "monthly" }. Auth via the caller's JWT (attached
+// POST {} (no body needed). Auth via the caller's JWT (attached
 // automatically by supabase.functions.invoke). Returns { url } — the client
 // redirects the browser there. The subscriptions row is NOT written here;
 // the stripe-webhook function owns that, driven by Stripe's events.
@@ -10,11 +11,10 @@
 // Checkout they're past (or skipping) the trial, so they're charged now.
 //
 // Required secrets (Supabase Dashboard → Edge Functions → Secrets):
-//   STRIPE_SECRET_KEY     sk_live_... (or sk_test_... while testing)
-//   STRIPE_PRICE_ANNUAL   price_... for $39/yr
-//   STRIPE_PRICE_MONTHLY  price_... for $4.99/mo
+//   STRIPE_SECRET_KEY      sk_live_... (or sk_test_... while testing)
+//   STRIPE_PRICE_LIFETIME  price_... for the $19.99 one-time unlock
 // Optional:
-//   APP_URL               defaults to https://playfastnotes.com
+//   APP_URL                defaults to https://playfastnotes.com
 
 import Stripe from "npm:stripe@17";
 import { createClient } from "npm:@supabase/supabase-js@2.39.0";
@@ -46,7 +46,8 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) return json(500, { error: "billing not configured" });
+    const priceId = Deno.env.get("STRIPE_PRICE_LIFETIME");
+    if (!stripeKey || !priceId) return json(500, { error: "billing not configured" });
 
     // Who is calling? Derive the user from the verified token, never the body.
     const asUser = createClient(supabaseUrl, anonKey, {
@@ -56,29 +57,31 @@ Deno.serve(async (req) => {
     if (userError || !userData.user) return json(401, { error: "unauthenticated" });
     const user = userData.user;
 
-    const { plan } = (await req.json().catch(() => ({}))) as { plan?: string };
-    const priceId =
-      plan === "annual"
-        ? Deno.env.get("STRIPE_PRICE_ANNUAL")
-        : plan === "monthly"
-          ? Deno.env.get("STRIPE_PRICE_MONTHLY")
-          : null;
-    if (!priceId) return json(400, { error: "unknown plan" });
-
     const stripe = new Stripe(stripeKey, {
       httpClient: Stripe.createFetchHttpClient(),
     });
 
-    // Reuse the Stripe customer across plan changes / resubscribes so one
-    // user never accumulates duplicate customers.
+    // Reuse the Stripe customer across retries / earlier subscription-era
+    // rows so one user never accumulates duplicate customers.
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
     const { data: subRow } = await admin
       .from("subscriptions")
-      .select("stripe_customer_id")
+      .select("stripe_customer_id, tier, status, current_period_end")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    // Already unlocked (bought, or holding an active comp)? Don't let them
+    // pay twice — send them home instead of to Checkout.
+    const appUrl = Deno.env.get("APP_URL") ?? "https://playfastnotes.com";
+    const alreadyActive =
+      subRow &&
+      (subRow.tier === "pro" || subRow.tier === "comp") &&
+      subRow.status === "active" &&
+      typeof subRow.current_period_end === "number" &&
+      subRow.current_period_end > Date.now();
+    if (alreadyActive) return json(200, { url: `${appUrl}/?checkout=already` });
 
     let customerId = subRow?.stripe_customer_id as string | null | undefined;
     if (!customerId) {
@@ -94,15 +97,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const appUrl = Deno.env.get("APP_URL") ?? "https://playfastnotes.com";
     const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
+      mode: "payment",
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
       client_reference_id: user.id,
-      subscription_data: { metadata: { user_id: user.id } },
-      // Lets beta testers redeem their BETA6 (100% off, 6 months) promo code.
-      allow_promotion_codes: true,
+      metadata: { user_id: user.id },
       success_url: `${appUrl}/?checkout=success`,
       cancel_url: `${appUrl}/?checkout=cancelled`,
     });

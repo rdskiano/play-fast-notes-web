@@ -4,8 +4,9 @@
 //
 // Precedence, first match wins:
 //   1. PAYWALL_ENABLED off            → pro ('paywall-off')
-//   2. active subscription / comp row → pro ('subscription')   [paid OR the
-//        6-month comp granted to pre-launch users and tester promo codes]
+//   2. active pro / comp row          → pro ('subscription')   [bought the
+//        one-time unlock (lifetime 'pro' row) OR holds a comp grant; the
+//        reason string keeps its historical 'subscription' value]
 //   3. account younger than 30 days   → pro ('trial'), with days remaining
 //   4. otherwise                      → free
 //

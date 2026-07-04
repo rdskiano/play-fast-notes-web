@@ -1,47 +1,42 @@
 // Central switchboard for the paid tier ("Practice Pro").
 //
-// Model:
+// Model (revised 2026-07-03 — ONE-TIME PURCHASE, not a subscription):
 //   • Every NEW account gets a 30-day full-Pro trial (no card), then drops
-//     to the free tier unless they subscribe.
-//   • Pre-launch users who actually practiced (the "warm cohort") get 6
-//     months free, granted as 'comp' subscription rows at flip time (their
-//     accounts are older than 30 days, so the trial alone wouldn't cover
-//     them). Three named supporters get lifetime. See supabase/comp-grants.sql.
-//   • Beta testers get 6 months free via a shareable Stripe promotion code
-//     (100% off, 6-month duration) entered at checkout — TESTER_PROMO_CODE.
+//     to the free tier unless they buy.
+//   • Buying is a single $19.99 payment — the app is theirs forever. In the
+//     database that's a subscriptions row with tier 'pro' and a far-future
+//     current_period_end (the same lifetime sentinel the comp grants use),
+//     so every existing "is this active?" read works unchanged.
+//   • The 77 pre-pivot users keep their comp rows (7 lifetime, 70 dated).
+//     Founding-user promise = extend the dated 70 to lifetime; the SQL for
+//     that lives in supabase/comp-grants.sql territory (run at announcement).
 //
 // PAYWALL_ENABLED is the master switch. While false, every account reads as
-// Pro and nothing is gated — the paywall ships dark so it can be tested and
-// then flipped without a code-change scramble.
+// Pro and nothing is gated. It has been true (live) since 2026-06-26.
 //
-// ── GO-LIVE RUNBOOK (do these in order; the FLAG FLIP IS LAST) ──────────────
-// The checkout edge function is fully env-driven, so switching test → live is
-// a secrets swap, not a code change. Order matters: comp grants must land
-// BEFORE the flag flips, or pre-launch users get briefly walled.
-//   1. Stripe → live mode: re-create the product + annual/monthly prices +
-//      the BETA6 promo code (100% off, 6 cycles). Note the live price IDs.
-//   2. Stripe → live Webhooks: add endpoint
-//      https://uugodzwxuxgfwujnwpuq.supabase.co/functions/v1/stripe-webhook
-//      for checkout.session.completed, customer.subscription.updated/deleted.
-//      Copy the live whsec_… signing secret.
-//   3. Supabase → Edge Functions → Secrets (dashboard; no MCP): set the LIVE
-//      STRIPE_SECRET_KEY (sk_live_…), STRIPE_PRICE_ANNUAL, STRIPE_PRICE_MONTHLY,
-//      STRIPE_WEBHOOK_SECRET.
-//   4. Clear the 2 leftover TEST-mode 'pro' rows, then run the comp grants:
-//      supabase/comp-grants.sql (warm cohort 6 mo + 3 named lifetime).
-//   5. ONLY NOW flip PAYWALL_ENABLED → true here, then
-//      `git push web-origin-archive master` (live deploy to playfastnotes.com).
-//   6. Smoke-test: a fresh account sees the trial; a free account hits a lock.
-// Native checkout still throws (Apple IAP is a separate later job).
+// ── ONE-TIME PIVOT RUNBOOK (do these in order) ──────────────────────────────
+//   1. Stripe Dashboard → live mode: create a one-time price ($19.99,
+//      "Play Fast Notes — full unlock"). Note the price_… id.
+//   2. Supabase → Edge Functions → Secrets (dashboard; no MCP): set
+//      STRIPE_PRICE_LIFETIME to that id. (STRIPE_SECRET_KEY and
+//      STRIPE_WEBHOOK_SECRET are already set from the subscription era.)
+//   3. Deploy the two updated edge functions (create-checkout-session,
+//      stripe-webhook). The webhook now ignores subscription events, so
+//      cancelling Ralph's leftover BETA6 test subscription in Stripe is safe
+//      to do any time after this deploy.
+//   4. Run the founders-forever SQL (extend the 70 dated comps to lifetime).
+//   5. Deploy the app (`git push web-origin-archive master`) with this copy.
+//   6. Smoke-test: fresh account → trial; free account → lock → $19.99
+//      checkout (test mode first) → row flips to lifetime pro.
+// Native checkout still throws (Apple IAP is Phase 2).
 export const PAYWALL_ENABLED = true;
 
 // New accounts get full Pro for this long before the free tier applies.
 export const TRIAL_DAYS = 30;
 
-// Reward (months) for pre-launch users and beta testers. Pre-launch users are
-// comped directly; testers redeem TESTER_PROMO_CODE at checkout. Both 6.
-export const REWARD_MONTHS = 6;
-export const TESTER_PROMO_CODE = 'BETA6';
+// (Subscription-era exports REWARD_MONTHS / TESTER_PROMO_CODE retired with
+// the one-time pivot: pre-pivot users are comped directly in the database,
+// and promo codes don't apply to a one-time checkout.)
 
 // "Lifetime" comp rows are granted with a far-future expiry (the 2099 sentinel).
 // Anything dated past this counts as forever — the account screen then shows
@@ -51,16 +46,10 @@ export function isLifetimeExpiry(expiresAtMs: number | null): boolean {
   return expiresAtMs != null && expiresAtMs > LIFETIME_AFTER_MS;
 }
 
-// FLIP-DAY COMP GRANTS — run ONCE at the moment PAYWALL_ENABLED goes true.
-// The full, runnable SQL lives in supabase/comp-grants.sql; do NOT inline a
-// stale copy here. Two cohorts (decided 2026-06-25):
-//   • WARM COHORT  — users with >=1 practice_log row (actually practiced):
-//                    6 months free. ~27 of 77 users as of 2026-06-25.
-//   • LIFETIME     — a handful of named supporters + a recurring patron:
-//                    never expires; overrides the 6-month grant.
-// The warm grant is guarded to never downgrade a real paid 'pro' row. Run it
-// BEFORE flipping PAYWALL_ENABLED so nobody is briefly walled. (The runnable
-// SQL with the actual identities is kept out of the repo — local only.)
+// COMP GRANTS — the flip-day grants ran 2026-06-26: all 77 pre-pivot users
+// hold active comp rows (7 lifetime, 70 dated ~2026-12). The one-time pivot's
+// founders-forever step extends those 70 to the lifetime sentinel (step 4 of
+// the runbook above). Runnable SQL stays out of the repo — local only.
 
 // Free tier: this many active photo passages — marked passages that aren't from
 // a PDF (legacy standalone photos + passages marked on photo/image-documents),
@@ -68,11 +57,10 @@ export function isLifetimeExpiry(expiresAtMs: number | null): boolean {
 // are Pro-only — the serious-player workflow and the real storage cost.
 export const FREE_PASSAGE_LIMIT = 3;
 
-// Display strings used by the paywall UI. The actual amounts live in the
-// Stripe Dashboard prices; keep these in sync by hand.
-export const PRICE_ANNUAL_LABEL = '$39 / year';
-export const PRICE_MONTHLY_LABEL = '$4.99 / month';
-export const PRICE_ANNUAL_SUBLABEL = 'about $3.25 a month — best value';
+// Display strings used by the paywall UI. The actual amount lives in the
+// Stripe Dashboard price (STRIPE_PRICE_LIFETIME); keep in sync by hand.
+export const PRICE_LIFETIME_LABEL = '$19.99';
+export const PRICE_LIFETIME_SUBLABEL = 'one payment — yours forever';
 
 // What Pro includes — shown on the paywall and the account screen. The free
 // tier keeps every practice strategy on its 3 passages (a crippled free tier
@@ -116,8 +104,8 @@ export function trialEndingTitle(daysLeft: number): string {
 export function trialEndingBody(daysLeft: number): string {
   const when = daysLeft <= 1 ? 'Tomorrow' : `In ${daysLeft} days`;
   return (
-    `${when} your free month wraps up. Keep Pro for ${PRICE_ANNUAL_LABEL} ` +
-    `(${PRICE_ANNUAL_SUBLABEL}) or ${PRICE_MONTHLY_LABEL}. ` +
+    `${when} your free month wraps up. Keep everything for ${PRICE_LIFETIME_LABEL} — ` +
+    `${PRICE_LIFETIME_SUBLABEL}, no subscription. ` +
     `If you don't, nothing is deleted — your library stays put, with your ` +
     `first ${FREE_PASSAGE_LIMIT} passages free to keep practicing.`
   );

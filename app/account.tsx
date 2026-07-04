@@ -178,16 +178,15 @@ export default function AccountScreen() {
               {userEmail && (
                 <ThemedText style={styles.hint}>Signed in as {userEmail}.</ThemedText>
               )}
-              {/* Practice Pro status. While PAYWALL_ENABLED is false everyone
-                  reads as Pro and the button just previews the sheet. 'comp' =
-                  the 6-month reward for early users/testers; 'pro' = paid. */}
+              {/* Practice Pro status. 'comp' = granted free (founding users,
+                  testers); 'pro' = bought the one-time unlock. */}
               <ThemedText style={styles.statusLine}>
                 {entitlement.reason === 'subscription'
                   ? subscription.tier === 'comp'
                     ? subscription.expiresAt && !isLifetimeExpiry(subscription.expiresAt)
                       ? `Practice Pro — free through ${formatExpiry(subscription.expiresAt)}. Thank you for being here early.`
                       : 'Practice Pro — free, on the house. Thank you for being here early.'
-                    : 'Practice Pro subscription active.'
+                    : 'Practice Pro — unlocked, yours forever.'
                   : entitlement.reason === 'trial'
                     ? `Practice Pro trial — ${entitlement.trialDaysLeft} day${entitlement.trialDaysLeft === 1 ? '' : 's'} left.`
                     : entitlement.reason === 'none'
@@ -211,12 +210,12 @@ export default function AccountScreen() {
               )}
               {/* Hide the upgrade entry point while the paywall is off — there's
                   nothing to buy yet. The 'paywall-off' state is the preview; once
-                  PAYWALL_ENABLED flips on, trial/none users see "Get Practice Pro". */}
+                  PAYWALL_ENABLED flips on, trial/none users see "Unlock Practice Pro". */}
               {entitlement.reason !== 'subscription' &&
                 entitlement.reason !== 'paywall-off' && (
                   <View style={styles.accountActions}>
                     <Button
-                      label="Get Practice Pro"
+                      label="Unlock Practice Pro"
                       size="sm"
                       onPress={() => setPaywallOpen(true)}
                     />
