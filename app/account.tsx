@@ -196,7 +196,17 @@ export default function AccountScreen() {
                       : 'Practice Pro — free, on the house. Thank you for being here early.'
                     : 'Practice Pro — unlocked, yours forever.'
                   : entitlement.reason === 'trial'
-                    ? `Practice Pro trial — ${entitlement.trialDaysLeft} day${entitlement.trialDaysLeft === 1 ? '' : 's'} left.`
+                    ? // Same shape as the comp line below — everyone gets a free
+                      // month now, so the vocabulary is "free month", not "trial".
+                      `Practice Pro — your free month runs through ${
+                        entitlement.trialEndsAtMs != null
+                          ? formatExpiry(entitlement.trialEndsAtMs)
+                          : 'the end of your first month'
+                      }${
+                        entitlement.trialEndsAtMs != null
+                          ? ` (${daysLeftLabel(entitlement.trialEndsAtMs)})`
+                          : ''
+                      }.`
                     : entitlement.reason === 'none'
                       ? 'Free plan.'
                       : null}

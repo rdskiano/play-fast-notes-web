@@ -93,7 +93,9 @@ export function trialWelcomeBody(): string {
 // (2) Warning — shown in the final stretch of the trial (<= TRIAL_WARNING_DAYS).
 // Honest about what changes, gentle about it. Your music never goes anywhere.
 export function trialEndingTitle(daysLeft: number): string {
-  return daysLeft <= 1 ? 'Your Pro trial ends tomorrow' : `${daysLeft} days of Pro left`;
+  return daysLeft <= 1
+    ? 'Your free month ends tomorrow'
+    : `${daysLeft} days of your free month left`;
 }
 export function trialEndingBody(daysLeft: number): string {
   const when = daysLeft <= 1 ? 'Tomorrow' : `In ${daysLeft} days`;

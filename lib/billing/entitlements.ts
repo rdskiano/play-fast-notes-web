@@ -28,6 +28,10 @@ export type Entitlement = {
   reason: ProReason;
   /** Whole days of trial left, only set while reason === 'trial'. */
   trialDaysLeft?: number;
+  /** When the free month ends (created_at + 30d), only while reason === 'trial'.
+   *  Lets the account screen show the same "free through <date>" shape the
+   *  comp cohorts get — user-facing vocabulary is "free month", not "trial". */
+  trialEndsAtMs?: number;
 };
 
 const TRIAL_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
@@ -48,7 +52,13 @@ export function deriveEntitlement(
       1,
       Math.ceil((createdAtMs + TRIAL_MS - nowMs) / (24 * 60 * 60 * 1000)),
     );
-    return { loading: false, isPro: true, reason: 'trial', trialDaysLeft };
+    return {
+      loading: false,
+      isPro: true,
+      reason: 'trial',
+      trialDaysLeft,
+      trialEndsAtMs: createdAtMs + TRIAL_MS,
+    };
   }
   return { loading: false, isPro: false, reason: 'none' };
 }
