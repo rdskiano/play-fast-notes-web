@@ -136,6 +136,9 @@ export const ONBOARDING_INSTRUMENTS: OnboardingInstrument[] = [
   { group: 'Concert pitch', name: 'Flute', bucketId: 'c_treble', gm: 'flute' },
   { group: 'Concert pitch', name: 'Oboe', bucketId: 'c_treble', gm: 'oboe' },
   { group: 'Concert pitch', name: 'Violin', bucketId: 'c_treble', gm: 'violin' },
+  // Guitar reads the same written treble part but sounds an octave lower
+  // (like tenor sax vs the B♭ bucket) — notation from c_treble, audio -12.
+  { group: 'Concert pitch', name: 'Guitar', bucketId: 'c_treble', gm: 'acoustic_guitar_nylon', soundOctaveShift: -12 },
   { group: 'B♭ instruments', name: 'Clarinet', bucketId: 'bb_treble', gm: 'clarinet' },
   { group: 'B♭ instruments', name: 'Trumpet', bucketId: 'bb_treble', gm: 'trumpet' },
   { group: 'B♭ instruments', name: 'Tenor saxophone', bucketId: 'bb_treble', gm: 'tenor_sax', soundOctaveShift: -12 },

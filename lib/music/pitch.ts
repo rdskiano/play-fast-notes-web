@@ -231,6 +231,8 @@ export type Instrument = {
 export const INSTRUMENTS: Instrument[] = [
   { id: 'concert', label: 'Concert pitch (flute / violin)', transposeSemitones: 0 },
   { id: 'piano', label: 'Piano', transposeSemitones: 0 },
+  // Guitar is written in treble an octave above where it sounds.
+  { id: 'guitar', label: 'Guitar', transposeSemitones: 12 },
   { id: 'bb_clarinet', label: 'B♭ clarinet / trumpet', transposeSemitones: 2 },
   { id: 'a_clarinet', label: 'A clarinet', transposeSemitones: 3 },
   { id: 'eb_alto_sax', label: 'E♭ alto sax / alto clarinet', transposeSemitones: 9 },
