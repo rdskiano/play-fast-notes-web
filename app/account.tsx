@@ -441,7 +441,9 @@ export default function AccountScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'], alignItems: 'center' },
+  // Bottom padding clears the floating corner buttons (Feedback bottom-left,
+  // Help "i" bottom-right) so the last row of account buttons stays tappable.
+  content: { padding: Spacing.lg, paddingBottom: 120, alignItems: 'center' },
   // Centered column on wide screens (iPad / laptop); full width on phone.
   column: { width: '100%', maxWidth: 640, gap: Spacing.xl },
   headerBlock: { gap: Spacing.xs, marginBottom: Spacing.xs },

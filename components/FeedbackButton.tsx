@@ -12,7 +12,7 @@
 
 import Feather from '@expo/vector-icons/Feather';
 import { usePathname } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -76,10 +76,20 @@ export function FeedbackButton() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Hold the button back briefly on first mount. It renders instantly (no
+  // data to fetch), so without this it pops up alone while the page around
+  // it is still loading — reading as "the feedback bubble loads first."
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
+
   // The "three devices" are all web surfaces (laptop, iPad Safari, phone
   // Safari). Native has no in-app feedback channel here — if that's wanted for
   // the App Store build, add one in Account rather than relying on this.
   if (Platform.OS !== 'web') return null;
+  if (!settled) return null;
   // Hide on practice screens ONLY in phone portrait (the one layout that puts a
   // rep button in the bottom-left corner). Practice is forced landscape, so it
   // shows there; see PRACTICE_FRAGMENTS.
