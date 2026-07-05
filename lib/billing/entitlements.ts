@@ -14,6 +14,7 @@
 // paywall is on; while it's off, rule 1 keeps everything open.
 
 import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 
 import { PAYWALL_ENABLED, TRIAL_DAYS } from '@/constants/billing';
 import { supabase } from '@/lib/supabase/client';
@@ -36,12 +37,22 @@ export type Entitlement = {
 
 const TRIAL_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
 
+// Native (iOS) is fully unlocked until Apple in-app purchase exists (the
+// declared Phase 2). Rationale: native has no sign-in by default (no session
+// → no trial), no purchase path, and no restore — so a paywall there is a
+// pure dead end on exactly the content the iPad is best at (PDF parts), and
+// pointing buyers at the website is App Store rejection bait. This also
+// matches what the June 2026 App Store build already does (built while
+// PAYWALL_ENABLED was false). Ralph approved 2026-07-04. Remove this when
+// IAP ships.
+const PLATFORM_SELLS = Platform.OS === 'web';
+
 export function deriveEntitlement(
   createdAtMs: number | null,
   subscriptionActive: boolean,
   nowMs: number,
 ): Entitlement {
-  if (!PAYWALL_ENABLED) {
+  if (!PAYWALL_ENABLED || !PLATFORM_SELLS) {
     return { loading: false, isPro: true, reason: 'paywall-off' };
   }
   if (subscriptionActive) {
