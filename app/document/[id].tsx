@@ -12,6 +12,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   type LayoutChangeEvent,
   Platform,
   Pressable,
@@ -346,6 +347,8 @@ export default function DocumentScreen() {
       console.warn('[document] update sections failed', err);
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         window.alert(`Could not save section: ${msg}`);
+      } else {
+        Alert.alert('Could not save section', msg);
       }
     }
   }
@@ -779,6 +782,8 @@ export default function DocumentScreen() {
       console.warn('[document] delete passage failed', err);
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         window.alert(`Could not delete passage: ${msg}`);
+      } else {
+        Alert.alert('Could not delete passage', msg);
       }
     }
   }
@@ -830,9 +835,11 @@ export default function DocumentScreen() {
       await refresh();
     } catch (err) {
       console.warn('[document] resize commit failed', err);
+      const msg = err instanceof Error ? err.message : String(err);
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        const msg = err instanceof Error ? err.message : String(err);
         window.alert(`Could not save resize: ${msg}`);
+      } else {
+        Alert.alert('Could not save resize', msg);
       }
     } finally {
       setSavingResize(false);
