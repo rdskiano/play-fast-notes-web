@@ -6,10 +6,10 @@
 // onRegionChange. Commits (re-crop + re-stitch + re-upload) live in the
 // parent so this component can stay focused on the gesture math.
 
+import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
-import { Radii } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { type Rect } from '@/lib/image/canvasCrop';
 
@@ -25,6 +25,12 @@ type Props = {
   slotWidth: number;
   slotHeight: number;
   region: Rect; // source pixels
+  // Current pinch-zoom scale of the wrapping PinchZoomPan (1 = un-zoomed).
+  // Handles render in un-scaled local pixels (the CSS transform scales them to
+  // match the page), so a raw screen-pixel drag delta must be divided by `zoom`.
+  zoom?: number;
+  // True while a two-finger pinch owns the gesture — ignore handle drags then.
+  suspended?: boolean;
   onRegionChange: (next: Rect) => void;
 };
 
@@ -35,10 +41,20 @@ export function PassageRectResizer({
   slotWidth,
   slotHeight,
   region,
+  zoom = 1,
+  suspended = false,
   onRegionChange,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  // Teardown for the in-flight handle drag, so a pinch can cancel it.
+  const dragRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (suspended && dragRef.current) {
+      dragRef.current();
+      dragRef.current = null;
+    }
+  }, [suspended]);
 
   const imageRect = fitContain(slotWidth, slotHeight, sourceWidth, sourceHeight);
   if (imageRect.w <= 0 || imageRect.h <= 0) return null;
@@ -52,8 +68,10 @@ export function PassageRectResizer({
   };
 
   function startDrag(e: React.PointerEvent<HTMLDivElement>, handle: Handle) {
+    if (suspended || dragRef.current) return;
     e.preventDefault();
     e.stopPropagation();
+    const s = zoom || 1;
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture?.(e.pointerId);
     const startX = e.clientX;
@@ -66,8 +84,10 @@ export function PassageRectResizer({
     const minDisplay = MIN_RECT / k;
 
     function onMove(ev: PointerEvent) {
-      const dx = ev.clientX - startX;
-      const dy = ev.clientY - startY;
+      // Screen-pixel delta → un-scaled local delta (the box lives in un-scaled
+      // display coords; the pinch transform scales it visually).
+      const dx = (ev.clientX - startX) / s;
+      const dy = (ev.clientY - startY) / s;
       const next: Rect = { ...startRect };
 
       if (handle === 'move') {
@@ -119,12 +139,18 @@ export function PassageRectResizer({
       });
     }
 
-    function onUp() {
+    function cleanup() {
       target.removeEventListener('pointermove', onMove);
       target.removeEventListener('pointerup', onUp);
       target.removeEventListener('pointercancel', onUp);
     }
 
+    function onUp() {
+      cleanup();
+      dragRef.current = null;
+    }
+
+    dragRef.current = cleanup;
     target.addEventListener('pointermove', onMove);
     target.addEventListener('pointerup', onUp);
     target.addEventListener('pointercancel', onUp);

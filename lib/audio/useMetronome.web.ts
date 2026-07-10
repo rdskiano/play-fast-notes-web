@@ -905,10 +905,21 @@ export function useMetronome(initialBpm = 60) {
     const ctx = ensureContext();
     if (!ctx || freqs.length === 0) return 0;
     if (ctx.state === 'suspended') ctx.resume().catch(() => undefined);
+    // Cancel any run already in flight so pressing ▶ again (or re-previewing)
+    // replaces the current playback instead of layering a second copy on top.
+    stopPitchSequence();
+    // Route every note through a per-sequence gate node (same pattern as
+    // playPitchRhythm) so stopPitchSequence can silence in-flight oscillators
+    // immediately — scheduling straight to ctx.destination left the ■ Stop
+    // button unable to cut the sound.
+    const gate = ctx.createGain();
+    gate.gain.value = 1;
+    gate.connect(ctx.destination);
+    pitchGateRef.current = gate;
     const start = ctx.currentTime + 0.05;
     for (let i = 0; i < freqs.length; i++) {
       const t = start + i * secondsPerNote;
-      scheduleMelodyVoice(ctx, ctx.destination, freqs[i], t, secondsPerNote, 0.5 * volRef.current);
+      scheduleMelodyVoice(ctx, gate, freqs[i], t, secondsPerNote, 0.5 * volRef.current);
     }
     const totalSec = freqs.length * secondsPerNote;
     setPlayingSequence(true);

@@ -87,6 +87,14 @@ create index if not exists idx_practice_log_exercise on practice_log(exercise_id
 alter table practice_log enable row level security;
 create policy practice_log_owner_all on practice_log
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+-- Idempotency key for saves: a client-generated id so a retry after a lost
+-- response (or a concurrent offline-flush) can't insert the same session twice.
+-- Partial unique index — legacy rows have NULL client_id and are exempt.
+-- ⚠️ RUN BEFORE deploying the web code that writes client_id, or every save
+-- errors on the missing column and gets parked offline.
+alter table practice_log add column if not exists client_id text;
+create unique index if not exists practice_log_client_id_key
+  on practice_log (client_id) where client_id is not null;
 
 -- click_up_progress
 create table if not exists click_up_progress (

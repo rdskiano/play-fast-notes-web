@@ -6,13 +6,13 @@
 // active. Inactive pages render the existing draftRegion (if any) but don't
 // accept new drags.
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { Radii } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { displayToSource, type Rect } from '@/lib/image/canvasCrop';
+import { type Rect } from '@/lib/image/canvasCrop';
 
 const MIN_DRAG_DISPLAY_PX = 12; // ignore dragging less than this in screen px
 
@@ -30,6 +30,16 @@ type Props = {
   // Whether this page's drawer is the one accepting new drags right now.
   // Inactive pages still render the draft rectangle but don't catch pointer events.
   active: boolean;
+  // Current pinch-zoom scale of the wrapping PinchZoomPan (1 = un-zoomed). The
+  // final source-pixel region comes out right at any scale (getBoundingClientRect
+  // already reflects the CSS transform), but the live on-screen preview rect is
+  // rendered as a child of the scaled wrapper, so we draw it in un-scaled local
+  // pixels — hence the division by `zoom` below.
+  zoom?: number;
+  // True while a two-finger pinch owns the gesture. New one-finger drags are
+  // ignored and any in-flight drag is cancelled, so a pinch never leaves a
+  // half-drawn box behind.
+  suspended?: boolean;
   // Fires when the user finishes a drag (or starts a new one and replaces).
   onDraftChange: (region: Rect | null) => void;
 };
@@ -42,14 +52,28 @@ export function PassageRectDrawer({
   slotHeight,
   draftRegion,
   active,
+  zoom = 1,
+  suspended = false,
   onDraftChange,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Live rectangle in display pixels (relative to the image rect's top-left).
+  // Live rectangle in un-scaled local pixels (relative to the image rect's
+  // top-left). Rendered as a child of the pinch-scaled wrapper.
   const [liveRect, setLiveRect] = useState<Rect | null>(null);
+  // Teardown for the in-flight drag, so a two-finger pinch can cancel it.
+  const dragRef = useRef<(() => void) | null>(null);
+
+  // When a pinch takes over, abort any drag in progress and drop the preview.
+  useEffect(() => {
+    if (suspended && dragRef.current) {
+      dragRef.current();
+      dragRef.current = null;
+      setLiveRect(null);
+    }
+  }, [suspended]);
 
   const imageRect = fitContain(slotWidth, slotHeight, sourceWidth, sourceHeight);
   // Fallback: when slot dimensions haven't been measured yet (iPad Safari
@@ -95,64 +119,77 @@ export function PassageRectDrawer({
   const renderRect = liveRect ?? displayDraft;
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    if (!active) return;
+    // Ignore while a pinch owns the gesture, and never start a second drag
+    // (e.g. the pinch's second finger landing on this surface).
+    if (!active || suspended || dragRef.current) return;
+    const s = zoom || 1;
     const target = e.currentTarget;
     target.setPointerCapture?.(e.pointerId);
+    // getBoundingClientRect reflects the pinch transform, so its size is in
+    // scaled screen pixels; divide by `s` to work in the un-scaled local space
+    // the preview rect is rendered into.
     const rect = target.getBoundingClientRect();
-    const startX = e.clientX - rect.left;
-    const startY = e.clientY - rect.top;
+    const startX = (e.clientX - rect.left) / s;
+    const startY = (e.clientY - rect.top) / s;
     setLiveRect({ x: startX, y: startY, w: 0, h: 0 });
 
-    function onMove(ev: PointerEvent) {
+    function localPoint(ev: PointerEvent) {
       const r = target.getBoundingClientRect();
-      const cx = clamp(ev.clientX - r.left, 0, r.width);
-      const cy = clamp(ev.clientY - r.top, 0, r.height);
-      const x = Math.min(startX, cx);
-      const y = Math.min(startY, cy);
-      const w = Math.abs(cx - startX);
-      const h = Math.abs(cy - startY);
-      setLiveRect({ x, y, w, h });
+      const localW = r.width / s;
+      const localH = r.height / s;
+      const cx = clamp((ev.clientX - r.left) / s, 0, localW);
+      const cy = clamp((ev.clientY - r.top) / s, 0, localH);
+      return { cx, cy, localW };
     }
 
-    function onUp(ev: PointerEvent) {
+    function onMove(ev: PointerEvent) {
+      const { cx, cy } = localPoint(ev);
+      setLiveRect({
+        x: Math.min(startX, cx),
+        y: Math.min(startY, cy),
+        w: Math.abs(cx - startX),
+        h: Math.abs(cy - startY),
+      });
+    }
+
+    function cleanup() {
       target.removeEventListener('pointermove', onMove);
       target.removeEventListener('pointerup', onUp);
       target.removeEventListener('pointercancel', onUp);
+    }
+
+    function onUp(ev: PointerEvent) {
+      cleanup();
+      dragRef.current = null;
       target.releasePointerCapture?.(ev.pointerId);
 
-      const r = target.getBoundingClientRect();
-      const cx = clamp(ev.clientX - r.left, 0, r.width);
-      const cy = clamp(ev.clientY - r.top, 0, r.height);
+      const { cx, cy, localW } = localPoint(ev);
       const x = Math.min(startX, cx);
       const y = Math.min(startY, cy);
       const w = Math.abs(cx - startX);
       const h = Math.abs(cy - startY);
 
-      // Reject tiny drags (treat as accidental tap).
-      if (w < MIN_DRAG_DISPLAY_PX || h < MIN_DRAG_DISPLAY_PX) {
+      // Reject tiny drags (treat as accidental tap). Threshold is in on-screen
+      // pixels, so scale the local size back up by `s`.
+      if (w * s < MIN_DRAG_DISPLAY_PX || h * s < MIN_DRAG_DISPLAY_PX) {
         setLiveRect(null);
         return;
       }
 
-      const sourceRect = displayToSource(
-        { x, y, w, h },
-        r.width,
-        sourceWidth,
-      );
-      // For y/h we used the same ratio as x/w (aspect preserved by fitContain),
-      // but pass through displayToSource using h-axis explicitly:
-      const k = sourceWidth / r.width;
+      // local → source pixels. localW is the un-scaled rendered width, so this
+      // ratio is independent of the pinch zoom.
+      const k = sourceWidth / localW;
       const finalRegion: Rect = {
         x: Math.round(x * k),
         y: Math.round(y * k),
         w: Math.round(w * k),
         h: Math.round(h * k),
       };
-      void sourceRect;
       setLiveRect(null);
       onDraftChange(finalRegion);
     }
 
+    dragRef.current = cleanup;
     target.addEventListener('pointermove', onMove);
     target.addEventListener('pointerup', onUp);
     target.addEventListener('pointercancel', onUp);

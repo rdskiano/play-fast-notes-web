@@ -35,6 +35,29 @@ This file replaces "I'll remember to check that" and the mental tax of bug-chasi
 
 _Bugs that reproduce. Newest at the bottom. When fixed, move to "Verified fixed" below with a date._
 
+### 2026-07-08 batch (from Ralph) — triaged, not yet started
+
+**A. Quick web fixes**
+- **B-001** ✅ FIXED 2026-07-08 (code, not pushed): `PassageReminders` moved from the bottom of the passage page to directly under the score (above the "What should I practice?" hero). app/passage/[id]/index.tsx.
+- **B-002** `iphone-web` `ipad-native` — Metronome VOLUME slider doesn't change loudness on phone. NOTE 2026-07-08: the web click gain DOES scale with volume (`level * volRef * 2`, useMetronome.web.ts) and the slider taps fire — so this is almost certainly the phone slider controlling a DIFFERENT metronome instance than the one clicking. → folded into the metronome cluster (B-006/007), fix with device + verify by ear. Don't blind-patch the gain.
+- **B-003** ✅ FIXED 2026-07-08 (code, not pushed): Tempo Ladder mode switch now carries the upper tempo between the two field layouts (Step/Custom `goalTempo` ↔ Cluster `clusterHigh`); Start/Low/Base already shared `startTempo`. Was: switching to Cluster reset high to `startTempo+10`. hooks/useTempoLadderSession.ts `setModeAndSyncCluster`.
+- **B-004** `laptop-web` — Rhythmic Variation grouping picker: numbers/note-symbols not aligned (symbols left of center). NEEDS VISUAL PASS: it's abcjs bbox-centering inside GroupingPicker's fixed-width `AbcStaffView` — pixel-level, must be seen in-browser to fix right (can't reach the screen without auth). Don't blind-tweak.
+- **B-005** `iphone-web` — Spot selection poor on iPhone web. NEEDS REPRO DETAIL: which screen (document viewer box-tap? micro/macro-chaining spot select? Click-Up?) and what fails (missed taps / wrong spot / can't tap). iPhone-touch-specific — needs on-device repro before touching tap thresholds.
+
+**B. Metronome / Tempo Ladder behavior (high-pain per Ralph)**
+- **B-006** `ipad-native` `laptop-web` — Tempo Ladder should START the metronome click automatically when you begin practicing ("really isn't useful without a clicking metronome"). Likely same root as B-008.
+- **B-007** `ipad-native` `laptop-web` — Metronome timbre CHANGES when you open the Metronome tool: Tempo Ladder starts a click immediately, but opening the metronome swaps the sound. (Two metronome sources / patterns diverging.)
+- **B-008** `laptop-web` — Rhythmic Variation playback: every 2nd–3rd note has a very LOUD click accompanying it. (accent/downbeat click bleeding into pitch playback.)
+
+**C. iPad-native (needs the device; get diagnostics before patching)**
+- **B-009** `ipad-native` — Document scanner is poor: edge detection barely works, no re-crop option in the flow, and there's a page-count LIMIT when adding to a PDF. (biggest item.)
+- **B-010** `ipad-native` — "Done, log it" button is very hard to find in Rhythm Variations (rhythms-only) on iPad.
+- **B-011** `ipad-native` — Marking a spot requires tapping Save at least TWICE every time.
+
+**D. Features**
+- **B-012** — Photo option: add a black-and-white / clarified (higher-contrast) version of the photo.
+- **B-013** — Once a PERFORMANCE tempo is set for a spot in one strategy, preload it for that spot in all other strategies. (per-passage performance-tempo memory shared across strategies.)
+
 ### Template (copy this when adding a new bug)
 
 ```

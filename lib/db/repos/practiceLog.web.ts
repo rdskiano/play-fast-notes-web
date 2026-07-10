@@ -43,13 +43,46 @@ export type LibraryPracticeLogEntry = PracticeLogWithTitle & {
 const PENDING_LOGS_KEY = 'pfn:pending-practice-log:v1';
 const PENDING_LOGS_MAX = 200;
 
-type PendingLogRow = {
+// Columns actually written to practice_log. `client_id` is a client-generated
+// idempotency key: a retry after a lost response — or a concurrent flush — sends
+// the SAME client_id, and the unique index (see db/schema.sql) rejects the
+// second insert, so one session can never become two rows.
+type InsertRow = {
   piece_id: string;
   strategy: string;
   practiced_at: number;
   data_json: string | null;
   exercise_id: string | null;
+  client_id: string;
 };
+
+// A parked (offline) row also remembers whose session it was, so on a shared
+// browser it can only ever sync back into the SAME account — never whoever
+// happens to sign in next. Legacy parked rows predate both fields.
+type PendingLogRow = InsertRow & { user_id?: string };
+
+// Random idempotency key. crypto.randomUUID is gated on a secure context and is
+// absent over plain http on a LAN IP (see the web-crypto note), so fall back to
+// a good-enough random string there.
+function newClientId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random()
+      .toString(36)
+      .slice(2)}`;
+  }
+}
+
+// Cached session read (works offline) — used to scope parked rows to their owner.
+async function currentUserId(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function readPendingLogs(): PendingLogRow[] {
   try {
@@ -70,13 +103,20 @@ function writePendingLogs(rows: PendingLogRow[]) {
   }
 }
 
-async function insertLogRow(row: PendingLogRow): Promise<number> {
+async function insertLogRow(row: InsertRow): Promise<number> {
   const { data: inserted, error } = await supabase
     .from('practice_log')
     .insert(row)
     .select('id')
     .single();
-  if (error) throw error;
+  if (error) {
+    // 23505 = unique_violation on client_id: this exact session is already in
+    // the table (a retry after a lost response, or a concurrent flush). That is
+    // success, not a row to insert again. The returned id is unused by callers,
+    // so a 0 sentinel is fine.
+    if ((error as { code?: string }).code === '23505') return 0;
+    throw error;
+  }
   return (inserted as { id: number }).id;
 }
 
@@ -92,19 +132,46 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+// Guards against the two fire-and-forget callers (logPractice + the library's
+// countPracticeLogEntries) running the flush at the same time and each inserting
+// the same parked row. The client_id unique index is the real backstop; this
+// just avoids the wasted round-trips.
+let flushing = false;
+
 /** Re-attempt any practice-log rows that were parked while offline.
  *  Rows keep their original practiced_at, so synced sessions land on the
- *  right day in the log. Stops at the first failure (still offline). */
+ *  right day in the log. Only syncs rows belonging to the signed-in user, and
+ *  stops at the first failure (still offline), keeping the rest parked. */
 export async function flushPendingPracticeLogs(): Promise<void> {
-  let pending = readPendingLogs();
-  while (pending.length > 0) {
-    try {
-      await insertLogRow(pending[0]);
-    } catch {
-      break;
+  if (flushing) return;
+  flushing = true;
+  try {
+    const pending = readPendingLogs();
+    if (pending.length === 0) return;
+    const uid = await currentUserId();
+    if (!uid) return; // signed out — can't attribute a save; leave rows parked
+    const keep: PendingLogRow[] = [];
+    let offline = false;
+    for (const r of pending) {
+      // Skip rows owned by a different account (shared browser); once a real
+      // failure hits, the connection is down — keep the rest without hammering.
+      // Legacy rows have no user_id → treat as the current user's.
+      if (offline || (r.user_id && r.user_id !== uid)) {
+        keep.push(r);
+        continue;
+      }
+      try {
+        const { user_id: _owner, ...insert } = r;
+        void _owner;
+        await insertLogRow({ ...insert, client_id: insert.client_id ?? newClientId() });
+      } catch {
+        keep.push(r);
+        offline = true;
+      }
     }
-    pending = pending.slice(1);
-    writePendingLogs(pending);
+    writePendingLogs(keep);
+  } finally {
+    flushing = false;
   }
 }
 
@@ -119,17 +186,20 @@ export async function logPractice(
 ): Promise<number> {
   // Opportunistic sync of anything parked by an earlier failure.
   flushPendingPracticeLogs().catch(() => {});
-  const row: PendingLogRow = {
+  const row: InsertRow = {
     piece_id,
     strategy,
     practiced_at: Date.now(),
     data_json: data ? JSON.stringify(data) : null,
     exercise_id: exercise_id ?? null,
+    client_id: newClientId(),
   };
   try {
     return await withRetry(() => insertLogRow(row));
   } catch (e) {
-    writePendingLogs([...readPendingLogs(), row]);
+    // Park it stamped with the current owner so it can only sync back here.
+    const uid = await currentUserId();
+    writePendingLogs([...readPendingLogs(), { ...row, user_id: uid ?? undefined }]);
     console.warn('practice_log insert failed; parked for retry', e);
     if (!warnedPendingThisLoad && typeof window !== 'undefined') {
       warnedPendingThisLoad = true;

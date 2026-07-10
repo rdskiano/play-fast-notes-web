@@ -200,14 +200,16 @@ export async function listAllDocuments(): Promise<DocumentRow[]> {
   );
 }
 
-// Replace pages_json wholesale. Pattern: the client orchestrates the parallel
-// pdf-render-page fan-out, collects all results, then writes once. Avoids the
-// read-modify-write race a per-page update path would introduce.
+// Replace pages_json wholesale (and keep page_count in step with it). Pattern:
+// the client orchestrates the parallel pdf-render-page fan-out, collects all
+// results, then writes once. Avoids the read-modify-write race a per-page update
+// path would introduce.
 export async function replaceDocumentPages(id: string, pages: DocumentPage[]): Promise<void> {
   const db = getDb();
   await db.runAsync(
-    `UPDATE documents SET pages_json = ?, updated_at = ? WHERE id = ?;`,
+    `UPDATE documents SET pages_json = ?, page_count = ?, updated_at = ? WHERE id = ?;`,
     JSON.stringify(pages),
+    pages.length,
     Date.now(),
     id,
   );

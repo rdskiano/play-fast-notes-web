@@ -30,6 +30,10 @@ type Props = {
   slotWidth: number;
   slotHeight: number;
   region: Rect; // source pixels
+  // Web-only pinch-zoom coordination (see PassageRectResizer.web.tsx). Accepted
+  // and ignored on native.
+  zoom?: number;
+  suspended?: boolean;
   onRegionChange: (next: Rect) => void;
 };
 

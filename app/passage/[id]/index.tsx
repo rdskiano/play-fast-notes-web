@@ -931,6 +931,10 @@ export default function PassageDetailScreen() {
           </View>
 
 
+          {/* Reminders/notes-to-self live near the top so you see them the
+              moment you open the passage — not buried under the strategies. */}
+          <PassageReminders passageId={passage.id} />
+
           <Pressable
             onPress={() => guardedNav(() => router.push(`/passage/${passage.id}/coach`))}
             style={styles.heroCoach}>
@@ -953,7 +957,6 @@ export default function PassageDetailScreen() {
             {STRATEGIES.map(renderStratCard)}
           </View>
 
-          <PassageReminders passageId={passage.id} />
           </View>
         </ScrollView>
 

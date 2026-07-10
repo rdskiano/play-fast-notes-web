@@ -7,11 +7,11 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PromptModal } from '@/components/PromptModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
@@ -20,13 +20,10 @@ import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import type { DocumentPage } from '@/lib/db/repos/documents';
 import { insertDocument } from '@/lib/db/repos/documents';
+import { fileToPageImage, isHeic } from '@/lib/image/fileToPageImage';
 import { logOnboardingStep } from '@/lib/onboarding/telemetry';
 import { supabase } from '@/lib/supabase/client';
 import { uploadDocumentPageImage } from '@/lib/supabase/storage';
-
-// Match the document/PDF reference render scale so a photo page lives in the
-// same coordinate space as PDF pages (regions_json boxes are in these pixels).
-const MAX_PAGE_EDGE = 2000;
 
 // Dismiss key for the top direction banner. People tap "Take a photo" before
 // reading the small hint, so the key instruction (snap the WHOLE page, you'll
@@ -66,66 +63,10 @@ function defaultTitleFromFile(file: File): string {
   return base.slice(0, 80);
 }
 
-// Detect HEIC/HEIF. iOS sometimes reports an empty file.type for HEIC, so the
-// filename extension is the reliable signal.
-function isHeic(file: File): boolean {
-  return /image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
-}
-
 const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i;
 
 function isImageFile(file: File): boolean {
   return file.type.startsWith('image/') || IMAGE_EXT_RE.test(file.name);
-}
-
-// Chrome and Firefox have no HEIC codec, so new Image()/canvas can't decode an
-// iPhone HEIC at all — re-encoding can't help because the DECODE itself fails.
-// Convert HEIC to JPEG first with the libheif WASM decoder, lazily imported so
-// its ~1.5 MB only loads when a HEIC is actually picked. (Safari decodes HEIC
-// natively, so this branch is for everyone else.)
-async function toDisplayableBlob(file: File): Promise<Blob> {
-  if (!isHeic(file)) return file;
-  const heic2any = (await import('heic2any')).default;
-  const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
-  return Array.isArray(out) ? out[0] : out;
-}
-
-// Produce a JPEG page image at the document reference scale, and read its
-// dimensions in the same pass. HEIC is decoded to JPEG first (above); then the
-// browser-decodable blob is drawn to a canvas so the stored page renders
-// everywhere.
-async function fileToPageImage(file: File): Promise<{ blob: Blob; w: number; h: number }> {
-  const displayable = await toDisplayableBlob(file);
-  const url = URL.createObjectURL(displayable);
-  try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const im = new window.Image();
-      im.onload = () => resolve(im);
-      im.onerror = () => reject(new Error('Could not read that image.'));
-      im.src = url;
-    });
-    const natW = img.naturalWidth || 1;
-    const natH = img.naturalHeight || 1;
-    const scale = Math.min(1, MAX_PAGE_EDGE / Math.max(natW, natH));
-    const w = Math.max(1, Math.round(natW * scale));
-    const h = Math.max(1, Math.round(natH * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Canvas 2D context not available.');
-    ctx.drawImage(img, 0, 0, w, h);
-    const blob = await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error('Could not process the image.'))),
-        'image/jpeg',
-        0.9,
-      ),
-    );
-    return { blob, w, h };
-  } finally {
-    URL.revokeObjectURL(url);
-  }
 }
 
 export default function UploadScreen() {
@@ -152,7 +93,13 @@ export default function UploadScreen() {
   const insets = useSafeAreaInsets();
 
   const [pages, setPages] = useState<PickedPage[]>([]);
-  const [title, setTitle] = useState(pieceTitle ?? '');
+  // Coach/onboarding pre-fills the title (asked up front); the normal flow names
+  // the piece in a prompt at Save time (see namePromptVisible), so there's no
+  // inline field to setTitle from.
+  const [title] = useState(pieceTitle ?? '');
+  // Naming happens in a focused prompt on Save instead of a buried inline field
+  // that was easy to miss (→ "Untitled photo"). Mirrors app/multi-page.tsx.
+  const [namePromptVisible, setNamePromptVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -194,7 +141,7 @@ export default function UploadScreen() {
   // boxes on (the same flow as a PDF). Takes the page list explicitly so the
   // coach auto-save path can pass a freshly-picked file without waiting on a
   // state update.
-  async function saveDocument(list: PickedPage[]) {
+  async function saveDocument(list: PickedPage[], nameArg?: string) {
     if (list.length === 0) return;
     setSaving(true);
     setError(null);
@@ -212,7 +159,8 @@ export default function UploadScreen() {
       }
       await insertDocument({
         id: docId,
-        title: title.trim() || pieceTitle || defaultTitleFromFile(list[0].file),
+        title:
+          (nameArg ?? title).trim() || pieceTitle || defaultTitleFromFile(list[0].file),
         composer: null,
         source_kind: 'images',
         page_count: list.length,
@@ -261,13 +209,9 @@ export default function UploadScreen() {
       file,
       rawUrl: URL.createObjectURL(file),
     }));
-    setPages((prev) => {
-      // Default the title from the very first page added.
-      if (prev.length === 0 && !title.trim()) {
-        setTitle(defaultTitleFromFile(valid[0]));
-      }
-      return [...prev, ...added];
-    });
+    // The Save-time name prompt derives its own default from the first page's
+    // filename, so no title side-effect is needed here.
+    setPages((prev) => [...prev, ...added]);
   }
 
   function removePage(id: string) {
@@ -457,21 +401,6 @@ export default function UploadScreen() {
             </View>
           )}
 
-          {/* Name field — give the piece a title before saving (like a PDF). */}
-          {hasPages && (
-            <View style={styles.nameBlock}>
-              <ThemedText style={styles.nameLabel}>Name</ThemedText>
-              <TextInput
-                value={title}
-                onChangeText={setTitle}
-                placeholder="e.g. Bach Invention 4, mm. 1–16"
-                placeholderTextColor={Palette.textMuted}
-                editable={!saving}
-                style={styles.nameInput}
-              />
-            </View>
-          )}
-
           <ThemedText style={styles.hint}>
             {coach
               ? 'A photo or screenshot of the full page with the spot you want to work on — you’ll mark it right on the page next.'
@@ -496,17 +425,19 @@ export default function UploadScreen() {
             </Pressable>
           )}
 
-          {/* Save — only once at least one page is in (coach saves on pick). */}
+          {/* Save — opens a name prompt (coach saves on pick with its own title).
+              Naming lives in the prompt so it can't be skipped into an
+              "Untitled photo". */}
           {hasPages && !coach && (
             <Pressable
               style={[styles.saveBtn, { opacity: saving ? 0.6 : 1 }]}
               disabled={saving}
-              onPress={() => saveDocument(pages)}>
+              onPress={() => setNamePromptVisible(true)}>
               {saving ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <ThemedText style={styles.saveBtnText}>
-                  Save{pages.length > 1 ? ` ${pages.length} pages` : ''}
+                  Save &amp; name{pages.length > 1 ? ` (${pages.length} pages)` : ''}
                 </ThemedText>
               )}
             </Pressable>
@@ -543,13 +474,32 @@ export default function UploadScreen() {
         style={{ display: 'none' }}
       />
 
+      <PromptModal
+        visible={namePromptVisible}
+        title="Name this piece"
+        message="So you can find it in your library."
+        initialValue={
+          pieceTitle ||
+          (pages[0] && defaultTitleFromFile(pages[0].file) !== 'Untitled photo'
+            ? defaultTitleFromFile(pages[0].file)
+            : '')
+        }
+        placeholder="e.g. Bach Invention 4, mm. 1–16"
+        submitLabel="Save"
+        onSubmit={(name) => {
+          setNamePromptVisible(false);
+          saveDocument(pages, name);
+        }}
+        onCancel={() => setNamePromptVisible(false)}
+      />
+
       <TutorialStep
         id="upload-passage"
         visible={false}
         title="Add a photo of the page"
         body={
           "Snap or upload a photo of the whole page. Drop an image onto the box, or tap it to choose a file. On phone, \"Take a photo\" opens the camera directly — point at the music and shoot.\n\n" +
-          "Adding more than one page? Tap \"Add another page\" (or pick several at once) and they'll turn like a PDF. Use the arrows to reorder, the ✕ to remove a page. Give the piece a name, then Save.\n\n" +
+          "Adding more than one page? Tap \"Add another page\" (or pick several at once) and they'll turn like a PDF. Use the arrows to reorder, the ✕ to remove a page. Tap Save and give the piece a name.\n\n" +
           "You'll land on the page itself; tap \"+ Mark passage\" and draw a box around each spot you want to practice — mark as many as you like, on any page. \"Hide boxes\" shows the clean full page anytime.\n\n" +
           "If one passage runs across two pages, draw the box on the first page, tap \"Add next page →\", and finish it on the next — the two halves join into one passage."
         }
@@ -673,23 +623,6 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.surfaceSunk,
   },
   pageIconDisabled: { opacity: 0.35 },
-  nameBlock: { gap: Spacing.xs },
-  nameLabel: {
-    fontSize: Type.size.xs,
-    fontWeight: Type.weight.bold,
-    color: Palette.textSecondary,
-    paddingHorizontal: Spacing.xs,
-  },
-  nameInput: {
-    borderWidth: Borders.thin,
-    borderColor: Palette.border,
-    borderRadius: Radii.lg,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    fontSize: Type.size.md,
-    color: Palette.text,
-    backgroundColor: Palette.card,
-  },
   hint: {
     color: Palette.textMuted,
     fontSize: Type.size.xs,

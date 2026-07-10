@@ -36,6 +36,10 @@ type Props = {
   // Whether this page's drawer is the one accepting new drags right now.
   // Inactive pages still render the draft rectangle but don't catch gestures.
   active: boolean;
+  // Web-only pinch-zoom coordination (see PassageRectDrawer.web.tsx). Accepted
+  // and ignored on native, which has its own reading-mode zoom.
+  zoom?: number;
+  suspended?: boolean;
   // Fires when the user finishes a drag (or starts a new one and replaces).
   onDraftChange: (region: Rect | null) => void;
 };

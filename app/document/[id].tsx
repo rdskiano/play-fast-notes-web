@@ -29,8 +29,10 @@ import { RegionAnnotationCanvas } from '@/components/RegionAnnotationCanvas';
 import { Button } from '@/components/Button';
 import { DocumentPageImage } from '@/components/DocumentPageImage';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { AddPageButton, type AddPageHandle } from '@/components/AddPageButton';
 import { PageBoxOverlay } from '@/components/PageBoxOverlay';
 import { ZoomableImage } from '@/components/ZoomableImage';
+import { PinchZoomPan } from '@/components/PinchZoomPan';
 import { PassageRectDrawer } from '@/components/PassageRectDrawer';
 import { PassageRectResizer } from '@/components/PassageRectResizer';
 import { PostSaveSheet } from '@/components/PostSaveSheet';
@@ -194,6 +196,14 @@ export default function DocumentScreen() {
   // makes the next turn impossible. So pages carry no persistKey and reset here.
   const [zoomResetSignal, setZoomResetSignal] = useState(0);
 
+  // Web marking-mode pinch-zoom (phones): two fingers zoom/pan the page while
+  // one finger still draws the box. `markZoom` feeds the child gesture math its
+  // current scale; `markPinching` tells the drawer/resizer to yield the moment
+  // a second finger lands so a pinch never leaves a half-drawn box. Both reset
+  // to 1 / false automatically when marking ends (PinchZoomPan calls back).
+  const [markZoom, setMarkZoom] = useState(1);
+  const [markPinching, setMarkPinching] = useState(false);
+
   // Draw-mode state. drafts maps 1-indexed pageIndex → source-pixel rect.
   // The page on which the user dragged FIRST is "drag-anchor"; subsequent
   // pages are added via "Add next page →" (Step 6).
@@ -268,6 +278,33 @@ export default function DocumentScreen() {
   const pageZoomEnabled =
     Platform.OS !== 'web' && mode === 'idle' && !markingSection;
   const currentPageZoomed = zoomedScreens.has(currentIndex);
+  // Web + phone DRAW mode: the browser's pinch is off (user-scalable=no), so we
+  // supply our own page zoom while drawing a box (and fine-tuning the fresh
+  // draft, which stays in draw mode). Resize mode is left alone — it permits
+  // multi-page swiping that a touch-capturing zoom wrapper would block.
+  const webMarkMode = Platform.OS === 'web' && isPhone && mode === 'draw';
+
+  // "Add page" — append a photo as a new page at the end of the document. Web
+  // only for now (native photo ingestion is a separate path). The headless
+  // controller owns the file picker; these drive it + reflect its busy state.
+  const canAddPage = Platform.OS === 'web';
+  const addPageRef = useRef<AddPageHandle>(null);
+  const [addingPage, setAddingPage] = useState(false);
+  // Set to the screen index of a freshly added page; a jump fires once the new
+  // page count has propagated (goTo clamps against the OLD screenCount if called
+  // synchronously, so we wait for the re-render).
+  const [pendingJumpToScreen, setPendingJumpToScreen] = useState<number | null>(null);
+
+  const onPageAdded = useCallback(
+    (nextPages: DocumentPage[]) => {
+      setPages(nextPages);
+      setDoc((d) => (d ? { ...d, page_count: nextPages.length } : d));
+      const newIndex = nextPages[nextPages.length - 1]?.index ?? nextPages.length;
+      // screenForPage uses the current pages-per-screen (single vs spread).
+      setPendingJumpToScreen(Math.floor((newIndex - 1) / (viewMode === 'spread' ? 2 : 1)));
+    },
+    [viewMode],
+  );
 
   // Forward navigation (a push) doesn't fire 'beforeRemove', so an unsaved
   // page annotation must be flushed here first — else the next screen loads
@@ -409,6 +446,18 @@ export default function DocumentScreen() {
     // zoomed-in doesn't keep the pager locked.
     setZoomResetSignal((n) => n + 1);
   }
+
+  // After "Add page" grows the document, land the user on the new last page so
+  // they can mark it immediately. Waits for the new page count to reach render
+  // (goTo clamps against screenCount) before turning.
+  useEffect(() => {
+    if (pendingJumpToScreen == null) return;
+    if (pendingJumpToScreen < screenCount) {
+      goTo(pendingJumpToScreen);
+      setPendingJumpToScreen(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingJumpToScreen, screenCount]);
 
   // When returning from a passage, jump to that passage's first page. Effect
   // fires on every focus AND whenever passages / pages populate, so the
@@ -981,6 +1030,15 @@ export default function DocumentScreen() {
                     );
                   }}
                 />
+                {canAddPage && (
+                  <Button
+                    label={addingPage ? 'Adding…' : '+ Add page'}
+                    variant="outline"
+                    size="sm"
+                    disabled={addingPage}
+                    onPress={() => addPageRef.current?.trigger()}
+                  />
+                )}
                 <Button
                   label="+ Mark passage"
                   variant="primary"
@@ -1176,6 +1234,8 @@ export default function DocumentScreen() {
                                   slotWidth={slotW}
                                   slotHeight={pagerSize.height}
                                   region={draft}
+                                  zoom={markZoom}
+                                  suspended={markPinching}
                                   onRegionChange={(next) =>
                                     setDraftForPage(p.index, next)
                                   }
@@ -1191,6 +1251,8 @@ export default function DocumentScreen() {
                                 slotHeight={pagerSize.height}
                                 draftRegion={null}
                                 active={drawerActive}
+                                zoom={markZoom}
+                                suspended={markPinching}
                                 onDraftChange={(r) =>
                                   setDraftForPage(p.index, r)
                                 }
@@ -1208,6 +1270,8 @@ export default function DocumentScreen() {
                                 slotWidth={slotW}
                                 slotHeight={pagerSize.height}
                                 region={{ x: r.x, y: r.y, w: r.w, h: r.h }}
+                                zoom={markZoom}
+                                suspended={markPinching}
                                 onRegionChange={(next) => setRegionForPage(p.index, next)}
                               />
                             );
@@ -1228,7 +1292,20 @@ export default function DocumentScreen() {
                         <View
                           key={p.index}
                           style={[styles.pageHalf, { width: slotW }]}>
-                          {pageZoomEnabled ? (
+                          {webMarkMode ? (
+                            // Web marking (phone): two-finger pinch zooms/pans
+                            // the page + its boxes together; one finger still
+                            // draws/drags the box underneath. Only the visible
+                            // screen's wrapper is live. resetSignal snaps back to
+                            // 1× on page turn.
+                            <PinchZoomPan
+                              enabled={screenForPage(p.index) === currentIndex}
+                              resetSignal={zoomResetSignal}
+                              onScaleChange={setMarkZoom}
+                              onPinchingChange={setMarkPinching}>
+                              {pageInner}
+                            </PinchZoomPan>
+                          ) : pageZoomEnabled ? (
                             // Reading mode (native): pinch to zoom the page + its
                             // boxes together (boxes are children, so they scale
                             // and stay tappable in the same coordinate space).
@@ -1320,6 +1397,16 @@ export default function DocumentScreen() {
           />
         )}
       </View>
+
+      {addingPage && (
+        <View
+          pointerEvents="none"
+          style={[styles.coachToast, { top: insets.top + 56 }]}>
+          <View style={styles.coachToastInner}>
+            <ThemedText style={styles.coachToastText}>Adding page…</ThemedText>
+          </View>
+        </View>
+      )}
 
       {markingSection && (
         <View pointerEvents="box-none" style={styles.markBanner}>
@@ -1423,6 +1510,17 @@ export default function DocumentScreen() {
         visible={phoneMenuOpen}
         title={doc?.title}
         items={[
+          ...(canAddPage
+            ? [
+                {
+                  label: addingPage ? 'Adding page…' : '+ Add page (photo)',
+                  onPress: () => {
+                    setPhoneMenuOpen(false);
+                    addPageRef.current?.trigger();
+                  },
+                },
+              ]
+            : []),
           {
             label: boxesOn ? 'Hide passage boxes' : 'Show passage boxes',
             onPress: () => {
@@ -1467,6 +1565,16 @@ export default function DocumentScreen() {
             : []),
         ]}
         onCancel={() => setPhoneMenuOpen(false)}
+      />
+
+      {/* Headless — owns the "Add page" file picker; mounted here so it outlives
+          the ⋯ menu closing. Renders a hidden input on web, nothing on native. */}
+      <AddPageButton
+        ref={addPageRef}
+        documentId={id}
+        pages={pages}
+        onAdded={onPageAdded}
+        onBusyChange={setAddingPage}
       />
 
       <PromptModal

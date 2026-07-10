@@ -40,11 +40,24 @@ const WIPE_ORDER = [...INSERT_ORDER].reverse();
 
 export type ImportProgress = (line: string) => void;
 
+// Structured, human-facing progress for the on-screen spinner + bar. Separate
+// from onProgress (which stays the raw technical log behind "Show details").
+// total === 0 means "no count yet" → the UI shows an indeterminate spinner
+// rather than a 0% bar.
+export type ImportStatus = {
+  phase: 'signin' | 'fetch' | 'download' | 'save' | 'done';
+  label: string;
+  done: number;
+  total: number;
+};
+export type ImportStatusCb = (s: ImportStatus) => void;
+
 export type ImportOptions = {
   email: string;
   password: string;
   wipeFirst: boolean;
   onProgress: ImportProgress;
+  onStatus?: ImportStatusCb;
 };
 
 export type ImportResult = {
@@ -137,8 +150,10 @@ async function fetchTable(table: string, onProgress: ImportProgress): Promise<Ro
 
 export async function runImport(opts: ImportOptions): Promise<ImportResult> {
   const { email, password, wipeFirst, onProgress } = opts;
+  const onStatus: ImportStatusCb = opts.onStatus ?? (() => {});
 
   // 1. Sign in.
+  onStatus({ phase: 'signin', label: 'Signing in…', done: 0, total: 0 });
   onProgress(`Signing in as ${email.trim()}…`);
   const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
     email: email.trim(),
@@ -150,13 +165,44 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
   onProgress(`Signed in as ${signInData.session.user.email}.`);
 
   // 2. Fetch all tables.
+  onStatus({ phase: 'fetch', label: 'Finding your library…', done: 0, total: 0 });
   onProgress('Fetching tables…');
   const tables: Record<string, Row[]> = {};
   for (const t of INSERT_ORDER) {
     tables[t] = await fetchTable(t, onProgress);
   }
 
+  // Count every file we're about to pull so the on-screen bar can be
+  // determinate ("12 of 40") instead of a spinner that looks frozen on a big
+  // multi-page library. Mirrors exactly what the download loops below fetch.
+  let totalFiles = 0;
+  for (const p of tables.pieces) {
+    for (const field of ['source_uri', 'thumbnail_uri'] as const) {
+      if (isHttpUrl(p[field])) totalFiles++;
+    }
+  }
+  for (const d of tables.documents) {
+    if (isHttpUrl(d.original_uri)) totalFiles++;
+    try {
+      const pgs = JSON.parse(d.pages_json as string) as { image_uri: string }[];
+      for (const pg of pgs) if (isHttpUrl(pg.image_uri)) totalFiles++;
+    } catch {
+      // malformed pages_json — nothing to count
+    }
+  }
+  let filesDone = 0;
+  const bumpDownload = () => {
+    filesDone++;
+    onStatus({
+      phase: 'download',
+      label: 'Downloading your music…',
+      done: filesDone,
+      total: totalFiles,
+    });
+  };
+
   // 3. Download files — pieces images, document originals, document pages.
+  onStatus({ phase: 'download', label: 'Downloading your music…', done: 0, total: totalFiles });
   onProgress('Downloading files…');
   const piecesDir = new Directory(Paths.document, 'pieces');
   if (!piecesDir.exists) piecesDir.create({ intermediates: true });
@@ -177,9 +223,11 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
         const localUri = await downloadToFile(url, target);
         p[field] = localUri;
         filesDownloaded++;
+        bumpDownload();
         onProgress(`    ↓ piece ${p.id} ${field}`);
       } catch (e) {
         filesFailed++;
+        bumpDownload();
         onProgress(`    ✗ piece ${p.id} ${field}: ${(e as Error).message}`);
         // Leave the URL in place; iPad will show broken-image but the row
         // imports successfully.
@@ -198,9 +246,11 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
         const target = new File(docDir, `original.${ext}`);
         d.original_uri = await downloadToFile(d.original_uri as string, target);
         filesDownloaded++;
+        bumpDownload();
         onProgress(`    ↓ doc ${d.id} original`);
       } catch (e) {
         filesFailed++;
+        bumpDownload();
         onProgress(`    ✗ doc ${d.id} original: ${(e as Error).message}`);
       }
     }
@@ -220,9 +270,11 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
           const target = new File(docDir, `page-${page.index}.${ext}`);
           page.image_uri = await downloadToFile(page.image_uri, target);
           filesDownloaded++;
+          bumpDownload();
           onProgress(`    ↓ doc ${d.id} page ${pageNum}/${pages.length}`);
         } catch (e) {
           filesFailed++;
+          bumpDownload();
           onProgress(`    ✗ doc ${d.id} page ${pageNum}/${pages.length}: ${(e as Error).message}`);
         }
       }
@@ -234,6 +286,7 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
   }
 
   // 4. Wipe + insert into SQLite.
+  onStatus({ phase: 'save', label: 'Saving to this iPad…', done: 0, total: 0 });
   const db = getDb();
   if (wipeFirst) {
     onProgress('Wiping existing data…');
@@ -320,6 +373,7 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
     }
   });
 
+  onStatus({ phase: 'done', label: 'Done', done: totalFiles, total: totalFiles });
   onProgress('Done.');
   return {
     ok: filesFailed === 0,

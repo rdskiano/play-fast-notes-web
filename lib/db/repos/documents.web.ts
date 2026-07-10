@@ -206,13 +206,18 @@ export async function listAllDocuments(): Promise<DocumentRow[]> {
   return (data ?? []) as DocumentRow[];
 }
 
-// Replace pages_json wholesale. Pattern: the client orchestrates the parallel
-// pdf-render-page fan-out, collects all results, then writes once. Avoids the
-// read-modify-write race a per-page update path would introduce.
+// Replace pages_json wholesale (and keep page_count in step with it). Pattern:
+// the client orchestrates the parallel pdf-render-page fan-out, collects all
+// results, then writes once. Avoids the read-modify-write race a per-page update
+// path would introduce. Also used by "Add page" to append a page image.
 export async function replaceDocumentPages(id: string, pages: DocumentPage[]): Promise<void> {
   const { error } = await supabase
     .from('documents')
-    .update({ pages_json: JSON.stringify(pages), updated_at: Date.now() })
+    .update({
+      pages_json: JSON.stringify(pages),
+      page_count: pages.length,
+      updated_at: Date.now(),
+    })
     .eq('id', id);
   if (error) throw error;
 }

@@ -258,11 +258,20 @@ export function useTempoLadderSession(
   }, [id, toolsOnly]);
 
   function setModeAndSyncCluster(next: Mode) {
-    setMode(next);
-    if (next === 'cluster') {
-      const n = parseInt(startTempo, 10);
-      if (!isNaN(n)) setClusterHigh(String(n + 10));
+    // Keep the tempos the user already typed when they switch modes. The Start/
+    // Low/Base field is shared (startTempo), so it always survives; only the
+    // UPPER field differs — Step/Custom use goalTempo, Cluster uses clusterHigh —
+    // so mirror one into the other across the transition instead of resetting.
+    if (next !== mode) {
+      if (next === 'cluster') {
+        const g = parseInt(goalTempo, 10);
+        if (!isNaN(g)) setClusterHigh(String(g));
+      } else if (mode === 'cluster') {
+        const h = parseInt(clusterHigh, 10);
+        if (!isNaN(h)) setGoalTempo(String(h));
+      }
     }
+    setMode(next);
   }
 
   function setStartWithClusterSync(v: string) {
