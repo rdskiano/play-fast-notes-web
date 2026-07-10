@@ -807,7 +807,7 @@ export default function PassageDetailScreen() {
                     <Feather name="zap" size={18} color="#fff" />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <ThemedText style={styles.heroCoachTitle}>What should I practice?</ThemedText>
+                    <ThemedText style={styles.heroCoachTitle}>How should I practice?</ThemedText>
                   </View>
                   <View style={styles.heroBeta}>
                     <ThemedText style={styles.heroBetaText}>BETA</ThemedText>
@@ -942,7 +942,7 @@ export default function PassageDetailScreen() {
               <Feather name="zap" size={18} color="#fff" />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <ThemedText style={styles.heroCoachTitle}>What should I practice?</ThemedText>
+              <ThemedText style={styles.heroCoachTitle}>How should I practice?</ThemedText>
               <ThemedText style={styles.heroCoachSub} numberOfLines={1}>
                 Get a strategy suggestion for this passage
               </ThemedText>
