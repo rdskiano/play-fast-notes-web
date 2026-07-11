@@ -530,14 +530,15 @@ export default function RhythmicScreen() {
       </View>
 
       {/* Done — log it. Rhythmic Variation doesn't auto-log, so this is the
-          sole way to save the session; a quiet centered link keeps the top bar
-          clean (Exit · tracker · tools) while staying reachable. */}
+          SOLE way to save the session — so it's a real filled button, not a
+          quiet link (which was too easy to miss down here). */}
       {phase === 'playing' && (
         <View style={[styles.runDoneRow, { paddingBottom: insets.bottom + 8 }]}>
-          <Pressable onPress={doneSession} hitSlop={8}>
-            <ThemedText style={[styles.runDoneLink, { color: ACCENT }]}>
-              Done — log it
-            </ThemedText>
+          <Pressable
+            onPress={doneSession}
+            hitSlop={8}
+            style={[styles.runDoneBtn, { backgroundColor: ACCENT }]}>
+            <ThemedText style={styles.runDoneBtnText}>✓ Done — log it</ThemedText>
           </Pressable>
         </View>
       )}
@@ -801,7 +802,12 @@ const styles = StyleSheet.create({
   },
   groupingChipRunText: { fontSize: Type.size.sm, fontWeight: Type.weight.heavy },
   runDoneRow: { alignItems: 'center', paddingTop: Spacing.xs },
-  runDoneLink: { fontSize: Type.size.md, fontWeight: Type.weight.bold },
+  runDoneBtn: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: Radii.pill,
+  },
+  runDoneBtnText: { fontSize: Type.size.md, fontWeight: Type.weight.heavy, color: '#fff' },
   // Tools-mode hero: the staff + its controls, centered in the empty body.
   toolsStage: {
     ...StyleSheet.absoluteFillObject,

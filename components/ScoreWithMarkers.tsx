@@ -166,7 +166,8 @@ export function ScoreWithMarkers({
               },
               isHi && styles.markerHighlight,
             ]}>
-            <ThemedText style={[styles.markerText, { fontSize: mFont }]}>
+            <ThemedText
+              style={[styles.markerText, { fontSize: mFont, lineHeight: mFont }]}>
               {m.index}
             </ThemedText>
           </View>
@@ -254,7 +255,13 @@ const styles = StyleSheet.create({
     borderColor: '#145a32',
   },
   markerHighlight: { backgroundColor: '#e67e22', borderColor: '#a04000' },
-  markerText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: 12 },
+  markerText: {
+    color: '#fff',
+    fontWeight: Type.weight.heavy,
+    fontSize: 12,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
   arrow: {
     position: 'absolute',
     color: Status.success,

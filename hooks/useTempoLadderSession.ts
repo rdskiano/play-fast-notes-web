@@ -258,17 +258,21 @@ export function useTempoLadderSession(
   }, [id, toolsOnly]);
 
   function setModeAndSyncCluster(next: Mode) {
-    // Keep the tempos the user already typed when they switch modes. The Start/
-    // Low/Base field is shared (startTempo), so it always survives; only the
-    // UPPER field differs — Step/Custom use goalTempo, Cluster uses clusterHigh —
-    // so mirror one into the other across the transition instead of resetting.
+    // Keep the tempos the user typed when they switch modes. Start/Low/Base is
+    // the shared `startTempo`, so it always survives. The TARGET tempo differs by
+    // name but is the same idea — `goalTempo` in Step/Custom ("Goal"/"Performance")
+    // and `finalTempo` in Cluster ("Final") — so carry it across so it never
+    // silently resets to the 120 default. (Cluster's "High BPM" = clusterHigh is a
+    // separate thing: the top of the random window, defaulted just above the low.)
     if (next !== mode) {
-      if (next === 'cluster') {
+      if (next === 'cluster' && mode !== 'cluster') {
         const g = parseInt(goalTempo, 10);
-        if (!isNaN(g)) setClusterHigh(String(g));
-      } else if (mode === 'cluster') {
-        const h = parseInt(clusterHigh, 10);
-        if (!isNaN(h)) setGoalTempo(String(h));
+        if (!isNaN(g)) setFinalTempo(String(g));
+        const lo = parseInt(startTempo, 10);
+        if (!isNaN(lo)) setClusterHigh(String(lo + 10));
+      } else if (mode === 'cluster' && next !== 'cluster') {
+        const f = parseInt(finalTempo, 10);
+        if (!isNaN(f)) setGoalTempo(String(f));
       }
     }
     setMode(next);
@@ -370,6 +374,7 @@ export function useTempoLadderSession(
       const firstBlock = customPattern.blocks[0];
       const firstBpm = resolveBlockBpm(firstBlock.tempo, base, goal);
       metronome.setBpm(firstBpm);
+      metronome.start();
       setPhase('playing');
       return;
     }
@@ -395,6 +400,7 @@ export function useTempoLadderSession(
       if (!toolsOnly && exerciseId) await updateTempoLadderState(exerciseId, start, 0);
       setProgress({ ...saved, current_tempo: start, current_streak: 0 });
       metronome.setBpm(start);
+      metronome.start();
       setPhase('playing');
       return;
     }
@@ -428,6 +434,7 @@ export function useTempoLadderSession(
       current_streak: 0,
     });
     metronome.setBpm(firstBpm);
+    metronome.start();
     setPhase('playing');
   }
 

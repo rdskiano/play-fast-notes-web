@@ -154,6 +154,27 @@ function buildHtml(o: {
         }
       });
       highlight();
+      // Center-crop: abcjs pads the staff out to staffwidth, so a short note
+      // group is drawn at the LEFT with blank space to its right — centering the
+      // whole SVG then leaves the notes left-of-center (visible under the number
+      // in the grouping picker). Crop the viewBox to the actual drawn bounds so
+      // centering centers the notes themselves. Mirrors AbcStaffView.web.tsx.
+      if (${o.centered ? 'true' : 'false'}) {
+        try {
+          var csvg = document.querySelector('#paper svg');
+          if (csvg) {
+            var bb = csvg.getBBox();
+            var oh = parseFloat(csvg.getAttribute('height')) || (bb ? bb.height : 0);
+            if (bb && bb.width > 0 && oh > 0) {
+              // Horizontal crop only: map the drawn width to the element and keep
+              // the full height, so vertical layout + the reported height are
+              // untouched and only the left-bias is corrected.
+              csvg.setAttribute('viewBox', bb.x + ' 0 ' + bb.width + ' ' + oh);
+              csvg.setAttribute('width', String(bb.width));
+            }
+          }
+        } catch (ce) {}
+      }
       // Report the rendered SVG height so RN can grow the container to fit
       // wrapped staff lines (otherwise a 2-line wrap clips at the fixed height).
       try {

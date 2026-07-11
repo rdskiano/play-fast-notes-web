@@ -519,6 +519,10 @@ export class MetronomeEngine {
       try {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
+        // Pin initial gain to 0 (default is 1.0) so the note's start can't be
+        // evaluated at full gain for a fraction of a block → no tick/pop on iOS.
+        // See the matching note in playPitchSequence.
+        gain.gain.value = 0;
         osc.frequency.value = freqs[i];
         osc.type = 'triangle';
         const peak = 0.3;
@@ -581,6 +585,13 @@ export class MetronomeEngine {
       try {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
+        // A GainNode defaults to 1.0. Until the fade-in below takes effect at
+        // `when`, that leaves the gain at full — and on iOS the block that
+        // contains the oscillator's start can be evaluated at that full gain for
+        // a fraction of a block, producing an audible tick/pop right as the note
+        // begins (intermittent because `when` drifts against the block grid).
+        // Pinning the initial value to 0 removes the pre-note full-gain window.
+        gain.gain.value = 0;
         osc.frequency.value = freqs[i];
         osc.type = 'triangle';
         const when = base + i * secondsPerNote;
