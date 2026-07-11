@@ -80,7 +80,7 @@ const CU_MARKING_STEPS: TourStep[] = [
     body:
       'Interleaved Click-Up — developed by researcher Molly Gebrian — breaks your passage into small units and practices them at shuffled tempos, and in changing contexts, which builds more reliable playing under pressure.\n\n' +
       'The passage needs to be broken down into small, manageable units. You can decide to go by the single beat (usually a beat plus the first note of the next beat), or by the measure. If a single beat contains too many notes (like six to eight) and is too difficult, you should break it down further into half or a quarter of a beat. As you get better over multiple days, this can expand to every two bars or an entire line.\n\n' +
-      'Tap right on the note where each unit begins (a beat or a measure) — the number drops in above it automatically — and add one extra mark at the very end. Pinch to zoom in for accuracy. Tap a mark again to remove it, or use UNDO / CLEAR up top.',
+      'Tap right on the note where each unit begins (a beat or a measure) — the number lands right where you tap — and add one extra mark at the very end. Pinch to zoom in for accuracy. Tap a mark again to remove it, or use UNDO / CLEAR up top.',
     image: {
       source: require('@/assets/images/tutorial-click-up-marking.png'),
       aspectRatio: 2727 / 549,
@@ -307,8 +307,8 @@ export default function ClickUpScreen() {
           <ThemedText type="title">Here’s how you’ll mark it</ThemedText>
           <ThemedText
             style={[styles.helper, { opacity: 1, textAlign: 'left', paddingHorizontal: 0, paddingVertical: 0 }]}>
-            You’ll tap right on the start of each beat, in order — plus one mark
-            at the very end. The number drops in above it. Like this:
+            You’ll tap the start of each beat, in order — plus one mark at the
+            very end. The number lands right where you tap. Like this:
           </ThemedText>
           {isPhone && winWidth < winHeight && (
             <View style={[styles.rotateHint, { backgroundColor: C.tint + '18' }]}>
@@ -542,9 +542,9 @@ export default function ClickUpScreen() {
               (auto-opens for first-timers); no inline panel here. */}
 
           <ThemedText style={styles.helper}>
-            Tap right on the note where each unit begins — the number drops in
-            above it automatically. Pinch to zoom in for accuracy. You need at
-            least {MIN_MARKERS} marks. Tap an existing mark to remove it.
+            Tap where each unit begins — the number lands right where you tap.
+            Pinch to zoom in for accuracy. You need at least {MIN_MARKERS} marks.
+            Tap an existing mark to remove it.
           </ThemedText>
           {/* Pinch-zoomable marking surface. ZoomableImage owns the tap gesture
               and reports a normalized image point (inverting its zoom + the
@@ -594,7 +594,7 @@ export default function ClickUpScreen() {
           title="Mark your units"
           body={
             "Interleaved Click-Up is a structured practice method developed by Molly Gebrian — a viola professor and researcher in the neuroscience of practice (her book: Learn Faster, Perform Better). Instead of repeating a passage start-to-finish, you break it into small units; the app interleaves them at climbing tempos, forcing your brain to keep retrieving and reconnecting sections. That builds deeper, more reliable playing under pressure.\n\n" +
-            "Mark your units: tap right on the note where each unit begins (a beat, a measure — the smallest chunk you want to practice) and the number drops in above it automatically. Pinch to zoom in for accuracy. Drop one extra mark at the end of the last unit so the app knows where it stops. You need at least " +
+            "Mark your units: tap right on the note where each unit begins (a beat, a measure — the smallest chunk you want to practice) and the number lands right where you tap. Pinch to zoom in for accuracy. Drop one extra mark at the end of the last unit so the app knows where it stops. You need at least " +
             String(MIN_MARKERS) +
             " marks total.\n\n" +
             "Fixing marks: tap a marker again to remove it, tap UNDO for just the last one, or CLEAR to start over. When you're done, tap NEXT → at the top right to set your tempo range.\n\n" +

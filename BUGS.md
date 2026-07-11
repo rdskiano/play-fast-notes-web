@@ -47,7 +47,7 @@ _Bugs that reproduce. Newest at the bottom. When fixed, move to "Verified fixed"
 **B. Metronome / Tempo Ladder behavior (high-pain per Ralph)**
 - **B-006** `ipad-native` `laptop-web` — Tempo Ladder should START the metronome click automatically when you begin practicing ("really isn't useful without a clicking metronome"). Likely same root as B-008.
 - **B-007** `ipad-native` `laptop-web` — Metronome timbre CHANGES when you open the Metronome tool: Tempo Ladder starts a click immediately, but opening the metronome swaps the sound. (Two metronome sources / patterns diverging.)
-- **B-008** `laptop-web` — Rhythmic Variation playback: every 2nd–3rd note has a very LOUD click accompanying it. (accent/downbeat click bleeding into pitch playback.)
+- **B-008** ✅ FIXED 2026-07-08 (code, not pushed) — NEEDS EAR-CHECK: the "Loop rhythm" player (rhythmTick, useMetronome.web.ts) accented the first token of each group at gain 1.0 / 1500 Hz vs 0.6 / 1100 Hz for the rest; on short groupings that's the loud click every 2nd-3rd note. Softened to 0.7 / 1250 Hz. If Ralph wants NO accent, set downbeat gain = 0.6.
 
 **C. iPad-native (needs the device; get diagnostics before patching)**
 - **B-009** `ipad-native` — Document scanner is poor: edge detection barely works, no re-crop option in the flow, and there's a page-count LIMIT when adding to a PDF. (biggest item.)
@@ -55,8 +55,11 @@ _Bugs that reproduce. Newest at the bottom. When fixed, move to "Verified fixed"
 - **B-011** `ipad-native` — Marking a spot requires tapping Save at least TWICE every time.
 
 **D. Features**
-- **B-012** — Photo option: add a black-and-white / clarified (higher-contrast) version of the photo.
+- **B-012** ↩ REVERTED my web build (2026-07-08). Ralph clarified B-012 is really about **iPad SCANNING** (Genius-Scan quality) → it's the same ask as **B-009**, NOT a web photo filter. My web `clarifyCanvas` was wrong scope and is reverted. **KEY FINDING:** the native scanner ALREADY uses Apple's **VisionKit `VNDocumentCameraViewController`** (via `react-native-document-scanner-plugin` v2, `app/document-upload.tsx` → `DocumentScanner.scanDocument({croppedImageQuality:100})`) — i.e. the Notes-app scanner, Genius-Scan-grade edge detection — AND already B&W-enhances each page (`enhanceScan` in modules/pdf-render, grayscale+contrast, `lib/scan/addScannedDocument.ts`). So the raw scan engine is already good. What's MISSING vs Genius Scan (the real B-009 work): **post-scan editing** — re-crop a page, reorder, delete, add more pages — and maybe a nicer enhance. That's native + needs a new App Store BUILD (not OTA) + on-device diagnosis (watch exactly what Ralph hits). The "page limit" he mentioned is unexplained — VisionKit imposes none; likely the add-to-existing-PDF flow — verify on device.
 - **B-013** — Once a PERFORMANCE tempo is set for a spot in one strategy, preload it for that spot in all other strategies. (per-passage performance-tempo memory shared across strategies.)
+
+### 2026-07-08 — added mid-session
+- **B-014** ✅ FIXED 2026-07-08 (code, not pushed) — NEEDS ON-DEVICE CHECK: ICU (and all score marking) — marks appeared to drift "higher and higher" as more were placed. Root: a fixed 70px `SCORE_MARK_LIFT` floated every badge above the tap, which can't be right (up-stem vs down-stem notes need different clearance) and read as inconsistent height. Per Ralph, dropped the lift entirely: `SCORE_MARK_LIFT = 0` and the badge/▼ now CENTER on the tap point (ScoreWithMarkers.tsx — added `- mHalf` / `- arrowFont/2` to match the horizontal centering). Affects Click-Up, Micro-, Macro-chaining. Copy updated ("lands right where you tap"). NB: if any true accumulating drift remains after this, it'd be in ZoomableImage's onTapPoint mapping — separate from the lift.
 
 ### Template (copy this when adding a new bug)
 

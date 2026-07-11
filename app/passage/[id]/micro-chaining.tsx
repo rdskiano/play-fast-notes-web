@@ -81,7 +81,7 @@ const MC_MARKING_STEPS: TourStep[] = [
     title: 'Mark each note',
     body:
       'Micro-Chaining builds a short, muddy fragment back up one note at a time — always at your performance tempo — so each connection gets clean reps in context.\n\n' +
-      'Tap right on each note to add a link to the chain — the number drops in above it. Pinch to zoom in so you can place each mark accurately. Use UNDO / CLEAR up top to fix a mistake.',
+      'Tap right on each note to add a link to the chain — the number lands where you tap. Pinch to zoom in so you can place each mark accurately. Use UNDO / CLEAR up top to fix a mistake.',
   },
   {
     target: 'mc-next',
@@ -274,8 +274,8 @@ export default function MicroChainingScreen() {
               Mark the notes to lock in
             </ThemedText>
             <ThemedText style={{ opacity: 0.7, fontSize: Type.size.sm, lineHeight: 18 }}>
-              Tap right on each note in your tricky spot — the number drops in
-              above it. Pinch to zoom for accuracy.
+              Tap each note in your tricky spot — the number lands where you tap.
+              Pinch to zoom for accuracy.
             </ThemedText>
           </View>
           <View
@@ -362,8 +362,8 @@ export default function MicroChainingScreen() {
         />
         <ScrollView contentContainerStyle={styles.markingContent}>
           <ThemedText style={styles.helper}>
-            Tap right on each note to add a link to the chain — the number drops in
-            above it. Pinch to zoom in for accuracy. Use UNDO to fix a mistake.
+            Tap each note to add a link to the chain — the number lands where you
+            tap. Pinch to zoom in for accuracy. Use UNDO to fix a mistake.
           </ThemedText>
           <View
             {...tourTag('mc-score')}
@@ -394,7 +394,7 @@ export default function MicroChainingScreen() {
           title="Micro-Chaining — mark each note"
           body={
             'Micro-Chaining builds a short, muddy fragment back up one note at a time, always at your performance tempo. Each connection gets clean, in-context reps so the whole fragment locks in.\n\n' +
-            'Mark each note: tap right on each note head to add a link to the chain — the number drops in above it. Pinch to zoom in so you can place each mark accurately.\n\n' +
+            'Mark each note: tap right on each note head to add a link to the chain — the number lands where you tap. Pinch to zoom in so you can place each mark accurately.\n\n' +
             'Fixing marks: tap UNDO to remove the last one, or CLEAR to start over. When you\'re done, tap NEXT → to choose Forward, Backward, or Problem chaining.'
           }
         />

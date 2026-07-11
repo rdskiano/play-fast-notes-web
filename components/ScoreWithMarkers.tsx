@@ -49,15 +49,13 @@ type Props = {
 
 const MARKER_HIT_RADIUS = 24;
 
-// Shared vertical lift (px, pre-zoom) for the numbered marking badges (place)
-// and the ▼ play arrows, used by EVERY strategy that marks the score (Click-Up,
-// Micro-Chaining, Macro-Chaining). One consistent gesture everywhere: the user
-// taps RIGHT ON the note and the cue registers clearly above it. Pass this as
-// both placeLiftPx and playLiftPx so a mark sits at the same height on the
-// marking and playing screens. Bumped 58 → 70 so a mark clears the note with a
-// little more room at normal (un-zoomed) scale — at home zoom the old value sat
-// too close to the notehead, especially noticeable after zooming back out.
-export const SCORE_MARK_LIFT = 70;
+// Extra vertical lift (px, pre-zoom) ABOVE the tapped point for the marking
+// badges + ▼ play arrows. Now 0: the mark sits exactly where the user tapped
+// (centered on the tap), so THEY choose the height. A fixed lift could never be
+// right — a note with an up-stem needs a different clearance than a down-stem
+// one — so we let the finger decide. Kept as a named export + prop so a future
+// screen could reintroduce a nudge without touching every call site.
+export const SCORE_MARK_LIFT = 0;
 
 export function ScoreWithMarkers({
   uri,
@@ -76,12 +74,12 @@ export function ScoreWithMarkers({
   // Marker geometry — compact for note-level chains, standard for beats.
   const mSize = compact ? 18 : 28;
   const mHalf = mSize / 2;
-  const mLift = placeLiftPx ?? (compact ? 22 : 28); // px the circle sits above the tapped point
+  const mLift = placeLiftPx ?? 0; // extra px the circle floats above the tap (0 = centered on it)
   const mFont = compact ? 10 : 12;
   // Play-mode ▼ arrows: standard 20 for chaining screens (28 for beat-level
   // Click-Up/Rhythmic), shrunk to 14 only on phones that opt in via phoneArrows.
   const arrowFont = phoneArrows ? 14 : compact ? 20 : 28;
-  const arrowLift = playLiftPx ?? (phoneArrows ? 18 : compact ? 26 : 34);
+  const arrowLift = playLiftPx ?? 0;
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [aspect, setAspect] = useState<number | null>(null);
 
@@ -140,7 +138,7 @@ export function ScoreWithMarkers({
                 {
                   fontSize: arrowFont,
                   left: drawn.ox + m.x * drawn.w - arrowFont / 2,
-                  top: Math.max(2, drawn.oy + m.y * drawn.h - arrowLift),
+                  top: Math.max(2, drawn.oy + m.y * drawn.h - arrowFont / 2 - arrowLift),
                   pointerEvents: 'none',
                 },
               ]}>
@@ -160,9 +158,10 @@ export function ScoreWithMarkers({
                 borderRadius: mHalf,
                 borderWidth: compact ? Borders.medium : Borders.thick,
                 left: drawn.ox + m.x * drawn.w - mHalf,
-                // Clamp so a mark near the top of a tightly-cropped passage
-                // rides at the top edge instead of being clipped off-screen.
-                top: Math.max(2, drawn.oy + m.y * drawn.h - mLift),
+                // Centered on the tap (— mHalf), matching the horizontal axis, so
+                // the badge sits exactly where the finger landed. Clamp so a mark
+                // near the top rides the edge instead of clipping off-screen.
+                top: Math.max(2, drawn.oy + m.y * drawn.h - mHalf - mLift),
                 pointerEvents: 'none',
               },
               isHi && styles.markerHighlight,
