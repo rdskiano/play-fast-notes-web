@@ -1,6 +1,8 @@
 // SQL table name remains "pieces" — see ROADMAP Phase 0 (TS rename only).
 import { File } from 'expo-file-system';
 
+import { toCurrentContainerUri } from '@/lib/files/appContainer';
+
 import { getDb } from '../client';
 
 export type SourceKind = 'pdf' | 'image';
@@ -121,11 +123,24 @@ export function parseRegions(regions_json: string | null): PassageRegion[] {
   }
 }
 
+// Heal a row's stored image paths at read time. Passage images are saved as
+// ABSOLUTE file:// paths, and the app-sandbox part of an absolute path goes
+// stale whenever the app is reinstalled (a TestFlight/App Store update counts).
+// Re-rooting onto the current container keeps old-library crops, thumbnails,
+// and originals loading after an update. Pure string rewrite, cheap per row.
+function healPassageUris(row: Passage): Passage {
+  row.source_uri = toCurrentContainerUri(row.source_uri);
+  if (row.thumbnail_uri) row.thumbnail_uri = toCurrentContainerUri(row.thumbnail_uri);
+  if (row.original_uri) row.original_uri = toCurrentContainerUri(row.original_uri);
+  return row;
+}
+
 export async function listPassages(): Promise<Passage[]> {
   const db = getDb();
-  return db.getAllAsync<Passage>(
+  const rows = await db.getAllAsync<Passage>(
     `SELECT * FROM pieces WHERE deleted_at IS NULL ORDER BY sort_order ASC, title ASC;`,
   );
+  return rows.map(healPassageUris);
 }
 
 // How many live photo passages the user has, for the free-tier limit. A "photo
@@ -150,22 +165,25 @@ export async function countActivePhotoPassages(): Promise<number> {
 export async function listPassagesInFolder(folder_id: string | null): Promise<Passage[]> {
   const db = getDb();
   if (folder_id === null) {
-    return db.getAllAsync<Passage>(
+    const rows = await db.getAllAsync<Passage>(
       `SELECT * FROM pieces WHERE folder_id IS NULL AND document_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC, title ASC;`,
     );
+    return rows.map(healPassageUris);
   }
-  return db.getAllAsync<Passage>(
+  const rows = await db.getAllAsync<Passage>(
     `SELECT * FROM pieces WHERE folder_id = ? AND document_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC, title ASC;`,
     folder_id,
   );
+  return rows.map(healPassageUris);
 }
 
 export async function listPassagesInDocument(document_id: string): Promise<Passage[]> {
   const db = getDb();
-  return db.getAllAsync<Passage>(
+  const rows = await db.getAllAsync<Passage>(
     `SELECT * FROM pieces WHERE document_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, title ASC;`,
     document_id,
   );
+  return rows.map(healPassageUris);
 }
 
 export async function updatePassageSortOrder(id: string, sortOrder: number): Promise<void> {
@@ -211,7 +229,7 @@ export async function getPassage(id: string): Promise<Passage | null> {
     `SELECT * FROM pieces WHERE id = ? AND deleted_at IS NULL;`,
     id,
   );
-  return row ?? null;
+  return row ? healPassageUris(row) : null;
 }
 
 export async function updatePassageUnits(id: string, markers: Marker[]): Promise<void> {
@@ -291,7 +309,9 @@ export async function updatePassageRegionsAndAssets(
 function safeDeleteFile(uri: string | null) {
   if (!uri) return;
   try {
-    const f = new File(uri);
+    // Heal a stale container prefix first, or the delete silently misses the
+    // real file (carried into the new container by a reinstall) and orphans it.
+    const f = new File(toCurrentContainerUri(uri));
     if (f.exists) f.delete();
   } catch {
     // ignore

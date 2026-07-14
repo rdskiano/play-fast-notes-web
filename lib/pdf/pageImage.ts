@@ -10,6 +10,7 @@
 
 import { Directory, File, Paths } from 'expo-file-system';
 
+import { toCurrentContainerUri } from '@/lib/files/appContainer';
 import { renderPdfPage } from '@/modules/pdf-render';
 
 export type ResolvableDoc = { id: string; original_uri: string | null };
@@ -20,23 +21,9 @@ export type ResolvablePage = { index: number; image_uri?: string; w: number; h: 
 // display wants a crisp image, crops need pixels in the page.w × page.h space.
 const DISPLAY_MAX_EDGE = 2000;
 
-// iOS app-sandbox paths embed a per-install UUID
-// (…/Application/<UUID>/Documents/…) that changes on every reinstall — and a
-// TestFlight or App Store update counts as a reinstall. So an absolute path saved
-// in a previous install points into a container that no longer exists, even
-// though the file itself was carried forward into the new container. Re-root the
-// part after "/Documents/" onto the CURRENT documents directory so old-library
-// image and PDF paths stay valid across updates. If the marker isn't present, or
-// it's a remote/relative URI, it's returned unchanged.
-function toCurrentContainerUri(uri: string): string {
-  if (!uri.startsWith('file://')) return uri;
-  const marker = '/Documents/';
-  const i = uri.indexOf(marker);
-  if (i === -1) return uri;
-  const tail = uri.slice(i + marker.length);
-  const base = Paths.document.uri.replace(/\/+$/, '');
-  return `${base}/${tail}`;
-}
+// Stale-container healing (toCurrentContainerUri) lives in
+// lib/files/appContainer.ts — shared with the passages repo, which heals the
+// same way for passage source/thumbnail/original images.
 
 // Return a READABLE local file:// URI for a stored path, healing a stale
 // container prefix if needed. Uses File.size (0 when the file is missing OR
