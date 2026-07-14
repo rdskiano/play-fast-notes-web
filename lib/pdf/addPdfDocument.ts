@@ -76,17 +76,33 @@ export async function addPdfDocument(opts: {
     folder_id: folderId,
   });
 
-  // 4. Best-effort cloud sync — only when signed in.
-  let synced = false;
+  // 4. Cloud sync runs in the BACKGROUND — the local document already renders on
+  //    device, so we return now and upload behind the scenes instead of making the
+  //    user wait on the network. Best-effort: a failure (or the app closing
+  //    mid-upload) just leaves the doc local-only until the next sync.
+  void syncPdfDocumentToCloud({ docId, cleanTitle, cleanComposer, folderId, pages, localPdf });
+
+  onProgress?.('Added to your library ✓');
+  return { docId, synced: false };
+}
+
+// Upload the original PDF to Supabase Storage and insert the document row.
+// Called non-awaited by addPdfDocument (see step 4). Never throws to its caller —
+// a failure just leaves the document local-only until the next sync.
+async function syncPdfDocumentToCloud(args: {
+  docId: string;
+  cleanTitle: string;
+  cleanComposer: string | null;
+  folderId: string | null;
+  pages: { index: number; w: number; h: number }[];
+  localPdf: File;
+}): Promise<void> {
+  const { docId, cleanTitle, cleanComposer, folderId, pages, localPdf } = args;
   try {
     const { data } = await supabase.auth.getSession();
     const session = data.session;
-    if (!session) {
-      onProgress?.('Saved on this device. (Sign in to sync to the web.)');
-      return { docId, synced: false };
-    }
+    if (!session) return; // signed out — local-only, nothing to sync
 
-    onProgress?.('Syncing to your account…');
     const userId = session.user.id;
     const pdfPath = `${userId}/documents/${docId}/original.pdf`;
     const bytes = await localPdf.bytes();
@@ -113,13 +129,8 @@ export async function addPdfDocument(opts: {
       updated_at: now,
     });
     if (error) throw error;
-
-    synced = true;
-    onProgress?.('Synced to the web ✓');
   } catch (e) {
-    // The local document already exists and works — don't fail the whole add.
-    onProgress?.(`Saved on this device; cloud sync failed: ${(e as Error).message}`);
+    // The local document already exists and works — don't surface sync errors.
+    console.warn('[pdf] background cloud sync failed', e);
   }
-
-  return { docId, synced };
 }

@@ -68,21 +68,36 @@ export async function addScannedDocument(opts: {
     folder_id: folderId,
   });
 
-  // 3. Best-effort cloud sync — upload each page image + the doc row.
-  let synced = false;
+  // 3. Cloud sync runs in the BACKGROUND — the local document is already usable,
+  //    so we return now and let the upload finish behind the scenes instead of
+  //    making the user wait on the network before they can practice. Best-effort:
+  //    if it fails (or the app closes mid-upload) the doc still lives locally and
+  //    can re-sync later. Fire-and-forget with its own error handling.
+  void syncScannedDocumentToCloud({ docId, cleanTitle, cleanComposer, folderId, pages });
+
+  onProgress?.('Added to your library ✓');
+  return { docId, synced: false, pageCount: pages.length };
+}
+
+// Upload each enhanced page image to Supabase Storage and insert the document
+// row. Called non-awaited by addScannedDocument (see step 3). Never throws to its
+// caller — a failure just leaves the document local-only until the next sync.
+async function syncScannedDocumentToCloud(args: {
+  docId: string;
+  cleanTitle: string;
+  cleanComposer: string | null;
+  folderId: string | null;
+  pages: { index: number; image_uri: string; w: number; h: number }[];
+}): Promise<void> {
+  const { docId, cleanTitle, cleanComposer, folderId, pages } = args;
   try {
     const { data } = await supabase.auth.getSession();
     const session = data.session;
-    if (!session) {
-      onProgress?.('Saved on this device. (Sign in to sync to the web.)');
-      return { docId, synced: false, pageCount: pages.length };
-    }
+    if (!session) return; // signed out — local-only, nothing to sync
 
-    onProgress?.('Syncing to your account…');
     const userId = session.user.id;
     const remotePages: { index: number; image_uri: string; w: number; h: number }[] = [];
-    for (let i = 0; i < pages.length; i++) {
-      const p = pages[i];
+    for (const p of pages) {
       const path = `${userId}/documents/${docId}/p${p.index}.jpg`;
       const bytes = await new File(p.image_uri).bytes();
       const up = await supabase.storage.from(BUCKET).upload(path, bytes, {
@@ -92,7 +107,6 @@ export async function addScannedDocument(opts: {
       if (up.error) throw up.error;
       const publicUrl = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
       remotePages.push({ index: p.index, image_uri: publicUrl, w: p.w, h: p.h });
-      onProgress?.(`Uploaded page ${i + 1}/${pages.length}`);
     }
 
     const now = Date.now();
@@ -111,12 +125,7 @@ export async function addScannedDocument(opts: {
       updated_at: now,
     });
     if (error) throw error;
-
-    synced = true;
-    onProgress?.('Synced to the web ✓');
   } catch (e) {
-    onProgress?.(`Saved on this device; cloud sync failed: ${(e as Error).message}`);
+    console.warn('[scan] background cloud sync failed', e);
   }
-
-  return { docId, synced, pageCount: pages.length };
 }

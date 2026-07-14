@@ -44,7 +44,13 @@ export function DocumentPageImage({
    *  Defaults to true for callers that window their own list (e.g. FlatList). */
   active?: boolean;
 }) {
-  const [uri, setUri] = useState<string | null>(page.image_uri ?? null);
+  // Remote (http) images load directly. A stored LOCAL path is left unresolved
+  // so resolvePageImageUri can validate/heal it — an absolute app-sandbox path
+  // saved under a previous install goes stale after an update, and seeding it
+  // straight into <Image> would show a blank page once iOS drops it from cache.
+  const [uri, setUri] = useState<string | null>(
+    page.image_uri && page.image_uri.startsWith('http') ? page.image_uri : null,
+  );
 
   useEffect(() => {
     // Nothing to do once we have a URL (stored image_uri or a prior render).

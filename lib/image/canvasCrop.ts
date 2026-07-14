@@ -8,11 +8,38 @@
 // The CROSS-PLATFORM API is `cropImage(uri, rect) → uri` and
 // `stitchVerticallyUris(uris) → uri`. URIs are file:// on iOS, blob: on web.
 
+import { Directory, File, Paths } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 
 import { stitchOnHost } from '@/components/StitchHost';
 
 export type Rect = { x: number; y: number; w: number; h: number };
+
+// Small stable hash so the same remote URL maps to the same cache filename
+// (crop the same page twice → reuse the download instead of re-fetching).
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+// expo-image-manipulator on iOS needs a readable LOCAL file. A page image URI can
+// be a remote https:// URL — older library pieces whose page render still points
+// at Supabase Storage, or an import whose per-page image download didn't finish.
+// The on-screen <Image> loads those over the network fine, but manipulateAsync
+// can't, so cropping that page threw and the save silently failed (the drawn box
+// just stayed on screen). Download remote URLs to the cache first, then crop the
+// local copy. Local file:// URIs pass straight through.
+async function ensureLocalFile(uri: string): Promise<string> {
+  if (!/^https?:\/\//i.test(uri)) return uri;
+  const dir = new Directory(Paths.cache, 'crop-src');
+  if (!dir.exists) dir.create({ intermediates: true });
+  const ext = (uri.split('?')[0].match(/\.(jpe?g|png|webp)$/i)?.[1] ?? 'jpg').toLowerCase();
+  const target = new File(dir, `remote-${hashString(uri)}.${ext}`);
+  if (target.exists) return target.uri;
+  await File.downloadFileAsync(uri, target);
+  return target.uri;
+}
 
 export async function loadImage(_url: string): Promise<HTMLImageElement> {
   throw new Error('loadImage() is web-only. On iOS use cropImage(uri, rect).');
@@ -42,8 +69,9 @@ export async function stitchVertically(
 // are in the source image's natural pixel space. Returns the URI of the
 // cropped JPEG (lives in expo's cache dir).
 export async function cropImage(uri: string, area: Rect): Promise<string> {
+  const localUri = await ensureLocalFile(uri);
   const result = await ImageManipulator.manipulateAsync(
-    uri,
+    localUri,
     [
       {
         crop: {

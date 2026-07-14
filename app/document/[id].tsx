@@ -752,6 +752,14 @@ export default function DocumentScreen() {
       refresh();
     } catch (e) {
       console.warn('[document] save passage failed', e);
+      // Surface the real reason instead of silently leaving the drawn box on
+      // screen (which reads as "nothing happened"). Drafts are intentionally
+      // kept so the user can retry after we learn what failed.
+      const detail = e instanceof Error ? `${e.message}` : String(e);
+      Alert.alert(
+        "Couldn't save that spot",
+        `Your marking is still here — please try again. If it keeps happening, send feedback from your Account screen and include this note:\n\n${detail}`,
+      );
     } finally {
       setSavingDraft(false);
     }

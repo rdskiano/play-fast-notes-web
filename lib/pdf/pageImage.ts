@@ -20,6 +20,46 @@ export type ResolvablePage = { index: number; image_uri?: string; w: number; h: 
 // display wants a crisp image, crops need pixels in the page.w × page.h space.
 const DISPLAY_MAX_EDGE = 2000;
 
+// iOS app-sandbox paths embed a per-install UUID
+// (…/Application/<UUID>/Documents/…) that changes on every reinstall — and a
+// TestFlight or App Store update counts as a reinstall. So an absolute path saved
+// in a previous install points into a container that no longer exists, even
+// though the file itself was carried forward into the new container. Re-root the
+// part after "/Documents/" onto the CURRENT documents directory so old-library
+// image and PDF paths stay valid across updates. If the marker isn't present, or
+// it's a remote/relative URI, it's returned unchanged.
+function toCurrentContainerUri(uri: string): string {
+  if (!uri.startsWith('file://')) return uri;
+  const marker = '/Documents/';
+  const i = uri.indexOf(marker);
+  if (i === -1) return uri;
+  const tail = uri.slice(i + marker.length);
+  const base = Paths.document.uri.replace(/\/+$/, '');
+  return `${base}/${tail}`;
+}
+
+// Return a READABLE local file:// URI for a stored path, healing a stale
+// container prefix if needed. Uses File.size (0 when the file is missing OR
+// unreadable — e.g. a stale container path, or a 0-byte file left by an import
+// whose download failed) rather than .exists, which reported true for a path
+// that ImageManipulator then couldn't read. Returns null when neither the stored
+// nor the re-rooted path yields readable bytes, so callers fall through to
+// re-rendering from the original PDF. Non-file URIs return null.
+function readableLocalUri(uri: string): string | null {
+  if (!uri.startsWith('file://')) return null;
+  const readable = (u: string): boolean => {
+    try {
+      return new File(u).size > 0;
+    } catch {
+      return false;
+    }
+  };
+  if (readable(uri)) return uri;
+  const healed = toCurrentContainerUri(uri);
+  if (healed !== uri && readable(healed)) return healed;
+  return null;
+}
+
 export async function resolvePageImageUri(
   doc: ResolvableDoc,
   page: ResolvablePage,
@@ -32,14 +72,12 @@ export async function resolvePageImageUri(
   // from the original PDF instead of showing blank.
   if (page.image_uri) {
     if (page.image_uri.startsWith('http')) return page.image_uri;
-    try {
-      if (new File(page.image_uri).exists) return page.image_uri;
-    } catch {
-      // unreadable path — fall through to render
-    }
+    const local = readableLocalUri(page.image_uri);
+    if (local) return local;
+    // stale/gone local path — fall through to render from the PDF
   }
   // No usable stored image and nothing to render from.
-  if (!doc.original_uri) return page.image_uri ?? '';
+  if (!doc.original_uri) return page.image_uri ? toCurrentContainerUri(page.image_uri) : '';
 
   try {
     const dir = new Directory(Paths.cache, 'pdf-pages', doc.id);
@@ -65,6 +103,10 @@ export async function resolvePageImageUri(
       const localPdf = new File(dir, 'original.pdf');
       if (!localPdf.exists) await File.downloadFileAsync(pdfUri, localPdf);
       pdfUri = localPdf.uri;
+    } else {
+      // Heal a stale container prefix so an old-library PDF saved under a
+      // previous install still renders after an update.
+      pdfUri = readableLocalUri(pdfUri) ?? pdfUri;
     }
 
     const rendered = await renderPdfPage(pdfUri, page.index, renderEdge, out.uri);
@@ -90,11 +132,9 @@ export async function resolvePageForCrop(
   const longEdge = Math.max(page.w, page.h) || DISPLAY_MAX_EDGE;
   if (page.image_uri) {
     if (page.image_uri.startsWith('http')) return { uri: page.image_uri, scale: 1 };
-    try {
-      if (new File(page.image_uri).exists) return { uri: page.image_uri, scale: 1 };
-    } catch {
-      // unreadable stored image — fall through to a rendered crop
-    }
+    const local = readableLocalUri(page.image_uri);
+    if (local) return { uri: local, scale: 1 };
+    // stale/gone local path — fall through to a rendered crop from the PDF
   }
   const cropEdge = Math.max(DISPLAY_MAX_EDGE, longEdge);
   const uri = await resolvePageImageUri(doc, page, { maxEdge: cropEdge });

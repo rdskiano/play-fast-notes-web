@@ -137,13 +137,18 @@ function loadAudioApi(): { AudioContext: AudioContextCtor } | null {
   return audioApi;
 }
 
-// Tuning (matches the user's prototype)
-const BEAT_FREQ = 2400;
-const NORMAL_FREQ = 1850;
-const SUB_FREQ = 1400;
-const BEAT_GAIN = 0.9;
-const NORMAL_GAIN = 0.72;
-const SUB_GAIN = 0.5;
+// Tuning. The everyday click (NORMAL) is now the bright, clear tone that used
+// to be the accent (2400 Hz / 0.9) — Ralph preferred it and the old duller
+// 1850/0.72 normal made the click "drop" the moment the panel set its default
+// all-normal 4/4 pattern. The true accent is pushed higher/louder so a tapped
+// downbeat still stands out above the everyday click. SUB (subdivisions) sits
+// a clear step below the beat.
+const BEAT_FREQ = 3200;
+const NORMAL_FREQ = 2400;
+const SUB_FREQ = 1850;
+const BEAT_GAIN = 0.95;
+const NORMAL_GAIN = 0.9;
+const SUB_GAIN = 0.6;
 const ATTACK_S = 0.003;
 const CLICK_LEN_S = 0.075;
 
