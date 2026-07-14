@@ -279,10 +279,12 @@ export function useMetronome(initialBpm = 60) {
   const bpmRef = useRef(bpm);
   const subRef = useRef<Subdivision>(1);
   const volRef = useRef(volume);
-  // Per-beat accent/normal/mute pattern. Default is a single accented beat
-  // (uniform, meterless) so practice-flow callers that never set a pattern
-  // keep the old behaviour. The MetronomePanel overrides it.
-  const beatPatternRef = useRef<BeatState[]>(['accent']);
+  // Per-beat accent/normal/mute pattern. Default is a single NORMAL beat
+  // (uniform, meterless) matching the MetronomePanel's default all-'normal'
+  // pattern — it must stay 'normal', not 'accent', or the click audibly
+  // changes the moment the panel mounts and applies its default (practice
+  // flows start the metronome before the panel exists).
+  const beatPatternRef = useRef<BeatState[]>(['normal']);
   const droneEnabledRef = useRef(false);
   const droneFreqRef = useRef(440);
   const droneSustainRef = useRef(0.6);

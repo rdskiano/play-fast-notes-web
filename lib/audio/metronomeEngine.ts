@@ -226,12 +226,14 @@ export class MetronomeEngine {
   private _volume = 0.6;
   private running = false;
 
-  // One entry per beat of the measure. The default is a single accented
-  // beat — i.e. every beat sounds identical (meterless), which is exactly
-  // what every metronome consumer had before per-beat patterns existed.
-  // The MetronomePanel overrides this via setBeatPattern; practice-flow
-  // callers that never touch it keep the uniform click.
-  private _beatPattern: BeatState[] = ['accent'];
+  // One entry per beat of the measure. The default is a single NORMAL beat —
+  // every beat sounds identical (meterless), using the same everyday click
+  // the MetronomePanel's default all-'normal' pattern produces. It must stay
+  // 'normal', not 'accent': practice flows start the metronome before the
+  // panel ever mounts, and if the defaults disagree the click audibly
+  // changes the moment the user opens the panel (a long-standing complaint).
+  // The accent tone only appears when the user marks a beat dot ">".
+  private _beatPattern: BeatState[] = ['normal'];
 
   // Drone-click mode: when on, each tick sounds a sustained pitched tone
   // instead of the percussive click. _droneSustain (0..1) scales the tone
