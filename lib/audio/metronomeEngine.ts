@@ -249,6 +249,21 @@ export class MetronomeEngine {
   private _dropChance = 0;
   private _beatDropped = false;
 
+  // Every short-lived tone node (oscillator + its gain) is held here until it
+  // has finished sounding, then released. Without this, react-native-audio-api
+  // can garbage-collect a node mid-note — an intermittent tick/pop that the web
+  // Web Audio graph never has (it keeps connected nodes alive per spec). Fixes
+  // the iOS-only click on pitch playback + the drone.
+  private liveNodes = new Set<object>();
+  private retain(nodes: object[], stopTime: number) {
+    for (const n of nodes) this.liveNodes.add(n);
+    const now = this.ctx?.currentTime ?? 0;
+    const ms = Math.max(0, (stopTime - now) * 1000) + 150;
+    setTimeout(() => {
+      for (const n of nodes) this.liveNodes.delete(n);
+    }, ms);
+  }
+
   get bpm() {
     return this._bpm;
   }
@@ -376,6 +391,7 @@ export class MetronomeEngine {
       gain.connect(this.ctx.destination);
       osc.start(when);
       osc.stop(when + durationSec + 0.01);
+      this.retain([osc, gain], when + durationSec + 0.01);
     } catch {
       this.ctx = null;
     }
@@ -545,6 +561,7 @@ export class MetronomeEngine {
         gain.connect(gate);
         osc.start(when);
         osc.stop(when + audibleDur + 0.01);
+        this.retain([osc, gain], when + audibleDur + 0.01);
       } catch {
         this.ctx = null;
         return;
@@ -612,6 +629,7 @@ export class MetronomeEngine {
         gain.connect(dest ?? this.ctx.destination);
         osc.start(when);
         osc.stop(when + dur + 0.01);
+        this.retain([osc, gain], when + dur + 0.01);
       } catch {
         this.ctx = null;
         return i * secondsPerNote;
@@ -1307,6 +1325,7 @@ export class MetronomeEngine {
       gain.connect(this.ctx.destination);
       osc.start(when);
       osc.stop(when + toneLen + 0.02);
+      this.retain([osc, gain], when + toneLen + 0.02);
       return true;
     } catch {
       return false;
