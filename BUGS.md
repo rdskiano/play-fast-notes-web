@@ -84,6 +84,8 @@ _Bugs that reproduce. Newest at the bottom. When fixed, move to "Verified fixed"
   - **Landscape-phone fit (same day, Ralph's call):** the docked card is capped at the window height in landscape (~375–390px) and the slider pushed the stack to ~405px, so it WOULD have clipped. TAP TEMPO is hidden on landscape phones (slider + ± cover tempo-setting there); a strategy's NEXT button always stays. ToolsMetronome (tools-mode screens) now also shrinks-to-fit on short viewports — that one clipped slightly even before the slider. Known corner: NEXT + landscape on a mini/SE-height phone is still ~tight; revisit only if seen.
   - **Verify:** play button reads centred (phone + iPad); slider drags smoothly and the click retempos live while running; hold − … tempo walks down 5-at-a-time and stops when you let go; nothing clipped at the card bottom on phone portrait, phone LANDSCAPE (TAP TEMPO gone there — expected), laptop, and iPad.
 
+- **B-018** — Rhythm-exercise tempo has no relationship to the passage's tempo (Rhythm Variations + Exercise Builder both hard-code 80 BPM), AND the dial's denominator-based meaning makes the felt speed lurch between patterns in different meters at the same number. Reported by Ralph 2026-07-14 ("significantly different from what I would choose"). **Diagnosed same day; fix blocked on an ear-calibration session** — Ralph dials 9 chosen patterns to the tempo he'd assign, we fit which anchor rule (fastest-note / written-16th / total-time) matches his ear, THEN build auto-set from `pieces.performance_tempo` (B-013). Full math, pattern list, protocol, and blind-test predictions in **RHYTHM_TEMPO_PLAN.md** — read it before building anything here.
+
 ### Template (copy this when adding a new bug)
 
 ```
