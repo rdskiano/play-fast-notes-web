@@ -384,6 +384,12 @@ export function MetronomePanel({
   // strategy's hints back at the practice screen if needed.
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  // Landscape phone: the docked card is capped at the window height (~375–390),
+  // which the full stack no longer fits since the tempo slider landed. TAP
+  // TEMPO is the row we can spare there (Ralph's call — the slider + ± cover
+  // tempo-setting). A strategy's NEXT button shares that row and always stays:
+  // it's a session control, not a tempo aid.
+  const phoneLandscape = isPhone && vpW > vpH;
 
   return (
     <View style={[styles.root, WEB_TAP]}>
@@ -524,18 +530,21 @@ export function MetronomePanel({
             style={styles.tempoSlider}
           />
         )}
-        {/* NEXT when a strategy supplies it, otherwise TAP TEMPO. */}
-        <View style={styles.actionRow}>
-          {onNext ? (
-            <Pressable onPress={onNext} style={[styles.nextBtn, styles.raised]}>
-              <ThemedText style={styles.nextText}>NEXT →</ThemedText>
-            </Pressable>
-          ) : (
-            <Pressable onPress={onTapTempo} style={[styles.tapBtn, styles.raised]}>
-              <ThemedText style={styles.tapText}>TAP TEMPO</ThemedText>
-            </Pressable>
-          )}
-        </View>
+        {/* NEXT when a strategy supplies it, otherwise TAP TEMPO — except on a
+            landscape phone, where the TAP row is dropped to fit (see above). */}
+        {(onNext || !phoneLandscape) && (
+          <View style={styles.actionRow}>
+            {onNext ? (
+              <Pressable onPress={onNext} style={[styles.nextBtn, styles.raised]}>
+                <ThemedText style={styles.nextText}>NEXT →</ThemedText>
+              </Pressable>
+            ) : (
+              <Pressable onPress={onTapTempo} style={[styles.tapBtn, styles.raised]}>
+                <ThemedText style={styles.tapText}>TAP TEMPO</ThemedText>
+              </Pressable>
+            )}
+          </View>
+        )}
 
         {/* Function strip — the three optional layers. Each opens its own
             overlay, glows in its own colour when active (teal = pitch, orange
