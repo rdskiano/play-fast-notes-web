@@ -126,7 +126,9 @@ export function PracticeLogNotePrompt({
               <ThemedText style={[styles.keepCloseText, { color: C.icon }]}>✕</ThemedText>
             </Pressable>
           )}
-          <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
+          <ThemedText
+            type="subtitle"
+            style={{ textAlign: 'center', paddingHorizontal: onKeepPracticing ? 28 : 0 }}>
             {PROMPT_TITLE}
           </ThemedText>
 
