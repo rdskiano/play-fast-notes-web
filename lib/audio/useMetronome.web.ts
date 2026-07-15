@@ -560,9 +560,10 @@ export function useMetronome(initialBpm = 60) {
   }, [interrupted]);
 
   function setBpm(v: number, opts?: { animateBump?: boolean }) {
-    // Ceiling 600, not 300: /16-meter rhythm exercises count SIXTEENTHS on
-    // the dial (the B-018 auto-set can ask for 3× the passage's quarter goal).
-    // User-facing controls (MetronomePanel ± / slider) still cap themselves.
+    // Ceiling 600, not 300: eighth-meter rhythm exercises count EIGHTHS on
+    // the dial, and the B-018 auto-set asks for 1.5× the passage's quarter
+    // goal — above 300 for fast goals (e.g. goal 208 → dial 312). User-facing
+    // controls (MetronomePanel ± / slider) still cap themselves.
     const next = Math.max(20, Math.min(600, Math.round(v)));
     if (opts?.animateBump) {
       const delta = next - bpmRef.current;

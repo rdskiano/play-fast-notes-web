@@ -1,15 +1,23 @@
 # Rhythm-exercise tempo relationship (B-018) — calibration plan
 
-_Status 2026-07-14 (later): **calibration complete, rule BUILT** (code, not pushed).
-Rule: quarter-meters → dial = goal T; everything else → ♪ = 1.5 × T (i.e. /8 dial
-= 1.5T, /16 dial = 3T; `meterTempoFactor` in lib/strategies/rhythmPatterns.ts).
-Wired: rhythmic.tsx seeds the dial from `pieces.performance_tempo` × factor and
-rescales on every pattern/grouping change by the factor RATIO (manual nudges
-carry across meters); rhythm-builder ExercisesPhase does the same per ▶ card.
-Engine BPM ceilings raised 300/400 → 600 for /16 dials (panel UI still caps at
-240 — a /16 auto-dial above 240 can't be reproduced manually; known corner).
+_Status 2026-07-14 (later): **calibration complete, rule BUILT — SCOPED TO
+GROUPING 4 ONLY (Ralph's explicit call)** (code, not pushed).
+Rule: quarter-meters → dial = goal T; everything else → ♪ = 1.5 × T
+(`meterTempoFactor` in lib/strategies/rhythmPatterns.ts). Wired, gated on
+grouping === 4: rhythmic.tsx seeds the dial from `pieces.performance_tempo` ×
+factor and rescales on every pattern change by the factor RATIO (manual nudges
+carry across meters); switching to another grouping mid-session drops out of
+tempo management (dial stays put; returning to 4 re-seeds). rhythm-builder
+ExercisesPhase does the same per ▶ card, same gate. Groupings 3/5/6/7/8 keep
+the legacy fixed-80 dial — each needs its own ear-calibration WITH a real
+passage of its figure (3 = triplets, 6 = sextuplets…); expect a per-grouping
+factor table then. Watch 6/8 especially (compound meters may want
+dotted-quarter anchoring). Engine BPM ceilings raised 300/400 → 600 — needed
+because ♪ = 1.5 × goal exceeds 300 for goals above 200 (panel UI still caps at
+240; an auto-dial above that can't be reproduced manually — known corner).
 NEEDS Ralph's ear-check on web after push: 140-goal passage → Rhythm Variations
-grouping 4 → first pattern dial reads 210; arrow into 2/4 → 140; 5/8 → 210._
+grouping 4 → first pattern dial reads 210; arrow into 2/4 → 140; 5/8 → 210;
+grouping 3 unchanged (starts 80, dial never moves on its own)._
 
 ## Calibration data so far (Ralph, 2026-07-14)
 

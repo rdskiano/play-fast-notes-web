@@ -37,6 +37,12 @@ export function parseBeatDenominator(timeSig: string): number {
  * sixteenth-meters extrapolate the same eighth speed (♪ = 1.5T → dial 3T).
  * Content-independent within a meter — that's how his ear works, confirmed
  * against dotted and long-note patterns alike.
+ *
+ * ⚠️ Calibrated for GROUPING 4 (sixteenth-run passages) ONLY — Ralph's
+ * explicit scope call. Callers gate on grouping === 4; other groupings imply
+ * other figures (3 = triplets, 6 = sextuplets…) and keep the legacy fixed
+ * dial until each is ear-calibrated (likely becoming a per-grouping table).
+ * The /16 branch is an unexercised extrapolation (no /16 meters in grouping 4).
  */
 export function meterTempoFactor(timeSig: string): number {
   const d = parseBeatDenominator(timeSig);

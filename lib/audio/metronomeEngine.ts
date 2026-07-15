@@ -281,8 +281,9 @@ export class MetronomeEngine {
   }
 
   setBpm(bpm: number) {
-    // Ceiling 600 to match the web hook: /16-meter rhythm exercises count
-    // SIXTEENTHS on the dial (B-018 auto-set = 3× the passage quarter goal).
+    // Ceiling 600 to match the web hook: eighth-meter rhythm exercises count
+    // EIGHTHS on the dial, and the B-018 auto-set (1.5× the passage quarter
+    // goal) can exceed the old cap for fast goals.
     this._bpm = Math.max(20, Math.min(600, Math.round(bpm)));
   }
 

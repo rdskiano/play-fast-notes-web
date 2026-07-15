@@ -1110,10 +1110,13 @@ function ExercisesPhase({
   const C = Colors[scheme];
   const patterns = patternsByGrouping(grouping);
   const [playingId, setPlayingId] = useState<number | null>(null);
-  // Meter-aware tempo (B-018): the dial counts the meter's denominator unit,
-  // so cards in different meters need different dial numbers for the same
-  // felt speed. First ▶ seeds from the passage goal × the meter's factor;
-  // later ▶s rescale by the factor ratio so a manual nudge carries over.
+  // Meter-aware tempo (B-018) — GROUPING 4 ONLY (Ralph's calibration covers
+  // sixteenth-run passages; other groupings keep the legacy dial until they
+  // get their own ear-calibration — see RHYTHM_TEMPO_PLAN.md). The dial
+  // counts the meter's denominator unit, so cards in different meters need
+  // different dial numbers for the same felt speed. First ▶ seeds from the
+  // passage goal × the meter's factor; later ▶s rescale by the factor ratio
+  // so a manual nudge carries over.
   const tempoAnchorRef = useRef<number | null>(null);
 
   // Clear the active card when playback finishes naturally.
@@ -1150,14 +1153,16 @@ function ExercisesPhase({
       idx = chunkEnd;
     }
     if (freqs.length === 0) return;
-    const f = meterTempoFactor(pattern.timeSig);
-    const prevF = tempoAnchorRef.current;
-    if (prevF == null) {
-      if (goalTempo) metronome.setBpm(goalTempo * f);
-    } else if (f !== prevF) {
-      metronome.setBpm(metronome.bpm * (f / prevF));
+    if (grouping === 4) {
+      const f = meterTempoFactor(pattern.timeSig);
+      const prevF = tempoAnchorRef.current;
+      if (prevF == null) {
+        if (goalTempo) metronome.setBpm(goalTempo * f);
+      } else if (f !== prevF) {
+        metronome.setBpm(metronome.bpm * (f / prevF));
+      }
+      tempoAnchorRef.current = f;
     }
-    tempoAnchorRef.current = f;
     const beatDenom = parseBeatDenominator(pattern.timeSig);
     metronome.playPitchRhythm(freqs, tokens, beatDenom);
     setPlayingId(pattern.id);
