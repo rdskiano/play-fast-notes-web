@@ -66,6 +66,7 @@ import { buildExerciseHtml } from '@/lib/export/buildExerciseHtml';
 import { exportExercisePdf } from '@/lib/export/exportExercisePdf';
 import { buildExerciseAbc } from '@/lib/notation/buildExerciseAbc';
 import {
+  meterTempoFactor,
   parseBeatDenominator,
   patternsByGrouping,
   type Grouping,
@@ -886,6 +887,7 @@ export default function RhythmBuilderScreen() {
             metronome={metronome}
             viewportWidth={winWidth}
             onBack={() => setPhase('entry')}
+            goalTempo={passage?.performance_tempo ?? null}
           />
           {/* Phone keeps the floating tool rail (no header room for extra
               buttons). Tablet/laptop reach the metronome + timer from the
@@ -1091,6 +1093,7 @@ function ExercisesPhase({
   metronome,
   viewportWidth,
   onBack,
+  goalTempo,
 }: {
   pitches: Pitch[];
   grouping: Grouping;
@@ -1100,11 +1103,18 @@ function ExercisesPhase({
   metronome: ReturnType<typeof useMetronome>;
   viewportWidth: number;
   onBack: () => void;
+  /** Passage goal ♩ (pieces.performance_tempo) — seeds meter-aware playback. */
+  goalTempo: number | null;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const patterns = patternsByGrouping(grouping);
   const [playingId, setPlayingId] = useState<number | null>(null);
+  // Meter-aware tempo (B-018): the dial counts the meter's denominator unit,
+  // so cards in different meters need different dial numbers for the same
+  // felt speed. First ▶ seeds from the passage goal × the meter's factor;
+  // later ▶s rescale by the factor ratio so a manual nudge carries over.
+  const tempoAnchorRef = useRef<number | null>(null);
 
   // Clear the active card when playback finishes naturally.
   useEffect(() => {
@@ -1140,6 +1150,14 @@ function ExercisesPhase({
       idx = chunkEnd;
     }
     if (freqs.length === 0) return;
+    const f = meterTempoFactor(pattern.timeSig);
+    const prevF = tempoAnchorRef.current;
+    if (prevF == null) {
+      if (goalTempo) metronome.setBpm(goalTempo * f);
+    } else if (f !== prevF) {
+      metronome.setBpm(metronome.bpm * (f / prevF));
+    }
+    tempoAnchorRef.current = f;
     const beatDenom = parseBeatDenominator(pattern.timeSig);
     metronome.playPitchRhythm(freqs, tokens, beatDenom);
     setPlayingId(pattern.id);

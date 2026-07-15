@@ -40,6 +40,7 @@ import {
   SCORE_FRAME_BG,
 } from '@/lib/layout/configForm';
 import {
+  meterTempoFactor,
   parseBeatDenominator,
   patternsByGrouping,
   RHYTHM_PATTERNS,
@@ -136,12 +137,50 @@ export default function RhythmicScreen() {
   // on the Micro timer being enabled.
   const advanceCountRef = useRef(0);
 
+  // ── Meter-aware tempo (B-018) ──────────────────────────────────────────
+  // The dial counts the meter's DENOMINATOR unit, so the same number is a
+  // different real speed in 3/8 vs 2/4. Two jobs here:
+  //   1. Seed the dial from the passage's goal tempo (pieces.performance_tempo,
+  //      B-013) × the meter's factor, once, when play begins.
+  //   2. On every pattern change, rescale the dial by the factor ratio so the
+  //      FELT tempo stays put while the number changes. Pure ratio — a manual
+  //      nudge ("slower today") carries across meter changes proportionally.
+  // tempoAnchorRef = the meter factor the dial is currently calibrated to.
+  const tempoAnchorRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (phase !== 'playing') return;
+    if (!toolsOnly && !passage) return; // wait for the passage (its goal tempo)
+    if (tempoAnchorRef.current != null) return; // already seeded
+    const pat = patterns[currentIndex];
+    if (!pat) return;
+    const f = meterTempoFactor(pat.timeSig);
+    const goal = passage?.performance_tempo;
+    if (goal) metronome.setBpm(goal * f);
+    // Anchor even without a goal so pattern changes still hold the felt tempo.
+    tempoAnchorRef.current = f;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, passage, patterns, currentIndex, toolsOnly]);
+
+  // Rescale the dial for the pattern about to show. Call BEFORE restarting the
+  // loop so the restart schedules at the new rate.
+  function retargetTempo(next: RhythmPattern) {
+    const f = meterTempoFactor(next.timeSig);
+    const prev = tempoAnchorRef.current;
+    if (prev != null && f !== prev) {
+      metronome.setBpm(metronome.bpm * (f / prev));
+    }
+    tempoAnchorRef.current = f;
+  }
+
   function startWithGrouping(g: Grouping) {
     const list = patternsByGrouping(g);
     if (list.length === 0) return;
     // Stop any in-flight rhythm loop — the pattern being looped is about
     // to disappear from the visible card.
     metronome.stopRhythmLoop();
+    // Mid-session grouping switch: hold the felt tempo across the meter jump.
+    // (First entry is a no-op here — the seed effect owns the initial dial.)
+    if (tempoAnchorRef.current != null) retargetTempo(list[0]);
     setGrouping(g);
     setPatterns(list);
     setCurrentIndex(0);
@@ -205,6 +244,7 @@ export default function RhythmicScreen() {
     const next = Math.max(0, currentIndex - 1);
     if (next === currentIndex) return;
     setCurrentIndex(next);
+    if (patterns[next]) retargetTempo(patterns[next]);
     if (metronome.rhythmLooping && patterns[next]) {
       metronome.startRhythmLoop(
         patterns[next].notes,
@@ -219,6 +259,7 @@ export default function RhythmicScreen() {
     advanceCountRef.current += 1;
     const everyN = microbreak.config.rhythmicPatterns || 4;
     if (advanceCountRef.current % everyN === 0) microbreak.trigger();
+    if (patterns[next]) retargetTempo(patterns[next]);
     if (metronome.rhythmLooping && patterns[next]) {
       metronome.startRhythmLoop(
         patterns[next].notes,

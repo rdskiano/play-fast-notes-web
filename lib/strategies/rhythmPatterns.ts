@@ -26,6 +26,23 @@ export function parseBeatDenominator(timeSig: string): number {
   return Number.isFinite(d) && d > 0 ? d : 4;
 }
 
+/**
+ * Ralph's calibrated tempo rule for rhythm exercises (B-018, 2026-07-14 —
+ * derivation + data in RHYTHM_TEMPO_PLAN.md): given a passage whose goal is
+ * T to the quarter, an exercise pattern should run at
+ *   dial = T × meterTempoFactor(pattern.timeSig)
+ * where the dial counts the meter's denominator unit (the playback engines'
+ * convention). Quarter-meters sit at the goal itself; eighth-meters at
+ * ♪ = 1.5 × T (his "anything in 3/8, 5/8, 7/8 → 210 when the goal is 140");
+ * sixteenth-meters extrapolate the same eighth speed (♪ = 1.5T → dial 3T).
+ * Content-independent within a meter — that's how his ear works, confirmed
+ * against dotted and long-note patterns alike.
+ */
+export function meterTempoFactor(timeSig: string): number {
+  const d = parseBeatDenominator(timeSig);
+  return d >= 16 ? 3 : d >= 8 ? 1.5 : 1;
+}
+
 export const TOKEN_QUARTER_FRACTIONS: Record<RhythmToken, number> = {
   h: 2,
   q: 1,

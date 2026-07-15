@@ -1,6 +1,15 @@
 # Rhythm-exercise tempo relationship (B-018) — calibration plan
 
-_Status 2026-07-14: first data point in (3/8). Waiting on 2/4 + 5/8 + 7/8 numbers — 2/4 is the discriminator. Nothing built yet._
+_Status 2026-07-14 (later): **calibration complete, rule BUILT** (code, not pushed).
+Rule: quarter-meters → dial = goal T; everything else → ♪ = 1.5 × T (i.e. /8 dial
+= 1.5T, /16 dial = 3T; `meterTempoFactor` in lib/strategies/rhythmPatterns.ts).
+Wired: rhythmic.tsx seeds the dial from `pieces.performance_tempo` × factor and
+rescales on every pattern/grouping change by the factor RATIO (manual nudges
+carry across meters); rhythm-builder ExercisesPhase does the same per ▶ card.
+Engine BPM ceilings raised 300/400 → 600 for /16 dials (panel UI still caps at
+240 — a /16 auto-dial above 240 can't be reproduced manually; known corner).
+NEEDS Ralph's ear-check on web after push: 140-goal passage → Rhythm Variations
+grouping 4 → first pattern dial reads 210; arrow into 2/4 → 140; 5/8 → 210._
 
 ## Calibration data so far (Ralph, 2026-07-14)
 
@@ -22,9 +31,11 @@ Both answers = exactly **70 bars/min = T/2**. Survivors:
 - **Beat-unit-anchored:** quarter-meters → dial = T; eighth-meters → ♪ = 1.5 × T
   (210). Predicts 5/8 and 7/8 stay ♪ = 210, bars just take longer.
 
-5/8 is the next discriminator (210 vs 350), then 7/8 (210 vs 490).
-Still unconfirmed: numbers anchor to the GOAL tempo (his language keeps saying
-"goal") vs today's ladder tempo — ask before building.
+**RESOLVED (2026-07-14): "the rest can use the 210 to the 8th note" → beat-unit-anchored wins.**
+Final rule: quarter-meters at the goal; the eighth note at 1.5 × goal everywhere
+else. Numbers anchor to the GOAL (his framing throughout); the seed is a starting
+point only — manual nudges are preserved ratio-wise across meter changes, which
+covers the "slower today" case without needing the ladder's current tempo.
 
 ## The problem (Ralph, 2026-07-14)
 

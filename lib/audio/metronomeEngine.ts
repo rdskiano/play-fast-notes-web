@@ -281,7 +281,9 @@ export class MetronomeEngine {
   }
 
   setBpm(bpm: number) {
-    this._bpm = Math.max(20, Math.min(400, Math.round(bpm)));
+    // Ceiling 600 to match the web hook: /16-meter rhythm exercises count
+    // SIXTEENTHS on the dial (B-018 auto-set = 3× the passage quarter goal).
+    this._bpm = Math.max(20, Math.min(600, Math.round(bpm)));
   }
 
   setSubdivision(s: Subdivision) {
