@@ -41,6 +41,13 @@ create table if not exists pieces (
   units_json text,
   folder_id text references folders(id),
   sort_order integer default 0,
+  -- Per-piece due date (epoch ms) for the practice coach's urgency read.
+  -- null = never asked; 0 = explicitly "no deadline"; >0 = a date.
+  due_date bigint,
+  -- Per-piece performance (goal) tempo shared across strategies (B-013).
+  -- Tempo Ladder + Click-Up prefill from it when they have no saved config of
+  -- their own, and write it back when a session starts. null = never set.
+  performance_tempo integer,
   created_at bigint not null,
   updated_at bigint not null,
   deleted_at bigint
@@ -49,6 +56,11 @@ create index if not exists idx_pieces_folder on pieces(folder_id);
 -- Migration for existing deployments (added 2026-06-15): preserve the full
 -- photo so cropping is non-destructive. Safe to run repeatedly.
 alter table pieces add column if not exists original_uri text;
+-- Migration (added 2026-06-18, already applied to prod): coach due date.
+alter table pieces add column if not exists due_date bigint;
+-- Migration (added 2026-07-14, ⚠️ RUN BEFORE/AT NEXT WEB DEPLOY): shared
+-- performance tempo (B-013).
+alter table pieces add column if not exists performance_tempo integer;
 alter table pieces enable row level security;
 create policy pieces_owner_all on pieces
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);

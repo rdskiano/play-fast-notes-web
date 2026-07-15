@@ -32,6 +32,10 @@ export type Passage = {
   // Per-piece due date (epoch ms) for the coach's urgency read.
   // null = never asked; 0 = explicitly "no deadline"; >0 = a date.
   due_date: number | null;
+  // Per-piece performance (goal) tempo shared across strategies (B-013).
+  // Strategies prefill from it when they have no saved config of their own
+  // and write it back when a session starts. null = never set.
+  performance_tempo: number | null;
 };
 
 export function parseMarkers(units_json: string | null): Marker[] {
@@ -87,6 +91,7 @@ export async function insertPassage(p: NewPassage): Promise<Passage> {
     units_json: null,
     deleted_at: null,
     due_date: null,
+    performance_tempo: null,
   };
 }
 
@@ -203,6 +208,15 @@ export async function updatePassageDueDate(id: string, dueDate: number | null): 
   const { error } = await supabase
     .from('pieces')
     .update({ due_date: dueDate, updated_at: Date.now() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// Per-piece performance (goal) tempo shared across strategies (B-013).
+export async function updatePassagePerformanceTempo(id: string, bpm: number): Promise<void> {
+  const { error } = await supabase
+    .from('pieces')
+    .update({ performance_tempo: bpm, updated_at: Date.now() })
     .eq('id', id);
   if (error) throw error;
 }

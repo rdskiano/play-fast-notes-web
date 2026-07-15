@@ -212,4 +212,10 @@ export const MIGRATIONS: string[] = [
   -- not a hex, so it stays theme-consistent. NULL = auto color by position.
   ALTER TABLE folders ADD COLUMN color TEXT;
   `,
+  `
+  -- Per-piece performance (goal) tempo shared across strategies (B-013).
+  -- Tempo Ladder + Click-Up prefill from it when they have no saved config of
+  -- their own, and write it back when a session starts. NULL = never set.
+  ALTER TABLE pieces ADD COLUMN performance_tempo INTEGER;
+  `,
 ];

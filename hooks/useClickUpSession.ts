@@ -12,6 +12,7 @@ import { getOrCreateExercise, updateExerciseConfig } from '@/lib/db/repos/exerci
 import {
   getPassage,
   parseMarkers,
+  updatePassagePerformanceTempo,
   updatePassageUnits,
   type Marker,
   type Passage,
@@ -70,6 +71,15 @@ export function useClickUpSession(id: string | undefined, guided = false) {
           setStartTempo(String(parsed.startTempo));
           setGoalTempo(String(parsed.goalTempo));
           setIncrement(parsed.increment as Increment);
+        } else {
+          // First Click-Up on this piece — prefill the goal from the piece's
+          // shared performance tempo (B-013) if another strategy set one.
+          // Fill-in only: a saved Click-Up config (above) always wins.
+          const p = await getPassage(id);
+          if (!cancelled && p?.performance_tempo) {
+            setGoalTempo(String(p.performance_tempo));
+            setStartTempo(String(Math.max(30, Math.round(p.performance_tempo / 2))));
+          }
         }
       } catch {
         // ignore
@@ -117,6 +127,11 @@ export function useClickUpSession(id: string | undefined, guided = false) {
     const start = parseInt(startTempo, 10);
     const goal = parseInt(goalTempo, 10);
     if (!start || !goal || goal <= start) return;
+    // B-013: remember the goal on the piece so other strategies prefill it.
+    // Best-effort — a failed write never blocks starting the session.
+    updatePassagePerformanceTempo(id, goal).catch((e) =>
+      console.warn('[clickUp] performance-tempo share failed:', e),
+    );
     const N = markers.length - 1;
     if (N < 2) return;
     const steps = generateSteps(N, start, goal, increment);

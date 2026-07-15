@@ -4,7 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import { getOrCreateExercise } from '@/lib/db/repos/exercises';
-import { getPassage, type Passage } from '@/lib/db/repos/passages';
+import {
+  getPassage,
+  updatePassagePerformanceTempo,
+  type Passage,
+} from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import {
@@ -195,7 +199,21 @@ export function useTempoLadderSession(
       if (cancelled) return;
       setExerciseId(ex.id);
       const existing = await getTempoLadder(ex.id);
-      if (cancelled || !existing) return;
+      if (cancelled) return;
+      if (!existing) {
+        // First ladder on this piece — prefill the target from the piece's
+        // shared performance tempo (B-013) if another strategy set one.
+        // Fill-in only: a saved ladder row (below) always wins over this.
+        // Start follows the app's half-the-goal convention (same as the
+        // guided flows) so a low shared tempo can't leave goal < start.
+        const p = await getPassage(id);
+        if (!cancelled && p?.performance_tempo) {
+          setGoalTempo(String(p.performance_tempo));
+          setFinalTempo(String(p.performance_tempo));
+          setStartTempo(String(Math.max(30, Math.round(p.performance_tempo / 2))));
+        }
+        return;
+      }
       // A row already exists → real prior progress. Never let endSession's
       // untouched-session cleanup delete it.
       hadDurableRowRef.current = true;
@@ -329,6 +347,15 @@ export function useTempoLadderSession(
     return { ...cfg, current_tempo: currentTempo, current_streak: 0, updated_at: 0 };
   }
 
+  // B-013: remember the target on the piece so other strategies prefill it.
+  // Best-effort — a failed write never blocks starting the session.
+  function sharePerformanceTempo(bpm: number) {
+    if (toolsOnly || !id || !bpm) return;
+    updatePassagePerformanceTempo(id, bpm).catch((e) =>
+      console.warn('[tempoLadder] performance-tempo share failed:', e),
+    );
+  }
+
   async function startSession() {
     if (!toolsOnly && (!exerciseId || !id)) return;
     lastHitTempoRef.current = null;
@@ -343,6 +370,7 @@ export function useTempoLadderSession(
       const base = parseInt(startTempo, 10);
       const goal = parseInt(goalTempo, 10);
       if (!base || !goal || goal <= base) return;
+      sharePerformanceTempo(goal);
       const cfg: TempoLadderConfig = {
         exercise_id: exerciseId ?? '',
         mode: 'custom',
@@ -383,6 +411,7 @@ export function useTempoLadderSession(
       const start = parseInt(startTempo, 10);
       const goal = parseInt(goalTempo, 10);
       if (!start || !goal || goal <= start) return;
+      sharePerformanceTempo(goal);
       const cfg: TempoLadderConfig = {
         exercise_id: exerciseId ?? '',
         mode: 'step',
@@ -409,6 +438,7 @@ export function useTempoLadderSession(
     const high = parseInt(clusterHigh, 10);
     const final = parseInt(finalTempo, 10);
     if (!low || !high || !final || high <= low || final < high) return;
+    sharePerformanceTempo(final);
     const cfg: TempoLadderConfig = {
       exercise_id: exerciseId ?? '',
       mode: 'cluster',
