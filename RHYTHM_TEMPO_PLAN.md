@@ -1,6 +1,29 @@
 # Rhythm-exercise tempo relationship (B-018) — calibration plan
 
-_Status 2026-07-14: waiting on Ralph's ear-calibration numbers. Nothing built yet — build only after the rule is confirmed._
+_Status 2026-07-14: first data point in (3/8). Waiting on 2/4 + 5/8 + 7/8 numbers — 2/4 is the discriminator. Nothing built yet._
+
+## Calibration data so far (Ralph, 2026-07-14)
+
+Reference passage: 4/4, running 16ths, **goal ♩ = 140** (his wording: "should
+eventually be 140" — numbers below appear anchored to the GOAL, not the current
+practice tempo; confirm when building).
+
+- **Anything in 3/8** (content-independent — his phrasing, one dial per meter):
+  **♪ = 210**, i.e. 70 per bar. First said 200/72, self-corrected to 210/70.
+
+What 210-to-the-eighth pins down (worked math): exercise 16ths = 420/min = 75% of
+the passage's 560/min; one 3/8 bar = 0.857 s = exactly TWO passage beats. Both
+readings fit 3/8 equally — 210 = 1.5 × 140 either way. "Content-independent
+within a meter" kills Rule A (fastest-note anchoring). Survivors:
+
+- **Notation-anchored (B′):** written 16th at 75% of passage 16th speed
+  (dial = 0.75 × denom × T / 4). Predicts 2/4 → ♩ = 105; 5/8 → ♪ = 210; 7/8 → ♪ = 210.
+- **Bar-anchored:** one exercise bar = two passage beats. Predicts 2/4 → ♩ = 140;
+  5/8 → ♪ = 175 (bar of 5 in 2 beats); 7/8 → ♪ = 245.
+
+The 2/4 answer (105 vs 140) decides between them; 5/8 + 7/8 confirm. The ¾ factor
+itself may be goal-relative ("variations sit at 75% of goal") — worth asking
+whether at goal-reached he'd move the variations up too.
 
 ## The problem (Ralph, 2026-07-14)
 
