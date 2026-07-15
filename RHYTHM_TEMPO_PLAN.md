@@ -10,20 +10,21 @@ practice tempo; confirm when building).
 
 - **Anything in 3/8** (content-independent — his phrasing, one dial per meter):
   **♪ = 210**, i.e. 70 per bar. First said 200/72, self-corrected to 210/70.
+- **2/4: ♩ = 140** — "the tempo can stay the same as the goal." Also 70 bars/min.
 
-What 210-to-the-eighth pins down (worked math): exercise 16ths = 420/min = 75% of
-the passage's 560/min; one 3/8 bar = 0.857 s = exactly TWO passage beats. Both
-readings fit 3/8 equally — 210 = 1.5 × 140 either way. "Content-independent
-within a meter" kills Rule A (fastest-note anchoring). Survivors:
+Analysis: "content-independent within a meter" killed Rule A (fastest-note).
+2/4 = 140 killed notation-anchoring (it predicted ♩ = 105: written 16th at 75%).
+Both answers = exactly **70 bars/min = T/2**. Survivors:
 
-- **Notation-anchored (B′):** written 16th at 75% of passage 16th speed
-  (dial = 0.75 × denom × T / 4). Predicts 2/4 → ♩ = 105; 5/8 → ♪ = 210; 7/8 → ♪ = 210.
-- **Bar-anchored:** one exercise bar = two passage beats. Predicts 2/4 → ♩ = 140;
-  5/8 → ♪ = 175 (bar of 5 in 2 beats); 7/8 → ♪ = 245.
+- **Bar-anchored:** one exercise bar = two passage beats (bars/min = T/2).
+  Predicts 5/8 → ♪ = 350 (♩-equiv 175) and 7/8 → ♪ = 490 (♩-equiv 245) — which
+  would push 16ths in those patterns ABOVE the 560/min target. Suspect.
+- **Beat-unit-anchored:** quarter-meters → dial = T; eighth-meters → ♪ = 1.5 × T
+  (210). Predicts 5/8 and 7/8 stay ♪ = 210, bars just take longer.
 
-The 2/4 answer (105 vs 140) decides between them; 5/8 + 7/8 confirm. The ¾ factor
-itself may be goal-relative ("variations sit at 75% of goal") — worth asking
-whether at goal-reached he'd move the variations up too.
+5/8 is the next discriminator (210 vs 350), then 7/8 (210 vs 490).
+Still unconfirmed: numbers anchor to the GOAL tempo (his language keeps saying
+"goal") vs today's ladder tempo — ask before building.
 
 ## The problem (Ralph, 2026-07-14)
 
