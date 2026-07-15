@@ -1,4 +1,6 @@
+import Feather from '@expo/vector-icons/Feather';
 import * as DocumentPicker from 'expo-document-picker';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -12,9 +14,9 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View }
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Palette } from '@/constants/palette';
+import { Lift, Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
-import { Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { addPdfDocument } from '@/lib/pdf/addPdfDocument';
 import { addScannedDocument } from '@/lib/scan/addScannedDocument';
@@ -24,6 +26,15 @@ import { addScannedDocument } from '@/lib/scan/addScannedDocument';
 //  • Scan pages — camera scan (auto edge-detect + crop), cleaned to B&W
 //    (lib/scan/addScannedDocument).
 // Both save on-device and sync to the user's account when signed in.
+//
+// Scanned pages get a review list before "Add to library" (B-009): reorder,
+// remove, retake a single page, or scan more — nothing is saved until Add.
+type ScannedPage = { id: string; uri: string };
+
+function newPageId(): string {
+  return `pg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export default function DocumentUploadScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ folder?: string; title?: string; composer?: string; imslp?: string }>();
@@ -33,7 +44,7 @@ export default function DocumentUploadScreen() {
   const C = Colors[scheme];
 
   const [picked, setPicked] = useState<{ uri: string; name: string } | null>(null);
-  const [scanned, setScanned] = useState<string[] | null>(null);
+  const [scanned, setScanned] = useState<ScannedPage[]>([]);
   // Prefilled when arriving from IMSLP, so the imported part is labeled right.
   const [title, setTitle] = useState(typeof params.title === 'string' ? params.title : '');
   const [composer, setComposer] = useState(typeof params.composer === 'string' ? params.composer : '');
@@ -49,30 +60,70 @@ export default function DocumentUploadScreen() {
     });
     if (res.canceled || !res.assets?.[0]) return;
     const asset = res.assets[0];
-    setScanned(null);
+    setScanned([]);
     setPicked({ uri: asset.uri, name: asset.name ?? 'document.pdf' });
     if (!title.trim()) setTitle((asset.name ?? '').replace(/\.pdf$/i, ''));
   }
 
+  // Launch the VisionKit scanner; returns page image URIs, or null on cancel.
+  async function runScanner(): Promise<string[] | null> {
+    // Lazy load — see the import note at the top of this file.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const DocumentScanner = require('react-native-document-scanner-plugin').default;
+    const { scannedImages, status } = await DocumentScanner.scanDocument({
+      croppedImageQuality: 100,
+    });
+    if (status !== 'success' || !scannedImages || scannedImages.length === 0) return null;
+    return scannedImages;
+  }
+
+  // First scan starts the page list; later runs append to it ("Scan more pages").
   async function scanPages() {
     setError(null);
     try {
-      // Lazy load — see the import note at the top of this file.
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const DocumentScanner = require('react-native-document-scanner-plugin').default;
-      const { scannedImages, status } = await DocumentScanner.scanDocument({
-        croppedImageQuality: 100,
-      });
-      if (status !== 'success' || !scannedImages || scannedImages.length === 0) return;
+      const imgs = await runScanner();
+      if (!imgs) return;
       setPicked(null);
-      setScanned(scannedImages);
+      setScanned((prev) => [...prev, ...imgs.map((uri) => ({ id: newPageId(), uri }))]);
       if (!title.trim()) setTitle('Scanned music');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
 
-  const hasSource = !!picked || (scanned?.length ?? 0) > 0;
+  // Re-scan one page in place. If the scanner returns several, they all land
+  // where the old page was (useful when a "page" turns out to be two).
+  async function retakePage(id: string) {
+    setError(null);
+    try {
+      const imgs = await runScanner();
+      if (!imgs) return;
+      setScanned((prev) =>
+        prev.flatMap((p) =>
+          p.id === id ? imgs.map((uri) => ({ id: newPageId(), uri })) : [p],
+        ),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  function removeScannedPage(id: string) {
+    setScanned((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  function moveScannedPage(id: string, dir: -1 | 1) {
+    setScanned((prev) => {
+      const i = prev.findIndex((p) => p.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
+
+  const hasSource = !!picked || scanned.length > 0;
   const canAdd = hasSource && title.trim().length > 0 && !busy;
 
   async function onAdd() {
@@ -91,7 +142,7 @@ export default function DocumentUploadScreen() {
         }));
       } else {
         ({ docId } = await addScannedDocument({
-          imageUris: scanned!,
+          imageUris: scanned.map((p) => p.uri),
           title,
           composer,
           folderId,
@@ -135,14 +186,67 @@ export default function DocumentUploadScreen() {
             style={[styles.pickBtn, { backgroundColor: C.tint, flex: 1 }]}
             disabled={busy}
             onPress={scanPages}>
-            <ThemedText style={styles.pickText}>Scan pages</ThemedText>
+            <ThemedText style={styles.pickText}>
+              {scanned.length > 0 ? 'Scan more pages' : 'Scan pages'}
+            </ThemedText>
           </Pressable>
         </View>
 
-        {(picked || scanned) && (
+        {picked && (
           <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.8 }}>
-            {picked ? `Selected: ${picked.name}` : `Scanned: ${scanned!.length} page(s)`}
+            Selected: {picked.name}
           </ThemedText>
+        )}
+
+        {scanned.length > 0 && (
+          <View style={styles.pagesBlock}>
+            <ThemedText style={styles.pagesHeading}>
+              {scanned.length === 1 ? '1 page scanned' : `${scanned.length} pages scanned`} —
+              check each one before adding
+            </ThemedText>
+            {scanned.map((p, i) => (
+              <View key={p.id} style={styles.pageRow}>
+                <Image source={{ uri: p.uri }} style={styles.pageThumb} contentFit="cover" />
+                <ThemedText style={styles.pageLabel}>Page {i + 1}</ThemedText>
+                <View style={styles.pageActions}>
+                  <Pressable
+                    onPress={() => moveScannedPage(p.id, -1)}
+                    disabled={busy || i === 0}
+                    hitSlop={6}
+                    style={[styles.pageIconBtn, i === 0 && styles.pageIconDisabled]}>
+                    <Feather name="arrow-up" size={16} color={Palette.text} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => moveScannedPage(p.id, 1)}
+                    disabled={busy || i === scanned.length - 1}
+                    hitSlop={6}
+                    style={[
+                      styles.pageIconBtn,
+                      i === scanned.length - 1 && styles.pageIconDisabled,
+                    ]}>
+                    <Feather name="arrow-down" size={16} color={Palette.text} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => retakePage(p.id)}
+                    disabled={busy}
+                    hitSlop={6}
+                    style={styles.pageIconBtn}>
+                    <Feather name="camera" size={16} color={Palette.text} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => removeScannedPage(p.id)}
+                    disabled={busy}
+                    hitSlop={6}
+                    style={styles.pageIconBtn}>
+                    <Feather name="x" size={16} color={Palette.danger} />
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+            <ThemedText style={styles.pagesHint}>
+              📷 = retake that page with the camera. Arrows reorder; ✕ removes.
+            </ThemedText>
+          </View>
         )}
 
         <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.7 }}>Title</ThemedText>
@@ -210,6 +314,51 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: Radii.md,
     padding: Spacing.md,
+  },
+  pagesBlock: { gap: Spacing.sm },
+  pagesHeading: {
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.bold,
+    color: Palette.textSecondary,
+    paddingHorizontal: Spacing.xs,
+  },
+  pageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
+    padding: Spacing.sm,
+    ...Lift,
+  },
+  pageThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: Radii.sm,
+    backgroundColor: Palette.surfaceSunk,
+  },
+  pageLabel: {
+    flex: 1,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.semibold,
+    color: Palette.text,
+  },
+  pageActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  pageIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Palette.surfaceSunk,
+  },
+  pageIconDisabled: { opacity: 0.35 },
+  pagesHint: {
+    fontSize: Type.size.xs,
+    color: Palette.textSecondary,
+    paddingHorizontal: Spacing.xs,
   },
   error: { color: Palette.danger, fontSize: Type.size.sm },
   addBtn: {

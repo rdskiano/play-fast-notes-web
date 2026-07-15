@@ -284,10 +284,10 @@ export default function DocumentScreen() {
   // multi-page swiping that a touch-capturing zoom wrapper would block.
   const webMarkMode = Platform.OS === 'web' && isPhone && mode === 'draw';
 
-  // "Add page" — append a photo as a new page at the end of the document. Web
-  // only for now (native photo ingestion is a separate path). The headless
-  // controller owns the file picker; these drive it + reflect its busy state.
-  const canAddPage = Platform.OS === 'web';
+  // "Add page" — append pages at the end of the document. Web picks a photo
+  // (hidden file input); native offers camera scan or photo library (B-009).
+  // The headless controller owns the picker; these drive it + reflect busy.
+  const canAddPage = true;
   const addPageRef = useRef<AddPageHandle>(null);
   const [addingPage, setAddingPage] = useState(false);
   // Set to the screen index of a freshly added page; a jump fires once the new
@@ -1521,7 +1521,7 @@ export default function DocumentScreen() {
           ...(canAddPage
             ? [
                 {
-                  label: addingPage ? 'Adding page…' : '+ Add page (photo)',
+                  label: addingPage ? 'Adding page…' : '+ Add page',
                   onPress: () => {
                     setPhoneMenuOpen(false);
                     addPageRef.current?.trigger();
@@ -1575,8 +1575,9 @@ export default function DocumentScreen() {
         onCancel={() => setPhoneMenuOpen(false)}
       />
 
-      {/* Headless — owns the "Add page" file picker; mounted here so it outlives
-          the ⋯ menu closing. Renders a hidden input on web, nothing on native. */}
+      {/* Headless — owns the "Add page" picker; mounted here so it outlives
+          the ⋯ menu closing. Hidden file input on web; scan/photo chooser on
+          native. */}
       <AddPageButton
         ref={addPageRef}
         documentId={id}
