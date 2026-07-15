@@ -385,7 +385,10 @@ export class MetronomeEngine {
       const peak = 0.32;
       gain.gain.setValueAtTime(0.0001, when);
       gain.gain.linearRampToValueAtTime(peak, when + 0.008);
-      gain.gain.exponentialRampToValueAtTime(0.001, when + durationSec - 0.05);
+      // Linear, not exponential: on react-native-audio-api an exponential ramp
+      // can briefly overshoot → an audible "clip"/crack on pitched tones. The
+      // drone (linear only) is clean; match it here.
+      gain.gain.linearRampToValueAtTime(0.001, when + durationSec - 0.05);
       gain.gain.linearRampToValueAtTime(0, when + durationSec);
       osc.connect(gain);
       gain.connect(this.ctx.destination);
@@ -552,7 +555,8 @@ export class MetronomeEngine {
         const audibleDur = Math.min(dur * 0.95, Math.max(0.08, dur - 0.03));
         gain.gain.setValueAtTime(0.0001, when);
         gain.gain.linearRampToValueAtTime(peak, when + 0.008);
-        gain.gain.exponentialRampToValueAtTime(
+        // Linear decay (see playPitch): exponential can overshoot/clip on RN audio.
+        gain.gain.linearRampToValueAtTime(
           0.001,
           when + Math.max(audibleDur - 0.04, 0.02),
         );
@@ -623,7 +627,8 @@ export class MetronomeEngine {
         const dur = Math.min(secondsPerNote * 0.95, 0.6);
         gain.gain.setValueAtTime(0.0001, when);
         gain.gain.linearRampToValueAtTime(peak, when + 0.008);
-        gain.gain.exponentialRampToValueAtTime(0.001, when + dur - 0.05);
+        // Linear decay (see playPitch): exponential can overshoot/clip on RN audio.
+        gain.gain.linearRampToValueAtTime(0.001, when + dur - 0.05);
         gain.gain.linearRampToValueAtTime(0, when + dur);
         osc.connect(gain);
         gain.connect(dest ?? this.ctx.destination);

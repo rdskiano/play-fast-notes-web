@@ -35,6 +35,10 @@ type Props = {
   }) => void;
   onSkip: () => void;
   onDelete?: () => void;
+  // When provided, shows a "keep practicing" escape (an ✕ + tapping the
+  // backdrop/back) that closes WITHOUT logging — for an accidental "Done" tap so
+  // the user can return to the session instead of being forced to finish.
+  onKeepPracticing?: () => void;
 };
 
 // Single hard-coded prompt. Title / emoji / subtitle props are retained on
@@ -53,6 +57,7 @@ export function PracticeLogNotePrompt({
   onSubmit,
   onSkip,
   onDelete,
+  onKeepPracticing,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -107,11 +112,20 @@ export function PracticeLogNotePrompt({
   }
 
   return (
-    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onSkip}>
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onKeepPracticing ?? onSkip}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.backdrop}>
         <View style={styles.card}>
+          {onKeepPracticing && (
+            <Pressable
+              onPress={onKeepPracticing}
+              hitSlop={12}
+              accessibilityLabel="Keep practicing"
+              style={styles.keepClose}>
+              <ThemedText style={[styles.keepCloseText, { color: C.icon }]}>✕</ThemedText>
+            </Pressable>
+          )}
           <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
             {PROMPT_TITLE}
           </ThemedText>
@@ -190,6 +204,14 @@ const styles = StyleSheet.create({
     borderColor: Palette.border,
     ...Lift,
   },
+  keepClose: {
+    position: 'absolute',
+    top: 8,
+    right: 10,
+    zIndex: 2,
+    padding: 4,
+  },
+  keepCloseText: { fontSize: 20, fontWeight: Type.weight.bold, lineHeight: 22 },
   emoji: {
     fontSize: 56,
     lineHeight: 70,

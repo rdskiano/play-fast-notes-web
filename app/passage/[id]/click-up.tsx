@@ -1099,6 +1099,10 @@ export default function ClickUpScreen() {
           dismissCelebration();
           doneSession();
         }}
+        // Escape hatch for an accidental "Done — log it" tap: close the prompt
+        // and return to the session WITHOUT logging. Not offered on the
+        // celebration prompt (finishing all steps IS the end).
+        onKeepPracticing={celebrating ? undefined : () => setNotePromptVisible(false)}
       />
 
       {!isGuided && <ClickUpCoach />}
