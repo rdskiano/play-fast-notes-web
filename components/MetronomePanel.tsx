@@ -19,6 +19,7 @@
 // Owns its own useMetronome instance — on a score-viewing screen the
 // metronome is a free-standing practice aid, not driven by a strategy.
 
+import Slider from '@react-native-community/slider';
 import {
   type Dispatch,
   type SetStateAction,
@@ -300,6 +301,28 @@ export function MetronomePanel({
     ]).start();
   }, [m.bump.token, m.bump.delta, bumpAnim]);
 
+  // ± buttons: tap = ±1; hold = ±5, repeating every 300 ms for as long as
+  // the button stays down. The interval reads the live BPM through a ref —
+  // m.bpm captured in the closure would be stale after the first step.
+  const bpmRef = useRef(m.bpm);
+  bpmRef.current = m.bpm;
+  const holdRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  function nudgeBpm(delta: number) {
+    m.setBpm(Math.min(BPM_MAX, Math.max(BPM_MIN, bpmRef.current + delta)));
+  }
+  function stopHold() {
+    if (holdRef.current) {
+      clearInterval(holdRef.current);
+      holdRef.current = null;
+    }
+  }
+  function startHold(delta: number) {
+    stopHold();
+    nudgeBpm(delta);
+    holdRef.current = setInterval(() => nudgeBpm(delta), 300);
+  }
+  useEffect(() => stopHold, []);
+
   // Tap-for-tempo: average the gaps between recent taps.
   const tapsRef = useRef<number[]>([]);
   function onTapTempo() {
@@ -418,8 +441,9 @@ export function MetronomePanel({
       <View style={styles.tempoBlock}>
         <View style={styles.tempoRow}>
           <Pressable
-            onPress={() => m.setBpm(Math.max(BPM_MIN, m.bpm - 1))}
-            onLongPress={() => m.setBpm(Math.max(BPM_MIN, m.bpm - 5))}
+            onPress={() => nudgeBpm(-1)}
+            onLongPress={() => startHold(-5)}
+            onPressOut={stopHold}
             style={[styles.stepBtn, styles.raised]}>
             <ThemedText style={styles.stepGlyph}>−</ThemedText>
           </Pressable>
@@ -467,12 +491,39 @@ export function MetronomePanel({
             </Pressable>
           )}
           <Pressable
-            onPress={() => m.setBpm(Math.min(BPM_MAX, m.bpm + 1))}
-            onLongPress={() => m.setBpm(Math.min(BPM_MAX, m.bpm + 5))}
+            onPress={() => nudgeBpm(1)}
+            onLongPress={() => startHold(5)}
+            onPressOut={stopHold}
             style={[styles.stepBtn, styles.raised]}>
             <ThemedText style={styles.stepGlyph}>+</ThemedText>
           </Pressable>
         </View>
+        {/* Tempo slider — coarse select by drag, then fine-tune with ± above.
+            Same platform split as BpmStepper (web input range / native Slider),
+            which is the proven pair on both surfaces. */}
+        {Platform.OS === 'web' ? (
+          <input
+            type="range"
+            min={BPM_MIN}
+            max={BPM_MAX}
+            step={1}
+            value={m.bpm}
+            onChange={(e) => m.setBpm(parseInt(e.target.value, 10))}
+            style={{ width: '100%', accentColor: DEVICE.accent }}
+          />
+        ) : (
+          <Slider
+            minimumValue={BPM_MIN}
+            maximumValue={BPM_MAX}
+            step={1}
+            value={m.bpm}
+            onValueChange={(v) => m.setBpm(Math.round(v))}
+            minimumTrackTintColor={DEVICE.accent}
+            maximumTrackTintColor={DEVICE.display}
+            thumbTintColor={DEVICE.text}
+            style={styles.tempoSlider}
+          />
+        )}
         {/* NEXT when a strategy supplies it, otherwise TAP TEMPO. */}
         <View style={styles.actionRow}>
           {onNext ? (
@@ -545,14 +596,16 @@ export function MetronomePanel({
         </Pressable>
         <Pressable
           onPress={m.toggle}
+          accessibilityLabel={m.running ? 'Stop' : 'Start'}
           style={[
             styles.playBtn,
             { backgroundColor: m.running ? DEVICE.stop : DEVICE.accent },
           ]}>
-          <ThemedText
-            style={[styles.playGlyph, !m.running && styles.playGlyphTriangle]}>
-            {m.running ? '■' : '▶'}
-          </ThemedText>
+          {m.running ? (
+            <View style={styles.stopSquare} />
+          ) : (
+            <View style={styles.playTriangle} />
+          )}
         </Pressable>
         <Pressable
           onPress={() => setSubOpen(true)}
@@ -975,6 +1028,7 @@ const styles = StyleSheet.create({
 
   tempoBlock: { gap: 10, alignItems: 'center' },
   tempoRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  tempoSlider: { alignSelf: 'stretch', height: 28 },
   actionRow: {
     flexDirection: 'row',
     alignSelf: 'stretch',
@@ -1123,11 +1177,23 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 7,
   },
-  playGlyph: { color: '#fff', fontSize: 26, fontWeight: Type.weight.black },
-  // The ▶ glyph's ink is biased to the left of its character box, so it reads
-  // as off-centre inside the round button. Nudge it right to optically centre
-  // it. The ■ stop glyph is symmetric and needs no offset.
-  playGlyphTriangle: { transform: [{ translateX: 2 }] },
+  // Drawn shapes, not text glyphs — the ▶ character's ink sits differently in
+  // every platform font, so it never looked truly centred in the round button
+  // no matter the nudge. A border-trick triangle is exact geometry; the small
+  // right shift puts its optical centre (the centroid, ⅓ from the flat edge)
+  // on the circle's centre.
+  playTriangle: {
+    width: 0,
+    height: 0,
+    borderTopWidth: 13,
+    borderBottomWidth: 13,
+    borderLeftWidth: 22,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderLeftColor: '#fff',
+    transform: [{ translateX: 3 }],
+  },
+  stopSquare: { width: 22, height: 22, borderRadius: 3, backgroundColor: '#fff' },
 
   droneBackdrop: {
     flex: 1,

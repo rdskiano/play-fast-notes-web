@@ -38,7 +38,7 @@ export default function ToolsMetronomeScreen() {
         }
       />
       <View style={styles.body}>
-        <ToolsMetronome metronome={metronome} height={384} />
+        <ToolsMetronome metronome={metronome} height={422} />
       </View>
       <PracticeToolsLayer metronome={metronome} tools={{ left: [], right: ['timer'] }} />
 

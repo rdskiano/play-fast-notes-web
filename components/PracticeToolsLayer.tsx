@@ -165,7 +165,7 @@ export function PracticeToolsLayer({
   // controls clip. Portrait phones used to clamp to 240 (vpW/3 is tiny in
   // portrait) and cut off the panel. Floor at 296, capped to the viewport.
   const dockedW = Math.round(Math.min(viewportWidth - 16, Math.max(296, viewportWidth / 3)));
-  const dockedH = isLandscape && size.h > 0 ? size.h : 384;
+  const dockedH = isLandscape && size.h > 0 ? size.h : 422;
   // Lifted metronome state — the phone docked panel renders in a Modal that
   // unmounts when collapsed, so meter + beat pattern live here to survive the
   // remount (the audio engine itself is in `metro` below, always mounted).
@@ -263,13 +263,14 @@ export function PracticeToolsLayer({
             // the bottom row's pickBtn (64) + playBtn (64) + pickBtn (64)
             // = 192 plus the root's 18-px horizontal padding × 2, so 240
             // minimum. Height accounts for the remaining stack (volume row
-            // + 28-tall dots + 64-tall BPM display row + TAP/NEXT row +
-            // the DRONE/RHYTHMS/GAPS function strip + 1 divider + 64-tall
-            // play/meter/sub row, plus the 14-px gaps and 18-px padding) —
-            // ~360, so the card carries the function strip without clipping.
+            // + 28-tall dots + 64-tall BPM display row + 28-tall tempo
+            // slider + TAP/NEXT row + the DRONE/RHYTHMS/GAPS function strip
+            // + 1 divider + 64-tall play/meter/sub row, plus the 14-px gaps
+            // and 18-px padding) — ~400, so the card carries the function
+            // strip and the slider without clipping.
             docked={isPhone}
             panelWidth={isPhone ? dockedW : 280}
-            panelHeight={isPhone ? dockedH : metronomeNote ? 444 : 372}
+            panelHeight={isPhone ? dockedH : metronomeNote ? 482 : 410}
             // Keep the full intrinsic height (so the controls aren't cramped)
             // but pop the card out a touch zoomed-out on laptop/tablet so a
             // tall metronome doesn't dominate the practice screen (B-011).

@@ -121,7 +121,8 @@ export function PracticeToolsBar({
     if (key === 'metronome') {
       return {
         w: isPhone ? Math.min(vpW - 24, 300) : 300,
-        h: metronomeNote && !isPhone ? 444 : 372,
+        // +38 over the pre-slider heights for the tempo-slider row.
+        h: metronomeNote && !isPhone ? 482 : 410,
         bg: DEVICE.body,
         border: DEVICE.rim,
       };

@@ -1445,7 +1445,8 @@ const styles = StyleSheet.create({
   },
   metroCard: {
     width: 300,
-    height: 384,
+    // +38 over the pre-slider height for the metronome's tempo-slider row.
+    height: 422,
     borderRadius: Radii.xl,
     ...Lift,
   },

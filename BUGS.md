@@ -76,6 +76,13 @@ _Bugs that reproduce. Newest at the bottom. When fixed, move to "Verified fixed"
 
 - **B-016** ✅ FIXED 2026-07-11 (code, not pushed) — ICU "Done — log it" is intentionally a small link (Ralph wants finish>quit), but it's too easy to hit when reaching for NEXT, and the log prompt had no way back — only "Save & finish" / "Skip", BOTH log + exit. Added an optional `onKeepPracticing` to `PracticeLogNotePrompt` (an ✕ top-right + backdrop/back-button) that closes WITHOUT logging and resumes the session. Wired in click-up.tsx, only when NOT celebrating (finishing all steps is still the end). Shared component — the escape only appears where a call site passes onKeepPracticing. Testable on web too. FOLLOW-UP 2026-07-11: the ✕ crowded the wrapped title (Ralph screenshot) — added `paddingHorizontal: 28` to the title when the ✕ is shown so it clears the corner. (On web now; iPad on next build.)
 
+### 2026-07-14 — metronome polish batch (from Ralph)
+- **B-017** ✅ BUILT 2026-07-14 (code, not pushed) — NEEDS eye/finger check on web + next build. Three metronome asks in one batch (all in the shared MetronomePanel, so web + iPad + phone together):
+  1. **Play ▶ off-centre** (Ralph saw it on phone + iPad): the ▶ was a TEXT glyph whose ink sits differently in every platform font — a fixed nudge could never centre it everywhere. Replaced ▶/■ with DRAWN shapes (border-trick triangle + square View), geometrically centred, small optical right-shift on the triangle.
+  2. **Tempo slider added** (kept TAP TEMPO): a slider row now sits under the − BPM + row — drag for coarse, ± for fine. Same platform pair as the Tempo Ladder setup's BpmStepper (web `<input type=range>` / native community Slider), which is the combo already proven on both surfaces. All five metronome card mounts grew +38px to fit (PracticeToolsLayer 410/482 + phone dock 422, PracticeToolsBar 410/482, ToolsMetronome 422, tools/metronome 422, rhythm-builder metroCard 422).
+  3. **Hold-to-repeat ±**: long-press was a single ±5; now holding repeats ±5 every 300 ms until release (interval reads live BPM via ref; cleared on press-out + unmount). Tap is still ±1.
+  - **Verify:** play button reads centred (phone + iPad); slider drags smoothly and the click retempos live while running; hold − … tempo walks down 5-at-a-time and stops when you let go; nothing clipped at the card bottom on phone portrait, laptop, and iPad.
+
 ### Template (copy this when adding a new bug)
 
 ```

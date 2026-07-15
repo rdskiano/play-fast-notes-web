@@ -15,12 +15,13 @@ import type { MetronomeApi } from '@/lib/audio/useMetronome';
 
 export function ToolsMetronome({
   metronome,
-  height = 384,
+  height = 422,
 }: {
   metronome: MetronomeApi;
-  /** Card height. 384 matches the phone docked metronome — the panel's full
-   *  control stack (BPM, dots, TAP, function strip, play/meter/sub) needs it
-   *  to render without clipping. Don't go much below this. */
+  /** Card height. 422 matches the phone docked metronome — the panel's full
+   *  control stack (BPM, dots, tempo slider, TAP, function strip,
+   *  play/meter/sub) needs it to render without clipping. Don't go much
+   *  below this. */
   height?: number;
 }) {
   const { width: vpW, height: vpH } = useWindowDimensions();
