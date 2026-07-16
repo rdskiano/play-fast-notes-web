@@ -23,7 +23,11 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { configToAbcs, exerciseShapeLabel } from '@/lib/community/exerciseConfig';
+import {
+  communityInstrumentLabel,
+  configToAbcs,
+  exerciseShapeLabel,
+} from '@/lib/community/exerciseConfig';
 import { downloadExercisePdf } from '@/lib/community/exerciseExport';
 import {
   getCommunityExercise,
@@ -32,7 +36,6 @@ import {
   updateExerciseTitle,
   type CommunityExercise,
 } from '@/lib/community/exercises';
-import { INSTRUMENTS } from '@/lib/music/pitch';
 import { supabase } from '@/lib/supabase/client';
 
 const PREVIEW_COUNT = 3;
@@ -115,8 +118,7 @@ export default function CommunityExerciseScreen() {
 
   const previews = ex ? configToAbcs(ex.config_json).slice(0, PREVIEW_COUNT) : [];
   const totalCount = ex ? configToAbcs(ex.config_json).length : 0;
-  const instrument =
-    INSTRUMENTS.find((i) => i.id === ex?.instrument_id)?.label ?? null;
+  const instrument = communityInstrumentLabel(ex?.instrument_id ?? null);
   const shape = ex ? exerciseShapeLabel(ex.config_json) : null;
   const staffWidth = Math.min(width, 680) - Spacing.md * 2;
 

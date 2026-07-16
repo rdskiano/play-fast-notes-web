@@ -23,7 +23,7 @@ import {
   updateExerciseTitle,
   type CommunityExercise,
 } from '@/lib/community/exercises';
-import { exerciseShapeLabel } from '@/lib/community/exerciseConfig';
+import { communityInstrumentLabel, exerciseShapeLabel } from '@/lib/community/exerciseConfig';
 import {
   getUid,
   loadBookmarks,
@@ -31,12 +31,6 @@ import {
   setBookmark,
   setVote,
 } from '@/lib/community/social';
-import { INSTRUMENTS } from '@/lib/music/pitch';
-
-function instrumentLabel(id: string | null): string | null {
-  if (!id) return null;
-  return INSTRUMENTS.find((i) => i.id === id)?.label ?? id;
-}
 
 export default function CommunityScreen() {
   const router = useRouter();
@@ -178,7 +172,11 @@ export default function CommunityScreen() {
     };
     const byInstrument = new Map<string, Map<string, CommunityExercise[]>>();
     for (const e of filtered) {
-      const iKey = e.instrument_id ?? '__none__';
+      // Group by the community display label (so A + B♭ clarinet merge into
+      // one "Clarinet" section); the key IS the header shown for the group.
+      const iKey = e.instrument_id
+        ? communityInstrumentLabel(e.instrument_id) ?? 'Other'
+        : '__none__';
       const cKey = e.composer?.trim() || '__none__';
       let comp = byInstrument.get(iKey);
       if (!comp) {
@@ -191,7 +189,7 @@ export default function CommunityScreen() {
     }
     return [...byInstrument.entries()]
       .map(([iId, compMap]) => ({
-        instrument: iId === '__none__' ? 'Other' : instrumentLabel(iId) ?? iId,
+        instrument: iId === '__none__' ? 'Other' : iId,
         count: [...compMap.values()].reduce((n, l) => n + l.length, 0),
         composers: [...compMap.entries()]
           .map(([cId, items]) => ({
@@ -207,7 +205,7 @@ export default function CommunityScreen() {
     const work = opts?.hideComposer
       ? item.piece_title ?? ''
       : [item.piece_title, item.composer].filter(Boolean).join(' — ');
-    const meta = [instrumentLabel(item.instrument_id), exerciseShapeLabel(item.config_json)]
+    const meta = [communityInstrumentLabel(item.instrument_id), exerciseShapeLabel(item.config_json)]
       .filter(Boolean)
       .join(' · ');
     const saved = myBookmarks.has(item.id);

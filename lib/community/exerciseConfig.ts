@@ -99,6 +99,19 @@ export function pitchCount(config: ExerciseConfig): number {
 }
 
 /** "4-note grouping · 8 pitches" — derived, never asked of the contributor. */
+// Instrument ids that clarinetists browse together as one "Clarinet" category
+// in the community library. A and B♭ clarinet transpose differently (so they're
+// distinct instruments for notation), but when browsing by instrument you look
+// for "clarinet", not the specific pitch. This only affects the community
+// display/grouping — never the stored instrument or its transposition.
+const CLARINET_INSTRUMENT_IDS = new Set(['a_clarinet', 'bb_clarinet']);
+
+export function communityInstrumentLabel(id: string | null): string | null {
+  if (!id) return null;
+  if (CLARINET_INSTRUMENT_IDS.has(id)) return 'Clarinet';
+  return INSTRUMENTS.find((i) => i.id === id)?.label ?? id;
+}
+
 export function exerciseShapeLabel(config: ExerciseConfig): string {
   const n = pitchCount(config);
   return `${groupingLabel(config)} · ${n} ${n === 1 ? 'pitch' : 'pitches'}`;
