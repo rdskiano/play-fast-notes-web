@@ -123,6 +123,18 @@ export async function unpublishExercise(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// Rename a published exercise in place. The community title is a snapshot taken
+// at publish time (it doesn't track later renames of the private exercise), so
+// the owner can correct it here without removing + re-publishing. RLS restricts
+// the write to the contributor.
+export async function updateExerciseTitle(id: string, title: string): Promise<void> {
+  const { error } = await supabase
+    .from('community_exercises')
+    .update({ title: title.trim() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
 export async function myContributions(): Promise<CommunityExercise[]> {
   const { data: sessionData } = await supabase.auth.getSession();
   const uid = sessionData.session?.user.id;

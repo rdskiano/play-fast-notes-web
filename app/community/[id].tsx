@@ -16,6 +16,7 @@ import {
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { PromptModal } from '@/components/PromptModal';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -28,6 +29,7 @@ import {
   getCommunityExercise,
   incrementDownload,
   unpublishExercise,
+  updateExerciseTitle,
   type CommunityExercise,
 } from '@/lib/community/exercises';
 import { INSTRUMENTS } from '@/lib/music/pitch';
@@ -46,6 +48,7 @@ export default function CommunityExerciseScreen() {
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -72,6 +75,26 @@ export default function CommunityExerciseScreen() {
     if (!ex) return;
     downloadExercisePdf(ex.title, ex.config_json);
     void incrementDownload(ex.id);
+  }
+
+  async function onSaveTitle(next: string) {
+    const clean = next.trim();
+    setEditOpen(false);
+    if (!ex || clean.length === 0 || clean === ex.title) return;
+    // Optimistic: the community title is a snapshot the owner is correcting.
+    setEx({ ...ex, title: clean });
+    try {
+      await updateExerciseTitle(ex.id, clean);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not save the title. Try again.';
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined') window.alert(msg);
+      } else {
+        Alert.alert('Error', msg);
+      }
+      // Roll back the optimistic change on failure.
+      setEx((cur) => (cur ? { ...cur, title: ex.title } : cur));
+    }
   }
 
   async function onRemove() {
@@ -164,15 +187,34 @@ export default function CommunityExerciseScreen() {
           )}
 
           {isOwner && (
-            <Button
-              label="Remove from community"
-              variant="danger"
-              size="sm"
-              onPress={() => setRemoveOpen(true)}
-            />
+            <View style={{ gap: Spacing.sm }}>
+              <Button
+                label="Edit title"
+                variant="outline"
+                size="sm"
+                onPress={() => setEditOpen(true)}
+              />
+              <Button
+                label="Remove from community"
+                variant="danger"
+                size="sm"
+                onPress={() => setRemoveOpen(true)}
+              />
+            </View>
           )}
         </ScrollView>
       )}
+
+      <PromptModal
+        visible={editOpen}
+        title="Edit title"
+        message="This is the name other players see in the community library."
+        initialValue={ex?.title ?? ''}
+        placeholder="e.g. mvt. 4 sixteenths, mm. 281–291"
+        submitLabel="Save"
+        onSubmit={onSaveTitle}
+        onCancel={() => setEditOpen(false)}
+      />
 
       <ConfirmModal
         visible={removeOpen}
