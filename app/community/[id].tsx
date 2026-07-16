@@ -171,7 +171,7 @@ export default function CommunityExerciseScreen() {
               {previews.map((p, i) => (
                 <View key={i} style={[styles.staffCard, { borderColor: C.icon + '33' }]}>
                   <ThemedText style={[styles.staffNum, { color: C.icon }]}>{i + 1}.</ThemedText>
-                  <AbcStaffView abc={p.abc} width={staffWidth} scale={0.9} wrap centered />
+                  <AbcStaffView abc={p.abc} width={staffWidth} scale={0.9} wrap centered autoHeight />
                 </View>
               ))}
               {totalCount > previews.length && (

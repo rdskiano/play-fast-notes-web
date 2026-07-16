@@ -49,6 +49,9 @@ type Props = {
   /** Wrap notation across multiple staff lines (used by PitchStaff). */
   wrap?: boolean;
   preferredMeasuresPerLine?: number;
+  /** Grow the container to the rendered notation height (so tall or wrapped
+   *  staves aren't clipped by the fixed `height`). `height` acts as the min. */
+  autoHeight?: boolean;
   /** Shown when abcjs fails to render (corrupt ABC, missing CDN, etc.). */
   fallbackText?: string;
   /**
@@ -79,6 +82,7 @@ export function AbcStaffView({
   scale = 1,
   wrap,
   preferredMeasuresPerLine = 4,
+  autoHeight,
   fallbackText,
   onNoteTap,
   activeNoteIndex,
@@ -91,6 +95,9 @@ export function AbcStaffView({
     typeof window !== 'undefined' && !!window.ABCJS,
   );
   const [renderFailed, setRenderFailed] = useState(false);
+  // Measured notation height, used when autoHeight is set to grow the container
+  // so tall/wrapped staves show in full instead of clipping at `height`.
+  const [measured, setMeasured] = useState<number | null>(null);
 
   // Cache the note-start char positions in the ABC body, so a click on a
   // rendered note can be mapped back to its index in the parent's pitches[].
@@ -205,6 +212,14 @@ export function AbcStaffView({
             // safe to skip
           }
         }
+        // Report the rendered height so the container can grow to fit when
+        // autoHeight is set (mirrors the native AbcStaffView behavior).
+        if (autoHeight) {
+          const h =
+            svg.getBoundingClientRect().height ||
+            parseFloat(svg.getAttribute('height') ?? '0');
+          setMeasured(h > 0 ? Math.ceil(h) + 8 : null);
+        }
       }
     } catch {
       setRenderFailed(true);
@@ -219,6 +234,7 @@ export function AbcStaffView({
     centered,
     wrap,
     preferredMeasuresPerLine,
+    autoHeight,
     onNoteTap,
     fitWidth,
   ]);
@@ -256,12 +272,16 @@ export function AbcStaffView({
     );
   }
 
+  const resolvedHeight = height ?? 60;
+  const containerHeight =
+    autoHeight && measured != null ? Math.max(resolvedHeight, measured) : resolvedHeight;
+
   return (
     <div
       ref={containerRef}
       style={{
         width: width ?? '100%',
-        height: height ?? 60,
+        height: containerHeight,
         display: 'flex',
         alignItems: wrap ? 'flex-start' : 'flex-end',
         justifyContent: centered ? 'center' : 'flex-start',

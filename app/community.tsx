@@ -10,6 +10,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ActionSheet } from '@/components/ActionSheet';
+import { PromptModal } from '@/components/PromptModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Palette } from '@/constants/palette';
@@ -18,6 +20,7 @@ import { Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   searchCommunityExercises,
+  updateExerciseTitle,
   type CommunityExercise,
 } from '@/lib/community/exercises';
 import { exerciseShapeLabel } from '@/lib/community/exerciseConfig';
@@ -47,6 +50,11 @@ export default function CommunityScreen() {
   const [rows, setRows] = useState<CommunityExercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // The signed-in user's id, so a card can show owner-only actions (⋯ menu).
+  const [myUid, setMyUid] = useState<string | null>(null);
+  // The exercise whose ⋯ menu is open, and the one being retitled (null = none).
+  const [menuFor, setMenuFor] = useState<CommunityExercise | null>(null);
+  const [editFor, setEditFor] = useState<CommunityExercise | null>(null);
 
   // Debounced server-side text search; instrument/repertoire filtering is
   // applied client-side on the result so chip taps are instant.
@@ -89,6 +97,7 @@ export default function CommunityScreen() {
     let alive = true;
     (async () => {
       const uid = await getUid().catch(() => null);
+      if (alive) setMyUid(uid);
       const [votes, marks] = await Promise.all([
         loadVotes(uid).catch(() => ({ counts: {}, mine: new Set<string>() })),
         loadBookmarks().catch(() => new Set<string>()),
@@ -134,6 +143,18 @@ export default function CommunityScreen() {
       flipMine(!on);
       bump(on ? -1 : 1);
     });
+  };
+
+  // Save an edited title (owner-only, from the card ⋯ menu). Optimistically
+  // patches the row so the card updates instantly; rolls back on failure.
+  const saveTitle = (item: CommunityExercise, next: string) => {
+    const clean = next.trim();
+    setEditFor(null);
+    if (clean.length === 0 || clean === item.title) return;
+    const patch = (title: string) =>
+      setRows((prev) => prev.map((r) => (r.id === item.id ? { ...r, title } : r)));
+    patch(clean);
+    updateExerciseTitle(item.id, clean).catch(() => patch(item.title));
   };
 
   // Apply the Saved filter, then order by upvotes (most-voted first; `rows`
@@ -192,11 +213,21 @@ export default function CommunityScreen() {
     const saved = myBookmarks.has(item.id);
     const voted = myVotes.has(item.id);
     const votes = voteCounts[item.id] ?? 0;
+    const owned = !!myUid && item.contributor_user_id === myUid;
     return (
       <View style={[styles.card, { borderColor: Palette.border }]}>
+        {owned && (
+          <Pressable
+            onPress={() => setMenuFor(item)}
+            hitSlop={10}
+            accessibilityLabel="Exercise options"
+            style={styles.cardMenuBtn}>
+            <Feather name="more-horizontal" size={20} color={C.icon} />
+          </Pressable>
+        )}
         <Pressable
           onPress={() => router.push(`/community/${item.id}` as never)}
-          style={{ gap: 3 }}>
+          style={{ gap: 3, paddingRight: owned ? 28 : 0 }}>
           {work.length > 0 ? (
             <>
               <ThemedText type="defaultSemiBold" numberOfLines={1}>
@@ -362,6 +393,33 @@ export default function CommunityScreen() {
           ))}
         </ScrollView>
       )}
+
+      <ActionSheet
+        visible={!!menuFor}
+        title={menuFor?.title}
+        items={[
+          {
+            label: 'Edit title',
+            onPress: () => {
+              const it = menuFor;
+              setMenuFor(null);
+              setEditFor(it);
+            },
+          },
+        ]}
+        onCancel={() => setMenuFor(null)}
+      />
+
+      <PromptModal
+        visible={!!editFor}
+        title="Edit title"
+        message="This is the name other players see in the community library."
+        initialValue={editFor?.title ?? ''}
+        placeholder="e.g. mvt. 4 sixteenths, mm. 281–291"
+        submitLabel="Save"
+        onSubmit={(v) => editFor && saveTitle(editFor, v)}
+        onCancel={() => setEditFor(null)}
+      />
     </ThemedView>
   );
 }
@@ -454,6 +512,13 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
     elevation: 3,
+  },
+  cardMenuBtn: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
+    padding: 4,
+    zIndex: 2,
   },
   exerciseName: { fontSize: Type.size.md, color: Palette.textSecondary },
   cardMeta: { fontSize: Type.size.sm },
