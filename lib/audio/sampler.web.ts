@@ -15,6 +15,8 @@
 
 import { Soundfont } from 'smplr';
 
+import { unlockIosSilentMode } from '@/lib/audio/iosSilentMode';
+
 export const SAMPLER_AVAILABLE = true;
 
 export type SampleNote = { midi: number; time: number; duration: number };
@@ -42,6 +44,10 @@ let playToken = 0;
 
 function getCtx(): AudioContext | null {
   if (typeof window === 'undefined') return null;
+  // Keep sampled-instrument playback audible when the iPad/iPhone mute
+  // switch is on — getCtx runs synchronously at the top of every play path,
+  // still inside the user's tap.
+  unlockIosSilentMode();
   if (!ctx) {
     const AC: typeof AudioContext | undefined =
       window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;

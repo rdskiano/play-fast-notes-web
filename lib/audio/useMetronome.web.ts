@@ -6,6 +6,7 @@ import {
 } from '@/components/PracticeTimersContext';
 import { TOKEN_QUARTER_FRACTIONS, type RhythmToken } from '@/lib/strategies/rhythmPatterns';
 import { getGroove, STEPS_PER_QUARTER, type Groove } from '@/lib/audio/grooves';
+import { unlockIosSilentMode } from '@/lib/audio/iosSilentMode';
 
 /**
  * Subdivision = clicks per beat: 1 (quarter), 2 (eighths), 3 (triplet),
@@ -359,6 +360,10 @@ export function useMetronome(initialBpm = 60) {
   }, [droneSustain]);
 
   function ensureContext(): AudioContext | null {
+    // Every sound this hook makes (click, drone, rhythm loop, groove, pitch)
+    // funnels through here first, usually still inside the user's tap — the
+    // right moment to claim iOS's mute-switch-immune media channel.
+    unlockIosSilentMode();
     if (ctxRef.current) return ctxRef.current;
     const W = window as unknown as {
       AudioContext?: typeof AudioContext;
