@@ -13,6 +13,7 @@ import {
   type KeySignature,
   type Pitch,
 } from '@/lib/music/pitch';
+import { masterForPitchId } from '@/lib/music/instruments';
 import { buildExerciseAbc } from '@/lib/notation/buildExerciseAbc';
 import {
   patternsByGrouping,
@@ -104,12 +105,31 @@ export function pitchCount(config: ExerciseConfig): number {
 // distinct instruments for notation), but when browsing by instrument you look
 // for "clarinet", not the specific pitch. This only affects the community
 // display/grouping — never the stored instrument or its transposition.
-const CLARINET_INSTRUMENT_IDS = new Set(['a_clarinet', 'bb_clarinet']);
+const CLARINET_INSTRUMENT_IDS = new Set([
+  'a_clarinet',
+  'bb_clarinet',
+  'eb_clarinet',
+  'bass_clarinet',
+]);
 
 export function communityInstrumentLabel(id: string | null): string | null {
   if (!id) return null;
   if (CLARINET_INSTRUMENT_IDS.has(id)) return 'Clarinet';
   return INSTRUMENTS.find((i) => i.id === id)?.label ?? id;
+}
+
+/**
+ * Card/detail label that keeps the variant visible — "Clarinet (A)" — while
+ * the group header above it stays the merged `communityInstrumentLabel`
+ * ("Clarinet"). Which horn an exercise is written for decides whether YOU can
+ * read it at pitch, so cards must not hide it.
+ */
+export function communityInstrumentCardLabel(id: string | null): string | null {
+  if (!id) return null;
+  const master = masterForPitchId(id);
+  const variant = master?.variants?.find((v) => v.pitchId === id);
+  if (master && variant) return `${master.name} (${variant.label})`;
+  return communityInstrumentLabel(id);
 }
 
 export function exerciseShapeLabel(config: ExerciseConfig): string {

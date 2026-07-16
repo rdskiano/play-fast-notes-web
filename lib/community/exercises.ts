@@ -7,23 +7,6 @@ import { supabase } from '@/lib/supabase/client';
 
 import type { ExerciseConfig } from './exerciseConfig';
 
-export type RepertoireType =
-  | 'etude'
-  | 'orchestral'
-  | 'solo'
-  | 'chamber'
-  | 'method'
-  | 'other';
-
-export const REPERTOIRE_TYPES: { id: RepertoireType; label: string }[] = [
-  { id: 'etude', label: 'Étude' },
-  { id: 'orchestral', label: 'Orchestral' },
-  { id: 'solo', label: 'Solo' },
-  { id: 'chamber', label: 'Chamber' },
-  { id: 'method', label: 'Method' },
-  { id: 'other', label: 'Other' },
-];
-
 export type CommunityExercise = {
   id: string;
   contributor_user_id: string;
@@ -31,7 +14,6 @@ export type CommunityExercise = {
   title: string;
   config_json: ExerciseConfig;
   instrument_id: string | null;
-  repertoire_type: string | null;
   piece_title: string | null;
   composer: string | null;
   time_signature: string | null;
@@ -42,11 +24,10 @@ export type CommunityExercise = {
 
 export type CommunityFilters = {
   instrumentId?: string | null;
-  repertoireType?: string | null;
 };
 
 const SELECT =
-  'id, contributor_user_id, contributor_name, title, config_json, instrument_id, repertoire_type, piece_title, composer, time_signature, notes, download_count, created_at';
+  'id, contributor_user_id, contributor_name, title, config_json, instrument_id, piece_title, composer, time_signature, notes, download_count, created_at';
 
 export async function searchCommunityExercises(
   q: string,
@@ -57,7 +38,6 @@ export async function searchCommunityExercises(
     .select(SELECT)
     .order('created_at', { ascending: false });
   if (filters?.instrumentId) query = query.eq('instrument_id', filters.instrumentId);
-  if (filters?.repertoireType) query = query.eq('repertoire_type', filters.repertoireType);
   const term = q.trim();
   if (term.length > 0) {
     const like = `%${term.replace(/[%_]/g, '')}%`;
@@ -91,7 +71,6 @@ export type PublishInput = {
   config: ExerciseConfig;
   contributorName: string;
   instrumentId?: string | null;
-  repertoireType?: string | null;
   pieceTitle?: string | null;
   composer?: string | null;
   timeSignature?: string | null;
@@ -106,7 +85,6 @@ export async function publishExercise(input: PublishInput): Promise<string> {
       config_json: input.config,
       contributor_name: input.contributorName.trim(),
       instrument_id: input.instrumentId ?? null,
-      repertoire_type: input.repertoireType ?? null,
       piece_title: input.pieceTitle?.trim() || null,
       composer: input.composer?.trim() || null,
       time_signature: input.timeSignature ?? null,

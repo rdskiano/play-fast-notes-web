@@ -23,7 +23,11 @@ import {
   updateExerciseTitle,
   type CommunityExercise,
 } from '@/lib/community/exercises';
-import { communityInstrumentLabel, exerciseShapeLabel } from '@/lib/community/exerciseConfig';
+import {
+  communityInstrumentCardLabel,
+  communityInstrumentLabel,
+  exerciseShapeLabel,
+} from '@/lib/community/exerciseConfig';
 import {
   getUid,
   loadBookmarks,
@@ -50,8 +54,8 @@ export default function CommunityScreen() {
   const [menuFor, setMenuFor] = useState<CommunityExercise | null>(null);
   const [editFor, setEditFor] = useState<CommunityExercise | null>(null);
 
-  // Debounced server-side text search; instrument/repertoire filtering is
-  // applied client-side on the result so chip taps are instant.
+  // Debounced server-side text search; instrument grouping and the Saved
+  // filter are applied client-side on the result so chip taps are instant.
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -205,7 +209,7 @@ export default function CommunityScreen() {
     const work = opts?.hideComposer
       ? item.piece_title ?? ''
       : [item.piece_title, item.composer].filter(Boolean).join(' — ');
-    const meta = [communityInstrumentLabel(item.instrument_id), exerciseShapeLabel(item.config_json)]
+    const meta = [communityInstrumentCardLabel(item.instrument_id), exerciseShapeLabel(item.config_json)]
       .filter(Boolean)
       .join(' · ');
     const saved = myBookmarks.has(item.id);

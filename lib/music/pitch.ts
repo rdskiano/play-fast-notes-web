@@ -229,16 +229,37 @@ export type Instrument = {
 };
 
 export const INSTRUMENTS: Instrument[] = [
-  { id: 'concert', label: 'Concert pitch (flute / violin)', transposeSemitones: 0 },
+  { id: 'concert', label: 'Concert pitch', transposeSemitones: 0 },
   { id: 'piano', label: 'Piano', transposeSemitones: 0 },
   // Guitar is written in treble an octave above where it sounds.
   { id: 'guitar', label: 'Guitar', transposeSemitones: 12 },
-  { id: 'bb_clarinet', label: 'B♭ clarinet / trumpet', transposeSemitones: 2 },
+  { id: 'bb_clarinet', label: 'B♭ clarinet', transposeSemitones: 2 },
   { id: 'a_clarinet', label: 'A clarinet', transposeSemitones: 3 },
   { id: 'eb_alto_sax', label: 'E♭ alto sax / alto clarinet', transposeSemitones: 9 },
   { id: 'bb_tenor_sax', label: 'B♭ tenor sax / bass clarinet', transposeSemitones: 14 },
   { id: 'eb_bari_sax', label: 'E♭ baritone sax', transposeSemitones: 21 },
   { id: 'f_horn', label: 'F horn / english horn', transposeSemitones: 7 },
+  // Per-instrument ids (2026-07): the master instrument list
+  // (lib/music/instruments.ts) points new exercises at these, so a saved
+  // config names the actual instrument instead of a transposition class.
+  // Everything above stays valid forever — old configs store those ids.
+  { id: 'flute', label: 'Flute', transposeSemitones: 0 },
+  { id: 'oboe', label: 'Oboe', transposeSemitones: 0 },
+  { id: 'violin', label: 'Violin', transposeSemitones: 0 },
+  { id: 'trumpet', label: 'Trumpet', transposeSemitones: 2 },
+  // E♭ (sopranino) clarinet sounds a minor 3rd ABOVE written.
+  { id: 'eb_clarinet', label: 'E♭ clarinet', transposeSemitones: -3 },
+  // Bass clarinet written in treble, sounding a major 9th below.
+  { id: 'bass_clarinet', label: 'Bass clarinet', transposeSemitones: 14 },
+  { id: 'alto_sax', label: 'Alto saxophone', transposeSemitones: 9 },
+  { id: 'tenor_sax', label: 'Tenor saxophone', transposeSemitones: 14 },
+  { id: 'bari_sax', label: 'Baritone saxophone', transposeSemitones: 21 },
+  { id: 'french_horn', label: 'French horn', transposeSemitones: 7 },
+  { id: 'cello', label: 'Cello', transposeSemitones: 0 },
+  { id: 'bassoon', label: 'Bassoon', transposeSemitones: 0 },
+  { id: 'trombone', label: 'Trombone', transposeSemitones: 0 },
+  { id: 'tuba', label: 'Tuba', transposeSemitones: 0 },
+  { id: 'viola', label: 'Viola', transposeSemitones: 0 },
 ];
 
 /** Convert written pitch for an instrument → concert MIDI (what's actually heard). */

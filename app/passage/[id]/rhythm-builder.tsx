@@ -62,6 +62,12 @@ import {
   type KeySignature,
   type Pitch,
 } from '@/lib/music/pitch';
+import {
+  MASTER_INSTRUMENTS,
+  masterByName,
+  masterForPitchId,
+} from '@/lib/music/instruments';
+import { ONBOARDING_INSTRUMENT_KEY } from '@/lib/onboarding/strategyDemos';
 import { buildExerciseHtml } from '@/lib/export/buildExerciseHtml';
 import { exportExercisePdf } from '@/lib/export/exportExercisePdf';
 import { buildExerciseAbc } from '@/lib/notation/buildExerciseAbc';
@@ -190,6 +196,13 @@ export default function RhythmBuilderScreen() {
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
 
+  // The master instrument the current pitch-level choice belongs to (legacy
+  // ids map to a representative — see instruments.ts). Drives the Instrument
+  // dropdown and, for clarinet, the variant pill row.
+  const selectedMaster =
+    masterForPitchId(instrument.id) ??
+    MASTER_INSTRUMENTS.find((m) => m.id === 'flute')!;
+
   // Web-only guided tours for the setup + pitch-entry phases. No-op on
   // native, where the help modal still covers the Exercise Builder.
   // Setup + pitch-entry use the guided tour; the generate page falls back
@@ -245,11 +258,27 @@ export default function RhythmBuilderScreen() {
         // Fall back to the passage title (handled at the call site).
       }
     });
+    // Start from the instrument's home clef too; when this runs for an
+    // existing exercise, its saved clef is applied AFTER and wins.
+    function applyInstrumentWithDefaultClef(pitchId: string): boolean {
+      const next = INSTRUMENTS.find((i) => i.id === pitchId);
+      if (!next) return false;
+      setInstrument(next);
+      const clefId = masterForPitchId(pitchId)?.clefId;
+      const c = clefId ? CLEFS.find((x) => x.id === clefId) : null;
+      if (c) setClef(c);
+      return true;
+    }
     async function applyLastInstrumentFallback() {
       const lastId = await getSetting(LAST_INSTRUMENT_KEY).catch(() => null);
-      if (cancelled || !lastId) return;
-      const next = INSTRUMENTS.find((i) => i.id === lastId);
-      if (next) setInstrument(next);
+      if (cancelled) return;
+      if (lastId && applyInstrumentWithDefaultClef(lastId)) return;
+      // First time in the builder: start from the instrument they told
+      // onboarding (stored as a display name).
+      const name = await getSetting(ONBOARDING_INSTRUMENT_KEY).catch(() => null);
+      if (cancelled || !name) return;
+      const master = masterByName(name);
+      if (master) applyInstrumentWithDefaultClef(master.pitchId);
     }
     if (exerciseIdParam) {
       getExerciseById(exerciseIdParam).then(async (ex) => {
@@ -672,14 +701,54 @@ export default function RhythmBuilderScreen() {
             <View style={{ gap: Spacing.md }} {...tourTag('rb-fields')}>
               <DropdownField
                 label="Instrument"
-                valueId={instrument.id}
-                options={INSTRUMENTS.map((i) => ({ id: i.id, label: i.label }))}
+                valueId={selectedMaster.id}
+                options={MASTER_INSTRUMENTS.map((m) => ({ id: m.id, label: m.name }))}
                 onChange={(idValue) => {
-                  const next = INSTRUMENTS.find((x) => x.id === idValue);
+                  const master = MASTER_INSTRUMENTS.find((x) => x.id === idValue);
+                  if (!master) return;
+                  const next = INSTRUMENTS.find((i) => i.id === master.pitchId);
                   if (next) setInstrument(next);
+                  const c = CLEFS.find((x) => x.id === master.clefId);
+                  if (c) setClef(c);
                 }}
                 pickerTitle="Select instrument"
               />
+
+              {selectedMaster.variants ? (
+                <View>
+                  <ThemedText style={styles.label}>
+                    {selectedMaster.name} in
+                  </ThemedText>
+                  <View style={styles.variantRow}>
+                    {selectedMaster.variants.map((v) => {
+                      const active = instrument.id === v.pitchId;
+                      return (
+                        <Pressable
+                          key={v.pitchId}
+                          onPress={() => {
+                            const next = INSTRUMENTS.find((i) => i.id === v.pitchId);
+                            if (next) setInstrument(next);
+                          }}
+                          style={[
+                            styles.variantPill,
+                            {
+                              borderColor: active ? C.tint : C.icon,
+                              backgroundColor: active ? C.tint + '22' : 'transparent',
+                            },
+                          ]}>
+                          <ThemedText
+                            style={[
+                              styles.variantPillText,
+                              { color: active ? C.tint : C.text },
+                            ]}>
+                            {v.label}
+                          </ThemedText>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
 
               <View style={styles.dropdownRow}>
                 <View style={{ flex: 1 }}>
@@ -1338,6 +1407,15 @@ const styles = StyleSheet.create({
   },
   dropdownRow: { flexDirection: 'row', gap: Spacing.md },
   label: { opacity: 0.7, fontSize: 12, fontWeight: Type.weight.semibold, marginTop: 4 },
+  variantRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
+  variantPill: {
+    flex: 1,
+    borderWidth: Borders.thin,
+    borderRadius: Radii.xl,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  variantPillText: { fontSize: 15, fontWeight: '700' },
   continueBtn: {
     marginTop: Spacing.md,
     borderRadius: Radii.lg,

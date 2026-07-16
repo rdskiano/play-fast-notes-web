@@ -24,7 +24,7 @@ import { Colors } from '@/constants/theme';
 import { Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
-  communityInstrumentLabel,
+  communityInstrumentCardLabel,
   configToAbcs,
   exerciseShapeLabel,
 } from '@/lib/community/exerciseConfig';
@@ -118,7 +118,7 @@ export default function CommunityExerciseScreen() {
 
   const previews = ex ? configToAbcs(ex.config_json).slice(0, PREVIEW_COUNT) : [];
   const totalCount = ex ? configToAbcs(ex.config_json).length : 0;
-  const instrument = communityInstrumentLabel(ex?.instrument_id ?? null);
+  const instrument = communityInstrumentCardLabel(ex?.instrument_id ?? null);
   const shape = ex ? exerciseShapeLabel(ex.config_json) : null;
   const staffWidth = Math.min(width, 680) - Spacing.md * 2;
 
