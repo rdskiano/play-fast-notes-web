@@ -27,7 +27,7 @@ import {
   groupingLabel,
   type ExerciseConfig,
 } from '@/lib/community/exerciseConfig';
-import { publishExercise } from '@/lib/community/exercises';
+import { isSignedOutError, publishExercise } from '@/lib/community/exercises';
 import { INSTRUMENTS } from '@/lib/music/pitch';
 
 const NAME_KEY = 'community.contributor_name';
@@ -100,7 +100,14 @@ export function ShareExerciseModal({
       });
       onPublished();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not publish. Please try again.');
+      const signedOut = await isSignedOutError(e).catch(() => false);
+      setError(
+        signedOut
+          ? 'You’ve been signed out. Please sign in again, then tap Publish.'
+          : e instanceof Error
+            ? e.message
+            : 'Could not publish. Please try again.',
+      );
     } finally {
       setBusy(false);
     }

@@ -96,6 +96,21 @@ export async function publishExercise(input: PublishInput): Promise<string> {
   return (data as { id: string }).id;
 }
 
+/**
+ * Whether a failed community write was really a dead login session. The
+ * native app runs local-first and can sit signed-out for weeks without
+ * noticing — publish is often the first server call that hits the wall
+ * (seen 2026-07-15: refresh-token 400 → publish 401 → generic error).
+ * Prefer asking auth for the live session over parsing PostgREST error
+ * shapes; the two codes cover an expired JWT and an RLS-rejected anon write.
+ */
+export async function isSignedOutError(e: unknown): Promise<boolean> {
+  const code = (e as { code?: string } | null)?.code;
+  if (code === 'PGRST301' || code === '42501') return true;
+  const { data } = await supabase.auth.getSession();
+  return !data.session;
+}
+
 export async function unpublishExercise(id: string): Promise<void> {
   const { error } = await supabase.from('community_exercises').delete().eq('id', id);
   if (error) throw error;
