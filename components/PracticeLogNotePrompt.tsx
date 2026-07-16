@@ -14,6 +14,7 @@ import { Lift, Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Overlays, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { type MetronomeApi } from '@/lib/audio/useMetronome';
 
 export const PRACTICE_MOODS = ['🔥', '😄', '😐', '😢', '💩'] as const;
 export type PracticeMood = (typeof PRACTICE_MOODS)[number];
@@ -39,6 +40,11 @@ type Props = {
   // backdrop/back) that closes WITHOUT logging — for an accidental "Done" tap so
   // the user can return to the session instead of being forced to finish.
   onKeepPracticing?: () => void;
+  // When provided, the prompt silences a running metronome while it's open —
+  // clicking over the "what to do next time" question was distracting. Resumes
+  // ONLY on the keep-practicing escape (back into the session); Save/Skip end
+  // the session and leave the screen, so restarting would just blip.
+  metronome?: MetronomeApi;
 };
 
 // Single hard-coded prompt. Title / emoji / subtitle props are retained on
@@ -58,6 +64,7 @@ export function PracticeLogNotePrompt({
   onSkip,
   onDelete,
   onKeepPracticing,
+  metronome,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -75,6 +82,30 @@ export function PracticeLogNotePrompt({
       setRemindNext(initialRemindNext ?? false);
     }
   }, [visible, initialMood, initialNote, initialRemindNext]);
+
+  // Silence a running metronome while the prompt is up. `metronomeWasRunning`
+  // survives across renders so the keep-practicing escape knows whether to
+  // restart it. Effect is idempotent: once stopped, `running` is false, so
+  // re-runs (the metronome object is a fresh identity each render) no-op.
+  const metronomeWasRunning = useRef(false);
+  useEffect(() => {
+    if (visible) {
+      if (metronome?.running) {
+        metronomeWasRunning.current = true;
+        metronome.stop();
+      }
+    } else {
+      metronomeWasRunning.current = false;
+    }
+  }, [visible, metronome]);
+
+  // Resume the click only when the user ducks back INTO the session.
+  const keepPracticing = onKeepPracticing
+    ? () => {
+        if (metronomeWasRunning.current) metronome?.start();
+        onKeepPracticing();
+      }
+    : undefined;
 
   // Raise the on-screen keyboard the instant the prompt opens. iOS / iPadOS
   // only shows the keyboard when the input is focused *inside* the tap that
@@ -112,14 +143,14 @@ export function PracticeLogNotePrompt({
   }
 
   return (
-    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onKeepPracticing ?? onSkip}>
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={keepPracticing ?? onSkip}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.backdrop}>
         <View style={styles.card}>
-          {onKeepPracticing && (
+          {keepPracticing && (
             <Pressable
-              onPress={onKeepPracticing}
+              onPress={keepPracticing}
               hitSlop={12}
               accessibilityLabel="Keep practicing"
               style={styles.keepClose}>

@@ -24,6 +24,7 @@ import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
+import { useMetronome } from '@/lib/audio/useMetronome';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
@@ -63,6 +64,9 @@ export default function ChunkingScreen() {
   const [passage, setPassage] = useState<Passage | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Owned here (not inside PracticeToolsLayer) so the practice-log prompt can
+  // silence a running click while it's open. 120 matches the layer's default.
+  const metronome = useMetronome(120);
 
   useEffect(() => {
     if (!id) return;
@@ -158,12 +162,17 @@ export default function ChunkingScreen() {
           )}
           {ann.canvas}
         </View>
-        <PracticeToolsLayer pencil={ann.pencil} recorderPassageId={passage?.id} />
+        <PracticeToolsLayer
+          metronome={metronome}
+          pencil={ann.pencil}
+          recorderPassageId={passage?.id}
+        />
       </View>
 
       <ChunkingHelpModal visible={helpOpen} onClose={() => setHelpOpen(false)} />
 
       <PracticeLogNotePrompt
+        metronome={metronome}
         visible={notePromptVisible}
         emoji="🎉"
         title="Chunking — session complete"

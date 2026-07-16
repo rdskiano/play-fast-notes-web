@@ -825,6 +825,7 @@ function InterleavedScreenInner() {
       />
 
       <PracticeLogNotePrompt
+        metronome={metronome}
         visible={celebrating || notePromptVisible}
         emoji={celebrating ? '🎉' : undefined}
         title={
@@ -1081,6 +1082,7 @@ function TimerActive({
       </View>
 
       <PracticeLogNotePrompt
+        metronome={metronome}
         visible={allDone || notePromptVisible}
         emoji={allDone ? '🎉' : undefined}
         title={

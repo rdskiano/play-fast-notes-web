@@ -32,6 +32,7 @@ import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
+import { useMetronome } from '@/lib/audio/useMetronome';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
@@ -71,6 +72,9 @@ export default function SelfLedSessionScreen() {
   }, [id]);
 
   const ann = useScoreAnnotation(passage);
+  // Owned here (not inside PracticeToolsLayer) so the practice-log prompt can
+  // silence a running click while it's open. 120 matches the layer's default.
+  const metronome = useMetronome(120);
 
   if (!strategy) {
     return (
@@ -175,7 +179,11 @@ export default function SelfLedSessionScreen() {
           )}
           {ann.canvas}
         </View>
-        <PracticeToolsLayer pencil={ann.pencil} recorderPassageId={passage?.id} />
+        <PracticeToolsLayer
+          metronome={metronome}
+          pencil={ann.pencil}
+          recorderPassageId={passage?.id}
+        />
       </View>
 
       <SelfLedHelpModal
@@ -185,6 +193,7 @@ export default function SelfLedSessionScreen() {
       />
 
       <PracticeLogNotePrompt
+        metronome={metronome}
         visible={notePromptVisible}
         emoji="🎉"
         title={`${strategy.title} — session complete`}

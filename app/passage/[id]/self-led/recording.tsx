@@ -32,6 +32,7 @@ import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { actionButtonStyle, HELP_CLEARANCE } from '@/lib/layout/configForm';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
+import { useMetronome } from '@/lib/audio/useMetronome';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
@@ -75,6 +76,9 @@ export default function SelfLedRecordingScreen() {
   const audioElRef = useRef<HTMLAudioElement | null>(null);
 
   const ann = useScoreAnnotation(passage);
+  // Owned here (not inside PracticeToolsLayer) so the practice-log prompt can
+  // silence a running click while it's open. 120 matches the layer's default.
+  const metronome = useMetronome(120);
 
   useEffect(() => {
     if (!id) return;
@@ -265,7 +269,11 @@ export default function SelfLedRecordingScreen() {
           </View>
         )}
         {ann.canvas}
-        <PracticeToolsLayer pencil={ann.pencil} recorderPassageId={passage?.id} />
+        <PracticeToolsLayer
+          metronome={metronome}
+          pencil={ann.pencil}
+          recorderPassageId={passage?.id}
+        />
       </View>
 
       <View
@@ -354,6 +362,7 @@ export default function SelfLedRecordingScreen() {
       </View>
 
       <PracticeLogNotePrompt
+        metronome={metronome}
         visible={notePromptVisible}
         emoji="🎙"
         title="Recording — log it"

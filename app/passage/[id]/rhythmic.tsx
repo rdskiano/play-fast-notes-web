@@ -683,6 +683,7 @@ export default function RhythmicScreen() {
       />
 
       <PracticeLogNotePrompt
+        metronome={metronome}
         visible={notePromptVisible && !isGuided}
         emoji="🎉"
         title="Rhythmic Variation — session complete"

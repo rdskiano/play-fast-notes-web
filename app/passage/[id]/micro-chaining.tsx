@@ -904,6 +904,7 @@ export default function MicroChainingScreen() {
       )}
 
       <PracticeLogNotePrompt
+        metronome={metronome}
         visible={!isGuided && (celebrating || notePromptVisible)}
         emoji={celebrating ? '🎉' : undefined}
         title={

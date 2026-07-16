@@ -520,6 +520,7 @@ export default function MacroChainingScreen() {
       />
 
       <PracticeLogNotePrompt
+        metronome={metronome}
         visible={celebrating || notePromptVisible}
         emoji={celebrating ? '🎉' : undefined}
         title={

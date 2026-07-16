@@ -1022,6 +1022,7 @@ export default function TempoLadderScreen() {
       />
 
       <PracticeLogNotePrompt
+        metronome={metronome}
         visible={
           !toolsOnly &&
           !isGuided &&

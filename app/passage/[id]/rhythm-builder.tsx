@@ -967,6 +967,7 @@ export default function RhythmBuilderScreen() {
       )}
 
       <PracticeLogNotePrompt
+        metronome={metronome}
         visible={notePromptVisible}
         emoji="🎉"
         title="Exercise Builder — session complete"
@@ -975,6 +976,10 @@ export default function RhythmBuilderScreen() {
         cancelLabel="Skip"
         onSubmit={({ mood, note, remindNext }) => finishLog(mood, note, remindNext)}
         onSkip={() => finishLog(null, null)}
+        // ✕ / back = "keep practicing": close without logging (an accidental
+        // DONE tap shouldn't force the session to end) — and the prompt
+        // restarts the metronome it silenced on open.
+        onKeepPracticing={() => setNotePromptVisible(false)}
       />
 
       <NoteCardEditor
