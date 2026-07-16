@@ -124,6 +124,15 @@ export function buildExerciseHtml(
     font-style: italic;
     letter-spacing: 0.01em;
   }
+  /* Web address in the header — subtle, in the brand tint, so a printed
+     giveaway shows where to find the app right at the top of the page. */
+  .pfn-url {
+    font-size: 12px;
+    color: ${BRAND};
+    font-weight: 700;
+    margin-top: 6px;
+    letter-spacing: 0.02em;
+  }
 
   /* The user-supplied PDF title sits between the brand and the exercises,
      in a smaller role — the brand is the document's headline now. */
@@ -226,6 +235,7 @@ export function buildExerciseHtml(
     <img class="pfn-logo" src="${LOGO_URL}" alt="Play Fast Notes" />
     <h1 class="pfn-name">Play Fast Notes</h1>
     <div class="pfn-tag">${escapeHtml(TAGLINE)}</div>
+    <div class="pfn-url">${SITE_HOST}</div>
   </header>
 
   <h2 class="ex-title">${escapeHtml(title)}</h2>
