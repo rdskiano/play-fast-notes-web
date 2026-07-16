@@ -12,18 +12,15 @@ import {
   View,
 } from 'react-native';
 
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
 import { DropdownField } from '@/components/DropdownField';
-import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import { GroupingPicker } from '@/components/GroupingPicker';
-import { DEVICE, MetronomePanel } from '@/components/MetronomePanel';
 import { NoteCardEditor } from '@/components/NoteCardEditor';
 import { PianoKeyboard } from '@/components/PianoKeyboard';
 import { PitchStaff } from '@/components/PitchStaff';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
+import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
@@ -35,7 +32,7 @@ import { ZoomableImage } from '@/components/ZoomableImage';
 import { ThemedView } from '@/components/themed-view';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
-import { Lift, Palette } from '@/constants/palette';
+import { Palette } from '@/constants/palette';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useMetronome } from '@/lib/audio/useMetronome';
@@ -172,12 +169,9 @@ export default function RhythmBuilderScreen() {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const { width: winWidth, height: winHeight } = useWindowDimensions();
-  // Tablet/laptop reach the metronome + timer from the header (below); a phone
-  // has no room for extra header buttons, so it keeps the floating tool rail.
+  // Tablet/laptop use the top-right PracticeToolsBar pill (below); a phone
+  // keeps the floating edge tool rail instead.
   const isPhone = Math.min(winWidth, winHeight) < 600;
-  // Header-opened tool panels (tablet/laptop only).
-  const [metroOpen, setMetroOpen] = useState(false);
-  const [timerOpen, setTimerOpen] = useState(false);
 
   const [phase, setPhase] = useState<Phase>('setup');
   const [passage, setPassage] = useState<Passage | null>(null);
@@ -626,32 +620,6 @@ export default function RhythmBuilderScreen() {
           right={
             phase === 'generate' ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {!isPhone && (
-                  <>
-                    <Pressable
-                      onPress={() => setMetroOpen(true)}
-                      hitSlop={6}
-                      accessibilityLabel="Metronome"
-                      style={[styles.toolBtn, { borderColor: Palette.accent }]}>
-                      <MaterialCommunityIcons
-                        name="metronome"
-                        size={18}
-                        color={Palette.accent}
-                      />
-                    </Pressable>
-                    <Pressable
-                      onPress={() => setTimerOpen(true)}
-                      hitSlop={6}
-                      accessibilityLabel="Practice timers"
-                      style={[styles.toolBtn, { borderColor: Palette.accent }]}>
-                      <MaterialCommunityIcons
-                        name="timer-outline"
-                        size={18}
-                        color={Palette.accent}
-                      />
-                    </Pressable>
-                  </>
-                )}
                 <Pressable
                   onPress={openPdfTitlePrompt}
                   hitSlop={6}
@@ -967,6 +935,21 @@ export default function RhythmBuilderScreen() {
             metronome={metronome}
             tools={{ left: [], right: isPhone ? ['metronome', 'timer'] : [] }}
           />
+          {/* Tablet/laptop: the same top-right tools pill the other practice
+              screens use — the panel drops below the pill WITHOUT blocking
+              the exercises, so the metronome can stay up while practicing.
+              Tapping the highlighted icon again puts it away. Mounted inside
+              this content view (below the top bar, whose right slot is full:
+              PDF · Share · EDIT · DONE), hence the small anchorTop. Shares
+              the session's engine so BPM / running state stay in sync with
+              ▶ playback. */}
+          {!isPhone && (
+            <PracticeToolsBar
+              metronome={metronome}
+              tools={['metronome', 'timer']}
+              anchorTop={8}
+            />
+          )}
           <TutorialStep
             id="rhythm-builder-generate"
             visible={false}
@@ -1113,35 +1096,6 @@ export default function RhythmBuilderScreen() {
         onCancel={() => setShareOpen(false)}
       />
 
-      {/* Header-opened tool panels (tablet/laptop). Centered cards so they
-          never sit over the notation. The metronome shares the session's
-          engine instance, so BPM / running state stay in sync with ▶ playback. */}
-      <Modal
-        visible={metroOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setMetroOpen(false)}>
-        <Pressable style={styles.toolBackdrop} onPress={() => setMetroOpen(false)}>
-          <Pressable
-            style={[styles.metroCard, { backgroundColor: DEVICE.body }]}
-            onPress={(e) => e.stopPropagation()}>
-            <MetronomePanel metronome={metronome} />
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      <Modal
-        visible={timerOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setTimerOpen(false)}>
-        <Pressable style={styles.toolBackdrop} onPress={() => setTimerOpen(false)}>
-          <Pressable style={styles.timerCard} onPress={(e) => e.stopPropagation()}>
-            <ThemedText style={styles.timerCardTitle}>Practice timers</ThemedText>
-            <PracticeTimersPill bare />
-          </Pressable>
-        </Pressable>
-      </Modal>
     </ThemedView>
   );
 }
@@ -1527,44 +1481,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: Radii.sm,
     borderWidth: Borders.thin,
-  },
-  // Icon-only header pill for the Metronome / Timer tools (matches pdfBtn).
-  toolBtn: {
-    width: 40,
-    height: 34,
-    borderRadius: Radii.sm,
-    borderWidth: Borders.thin,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toolBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(20,30,30,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.lg,
-  },
-  metroCard: {
-    width: 300,
-    // +38 over the pre-slider height for the metronome's tempo-slider row.
-    height: 422,
-    borderRadius: Radii.xl,
-    ...Lift,
-  },
-  timerCard: {
-    width: '100%',
-    maxWidth: 400,
-    backgroundColor: Palette.card,
-    borderRadius: Radii.xl,
-    padding: Spacing.lg,
-    gap: Spacing.sm,
-    alignItems: 'center',
-    ...Lift,
-  },
-  timerCardTitle: {
-    fontSize: Type.size.md,
-    fontWeight: Type.weight.bold,
-    color: Palette.text,
   },
   pdfBtnText: {
     fontWeight: Type.weight.semibold,
