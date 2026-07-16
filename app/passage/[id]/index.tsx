@@ -753,7 +753,7 @@ export default function PassageDetailScreen() {
                   hitSlop={8}
                   accessibilityLabel="Practice history"
                   style={styles.lsIconBtn}>
-                  <Feather name="clock" size={18} color={Palette.text} />
+                  <Feather name="book-open" size={18} color={Palette.text} />
                 </Pressable>
               </View>
             )}
@@ -867,7 +867,7 @@ export default function PassageDetailScreen() {
               hitSlop={8}
               accessibilityLabel="Practice history"
               style={styles.heroIconBtn}>
-              <Feather name="clock" size={18} color={Palette.text} />
+              <Feather name="book-open" size={18} color={Palette.text} />
             </Pressable>
           </View>
         </View>

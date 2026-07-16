@@ -1271,7 +1271,7 @@ export default function LibraryScreen() {
               }}
               accessibilityLabel="Practice log"
               style={styles.groupBtn}>
-              <Feather name="clock" size={18} color={Palette.text} />
+              <Feather name="book-open" size={18} color={Palette.text} />
             </Pressable>
             <View style={styles.groupDivider} />
             <Pressable
