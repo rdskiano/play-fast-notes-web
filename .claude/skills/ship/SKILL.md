@@ -7,6 +7,13 @@ description: Verify, summarize, and deploy Play Fast Notes — typecheck + web e
 
 Run these steps in order. Do not skip the ask in step 5 — pushing IS a production deploy.
 
+## 0. What's New entry (if the change is user-visible)
+Add an entry at the TOP of `constants/whatsNew.ts` — plain English, written for
+musicians: what they saw, what changed, 2–3 sentences. Fixes for silently-broken
+things especially (that's the whole point of the bell). Skip only for pure
+internal/dev changes users can't notice. Read the entry aloud-able; Ralph
+approves wording if there's any doubt.
+
 ## 1. Typecheck
 ```
 node node_modules/typescript/bin/tsc --noEmit
