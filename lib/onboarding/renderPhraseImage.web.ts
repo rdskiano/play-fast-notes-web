@@ -7,7 +7,6 @@
 // back a data URI. Best-effort: any failure returns null and the seed falls
 // back to the placeholder card.
 
-const ABCJS_CDN = 'https://unpkg.com/abcjs@6/dist/abcjs-basic-min.js';
 const INK = '#15191A';
 
 type AbcjsApi = {
@@ -16,22 +15,22 @@ type AbcjsApi = {
 declare global {
   interface Window {
     ABCJS?: AbcjsApi;
-    __abcjsLoading__?: Promise<AbcjsApi | null>;
   }
 }
 
+// abcjs comes from the JS bundle (npm package), not a CDN — offline-safe.
+// Same lazy-require pattern as AbcStaffView.web.tsx, shared via window.ABCJS.
 async function ensureAbcjs(): Promise<AbcjsApi | null> {
   if (typeof window === 'undefined' || typeof document === 'undefined') return null;
   if (window.ABCJS) return window.ABCJS;
-  if (window.__abcjsLoading__) return window.__abcjsLoading__;
-  window.__abcjsLoading__ = new Promise((resolve) => {
-    const script = document.createElement('script');
-    script.src = ABCJS_CDN;
-    script.onload = () => resolve(window.ABCJS ?? null);
-    script.onerror = () => resolve(null);
-    document.head.appendChild(script);
-  });
-  return window.__abcjsLoading__;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require('abcjs') as AbcjsApi;
+    window.ABCJS = mod;
+    return mod;
+  } catch {
+    return null;
+  }
 }
 
 function svgToPng(svgDataUri: string, width: number, height: number): Promise<string | null> {

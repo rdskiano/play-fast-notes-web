@@ -13,8 +13,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-
-const ABCJS_CDN = 'https://unpkg.com/abcjs@6/dist/abcjs-basic-min.js';
+import { ABCJS_SOURCE } from '@/lib/notation/abcjsSource';
 
 type WebViewInstance = { injectJavaScript: (script: string) => void };
 type WebViewComponent = React.ComponentType<{
@@ -101,7 +100,7 @@ function buildHtml(o: {
   }
   svg { max-width:100%; }
 </style>
-<script src="${ABCJS_CDN}"></script>
+<script>${ABCJS_SOURCE}</script>
 </head>
 <body>
 <div id="paper"></div>

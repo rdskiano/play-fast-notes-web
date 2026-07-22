@@ -4,12 +4,9 @@ import { NativeModules, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { Radii, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ABCJS_SOURCE } from '@/lib/notation/abcjsSource';
 import { buildRhythmAbc } from '@/lib/notation/buildAbc';
 import type { RhythmPattern } from '@/lib/strategies/rhythmPatterns';
-
-// Loaded from CDN inside the WebView on first render. Pinned to a major
-// version for stability. WebView caches it after the first fetch.
-const ABCJS_CDN = 'https://unpkg.com/abcjs@6/dist/abcjs-basic-min.js';
 
 // Lazy-load react-native-webview the same way we handle other native
 // modules — so the screen stays alive in dev clients that don't have
@@ -55,7 +52,7 @@ function buildHtml(abc: string, inkColor: string, bgColor: string, width: number
   #paper { padding: 6px 8px; }
   svg { max-width: 100%; }
 </style>
-<script src="${ABCJS_CDN}"></script>
+<script>${ABCJS_SOURCE}</script>
 </head>
 <body>
 <div id="paper"></div>

@@ -3,8 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-const ABCJS_CDN = 'https://unpkg.com/abcjs@6/dist/abcjs-basic-min.js';
-
 type AbcjsApi = {
   renderAbc: (
     target: HTMLElement,
@@ -16,23 +14,24 @@ type AbcjsApi = {
 declare global {
   interface Window {
     ABCJS?: AbcjsApi;
-    __abcjsLoading__?: Promise<AbcjsApi | null>;
   }
 }
 
+// abcjs ships in the JS bundle (npm package) so notation renders with no
+// internet — the old unpkg CDN load died offline and behind school web
+// filters (Interlochen, 2026-07). Required lazily so the module isn't
+// touched during static export, only in a real browser.
 function loadAbcjs(): Promise<AbcjsApi | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
   if (window.ABCJS) return Promise.resolve(window.ABCJS);
-  if (window.__abcjsLoading__) return window.__abcjsLoading__;
-  window.__abcjsLoading__ = new Promise((resolve) => {
-    const script = document.createElement('script');
-    script.src = ABCJS_CDN;
-    script.async = true;
-    script.onload = () => resolve(window.ABCJS ?? null);
-    script.onerror = () => resolve(null);
-    document.head.appendChild(script);
-  });
-  return window.__abcjsLoading__;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require('abcjs') as AbcjsApi;
+    window.ABCJS = mod;
+    return Promise.resolve(mod);
+  } catch {
+    return Promise.resolve(null);
+  }
 }
 
 type Props = {
