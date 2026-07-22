@@ -8,6 +8,16 @@ import { TOKEN_QUARTER_FRACTIONS, type RhythmToken } from '@/lib/strategies/rhyt
 import { getGroove, STEPS_PER_QUARTER, type Groove } from '@/lib/audio/grooves';
 import { unlockIosSilentMode } from '@/lib/audio/iosSilentMode';
 
+// Resume a context that isn't running. Deliberately checks anything-but-
+// 'running' rather than === 'suspended': iOS also uses a nonstandard
+// 'interrupted' state (media-channel claim by the silent-loop <audio>,
+// Siri, phone calls) that the narrower check missed — which left the
+// metronome's FIRST start silent with the UI showing "on" until the user
+// stopped and started again (student lesson report, 2026-07-21).
+function resumeIfNotRunning(c: AudioContext | null): void {
+  if (c && c.state !== 'running') c.resume().catch(() => undefined);
+}
+
 /**
  * Subdivision = clicks per beat: 1 (quarter), 2 (eighths), 3 (triplet),
  * 4 (sixteenths). The downbeat is always emphasised; subdivisions softer.
@@ -374,9 +384,36 @@ export function useMetronome(initialBpm = 60) {
       console.warn('Web Audio API not supported in this browser.');
       return null;
     }
-    ctxRef.current = new Ctor();
-    return ctxRef.current;
+    const created = new Ctor();
+    ctxRef.current = created;
+    // Self-heal async suspensions. iOS parks the context (state 'suspended'
+    // or the nonstandard 'interrupted') when the silent-loop <audio> claims
+    // the media channel ~100 ms after the FIRST start, or after Siri / a
+    // call / app switch. statechange retries immediately; if Safari refuses
+    // a resume outside a gesture, the tap listeners retry from the user's
+    // next real tap anywhere, which always sticks.
+    created.onstatechange = () => {
+      if (ctxRef.current === created) resumeIfNotRunning(created);
+    };
+    installTapRecovery();
+    return created;
   }
+
+  // Per-hook-instance document tap listeners that re-wake this instance's
+  // context from inside a real gesture. Installed once the context exists,
+  // removed on unmount.
+  const tapRecoveryCleanupRef = useRef<(() => void) | null>(null);
+  function installTapRecovery() {
+    if (tapRecoveryCleanupRef.current || typeof document === 'undefined') return;
+    const retry = () => resumeIfNotRunning(ctxRef.current);
+    document.addEventListener('touchend', retry, true);
+    document.addEventListener('click', retry, true);
+    tapRecoveryCleanupRef.current = () => {
+      document.removeEventListener('touchend', retry, true);
+      document.removeEventListener('click', retry, true);
+    };
+  }
+  useEffect(() => () => tapRecoveryCleanupRef.current?.(), []);
 
   useEffect(() => {
     if (!running) {
@@ -392,9 +429,7 @@ export function useMetronome(initialBpm = 60) {
       setRunning(false);
       return;
     }
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => undefined);
-    }
+    resumeIfNotRunning(ctx);
 
     nextNoteTimeRef.current = computeMetronomeStartTime(ctx);
     subStepRef.current = 0;
@@ -404,9 +439,7 @@ export function useMetronome(initialBpm = 60) {
       if (!c) return;
       // Browser may suspend the AudioContext when the laptop sleeps or the
       // tab stays hidden too long — resume on the way back.
-      if (c.state === 'suspended') {
-        c.resume().catch(() => undefined);
-      }
+      resumeIfNotRunning(c);
       // If we fell way behind (sleep / freeze), resync to "now" instead of
       // trying to fire every missed beat at once.
       if (nextNoteTimeRef.current < c.currentTime - 0.5) {
@@ -508,7 +541,7 @@ export function useMetronome(initialBpm = 60) {
       if (document.visibilityState !== 'visible') return;
       const c = ctxRef.current;
       if (!c) return;
-      if (c.state === 'suspended') c.resume().catch(() => undefined);
+      resumeIfNotRunning(c);
       nextNoteTimeRef.current = c.currentTime + 0.05;
       subStepRef.current = 0;
       if (rhythmTokensRef.current) {
@@ -612,7 +645,13 @@ export function useMetronome(initialBpm = 60) {
   // gets stuck silent and the toggle button "won't turn back on".
   function wakeAudio() {
     const ctx = ensureContext();
-    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => undefined);
+    resumeIfNotRunning(ctx);
+    // The silent-loop <audio> (mute-switch fix) claims iOS's media channel
+    // asynchronously a beat after this tap, which can interrupt the context
+    // we just started. Retry within the tap's user-activation window so the
+    // first start recovers on its own instead of needing a stop/start.
+    setTimeout(() => resumeIfNotRunning(ctxRef.current), 150);
+    setTimeout(() => resumeIfNotRunning(ctxRef.current), 450);
   }
   function start() {
     wakeAudio();
@@ -639,9 +678,7 @@ export function useMetronome(initialBpm = 60) {
     if (!ctx || !tokens || tokens.length === 0 || !gate) return;
     // Same suspended/resync handling as the metronome scheduler — laptop
     // sleep can suspend the AudioContext and starve the lookahead.
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => undefined);
-    }
+    resumeIfNotRunning(ctx);
     if (rhythmNextStartRef.current < ctx.currentTime - 0.5) {
       rhythmNextStartRef.current = ctx.currentTime + 0.08;
       rhythmTokenIdxRef.current = 0;
@@ -680,7 +717,7 @@ export function useMetronome(initialBpm = 60) {
     stopRhythmLoop();
     const ctx = ensureContext();
     if (!ctx) return;
-    if (ctx.state === 'suspended') ctx.resume().catch(() => undefined);
+    resumeIfNotRunning(ctx);
     const gate = ctx.createGain();
     gate.gain.value = 1;
     gate.connect(ctx.destination);
@@ -738,9 +775,7 @@ export function useMetronome(initialBpm = 60) {
     const gate = grooveGateRef.current;
     const noise = noiseBufRef.current;
     if (!ctx || !groove || !gate || !noise) return;
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => undefined);
-    }
+    resumeIfNotRunning(ctx);
     if (grooveNextStartRef.current < ctx.currentTime - 0.5) {
       grooveNextStartRef.current = ctx.currentTime + 0.08;
       grooveStepRef.current = 0;
@@ -790,7 +825,7 @@ export function useMetronome(initialBpm = 60) {
     stopGrooveLoop();
     const ctx = ensureContext();
     if (!ctx || !grooveRef.current) return;
-    if (ctx.state === 'suspended') ctx.resume().catch(() => undefined);
+    resumeIfNotRunning(ctx);
     if (!noiseBufRef.current) noiseBufRef.current = makeNoiseBuffer(ctx);
     const gate = ctx.createGain();
     gate.gain.value = 1;
@@ -858,7 +893,7 @@ export function useMetronome(initialBpm = 60) {
   function playPitch(freqHz: number, durationSec = 0.4) {
     const ctx = ensureContext();
     if (!ctx) return;
-    if (ctx.state === 'suspended') ctx.resume().catch(() => undefined);
+    resumeIfNotRunning(ctx);
     const t = ctx.currentTime + 0.01;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -915,7 +950,7 @@ export function useMetronome(initialBpm = 60) {
   function playPitchSequence(freqs: number[], secondsPerNote: number): number {
     const ctx = ensureContext();
     if (!ctx || freqs.length === 0) return 0;
-    if (ctx.state === 'suspended') ctx.resume().catch(() => undefined);
+    resumeIfNotRunning(ctx);
     // Cancel any run already in flight so pressing ▶ again (or re-previewing)
     // replaces the current playback instead of layering a second copy on top.
     stopPitchSequence();
@@ -951,9 +986,7 @@ export function useMetronome(initialBpm = 60) {
     const tokens = pitchTokensRef.current;
     const gate = pitchGateRef.current;
     if (!ctx || !freqs || !tokens || !gate) return;
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => undefined);
-    }
+    resumeIfNotRunning(ctx);
     // If the audio clock fell far behind (laptop sleep, tab throttled),
     // bail rather than spam-scheduling old notes.
     if (pitchNextStartRef.current < ctx.currentTime - 0.5) {
@@ -1004,7 +1037,7 @@ export function useMetronome(initialBpm = 60) {
     if (freqs.length === 0 || tokens.length === 0) return;
     const ctx = ensureContext();
     if (!ctx) return;
-    if (ctx.state === 'suspended') ctx.resume().catch(() => undefined);
+    resumeIfNotRunning(ctx);
     stopPitchSequence();
     const gate = ctx.createGain();
     gate.gain.value = 1;

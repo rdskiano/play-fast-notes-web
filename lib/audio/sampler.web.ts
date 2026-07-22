@@ -66,7 +66,10 @@ type StopFn = (time?: number) => void;
 async function getInstrument(gm: string): Promise<{ start: (e: object) => StopFn; stop: () => void } | null> {
   const c = getCtx();
   if (!c) return null;
-  if (c.state === 'suspended') {
+  // Anything-but-running, not just 'suspended': iOS also parks contexts in a
+  // nonstandard 'interrupted' state (media-channel claim, Siri, calls) — same
+  // class as the metronome's silent-first-start bug (useMetronome.web.ts).
+  if (c.state !== 'running') {
     try {
       await c.resume();
     } catch {
