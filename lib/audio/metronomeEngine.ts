@@ -646,6 +646,66 @@ export class MetronomeEngine {
     return freqs.length * secondsPerNote;
   }
 
+  /**
+   * Schedule a timed melody: per-note start offset + duration in seconds
+   * (the onboarding/strategy-demo schedules — mixed note values, not the
+   * even grid playPitchSequence assumes). Demo phrases are short, so all
+   * notes are scheduled up front; no live retempo. Notes route through
+   * pitchGate so stopPitchSequence cuts anything still sounding. Returns
+   * total seconds from now until the last note rings out (0 = unavailable).
+   * NOTE: does not set pitchOnEnd — the sampler wrapper owns end timing so
+   * a manual stop does NOT fire onEnd (mirrors the web sampler contract).
+   */
+  playTimedPitches(notes: { freq: number; time: number; duration: number }[]): number {
+    if (this.unavailable || notes.length === 0) return 0;
+    this.stopPitchSequence();
+    this.ensureCtx();
+    if (!this.ctx) return 0;
+    let base: number;
+    try {
+      base = this.ctx.currentTime + 0.08;
+      const gate = this.ctx.createGain();
+      gate.gain.value = 1;
+      gate.connect(this.ctx.destination);
+      this.pitchGate = gate;
+    } catch {
+      this.unavailable = true;
+      this.ctx = null;
+      return 0;
+    }
+    const dest = this.pitchGate;
+    let lastEnd = 0;
+    for (const n of notes) {
+      if (n.freq <= 0 || n.duration <= 0) continue; // rests / malformed
+      try {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        // Pin to 0 pre-note — see playPitchSequence for the iOS pop this avoids.
+        gain.gain.value = 0;
+        osc.frequency.value = n.freq;
+        osc.type = 'triangle';
+        const when = base + Math.max(0, n.time);
+        const dur = Math.max(0.05, n.duration);
+        const peak = 0.3;
+        gain.gain.setValueAtTime(0.0001, when);
+        gain.gain.linearRampToValueAtTime(peak, when + 0.008);
+        // Linear decay (see playPitch): exponential can overshoot/clip on RN audio.
+        gain.gain.linearRampToValueAtTime(0.001, when + Math.max(0.02, dur - 0.05));
+        gain.gain.linearRampToValueAtTime(0, when + dur);
+        osc.connect(gain);
+        gain.connect(dest ?? this.ctx.destination);
+        osc.start(when);
+        osc.stop(when + dur + 0.01);
+        this.retain([osc, gain], when + dur + 0.01);
+        lastEnd = Math.max(lastEnd, Math.max(0, n.time) + dur);
+      } catch {
+        this.ctx = null;
+        break;
+      }
+    }
+    return lastEnd > 0 ? 0.08 + lastEnd : 0;
+  }
+
   get isRhythmLooping() {
     return this.rhythmTokens !== null;
   }
