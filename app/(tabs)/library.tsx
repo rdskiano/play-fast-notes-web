@@ -25,6 +25,7 @@ import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
+import { WhatsNewButton } from '@/components/WhatsNewButton';
 import { Colors, Fonts } from '@/constants/theme';
 import { Lift, Palette } from '@/constants/palette';
 import { Borders, Opacity, Overlays, Radii, Spacing, Type } from '@/constants/tokens';
@@ -1288,6 +1289,8 @@ export default function LibraryScreen() {
               <Feather name="tool" size={18} color={Palette.text} />
             </Pressable>
           </View>
+          {/* What's new — quiet-dot bell; opens the update-notes sheet. */}
+          <WhatsNewButton />
           {/* Account — its own bordered button (not part of the practice chip:
               log/rotator/tools are practice actions, this is you). Moved here
               from the old list-footer "Account" button, which was easy to miss
