@@ -7,6 +7,8 @@
 // scheduled oscillator/buffer logic in this class so the hook stays
 // thin and the React lifecycle owns disposal.
 
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+
 import { TOKEN_QUARTER_FRACTIONS, type RhythmToken } from '@/lib/strategies/rhythmPatterns';
 import { getGroove, STEPS_PER_QUARTER, type Groove } from './grooves';
 
@@ -164,6 +166,27 @@ const SCHEDULE_AHEAD_S = 0.25;
  * times. Even if JS timers are late by tens of ms, the audio events
  * were already scheduled with exact hardware timing — no drift, no gaps.
  */
+// ── Screen keep-awake while the click plays ─────────────────────────────────
+// The App Store build has no background-audio mode (removed to clear rejection
+// 2.5.4), so the metronome only sounds in the foreground — and nothing stopped
+// iOS from auto-locking the screen mid-passage, which killed the click. Hold a
+// keep-awake assertion ONLY while something long-running is audible (the click
+// loop or a rhythm loop) and release it the moment playback stops, so normal
+// auto-lock returns when the metronome is off. Ref-counted at module level
+// because several mounted screens can each own an engine instance.
+const KEEP_AWAKE_TAG = 'metronome';
+let keepAwakeHolds = 0;
+function retainKeepAwake() {
+  if (++keepAwakeHolds === 1) {
+    activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => undefined);
+  }
+}
+function releaseKeepAwake() {
+  if (keepAwakeHolds > 0 && --keepAwakeHolds === 0) {
+    deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => undefined);
+  }
+}
+
 export class MetronomeEngine {
   private ctx: RnAudioContext | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -254,6 +277,20 @@ export class MetronomeEngine {
   // can garbage-collect a node mid-note — an intermittent tick/pop that the web
   // Web Audio graph never has (it keeps connected nodes alive per spec). Fixes
   // the iOS-only click on pitch playback + the drone.
+  // True while THIS instance holds one unit of the module-level keep-awake
+  // count. Synced from the real play/stop state — never from screen mount.
+  private keepAwakeHeld = false;
+  private syncKeepAwake() {
+    const audible = this.running || this.rhythmTokens !== null;
+    if (audible && !this.keepAwakeHeld) {
+      this.keepAwakeHeld = true;
+      retainKeepAwake();
+    } else if (!audible && this.keepAwakeHeld) {
+      this.keepAwakeHeld = false;
+      releaseKeepAwake();
+    }
+  }
+
   private liveNodes = new Set<object>();
   private retain(nodes: object[], stopTime: number) {
     for (const n of nodes) this.liveNodes.add(n);
@@ -337,6 +374,7 @@ export class MetronomeEngine {
 
   start() {
     this.running = true;
+    this.syncKeepAwake();
     if (this.unavailable) return;
     this.ensureCtx();
     if (!this.ctx) return;
@@ -360,6 +398,7 @@ export class MetronomeEngine {
 
   stop() {
     this.running = false;
+    this.syncKeepAwake();
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
@@ -736,11 +775,13 @@ export class MetronomeEngine {
     }
     this.rhythmTokens = tokens;
     this.rhythmBeatDenom = beatDenominator;
+    this.syncKeepAwake();
     this.rhythmTick();
   }
 
   stopRhythmLoop() {
     this.rhythmTokens = null;
+    this.syncKeepAwake();
     if (this.rhythmTimer) {
       clearTimeout(this.rhythmTimer);
       this.rhythmTimer = null;
@@ -1166,6 +1207,10 @@ export class MetronomeEngine {
     this.stopRhythmLoop();
     this.stopPitchSequence();
     this.stopGrooveLoop();
+    // stop()/stopRhythmLoop() above already release keep-awake via
+    // syncKeepAwake; this is a belt-and-suspenders release so a disposed
+    // engine can never keep the screen pinned awake.
+    this.syncKeepAwake();
     try {
       void this.ctx?.close();
     } catch {
