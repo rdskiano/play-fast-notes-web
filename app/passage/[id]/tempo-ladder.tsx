@@ -25,7 +25,7 @@ import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { Palette, Lift } from '@/constants/palette';
 import { Colors, Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
-import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
+import { PRACTICE_TOOLS_HELP, SHORTCUT_HINT_LINE } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { isToolsOnly } from '@/lib/strategies/toolsMode';
@@ -896,7 +896,7 @@ export default function TempoLadderScreen() {
           <ThemedText
             pointerEvents="none"
             style={[styles.runHintLine, { bottom: insets.bottom + 6 }]}>
-            Space or foot pedal = Clean · X = Miss
+            {SHORTCUT_HINT_LINE}
           </ThemedText>
         </>
       ) : (
@@ -922,7 +922,7 @@ export default function TempoLadderScreen() {
           )}
           {!isPhone && (
             <ThemedText style={styles.runHintShortcut}>
-              Space or foot pedal = Clean · X = Miss
+              {SHORTCUT_HINT_LINE}
             </ThemedText>
           )}
         </View>

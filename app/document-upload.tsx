@@ -172,6 +172,9 @@ export default function DocumentUploadScreen() {
           <ThemedText style={{ opacity: 0.6, fontSize: Type.size.sm }}>
             Choose a PDF, or scan pages with the camera (auto-cropped and cleaned to
             black &amp; white). After it&apos;s added you can mark passages inside it.
+            {'\n\n'}Tip: for a bound part (facing pages with a center fold), a
+            dedicated scanner app like Genius Scan splits the pages better —
+            scan there, save the PDF to Files, then Choose PDF here.
           </ThemedText>
         )}
 

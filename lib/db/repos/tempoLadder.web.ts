@@ -164,6 +164,61 @@ export async function getTempoLadderProgressForPassages(
     }));
 }
 
+// The most recent ladder config among SIBLING passages (other passages in the
+// same document). Powers the setup-screen prefill: a musician marking a page
+// measure-by-measure practices the siblings with the same goal tempo and
+// nearly the same config, so a fresh ladder should not fall back to 60/120
+// when its neighbor was just configured. Returns null when the passage is
+// standalone (no document) or no sibling has a ladder yet.
+export type SiblingLadderConfig = {
+  mode: TempoLadderMode;
+  start_tempo: number;
+  goal_tempo: number;
+  increment: number | null;
+  target_reps: number;
+};
+
+export async function getLatestSiblingLadderConfig(
+  documentId: string,
+  excludePieceId: string,
+): Promise<SiblingLadderConfig | null> {
+  const { data, error } = await supabase
+    .from('exercises')
+    .select(
+      'piece_id, pieces!inner(document_id, deleted_at), tempo_ladder_progress!inner(mode, start_tempo, goal_tempo, increment, target_reps, updated_at)',
+    )
+    .eq('strategy', 'tempo_ladder')
+    .is('deleted_at', null)
+    .eq('pieces.document_id', documentId)
+    .is('pieces.deleted_at', null)
+    .neq('piece_id', excludePieceId);
+  if (error) throw error;
+  // A document holds at most a few dozen passages, so sort client-side by the
+  // progress row's updated_at instead of fighting nested-order syntax.
+  const rows = ((data ?? []) as unknown as Array<{
+    piece_id: string;
+    tempo_ladder_progress: {
+      mode: TempoLadderMode;
+      start_tempo: number;
+      goal_tempo: number;
+      increment: number | null;
+      target_reps: number;
+      updated_at: number;
+    } | null;
+  }>)
+    .filter((r) => r.tempo_ladder_progress)
+    .sort((a, b) => b.tempo_ladder_progress!.updated_at - a.tempo_ladder_progress!.updated_at);
+  const top = rows[0]?.tempo_ladder_progress;
+  if (!top) return null;
+  return {
+    mode: top.mode,
+    start_tempo: top.start_tempo,
+    goal_tempo: top.goal_tempo,
+    increment: top.increment,
+    target_reps: top.target_reps,
+  };
+}
+
 export async function advanceClusterWindow(
   exerciseId: string,
   cluster_low: number,

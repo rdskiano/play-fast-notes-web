@@ -53,6 +53,18 @@ type Props = {
 const PROMPT_TITLE =
   'What do you think is most important to do on this next time?';
 
+// One-tap answers for the tired-hands moment. An open text box at the end of
+// a session demands articulation most players don't have right then (the
+// app's own builder left it blank mid-practice, then knew the answer —
+// "introduce variation" — two hours later). Tapping a chip appends its phrase
+// to the note; tapping again removes it; the text stays fully editable.
+const NOTE_CHIPS = [
+  'Keep climbing the tempo',
+  'Introduce some variation',
+  'Mind the dynamics',
+  'Start slower next time',
+] as const;
+
 export function PracticeLogNotePrompt({
   visible,
   initialMood = null,
@@ -142,6 +154,23 @@ export function PracticeLogNotePrompt({
     onSubmit({ mood, note: trimmed.length > 0 ? trimmed : null, remindNext });
   }
 
+  // Chip toggle: append the phrase if absent, strip it if present. Phrases
+  // join with " · " so several chips read as a list, and hand-typed text is
+  // never disturbed beyond removing the exact chip phrase.
+  function toggleChip(phrase: string) {
+    setNote((cur) => {
+      if (cur.includes(phrase)) {
+        return cur
+          .split(' · ')
+          .map((part) => part.trim())
+          .filter((part) => part.length > 0 && part !== phrase)
+          .join(' · ');
+      }
+      const trimmed = cur.trim();
+      return trimmed.length > 0 ? `${trimmed} · ${phrase}` : phrase;
+    });
+  }
+
   return (
     <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={keepPracticing ?? onSkip}>
       <KeyboardAvoidingView
@@ -162,6 +191,31 @@ export function PracticeLogNotePrompt({
             style={{ textAlign: 'center', paddingHorizontal: onKeepPracticing ? 28 : 0 }}>
             {PROMPT_TITLE}
           </ThemedText>
+
+          <View style={styles.chipRow}>
+            {NOTE_CHIPS.map((phrase) => {
+              const active = note.includes(phrase);
+              return (
+                <Pressable
+                  key={phrase}
+                  onPress={() => toggleChip(phrase)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  style={[
+                    styles.chip,
+                    {
+                      borderColor: active ? C.tint : C.icon,
+                      backgroundColor: active ? C.tint : 'transparent',
+                    },
+                  ]}>
+                  <ThemedText
+                    style={[styles.chipText, { color: active ? '#fff' : C.text }]}>
+                    {phrase}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </View>
 
           <TextInput
             ref={inputRef}
@@ -278,6 +332,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlignVertical: 'top',
   },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    borderWidth: Borders.medium,
+  },
+  chipText: { fontSize: Type.size.sm, fontWeight: Type.weight.semibold },
   remindRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   checkbox: {
     width: 22,

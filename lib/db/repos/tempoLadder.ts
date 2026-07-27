@@ -182,6 +182,44 @@ export async function getTempoLadderProgressForPassages(
   );
 }
 
+// The most recent ladder config among SIBLING passages (other passages in the
+// same document). Powers the setup-screen prefill: a musician marking a page
+// measure-by-measure practices the siblings with the same goal tempo and
+// nearly the same config, so a fresh ladder should not fall back to 60/120
+// when its neighbor was just configured. Returns null when the passage is
+// standalone (no document) or no sibling has a ladder yet.
+export type SiblingLadderConfig = {
+  mode: TempoLadderMode;
+  start_tempo: number;
+  goal_tempo: number;
+  increment: number | null;
+  target_reps: number;
+};
+
+export async function getLatestSiblingLadderConfig(
+  documentId: string,
+  excludePieceId: string,
+): Promise<SiblingLadderConfig | null> {
+  const db = getDb();
+  const row = await db.getFirstAsync<SiblingLadderConfig>(
+    `SELECT tp.mode AS mode, tp.start_tempo AS start_tempo,
+            tp.goal_tempo AS goal_tempo, tp.increment AS increment,
+            tp.target_reps AS target_reps
+     FROM pieces sib
+     JOIN exercises e ON e.piece_id = sib.id
+       AND e.strategy = 'tempo_ladder' AND e.deleted_at IS NULL
+     JOIN tempo_ladder_progress tp ON tp.exercise_id = e.id
+     WHERE sib.document_id = ?
+       AND sib.id != ?
+       AND sib.deleted_at IS NULL
+     ORDER BY tp.updated_at DESC
+     LIMIT 1;`,
+    documentId,
+    excludePieceId,
+  );
+  return row ?? null;
+}
+
 export async function advanceClusterWindow(
   exerciseId: string,
   cluster_low: number,

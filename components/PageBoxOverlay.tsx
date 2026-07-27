@@ -118,20 +118,25 @@ export function PageBoxOverlay({
                   backgroundColor: selected ? C.tint + '22' : '#00000022',
                 },
               ]}>
+              {/* Title + status share ONE pill in the top-left corner. They
+                  used to be two pills on opposite corners (name top-left,
+                  "65%" bottom-left) — with measure-per-box marking the boxes
+                  stack so tightly that one box's name pill sat on top of its
+                  neighbor's percent badge. Keeping the bottom edge empty
+                  removes the collision entirely. */}
               <View style={[styles.label, { backgroundColor: '#ffffffd9' }]}>
                 <ThemedText
                   style={[styles.labelText, { color: selected ? C.tint : '#222' }]}
                   numberOfLines={1}>
                   {passage.title}
+                  {badge ? (
+                    <ThemedText style={[styles.labelText, styles.badgeInline]}>
+                      {'  ·  '}
+                      {badge}
+                    </ThemedText>
+                  ) : null}
                 </ThemedText>
               </View>
-              {badge && (
-                <View style={[styles.badge, { backgroundColor: '#ffffffd9' }]}>
-                  <ThemedText style={styles.badgeText} numberOfLines={1}>
-                    {badge}
-                  </ThemedText>
-                </View>
-              )}
               {/* Play-triangle in the top-right corner so the box reads as
                   "tappable to practice" instead of just a frame. Hidden
                   while the box is selected — the action sheet already has
@@ -231,18 +236,8 @@ const styles = StyleSheet.create({
     fontSize: Type.size.xs,
     fontWeight: Type.weight.medium,
   },
-  badge: {
-    position: 'absolute',
-    bottom: 2,
-    left: 2,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: Radii.sm,
-    maxWidth: '90%',
-  },
-  badgeText: {
-    fontSize: Type.size.xs,
-    fontWeight: Type.weight.medium,
+  // Status text riding inline after the title inside the shared pill.
+  badgeInline: {
     color: '#444',
   },
   // Top-right ▶ play affordance. Square so it stays balanced with the

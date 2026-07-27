@@ -187,6 +187,18 @@ export function PracticeToolsBar({
 
   return (
     <>
+      {/* Desktop / iPad: invisible backdrop behind the open panel so tapping
+          anywhere outside closes it — the near-universal instinct ("adjust
+          the metronome, tap the page to dismiss"). The tap is consumed, not
+          passed through, matching the phone overlay's behaviour: the first
+          outside tap closes, it never doubles as a score/marker action. */}
+      {open && !isPhone && (
+        <Pressable
+          style={[StyleSheet.absoluteFill, styles.outsideCatcher]}
+          accessibilityLabel="Close tool"
+          onPress={() => setOpen(null)}
+        />
+      )}
       <View
         style={[
           styles.root,
@@ -289,6 +301,8 @@ export function PracticeToolsBar({
 
 const styles = StyleSheet.create({
   root: { position: 'absolute', alignItems: 'flex-end', zIndex: 60 },
+  // Below the pill/panel (60) but above the score content it covers.
+  outsideCatcher: { zIndex: 55 },
   // Sized so the whole pill is ~38 tall — flush with the 38px top-bar icon
   // buttons it sits in line with (3 padding + 32 button + 3 padding).
   pill: {

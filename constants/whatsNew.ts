@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-07-27-practice-flow-batch',
+    date: 'July 27, 2026',
+    title: 'Smoother practice sessions: tempo settings carry over, and 6 small fixes',
+    body:
+      'When you mark several passages in the same piece, a new Tempo Ladder now starts with the same tempos and settings you used on the last one — no more re-typing your start and goal BPM for every passage. Also fixed: tapping outside an open tool (like the metronome) now closes it; the step-up message briefly flashed the wrong tempo; "End session" no longer sits right next to "Step up tempo" looking identical, so it\'s harder to end a session by accident; passage names on crowded pages no longer overlap the progress badge of the box above; and the end-of-session note now offers one-tap suggestions like "Introduce some variation."',
+  },
+  {
     id: '2026-07-27-ipad-pencil-palette',
     date: 'July 27, 2026',
     title: 'Fixed: Apple Pencil palette vanished on practice screens (iPad app)',

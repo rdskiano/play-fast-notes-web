@@ -25,7 +25,7 @@ import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
+import { PRACTICE_TOOLS_HELP, SHORTCUT_HINT_LINE } from '@/constants/helpCopy';
 import { Colors, Fonts } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { Palette, Lift } from '@/constants/palette';
@@ -786,7 +786,7 @@ function InterleavedScreenInner() {
           <ThemedText
             pointerEvents="none"
             style={[styles.runHintLine, { bottom: insets.bottom + 6 }]}>
-            Space or foot pedal = Clean · X = Miss
+            {SHORTCUT_HINT_LINE}
           </ThemedText>
         </>
       ) : (
@@ -810,7 +810,7 @@ function InterleavedScreenInner() {
           </ThemedText>
           {!isPhone && (
             <ThemedText style={styles.runHintShortcut}>
-              Space or foot pedal = Clean · X = Miss
+              {SHORTCUT_HINT_LINE}
             </ThemedText>
           )}
         </View>

@@ -14,6 +14,7 @@ import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import {
   advanceClusterWindow,
   deleteTempoLadderProgress,
+  getLatestSiblingLadderConfig,
   getTempoLadder,
   updateCustomPosition,
   updateTempoLadderConfigBounds,
@@ -201,16 +202,43 @@ export function useTempoLadderSession(
       const existing = await getTempoLadder(ex.id);
       if (cancelled) return;
       if (!existing) {
-        // First ladder on this piece — prefill the target from the piece's
-        // shared performance tempo (B-013) if another strategy set one.
-        // Fill-in only: a saved ladder row (below) always wins over this.
-        // Start follows the app's half-the-goal convention (same as the
-        // guided flows) so a low shared tempo can't leave goal < start.
+        // First ladder on this piece — prefill, in priority order:
+        //   1. The piece's shared performance tempo (B-013), if another
+        //      strategy set one. Start follows the half-the-goal convention.
+        //   2. The most recent SIBLING ladder config (another passage in the
+        //      same document). A player working measure-by-measure through a
+        //      page uses the same goal + nearly the same config on every
+        //      neighbor — falling back to 60/120 made them re-type it each
+        //      time. Full config carries over from a step-mode sibling;
+        //      cluster/custom siblings lend only their goal.
+        // Fill-in only: a saved ladder row (below) always wins over both.
         const p = await getPassage(id);
-        if (!cancelled && p?.performance_tempo) {
+        if (cancelled) return;
+        if (p?.performance_tempo) {
           setGoalTempo(String(p.performance_tempo));
           setFinalTempo(String(p.performance_tempo));
           setStartTempo(String(Math.max(30, Math.round(p.performance_tempo / 2))));
+          return;
+        }
+        if (p?.document_id) {
+          try {
+            const sib = await getLatestSiblingLadderConfig(p.document_id, id);
+            if (cancelled || !sib) return;
+            setGoalTempo(String(sib.goal_tempo));
+            setFinalTempo(String(sib.goal_tempo));
+            if (sib.mode === 'step') {
+              setStartTempo(String(sib.start_tempo));
+              if (sib.increment === 2 || sib.increment === 5 || sib.increment === 10) {
+                setIncrement(sib.increment);
+              }
+              if (REP_TARGETS.includes(sib.target_reps as RepTarget)) {
+                setTargetReps(sib.target_reps as RepTarget);
+              }
+            }
+          } catch (e) {
+            // Prefill is a convenience — never block the setup screen on it.
+            console.warn('[tempoLadder] sibling prefill failed:', e);
+          }
         }
         return;
       }
@@ -615,6 +643,11 @@ export function useTempoLadderSession(
     // The step-up is being taken live, so it's no longer owed at endSession —
     // current_tempo (and the cluster window / custom base) advances right here.
     earnedStepUpRef.current = false;
+    // Close the modal BEFORE advancing state: the async persistence below
+    // yields to React, and a still-open modal would re-render showing the
+    // NEXT-next tempo for a beat (user-visible flash of "85" when stepping
+    // up to 80).
+    setCelebrating(null);
     if (progress.mode === 'custom' && customPattern) {
       const newBase = Math.min(
         progress.goal_tempo,
@@ -633,7 +666,6 @@ export function useTempoLadderSession(
       });
       metronome.setBpm(firstBpm);
       if (!toolsOnly && exerciseId) await updateCustomPosition(exerciseId, newBase, 0, 0);
-      setCelebrating(null);
       metronome.start();
       return;
     }
@@ -666,7 +698,6 @@ export function useTempoLadderSession(
       metronome.setBpm(nextTempo);
       if (!toolsOnly && exerciseId) await updateTempoLadderState(exerciseId, nextTempo, 0);
     }
-    setCelebrating(null);
     metronome.start();
   }
 

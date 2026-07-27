@@ -54,10 +54,21 @@ export function CelebrationModal({
               style={{ backgroundColor: secondary.color ?? Status.success }}
             />
           )}
+          {/* When a continue action (secondary) is present, the terminal
+              action demotes to a ghost button with breathing room above it —
+              two identical stacked buttons invited accidental session-ending
+              taps (the "hit Done instead of Step up" slip). */}
           <Button
             label={primary.label}
             onPress={primary.onPress}
-            style={primary.color ? { backgroundColor: primary.color } : undefined}
+            variant={secondary && !primary.color ? 'ghost' : 'primary'}
+            style={
+              primary.color
+                ? { backgroundColor: primary.color }
+                : secondary
+                  ? { marginTop: Spacing.sm }
+                  : undefined
+            }
           />
         </View>
       </View>
