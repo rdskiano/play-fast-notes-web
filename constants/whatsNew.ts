@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-07-27-ipad-pencil-palette',
+    date: 'July 27, 2026',
+    title: 'Fixed: Apple Pencil palette vanished on practice screens (iPad app)',
+    body:
+      'On the iPad app, opening the Pencil tool during practice made the drawing palette slide up and immediately disappear — the foot-pedal listener was stealing its focus. The palette now stays put (the foot pedal simply pauses while you draw). Also fixed: closing the Pencil tool without drawing anything showed a false "could not save" error.',
+  },
+  {
     id: '2026-07-21-metronome-first-start',
     date: 'July 21, 2026',
     title: 'Fixed: metronome could be silent on its first start',

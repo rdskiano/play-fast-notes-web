@@ -68,7 +68,16 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
     useImperativeHandle(ref, () => ({
       async export() {
         const data = (await pk.current?.getBase64Data()) ?? '';
-        const png = (await pk.current?.getBase64PngData({ scale: 0 })) ?? '';
+        // The native module REJECTS the PNG export for a stroke-free drawing
+        // (UIImagePNGRepresentation of a zero-size image is nil). An empty
+        // drawing is a legitimate state — the user erased every mark — so
+        // treat "no PNG" as "no image", not as a failure.
+        let png = '';
+        try {
+          png = (await pk.current?.getBase64PngData({ scale: 0 })) ?? '';
+        } catch {
+          png = '';
+        }
         return { data, png };
       },
       clear() {

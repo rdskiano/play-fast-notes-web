@@ -775,8 +775,8 @@ export default function TempoLadderScreen() {
       {/* Keyboard / foot-pedal shortcuts so users don't have to keep clicking:
           right pedal / Space = ✓ Clean, left pedal / X = ✗ Miss. Suppressed
           while a celebration / log-prompt modal is showing so it can't fire a
-          rep behind the modal. No-op on native (iPad relies on its
-          floating buttons + Apple Pencil + foot pedal). */}
+          rep behind the modal. On native this is the foot-pedal capture view
+          (it stands down on its own while a pencil session is live). */}
       <PedalCatcher
         active={!notePromptVisible && celebrating === null}
         onAdvance={onClean}

@@ -23,6 +23,7 @@ import { type PencilCanvasHandle } from '@/components/PencilCanvas';
 import { RegionAnnotationCanvas } from '@/components/RegionAnnotationCanvas';
 import { SignInModal } from '@/components/SignInModal';
 import { ThemedText } from '@/components/themed-text';
+import { setPencilAnnotating } from '@/lib/annotation/pencilMode';
 import {
   getAnnotation,
   saveAnnotation,
@@ -62,6 +63,19 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
   const [signInOpen, setSignInOpen] = useState(false);
   const canvasRef = useRef<PencilCanvasHandle>(null);
   const idleSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Counts real user edits this session; bumped by onDraw, remembered by
+  // saveDrawing. Zero (or already-saved) = nothing to persist, so exiting
+  // pencil mode without drawing skips the save entirely — no phantom
+  // "Could not save annotation" for an untouched canvas.
+  const editSeqRef = useRef(0);
+  const savedSeqRef = useRef(0);
+
+  // Foot-pedal capture stands down while a pencil session is live — its
+  // first-responder re-claim timer hides the PencilKit tool palette.
+  useEffect(() => {
+    setPencilAnnotating(annotating);
+    return () => setPencilAnnotating(false);
+  }, [annotating]);
 
   // A passage cropped from exactly one PDF page shares that page's annotation.
   const docTarget = useMemo<DocTarget | null>(() => {
@@ -138,6 +152,7 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
     async (opts?: { silent?: boolean }) => {
       const handle = canvasRef.current;
       if (!handle) return;
+      const seq = editSeqRef.current;
       if (!opts?.silent) setSaving(true);
       try {
         const { data, png } = await handle.export();
@@ -163,6 +178,7 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
           await saveAnnotation(passage.id, next);
           setAnnotation(next);
         }
+        savedSeqRef.current = seq;
       } catch (e) {
         Alert.alert(
           'Could not save annotation',
@@ -175,8 +191,9 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
     [docTarget, passage?.id],
   );
 
-  // Each pencil edit (re)arms the idle auto-save.
+  // Each pencil edit marks the session dirty and (re)arms the idle auto-save.
   const onDraw = useCallback(() => {
+    editSeqRef.current += 1;
     if (idleSaveRef.current) clearTimeout(idleSaveRef.current);
     idleSaveRef.current = setTimeout(() => {
       idleSaveRef.current = null;
@@ -193,7 +210,8 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
       idleSaveRef.current = null;
     }
     if (!annotating) return;
-    await saveDrawing();
+    // Only save when there are edits the last save didn't capture.
+    if (editSeqRef.current !== savedSeqRef.current) await saveDrawing();
     setAnnotating(false);
   }, [annotating, saveDrawing]);
 
@@ -215,6 +233,8 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       if (!annotating) return;
+      // Nothing unsaved — let the navigation proceed untouched.
+      if (editSeqRef.current === savedSeqRef.current) return;
       e.preventDefault();
       if (idleSaveRef.current) {
         clearTimeout(idleSaveRef.current);

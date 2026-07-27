@@ -10,9 +10,13 @@
 // broken. The on-screen NEXT / Clean / Miss buttons and keyboard shortcuts
 // already cover every action, so a missing pedal is simply silent now.
 
-import { useRef } from 'react';
+import { useRef, useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import {
+  isPencilAnnotating,
+  subscribePencilAnnotating,
+} from '@/lib/annotation/pencilMode';
 import { KeyCaptureView } from '@/modules/hardware-keys';
 
 // Keys the native module reports for the left pedal on a two-pedal foot
@@ -42,7 +46,18 @@ export function PedalCatcher({
 }) {
   const lastAdvanceRef = useRef(0);
 
-  if (!active) return null;
+  // The native KeyCaptureView re-claims first-responder status on a 1-second
+  // timer (so a modal or WebView can't permanently eat pedal presses). The
+  // PencilKit tool palette is only visible while ITS canvas is first
+  // responder, so the two fight — the palette slides up and then vanishes
+  // within a second. While a pencil annotation session is live, pedal capture
+  // unmounts entirely; it remounts (and re-claims focus) when drawing ends.
+  const annotating = useSyncExternalStore(
+    subscribePencilAnnotating,
+    isPencilAnnotating,
+  );
+
+  if (!active || annotating) return null;
 
   const Capture = KeyCaptureView;
   // Module missing (shouldn't happen in a proper build): the pedal just
