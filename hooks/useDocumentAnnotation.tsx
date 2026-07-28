@@ -71,9 +71,25 @@ export function useDocumentAnnotation(
     }, [documentId, session]),
   );
 
+  // Live mirror of the current page's saved overlay-PNG URL, readable from
+  // inside saveDrawing without joining its dependency list. When a cloud
+  // upload fails we re-save the PREVIOUS URL instead of nulling it out.
+  const prevImageUriRef = useRef<string | null>(null);
+  useEffect(() => {
+    prevImageUriRef.current = annotations.get(currentPage)?.imageUri ?? null;
+  }, [annotations, currentPage]);
+
   // Export the current page's drawing and persist it. Only meaningful while
   // the canvas is mounted (annotation mode on). `silent` skips the dimming
-  // overlay (used by the idle auto-save).
+  // overlay AND all error alerts (used by the idle auto-save; a failing
+  // auto-save must not nag on every stroke — the exit save retries and is
+  // the one allowed to surface a problem).
+  //
+  // The drawing DATA is the source of truth and is written even when the
+  // overlay-PNG upload fails (stale sign-in, offline): on iOS the data write
+  // is local SQLite, so the user's marks survive no matter what the network
+  // does. A failed upload keeps the previous overlay URL instead of nulling
+  // it, and the next successful save heals it.
   const saveDrawing = useCallback(
     async (opts?: { silent?: boolean }) => {
       const handle = canvasRef.current;
@@ -82,18 +98,34 @@ export function useDocumentAnnotation(
       if (!opts?.silent) setSaving(true);
       try {
         const { data, png } = await handle.export();
-        const imageUri = png
-          ? await uploadAnnotationImage(`${documentId}-page${currentPage}`, png)
-          : null;
+        let imageUri: string | null = null;
+        if (png) {
+          try {
+            imageUri = await uploadAnnotationImage(
+              `${documentId}-page${currentPage}`,
+              png,
+            );
+          } catch (uploadErr) {
+            imageUri = prevImageUriRef.current;
+            console.warn(
+              '[annotation] overlay upload failed — marks saved, overlay not synced:',
+              uploadErr,
+            );
+          }
+        }
         const next: Annotation = { data: data || null, imageUri };
         await saveDocumentAnnotation(documentId, currentPage, next);
         setAnnotations((prev) => new Map(prev).set(currentPage, next));
         savedSeqRef.current = seq;
       } catch (e) {
-        Alert.alert(
-          'Could not save annotation',
-          e instanceof Error ? e.message : 'Please try again.',
-        );
+        if (!opts?.silent) {
+          Alert.alert(
+            'Could not save annotation',
+            e instanceof Error ? e.message : 'Please try again.',
+          );
+        } else {
+          console.warn('[annotation] auto-save failed (will retry on exit):', e);
+        }
       } finally {
         if (!opts?.silent) setSaving(false);
       }
@@ -122,6 +154,10 @@ export function useDocumentAnnotation(
     if (!annotating) return;
     // Only save when there are edits the last save didn't capture.
     if (editSeqRef.current !== savedSeqRef.current) await saveDrawing();
+    // If that save FAILED (seq still behind), keep the canvas alive — tearing
+    // it down would destroy the unsaved strokes right after telling the user
+    // the save didn't work. They can fix the cause (or retry) and exit again.
+    if (editSeqRef.current !== savedSeqRef.current) return;
     setAnnotating(false);
   }, [annotating, saveDrawing]);
 

@@ -62,8 +62,21 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
   ) {
     const pk = useRef<PencilKitRef>(null);
     // False until the initial restore has settled, so the restore's own
-    // drawing-change event isn't reported as a user edit.
+    // drawing-change events aren't reported as user edits. The settle deadline
+    // is ADAPTIVE: restoring a large drawing can emit change events well past
+    // any fixed delay, and one leaked event marks the session dirty — which
+    // used to fire a pointless auto-save (and its error alert) before the
+    // user had drawn anything. Every pre-settle change event pushes the
+    // deadline out; we settle only once the restore has gone quiet.
     const settled = useRef(false);
+    const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const armSettle = useCallback((ms: number) => {
+      if (settleTimer.current) clearTimeout(settleTimer.current);
+      settleTimer.current = setTimeout(() => {
+        settleTimer.current = null;
+        settled.current = true;
+      }, ms);
+    }, []);
 
     useImperativeHandle(ref, () => ({
       async export() {
@@ -98,6 +111,10 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
       if (!editable) {
         loadedRef.current = false;
         settled.current = false;
+        if (settleTimer.current) {
+          clearTimeout(settleTimer.current);
+          settleTimer.current = null;
+        }
         pk.current?.hideToolPicker();
         return;
       }
@@ -108,16 +125,18 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
         pk.current?.showToolPicker();
         loadedRef.current = true;
       }, 0);
-      // Restoring a drawing fires its own change event — wait it out before
-      // treating change events as real user edits.
-      const settle = setTimeout(() => {
-        settled.current = true;
-      }, 350);
+      // Restoring a drawing fires its own change events — wait for them to go
+      // quiet before treating change events as real user edits (each pre-settle
+      // event re-arms this deadline; see handleDrawingChange).
+      armSettle(400);
       return () => {
         clearTimeout(t);
-        clearTimeout(settle);
+        if (settleTimer.current) {
+          clearTimeout(settleTimer.current);
+          settleTimer.current = null;
+        }
       };
-    }, [editable, initialData]);
+    }, [editable, initialData, armSettle]);
 
     // Select a solid pen ONCE per edit session — then leave the tool alone so
     // the user's own picks (eraser, a different colour/width) stick. Re-setting
@@ -138,8 +157,14 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
     }, [editable, penWidth]);
 
     const handleDrawingChange = useCallback(() => {
-      if (settled.current) onChange?.();
-    }, [onChange]);
+      if (!settled.current) {
+        // Still restoring — this event is the load itself, not a user edit.
+        // Push the settle deadline out so a long restore never leaks events.
+        armSettle(400);
+        return;
+      }
+      onChange?.();
+    }, [onChange, armSettle]);
 
     if (!editable) {
       if (!imageUri) return null;

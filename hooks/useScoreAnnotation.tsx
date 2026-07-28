@@ -93,6 +93,15 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
   const [annotation, setAnnotation] = useState<Annotation | null>(null);
   const [docPage, setDocPage] = useState<DocPageInfo | null>(null);
 
+  // Live mirror of the saved overlay-PNG URL, readable from inside saveDrawing
+  // without threading the state through its dependency list. When a cloud
+  // upload fails we re-save the PREVIOUS URL instead of nulling it out.
+  const prevImageUriRef = useRef<string | null>(null);
+  useEffect(() => {
+    prevImageUriRef.current =
+      (docTarget ? docPage?.imageUri : annotation?.imageUri) ?? null;
+  }, [docTarget, docPage?.imageUri, annotation?.imageUri]);
+
   // Re-fetched on focus so a mark saved on another screen shows on return.
   useFocusEffect(
     useCallback(() => {
@@ -147,7 +156,16 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
 
   // Export the live drawing and persist it — to the PDF page for a
   // document-backed passage, else to the passage's own annotation. `silent`
-  // skips the dimming overlay (used by the idle auto-save).
+  // skips the dimming overlay AND all error alerts (used by the idle
+  // auto-save; a failing auto-save must not nag on every stroke — the exit
+  // save retries and is the one allowed to surface a problem).
+  //
+  // The drawing DATA is the source of truth and is written even when the
+  // overlay-PNG upload fails (stale sign-in, offline): on iOS the data write
+  // is local SQLite, so the user's marks survive no matter what the network
+  // does. A failed upload keeps the previous overlay URL instead of nulling
+  // it, and the next successful save heals it. Losing real strokes because a
+  // best-effort PNG sync threw was the original data-loss bug here.
   const saveDrawing = useCallback(
     async (opts?: { silent?: boolean }) => {
       const handle = canvasRef.current;
@@ -156,13 +174,24 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
       if (!opts?.silent) setSaving(true);
       try {
         const { data, png } = await handle.export();
+        let imageUri: string | null = null;
+        if (png && (docTarget || passage?.id)) {
+          try {
+            imageUri = await uploadAnnotationImage(
+              docTarget
+                ? `${docTarget.docId}-page${docTarget.page}`
+                : (passage?.id as string),
+              png,
+            );
+          } catch (uploadErr) {
+            imageUri = prevImageUriRef.current;
+            console.warn(
+              '[annotation] overlay upload failed — marks saved, overlay not synced:',
+              uploadErr,
+            );
+          }
+        }
         if (docTarget) {
-          const imageUri = png
-            ? await uploadAnnotationImage(
-                `${docTarget.docId}-page${docTarget.page}`,
-                png,
-              )
-            : null;
           const next: Annotation = { data: data || null, imageUri };
           await saveDocumentAnnotation(docTarget.docId, docTarget.page, next);
           setDocPage((prev) =>
@@ -171,19 +200,20 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
               : prev,
           );
         } else if (passage?.id) {
-          const imageUri = png
-            ? await uploadAnnotationImage(passage.id, png)
-            : null;
           const next: Annotation = { data: data || null, imageUri };
           await saveAnnotation(passage.id, next);
           setAnnotation(next);
         }
         savedSeqRef.current = seq;
       } catch (e) {
-        Alert.alert(
-          'Could not save annotation',
-          e instanceof Error ? e.message : 'Please try again.',
-        );
+        if (!opts?.silent) {
+          Alert.alert(
+            'Could not save annotation',
+            e instanceof Error ? e.message : 'Please try again.',
+          );
+        } else {
+          console.warn('[annotation] auto-save failed (will retry on exit):', e);
+        }
       } finally {
         if (!opts?.silent) setSaving(false);
       }
@@ -212,6 +242,10 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
     if (!annotating) return;
     // Only save when there are edits the last save didn't capture.
     if (editSeqRef.current !== savedSeqRef.current) await saveDrawing();
+    // If that save FAILED (seq still behind), keep the canvas alive — tearing
+    // it down would destroy the unsaved strokes right after telling the user
+    // the save didn't work. They can fix the cause (or retry) and exit again.
+    if (editSeqRef.current !== savedSeqRef.current) return;
     setAnnotating(false);
   }, [annotating, saveDrawing]);
 
