@@ -139,21 +139,28 @@ export function useDocumentAnnotation(
     }
   }, [annotating, session, flush]);
 
-  // Leaving the screen with unsaved marks: save first, then let nav proceed.
+  // Leaving the screen while annotating: exit pencil mode FIRST, then let nav
+  // proceed a beat later. The PKCanvasView is the iOS first responder while
+  // the tool palette is up; letting the screen pop tear it down mid-flight —
+  // simultaneously with a dismissing modal / resigning keyboard — crashed the
+  // app natively on iPad (see useScoreAnnotation for the full story). flush()
+  // saves only when there are unsaved edits, drops annotating so the canvas
+  // unmounts through its normal hide-tool-picker path, then the pop runs.
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       if (!annotating) return;
-      // Nothing unsaved — let the navigation proceed untouched.
-      if (editSeqRef.current === savedSeqRef.current) return;
       e.preventDefault();
-      if (idleSaveRef.current) {
-        clearTimeout(idleSaveRef.current);
-        idleSaveRef.current = null;
-      }
-      saveDrawing().finally(() => navigation.dispatch(e.data.action));
+      void flush().finally(() => {
+        // Two frames: one for React to commit the canvas unmount, one for
+        // the native side to apply it (resign first responder, detach the
+        // palette) before the screen teardown starts.
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => navigation.dispatch(e.data.action)),
+        );
+      });
     });
     return unsubscribe;
-  }, [navigation, annotating, saveDrawing]);
+  }, [navigation, annotating, flush]);
 
   // Drop a pending auto-save if the screen unmounts.
   useEffect(
