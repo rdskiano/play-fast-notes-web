@@ -13,6 +13,12 @@ export const SHORTCUT_HINT_LINE =
     ? 'Space or foot pedal = Clean · X = Miss'
     : 'Foot pedal = Clean · X = Miss';
 
+// Same idea for Interleaved Click-Up's NEXT/BACK hint.
+export const SHORTCUT_HINT_NEXT_BACK =
+  Platform.OS === 'web'
+    ? 'Space / Enter / right pedal = NEXT · ← / Backspace / left pedal = BACK'
+    : 'Right pedal = NEXT · left pedal = BACK';
+
 // The floating practice tools (PracticeToolsLayer) appear on every
 // score-viewing and practice screen. Append this block to those screens'
 // help bodies so the "?" always explains the dock. Not every screen

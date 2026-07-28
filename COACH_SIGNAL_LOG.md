@@ -351,6 +351,372 @@ prefill fix would have erased.
 
 ---
 
+═══════════════════════════════════════════════════════════════════════
+
+# SESSION 2 — day-two practice on Frenzy (fixes batch is LIVE on the iPad)
+
+**The two questions this session answers:**
+1. **The day-two decision** (D15/D16): refine the page-1 measures, push into new
+   territory, or introduce variation (cluster/ICU) as he predicted he would?
+   His FIRST move today is the highest-value datum of the whole experiment.
+2. **Do the shipped fixes hold up in real use?** Watch especially: sibling
+   prefill on any NEW passage's ladder, tap-outside close, step-up display,
+   demoted End button, merged label pills, iPad hint copy, note chips.
+
+## Session 2 decision log
+
+**D18 — The switch threshold, quantified for the first time (by Ralph, live).**
+- **His articulated rule:** at 50–60% completion he'd stay on Tempo Ladder; at
+  ~73% (where Measure 20-21 sits today) he feels "close enough to make the
+  switch to ICU." Gut instinct, now with a number attached.
+- **Meta-finding:** he has NEVER thought in completion-percentage terms before —
+  the app's displayed % gave him a vocabulary for a felt sense he already had,
+  and the number and the feeling AGREE. The instrument panel is teaching the
+  pilot. (TL% here ≈ current tempo / goal tempo: ~85/116.)
+- **⚠️ Tension to adjudicate (vs D8 follow-up):** in session 1 Ralph REJECTED
+  gap-size→tool mapping ("90%→100% is the same process as 50%→100%"). Today he
+  proposes exactly a %-threshold for the ladder→ICU handoff. Possible
+  resolution: the CLIMB process is gap-independent, but the PHASE SWITCH
+  (notes→cementing) is %-gated. Needs his ruling before it becomes a rule.
+- **Candidate coach rule (his to confirm):** while TL% < ~60 → keep laddering;
+  once TL% ≥ ~70 → suggest switching to ICU ("time to cement it").
+
+**D19 — ICU unit marking: musical units, not mechanical beats.**
+- **What Ralph did:** chose beat-mode marking but deliberately did NOT mark
+  every beat — placed markers where units "make sense to me," including one
+  unit twice the length of its neighbors specifically "to make sense of the
+  silence of the rest." Narrated placements in musical terms (second 16th of
+  the last beat, downbeat, etc.).
+- **Connects to D11:** the break inside this passage was WHY combine-vs-
+  separate was hard at box-marking time. ICU units resolve it — the passage
+  stays merged, units subdivide it musically. Granularity fluidity has a home.
+- **Verdict: NO (and healthily so).** Unit placement is pure musical judgment —
+  the app can't see rests in a photo. This is exactly the human input ICU's
+  marking phase exists to harvest; its friction is earning its keep. No rule
+  should try to place these.
+
+**F10 — The invisible fencepost: you must mark a unit AFTER the passage ends.**
+Ralph: the final unit needs a marker on the rest after the last note "just to
+make sure there is an ending marker — something I always did wrong at the
+beginning." Even the builder got this wrong when new; nothing in the UI says a
+closing boundary is required.
+**Confirmed by Ralph against the live screen, and the diagnosis is PERFECT
+thesis material: the rule IS documented — in the first-run tutorial modal and
+behind the ? — but NOT in the persistent on-screen instruction where people
+actually look while marking. Guidance in the manual instead of at the point of
+use. → On-screen copy fixed same-session ("Finish with one extra mark AFTER
+the last note..."); rides the next batch. The auto-placed draggable end marker
+remains the better long-term fix. Candidate fixes: auto-place a draggable end
+marker when marking starts, or a one-line hint at marking time ("finish with
+one tap after the last note to close your final unit").
+
+**✅ Prefill verified in real use (session 2):** opening ICU on Measure 20-21,
+the config came up with performance = 116 and start = 58 (half). Ralph: "exactly
+right... I'll just keep it." Mechanism note for honesty: THIS instance is the
+pre-existing shared-performance-tempo path (the ladder stamped 116 onto the
+passage yesterday; ICU reads it) — the new sibling-inheritance path fires when a
+FRESH passage opens its first ladder. Both paths now cover the re-typing pain.
+Also noteworthy: the expert accepted the half-goal default start (58) without
+adjusting toward his usual clean-minus-buffer (~70) — for short ICU units a low
+start is apparently fine with him.
+
+**F11 — F8's sibling: Click-Up's own hint still said "Space / Backspace" on
+iPad.** The F8 fix covered Tempo Ladder + Rep Rotator; ICU has a separate
+NEXT/BACK hint line that was missed. FIXED same-session (platform-aware
+constant, tsc clean) — ships with the next batch. Lesson: hint copy is
+scattered per-screen; the shared constants in helpCopy.ts are now the home for
+all of it.
+
+**D20 — Unit boundaries want to be editable mid-session.**
+- During ICU play Ralph wished he could re-mark: he mentally merged the last
+  two units ("skipped the last little phase") because practicing revealed the
+  original split was wrong. No way to change units once playing starts.
+- **Pattern now confirmed at every level (with D11):** granularity — of
+  passages AND of units — is provisional until it's been played. Marking
+  decisions only prove out under the fingers. Design: a lightweight "edit
+  units" escape from the playing phase (or at least merge-with-next), without
+  losing session position.
+
+**F12 — ⚠️ CRASH on logging after the ICU session (iPad).** After the note
+prompt (chips appeared correctly), "when I went to log it, the app crashed."
+Exact last tap unknown; whether the practice-log entry survived unknown (iPad
+is local SQLite — only Ralph can check, via the passage's Practice History).
+Suspect surface: the note-prompt → submit → logPractice path on native, OR an
+interaction with the same-day pencil-fix (which changed pedal/first-responder
+behavior around practice screens). NEEDS: exact repro from Ralph + simulator
+investigation. Top of the next fix pile, ahead of everything else.
+**REPRO DETAILS (from Ralph):** tapped "Save & finish" → hard crash to the iPad
+home screen with the iOS "send feedback to developer" dialog (= a real NATIVE
+crash, not a JS error). **The session DID survive** — visible in the practice
+log — so the write committed and the crash is in the teardown AFTER save:
+modal dismissal + keyboard resignation + navigation/unmount, exactly the
+first-responder territory the same-day pencil fix rewired (ICU keeps a
+PedalCatcher/KeyCaptureView active, and the note prompt summons the keyboard).
+TestFlight crash reports should appear in App Store Connect / Xcode Organizer.
+→ Spun off to its own debug session.
+
+**F13 (feature ask) — note-prompt chips: add "Do this again next time."** The
+chips showed up and were usable, but the one he actually wanted was missing.
+(Also the philosophically perfect chip: the repeat-intent is the single
+commonest next-time note.) → ADDED same-session.
+
+**✅ Tap-outside-closes-metronome verified live:** "that worked great."
+**✅ F7 (demoted End button) verified live:** Ralph noticed the celebration
+modal "looks different," recalled the old two-button layout accurately, and —
+without connecting it to his own accidental-Done incident — said "I do
+actually prefer this." Fix registered as the-app-feeling-better, not as a
+patch.
+**✅ What's New bell verified live:** Ralph noticed the quiet dot unprompted,
+read last night's entry, called it "a really cool feature." The
+entry-per-ship rule is doing its job — fixes for silent breakage reach the
+user through the product itself.
+
+**D20a — Ralph WALKS BACK the mid-session edit conclusion (honesty entry).**
+"I'm not sure whether that's true or not." He adapted fine by just playing his
+merged version. Don't overbuild — park mid-session unit editing until it hurts
+again.
+
+**D21 — The real marking problem: tap accuracy vs marker height.**
+- Tapping the NOTES directly is accurate; placing markers a controlled height
+  ABOVE the notes is imprecise horizontally. He likes controlling the height
+  but wants accuracy: "some kind of offset that just works for everything."
+- **Design candidate:** decouple the two axes — the tap supplies X (tap right
+  on the note), the marker auto-lifts to a consistent lane above the tapped
+  point (Y computed, optionally draggable afterward for height). The passage
+  crop geometry is known, so a lane above the staff is computable. Feasible;
+  medium-size change to the marking components (ScoreWithMarkers /
+  SectionMarkerCapturer family).
+
+**F12 update — crash is DETERMINISTIC: 2 for 2.** Second passage, same ICU →
+Save & finish → same hard crash. Reliable repro = very findable bug.
+**F12 narrowing (3 crashes + 1 clean run):** SKIP does NOT crash; Save & finish
+does. The delta = the annotation payload into endSession/logPractice, and/or
+tearing down a keyboard that was typed into. Repro matrix sent to the debug
+session (Skip/Save × typed/untyped).
+**F12 re-reframe:** next Save (note + remindNext ticked) did NOT crash — on the
+SAME build (verified: no new OTA published). Tally: Save 3-of-4 crash, Skip
+0-of-1. Not deterministic → almost certainly a TIMING RACE in post-save
+teardown. Debug session told to repro repeatedly, not once. (remindNext
+checkbox path also confirmed working.)
+
+**F14 — ⚠️ Pencil save is BROKEN on iPad (regression alongside the palette
+fix), WITH DATA LOSS.** The palette now stays up (F5 fix works that far) and
+Ralph could pick WHITE ink and mark the score — his own D12 white-out plan in
+action. But "could not save your annotation" errors fired REPEATEDLY, starting
+BEFORE he touched anything, while his strokes were visibly on screen; on
+closing the pencil, the save failed for real and ALL his markings disappeared.
+So commit 1ed8322 fixed palette visibility but the save path now hard-fails.
+Almost certainly the same first-responder/teardown surgery behind the F12
+crash — both regressions forwarded to the running debug session. **Until
+fixed: pencil annotations on iPad are a data-loss risk — don't invest real
+markings.**
+
+**D22 — Passage two at performance tempo: "not comfortable, but that's okay —
+I know that's okay." (F12 crash now 3 for 3.)**
+- ICU walked him up to full performance tempo on day two — a materially
+  different endpoint from yesterday's ladder plateau at ~69%. The felt
+  difference was significant enough that he DELIBERATELY logged it, knowing
+  the save would crash the app (it did — third confirmed).
+- **Two signals:** (a) the subjective quality judgment ("uncomfortable at
+  tempo, and that's expected right now") is exactly the D9 category — data the
+  trail can't hold unless the NOTE carries it; his instinct was to write it
+  down. The note field is the quality channel. (b) He paid a known crash-tax
+  to preserve a practice note — strong revealed preference for the log's value.
+  The practice log is not overhead to him; it's part of practicing.
+
+**D23 — The inverse of the merge: practicing HALF a passage.**
+- **What Ralph did:** next passage's crop (which again visually includes its
+  neighbor — the line-wrap geometry from D11) contains a gap big enough that
+  he'll split the WORK across two sittings: today he marks ICU units over only
+  the first half, and will "label them in the practice log" to tell the
+  sittings apart.
+- **Pattern now complete, both directions:** yesterday the passage object was
+  too SMALL for the practice unit (merge); today it's too BIG (subset). The
+  passage box and the unit of practice are simply different things, and the
+  musician constantly re-scopes between them.
+- **Coach consequence:** the passage's progress % now conflates two half-
+  passages — a future trail-reading coach would misread it. His disambiguation
+  lives in free-text log labels, invisible to rules. Design directions when
+  this hurts enough: ICU unit-subset as first-class session scope (store which
+  units a session covered — the marks are positional, so this is capturable),
+  and/or real split/merge ops (D11). Not tonight's problem; spec input.
+
+**D17 — THE DAY-TWO DECISION (Measure 20-21): Interleaved Click-Up. D15 CONFIRMED.**
+- **What Ralph did:** Consulted the coach; answered "just getting started, still
+  learning it" → coach suggested plain Tempo Ladder. He HOPED it would say
+  ladder-with-randomized-clusters. He CHOSE ICU: "the most effective tool I've
+  ever found for learning notes... yesterday was playing the notes, now I'm
+  ready to start really cementing it."
+- **The two-phase model, in his own words:** phase 1 = get the notes under the
+  fingers (blocked, buffered ladder — yesterday); phase 2 = CEMENT (interleaved
+  interference — today). Textbook contextual-interference sequencing, arrived at
+  by instinct. His D15 prediction ("cluster or ICU next time") came true on the
+  first decision of day two — via ICU.
+- **The coach's structural flaw, now precisely visible:** he gave the SAME
+  self-report answers as yesterday ("just getting started") and got the same
+  suggestion — but wanted a different tool. The differentiator between day one
+  and day two is NOT in the questionnaire, it's in the TRAIL (5 blocked ladder
+  stints, even plateau at 80, all logged). A questionnaire coach is memoryless;
+  the history coach would have known. Sharpest single argument of the experiment
+  for trail-driven suggestions.
+- **Verdict: YES for the D15 rule** (blocked-stints plateau → suggest
+  variation/interleave next session), with Ralph's rationale attached as the
+  explainer copy a future coach should show.
+
+**D24 — Page 2: ✅ THE NEW SIBLING-PREFILL PATH VERIFIED LIVE.** Fresh passage
+(marked deliberately LONGER than yesterday's — his granularity is drifting
+larger as the piece gets familiar), opened Tempo Ladder, and the start BPM was
+pre-filled from "the work I did yesterday" — which is exactly what it is: the
+new inheritance copies the most recent sibling ladder config (start/goal/
+climb/reps) from the same document. He noticed it as a curiosity, not a
+friction. The E1 fix's intended experience, working: the app remembered so he
+didn't have to.
+
+**D25 — THE STUCK STATE, FINALLY OBSERVED — and a tracking gap found with it.**
+- **What happened:** the harder page-2 passage made the inherited start (70)
+  too fast. Detection: TWO consecutive misses — "that's how I knew." He reached
+  for the metronome dial and dropped to 60.
+- **D14's rule now has a REAL threshold:** 2 consecutive misses (his session-1
+  guess was ~4). At least at session start; mid-ladder tolerance may differ.
+- **The prefill lesson:** inheritance can't know difficulty — only playing can.
+  The correct chain is prefill → (probe) → miss-triggered correction. All three
+  now observed in the wild.
+- **⚠️ TRACKING GAP (code-verified):** the ladder tracks the RUNG
+  (progress.current_tempo), not the metronome dial. A manual dial-down
+  mid-session records cleans at the OLD tempo and the next step-up snaps the
+  click from 60 to 75. Interim advice given (reconfigure start via setup).
+  **The real fix is D14's intervention:** after 2 consecutive misses at a rung,
+  offer "Drop to N BPM?" — which updates the RUNG, keeping engine and tracking
+  in agreement. The two bugs (no mercy rule + dial/rung divergence) are one
+  feature.
+  **D25 completion — the corruption observed END TO END:** he dialed to 60 (no
+  reconfigure), fought to 5 clean, ended. The ladder credited the cleans at 75,
+  banked the unclaimed step-up, and persisted 80 as the resume point — 20 BPM
+  of fiction in the exact numbers (resume tempo, completion %) he said this
+  morning he's learning to trust. Code-verified answers: Step-up would have
+  snapped to 80; reconfiguring start=65 + Start practicing RESETS the durable
+  row (startSession writes updateTempoLadderState(start, 0)) — so his manual
+  65 restart heals the ledger. Priority of the 2-miss mercy intervention:
+  RAISED — it's now a data-integrity fix, not just UX kindness.
+
+**D26 — (idea, thinking aloud) The annotation transfer list.**
+- **His workflow pain:** marks made on the PDF while practicing (accidentals,
+  fingerings) must be hand-transferred to the physical rental part at first
+  rehearsal. His system: mark digitally in ORANGE ink, then page through
+  hunting orange. Want: a generated LIST of annotations to take to the stand.
+- **His own objection:** the tool can't orient itself in the music (can't read
+  measures/rehearsal marks). **Counter (mine): orientation doesn't need music
+  understanding —** (a) each annotation knows its PAGE + coordinates; a
+  transfer list = page number + a visual SNIPPET (crop around the mark, mark
+  included) that the human matches visually — his orange-hunt, pre-collected;
+  (b) HIS OWN LABELS already supply musical anchors: annotations inside/near a
+  passage box named "Measure 22" inherit that name; sections likewise. The
+  D3/D5 parse-his-names trick strikes again. (c) His orange-ink habit IS a
+  data model: a designated transfer color filters which strokes make the list
+  (white-out strokes excluded).
+- **Feasibility note:** native PencilKit retains actual stroke data
+  (PKDrawing), so clustering marks into annotation groups is plausible; web
+  stores composited PNGs — harder, bounding-box diffing. Parked as a design
+  candidate; NOT started.
+
+**F15 — Tap-outside catcher ATE A CLEAN TAP (the F3 trade-off, observed).**
+With the metronome panel left open during ladder play, tapping ✓ Clean closed
+the panel instead of registering the rep — the exact trade-off flagged when F3
+shipped, now confirmed as real friction. Ralph's instinct: "both should happen
+simultaneously." **Fix built same-session:** session controls (Clean/Miss
+bottom bar + corner buttons, ladder + Rep Rotator) raised ABOVE the catcher
+(zIndex 56 > 55) — tapping them registers the rep and leaves the panel open;
+tapping the score still closes it. Rep integrity beats dismissal. tsc clean;
+rides the next batch. (ICU is unaffected — it uses the edge-dock system,
+which has no catcher.)
+
+**D25 fix — "THE CLICK IS THE TRUTH" BUILT (same session, Ralph's explicit
+spec).** In step mode during play, a manual metronome change (dial or tap)
+now moves the RUNG with it: reps credit at the sounding tempo, the durable
+resume point follows, the streak resets (5-in-a-row only means something at
+one tempo), and the session log inherits honesty for free (it reads the rung).
+Internal tempo changes (start, step-up) are not affected. Cluster/custom
+excluded deliberately — no single rung to adopt there. tsc + web export
+clean; NOT yet eyeballed live; rides the next batch. The 2-miss mercy PROMPT
+remains future work — this fix makes the manual correction honest, the prompt
+would make it effortless.
+
+**D27 — ICU chosen for a LONG passage at LOW completion — refines D18.**
+- Same hard page-2 passage, early in its ladder — yet he switched to ICU
+  because "the passage was so long... I need to familiarize myself with the
+  passage in smaller chunks, and ICU gives me that opportunity."
+- **This complicates the D18 %-gate:** yesterday ICU = cementing tool for
+  ~70%+ passages; today ICU = chunk-familiarization for a long passage at low
+  %. One tool, two roles, chosen on different signals. The coach can't map
+  tool from % alone — PASSAGE LENGTH is an input too (and the app HAS it: box
+  geometry, region height/width vs siblings). Candidate refinement: long
+  passage → ICU appropriate at ANY %; short passage → ladder until ~70%, then
+  ICU. Ralph to adjudicate alongside the D18-vs-D8 tension.
+- **Micro-break timer switched on unprompted, "very helpful right now"** —
+  the timers earn a quiet validation tick during heavy learning work.
+
+**D28 — Verdict on the hard passage: ICU beat the ladder, in his own felt
+assessment.** "A lot more helpful than the tempo ladder work" — and it got him
+to performance tempo (not comfortable, "but it was there") on a passage the
+ladder had him grinding at 60-65. Second passage today where ICU produced
+goal-tempo contact same-day. Coach-relevant: (a) supports D27's long-passage→
+ICU rule with an outcome, not just a choice; (b) the efficacy signal was also
+BEHAVIORAL — he abandoned the ladder mid-passage for ICU and stayed. Tool-
+switches mid-passage may be the cheapest honest "this wasn't working" signal
+the trail can collect, no questionnaire required.
+
+**F16 (watch item) — ~50% battery drain in 1 hour of iPad practice.** Likely
+the keep-screen-awake-while-clicking feature (commit fab4b1c, built Jul 21 but
+first SHIPPED in last night's batch — today was its first real-length outing)
++ screen brightness + continuous audio + repeated relaunches. TEST next
+session: stop the metronome, leave the iPad idle — if the screen never dims,
+the ref-counted keep-awake assertion is leaking → fix pile. If it dims,
+feature cost is honest; charger on the stand.
+
+## Session 2 summary (FINAL — closed after the page-2 sitting)
+
+**Page-2 addendum to the summary below:** D24 sibling prefill verified live on
+a fresh passage · D25 stuck state observed + dial/rung corruption traced end-
+to-end + "click is the truth" fix BUILT to Ralph's spec · D26 annotation
+transfer-list idea parked · D27 long-passage→ICU refines the D18 %-gate ·
+D28 ICU beat the ladder on the hard passage (and mid-passage tool-switches =
+free efficacy signal) · F15 catcher-ate-a-Clean fixed (session controls above
+the dismiss layer) · F7 + What's New bell verified by unprompted user delight.
+**Batch 2 queue (built + tsc/export clean, UNSHIPPED):** ICU pedal-hint copy ·
+"Do this again next time" chip · end-marker instruction line · rep-buttons-
+above-catcher · click-is-the-truth. Holding for the F12 crash fix to ride
+along. **Open adjudication for Ralph:** braid D8 ("gap doesn't pick the tool")
+× D18 (~70% switch threshold) × D27 (length exception) into one rule.
+
+## Session 2 summary (as first drafted mid-session)
+
+**Practice:** ICU on three passages (20-21, next passage, and half of a third —
+finished clean). Day-two arc: from yesterday's ladder plateau (~69%) to playing
+at performance tempo — uncomfortable but expectedly so.
+
+**Coach findings:**
+- D15's prediction CONFIRMED on the first decision: he introduced interference
+  (ICU) exactly as he said he would.
+- The memoryless-questionnaire flaw nailed: same self-report answers as day
+  one → same suggestion, but the right answer changed — because the
+  differentiator is the TRAIL, not the interview.
+- First quantified rule from his gut: ladder below ~60% completion, switch to
+  ICU around ~70%. ⚠️ Awaiting his adjudication vs his session-1 "gap doesn't
+  pick the tool" stance (proposed resolution: climb process is gap-independent,
+  PHASE SWITCH is %-gated).
+- Unit marking is musical judgment (NO-rule territory), boundaries are
+  provisional in BOTH directions (merge D11, subset D23), and the note field is
+  the quality channel — he paid a crash-tax to write one.
+
+**Fixes:** verified live — prefill ✓, tap-outside ✓, chips ✓, What's New bell ✓.
+Queued for next batch (built+typechecked, unshipped): ICU pedal-hint copy,
+"Do this again next time" chip, end-marker instruction line.
+**Bugs:** F12 Save-crash = intermittent timing race (3-of-4), debug session
+running with full field data; F14 pencil save broken with DATA LOSS (don't
+pencil-mark on iPad until fixed).
+
+═══════════════════════════════════════════════════════════════════════
+
 ## Session summary (written at close)
 
 **7 passages marked, 5+ practiced through identical stints (70→~80, +5, 5 clean),

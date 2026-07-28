@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-07-28-crash-pencil-click-truth',
+    date: 'July 28, 2026',
+    title: 'Fixed: crash on "Save & finish," pencil marks vanishing, and the metronome dial now moves your ladder',
+    body:
+      'Three fixes from real practice sessions. Saving your end-of-session note could crash the iPad app — fixed, and your notes were never lost. Pencil annotations could show false "could not save" errors and then genuinely lose your marks on closing — fixed. And in Tempo Ladder, changing the metronome tempo mid-session now moves the ladder with it: your clean reps count at the tempo actually clicking, and your progress and resume point stay honest. Also: tapping Clean or Miss with a tool panel open now registers the rep instead of just closing the panel, and the Click-Up marking screen now reminds you to place one final mark after the last note.',
+  },
+  {
     id: '2026-07-27-practice-flow-batch',
     date: 'July 27, 2026',
     title: 'Smoother practice sessions: tempo settings carry over, and 6 small fixes',

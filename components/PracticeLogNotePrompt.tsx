@@ -59,6 +59,7 @@ const PROMPT_TITLE =
 // "introduce variation" — two hours later). Tapping a chip appends its phrase
 // to the note; tapping again removes it; the text stays fully editable.
 const NOTE_CHIPS = [
+  'Do this again next time',
   'Keep climbing the tempo',
   'Introduce some variation',
   'Mind the dynamics',

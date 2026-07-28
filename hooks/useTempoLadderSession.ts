@@ -303,6 +303,31 @@ export function useTempoLadderSession(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, toolsOnly]);
 
+  // ── THE CLICK IS THE TRUTH (step mode) ──────────────────────────────────
+  // If the user turns the metronome dial (or taps tempo) mid-session, the
+  // ladder's rung FOLLOWS the click: reps are credited at the tempo actually
+  // sounding, the durable resume point moves with it, and the streak resets —
+  // "N clean in a row" only means something at one tempo. Without this, a
+  // dial-down recorded cleans at the old rung and end-of-session banking
+  // pushed the resume point HIGHER (observed live: played at 60, ladder
+  // banked 80). Internal setBpm calls (start, step-up) update
+  // progress.current_tempo in the same render, so they pass the equality
+  // check below and are not treated as user changes. Step mode only —
+  // cluster picks a random tempo per rep and custom follows its pattern, so
+  // a manual dial there has no single "rung" to adopt.
+  useEffect(() => {
+    if (phase !== 'playing' || !progress || progress.mode !== 'step') return;
+    const bpm = metronome.bpm;
+    if (!bpm || bpm === progress.current_tempo) return;
+    setProgress({ ...progress, current_tempo: bpm, current_streak: 0 });
+    if (!toolsOnly && exerciseId) {
+      updateTempoLadderState(exerciseId, bpm, 0).catch((e) =>
+        console.warn('[tempoLadder] follow-the-dial persist failed:', e),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metronome.bpm, phase, progress, toolsOnly, exerciseId]);
+
   function setModeAndSyncCluster(next: Mode) {
     // Keep the tempos the user typed when they switch modes. Start/Low/Base is
     // the shared `startTempo`, so it always survives. The TARGET tempo differs by

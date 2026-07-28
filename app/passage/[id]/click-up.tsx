@@ -35,7 +35,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors, Fonts } from '@/constants/theme';
 import { Lift, Palette } from '@/constants/palette';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
-import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
+import { PRACTICE_TOOLS_HELP, SHORTCUT_HINT_NEXT_BACK } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
@@ -543,8 +543,9 @@ export default function ClickUpScreen() {
 
           <ThemedText style={styles.helper}>
             Tap where each unit begins — the number lands right where you tap.
-            Pinch to zoom in for accuracy. You need at least {MIN_MARKERS} marks.
-            Tap an existing mark to remove it.
+            Finish with one extra mark AFTER the last note so the final unit has
+            an end. Pinch to zoom in for accuracy. You need at least{' '}
+            {MIN_MARKERS} marks. Tap an existing mark to remove it.
           </ThemedText>
           {/* Pinch-zoomable marking surface. ZoomableImage owns the tap gesture
               and reports a normalized image point (inverting its zoom + the
@@ -929,7 +930,7 @@ export default function ClickUpScreen() {
         <View style={styles.bottomBar}>
           {!isPhone && (
             <ThemedText style={styles.pedalNote}>
-              Space / Enter / right pedal = NEXT · ← / Backspace / left pedal = BACK
+              {SHORTCUT_HINT_NEXT_BACK}
             </ThemedText>
           )}
           <View style={styles.navRow}>
@@ -1017,7 +1018,7 @@ export default function ClickUpScreen() {
           </View>
           {!isPhone && (
             <ThemedText style={styles.runHintShortcut}>
-              Space / Enter / right pedal = NEXT · ← / Backspace / left pedal = BACK
+              {SHORTCUT_HINT_NEXT_BACK}
             </ThemedText>
           )}
         </View>

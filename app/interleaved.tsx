@@ -1194,11 +1194,15 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     marginLeft: 2,
   },
+  // zIndex 56: above the tools pill's tap-outside catcher (55) so a Clean/
+  // Miss tap with a tool panel open registers the rep instead of only closing
+  // the panel. Mirrors tempo-ladder.
   runBottomBar: {
     paddingTop: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     alignItems: 'center',
     gap: 6,
+    zIndex: 56,
   },
   runBtnRow: {
     flexDirection: 'row',
@@ -1234,7 +1238,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...Lift,
-    zIndex: 5,
+    // Above the tools pill's tap-outside catcher (55) — see runBottomBar note.
+    zIndex: 56,
   },
   runHintLine: {
     position: 'absolute',

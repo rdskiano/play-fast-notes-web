@@ -1481,11 +1481,16 @@ const styles = StyleSheet.create({
   },
 
   // ── Bottom Miss / Clean ──────────────────────────────────────────
+  // zIndex 56: session controls must sit ABOVE the tools pill's tap-outside
+  // catcher (zIndex 55), so marking a rep with the metronome panel open
+  // registers the rep instead of merely closing the panel. Tapping the score
+  // still closes it. (Ralph lost a Clean tap to the catcher on 2026-07-28.)
   runBottomBar: {
     paddingTop: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     alignItems: 'center',
     gap: 6,
+    zIndex: 56,
   },
   runBtnRow: {
     flexDirection: 'row',
@@ -1521,7 +1526,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...Lift,
-    zIndex: 5,
+    // Above the tools pill's tap-outside catcher (55) — see runBottomBar note.
+    zIndex: 56,
   },
   runHintLine: {
     position: 'absolute',
