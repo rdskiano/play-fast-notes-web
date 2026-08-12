@@ -3,8 +3,8 @@
 // Supabase account into the iPad's local SQLite, including document page
 // renders. See lib/supabase/import.ts for the data flow.
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { SessionTopBar } from '@/components/SessionTopBar';
@@ -14,7 +14,19 @@ import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { runImport, type ImportResult, type ImportStatus } from '@/lib/supabase/import';
+import {
+  ImportCancelled,
+  runImport,
+  type ImportResult,
+  type ImportStatus,
+  type LocalOnlySummary,
+} from '@/lib/supabase/import';
+
+const WIPE_CONFIRM_WORD = 'DELETE';
+
+function plural(n: number, singular: string, pluralForm?: string): string {
+  return `${n} ${n === 1 ? singular : (pluralForm ?? singular + 's')}`;
+}
 
 export default function ImportSupabaseScreen() {
   const router = useRouter();
@@ -31,9 +43,23 @@ export default function ImportSupabaseScreen() {
   const [log, setLog] = useState<string[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [done, setDone] = useState(false);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
+
+  // Wipe-confirmation modal. The import pauses on a Promise until the user
+  // either types DELETE and confirms, or cancels (→ import aborts untouched).
+  const [wipeSummary, setWipeSummary] = useState<LocalOnlySummary | null>(null);
+  const [confirmText, setConfirmText] = useState('');
+  const wipeResolveRef = useRef<((ok: boolean) => void) | null>(null);
 
   function append(line: string) {
     setLog((prev) => [...prev, line]);
+  }
+
+  function answerWipe(ok: boolean) {
+    wipeResolveRef.current?.(ok);
+    wipeResolveRef.current = null;
+    setWipeSummary(null);
+    setConfirmText('');
   }
 
   async function onImport() {
@@ -45,6 +71,7 @@ export default function ImportSupabaseScreen() {
     setDone(false);
     setResult(null);
     setErrorMsg(null);
+    setInfoMsg(null);
     setStatus(null);
     setRunning(true);
     try {
@@ -54,16 +81,39 @@ export default function ImportSupabaseScreen() {
         wipeFirst,
         onProgress: append,
         onStatus: setStatus,
+        confirmWipe: (summary) =>
+          new Promise<boolean>((resolve) => {
+            wipeResolveRef.current = resolve;
+            setConfirmText('');
+            setWipeSummary(summary);
+          }),
       });
       setResult(res);
       setDone(true);
     } catch (e) {
-      setErrorMsg((e as Error).message);
-      append(`Aborted: ${(e as Error).message}`);
+      if (e instanceof ImportCancelled) {
+        setInfoMsg('Import cancelled — nothing on this iPad was changed.');
+        append('Cancelled — nothing was changed.');
+      } else {
+        setErrorMsg((e as Error).message);
+        append(`Aborted: ${(e as Error).message}`);
+      }
     } finally {
       setRunning(false);
     }
   }
+
+  const confirmMatches = confirmText.trim().toUpperCase() === WIPE_CONFIRM_WORD;
+
+  const wipeItems = wipeSummary
+    ? [
+        wipeSummary.passages > 0 ? plural(wipeSummary.passages, 'passage') : null,
+        wipeSummary.documents > 0 ? plural(wipeSummary.documents, 'document') : null,
+        wipeSummary.practiceSessions > 0
+          ? plural(wipeSummary.practiceSessions, 'practice session')
+          : null,
+      ].filter((s): s is string => s !== null)
+    : [];
 
   // Friendly one-line summary of what came in.
   const summary = (() => {
@@ -187,9 +237,16 @@ export default function ImportSupabaseScreen() {
                 <Switch value={wipeFirst} onValueChange={setWipeFirst} trackColor={{ true: C.tint }} />
               </View>
               <ThemedText style={[styles.hint, { color: C.icon }]}>
-                Recommended. Clears this iPad&apos;s copy first, then loads a fresh copy from
-                the web. Your web library is never touched.
+                Clears this iPad&apos;s copy first, then loads a fresh copy from the web. Your
+                web library is never touched.
               </ThemedText>
+              {wipeFirst && (
+                <ThemedText style={[styles.hint, { color: Palette.danger }]}>
+                  ⚠ Anything you created only on this iPad — pieces, marked passages, practice
+                  history — does NOT exist on the web and would be deleted. If any is found,
+                  you&apos;ll be asked to confirm before anything is removed.
+                </ThemedText>
+              )}
             </View>
 
             {errorMsg && (
@@ -197,10 +254,53 @@ export default function ImportSupabaseScreen() {
                 {errorMsg}
               </ThemedText>
             )}
+            {infoMsg && (
+              <ThemedText style={[styles.errorText, { color: C.icon }]}>{infoMsg}</ThemedText>
+            )}
 
             <Button label="Download my library" onPress={onImport} disabled={!email || !password} />
           </>
         )}
+
+        {/* ── WIPE CONFIRMATION (blocking, typed) ──────────────── */}
+        <Modal visible={wipeSummary !== null} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { backgroundColor: C.background, borderColor: Palette.danger }]}>
+              <ThemedText style={[styles.modalTitle, { color: Palette.danger }]}>
+                ⚠ This iPad has work that is NOT on the web
+              </ThemedText>
+              <ThemedText style={styles.modalBody}>
+                Replacing will permanently delete{' '}
+                <ThemedText style={styles.modalBodyBold}>{wipeItems.join(', ')}</ThemedText> stored
+                only on this iPad. They are not in your web library and cannot be recovered.
+              </ThemedText>
+              <ThemedText style={[styles.modalBody, { color: C.icon }]}>
+                To keep this iPad&apos;s work, tap Cancel, turn off &ldquo;Replace what&apos;s on
+                this iPad&rdquo;, and download again.
+              </ThemedText>
+              <ThemedText style={styles.modalBody}>
+                To delete it anyway, type {WIPE_CONFIRM_WORD} below:
+              </ThemedText>
+              <TextInput
+                value={confirmText}
+                onChangeText={setConfirmText}
+                placeholder={WIPE_CONFIRM_WORD}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                style={[styles.input, { color: C.text, borderColor: Palette.danger }]}
+                placeholderTextColor={C.icon}
+              />
+              <Button label="Cancel — keep my iPad data" onPress={() => answerWipe(false)} />
+              <Pressable
+                onPress={() => confirmMatches && answerWipe(true)}
+                disabled={!confirmMatches}
+                style={[styles.dangerBtn, { opacity: confirmMatches ? 1 : 0.35 }]}
+              >
+                <ThemedText style={styles.dangerBtnText}>Delete it and replace</ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
 
         {/* ── Technical details (collapsed by default) ─────────── */}
         {log.length > 0 && (
@@ -294,4 +394,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
+
+  // Wipe confirmation modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 440,
+    borderWidth: 2,
+    borderRadius: Radii.lg,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  modalTitle: { fontSize: Type.size.lg, fontWeight: Type.weight.heavy },
+  modalBody: { fontSize: Type.size.sm, lineHeight: 20 },
+  modalBodyBold: { fontSize: Type.size.sm, fontWeight: Type.weight.heavy },
+  dangerBtn: {
+    backgroundColor: Palette.danger,
+    borderRadius: Radii.md,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
+  dangerBtnText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.md },
 });
