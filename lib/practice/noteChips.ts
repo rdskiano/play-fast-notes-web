@@ -98,6 +98,82 @@ export function chipsForStrategy(
   }
 }
 
+// ── The coach's proposed note (D38, 2026-08-13) ─────────────────────────────
+// Six chips overwhelmed a first-timer: "what's most important next time?"
+// asks the user to plan the future, which is the expert skill they don't have
+// yet — while the app just WATCHED the whole session. So the prompt now leads
+// with ONE pre-picked chip plus a session-grounded observation ("Sounds
+// right" = one tap, note + reminder set); "Something else…" unfolds the full
+// chip set and text box, so the expert path loses nothing. The proposal is
+// always an existing CHIP phrase, so the resurfaced reminder's action buttons
+// keep working unchanged.
+
+export type SessionOutcome = {
+  // Tempo Ladder facts. Absent fields just soften the proposal's wording.
+  reachedGoal?: boolean;
+  bankedAt?: number; // the rung the session ended on
+  goal?: number;
+  misses?: number;
+  targetReps?: number;
+};
+
+export type NoteProposal = {
+  phrase: string; // one of the CHIP strings — lands verbatim in the note
+  why: string; // the observation shown under it, in the coach's voice
+};
+
+export function proposeNote(
+  strategy: string | undefined,
+  outcome: SessionOutcome = {},
+): NoteProposal | null {
+  switch (strategy) {
+    case 'tempo_ladder': {
+      if (outcome.reachedGoal) {
+        return {
+          phrase: CHIP.variation,
+          why: 'You hit your goal tempo today — variation is what makes it stick.',
+        };
+      }
+      if (
+        outcome.misses != null &&
+        outcome.targetReps != null &&
+        outcome.misses >= 2 * outcome.targetReps
+      ) {
+        return {
+          phrase: CHIP.slower,
+          why: 'Today was a grind — starting lower makes the first rungs feel easy again.',
+        };
+      }
+      return {
+        phrase: CHIP.climb,
+        why:
+          outcome.bankedAt && outcome.goal
+            ? `You banked your climb at ${outcome.bankedAt}, heading for ${outcome.goal}.`
+            : 'You banked your climb partway up — more rungs to go.',
+      };
+    }
+    case 'click_up':
+      return {
+        phrase: CHIP.again,
+        why: 'Interleaved work is what cements a passage — another pass is a strong plan.',
+      };
+    case 'rhythmic':
+      return {
+        phrase: CHIP.again,
+        why: 'Another pass of rhythm work keeps evening it out.',
+      };
+    case 'interleaved':
+    case 'rep_rotator':
+      // Rep Rotator carries no chips and no reminder — no proposal either.
+      return null;
+    default:
+      return {
+        phrase: CHIP.again,
+        why: 'Repeating this next time is a solid plan.',
+      };
+  }
+}
+
 // Rebuild a ChipContext from a saved practice-log row (edit flows). Rows
 // logged before this feature lack the fields — the chip list then errs
 // toward offering more (e.g. both increment chips).

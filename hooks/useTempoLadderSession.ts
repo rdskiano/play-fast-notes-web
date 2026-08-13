@@ -951,6 +951,9 @@ export function useTempoLadderSession(
     passage,
     progress,
     celebrating,
+    // Cumulative misses this session — read by the end-of-session note
+    // prompt's coach proposal (a grind day proposes "Start slower next time").
+    misses,
     mode,
     startTempo,
     goalTempo,

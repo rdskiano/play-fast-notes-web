@@ -175,6 +175,7 @@ export default function ChunkingScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        sessionOutcome={{}}
         strategy="chunking"
         visible={notePromptVisible}
         emoji="🎉"

@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-13-coach-proposes-the-note',
+    date: 'August 13, 2026',
+    title: 'The end-of-session note now comes with a suggestion',
+    body:
+      'When you finish a session, the app no longer greets you with six choices. It watched your session, so it leads with one suggestion — "Keep climbing the tempo," with your numbers under it — and "Sounds right" saves everything in one tap, reminder included. "Something else…" brings back the full set of choices and the text box, exactly as before.',
+  },
+  {
     id: '2026-08-13-first-practice-evaluation',
     date: 'August 13, 2026',
     title: 'New passages start with a one-minute measurement',

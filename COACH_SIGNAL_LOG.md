@@ -402,6 +402,25 @@ Note: the ladder handoff still subtracts the ~12% comfort buffer BELOW that
 backed-off tempo — this matches his own Frenzy behavior (clean 80 → start
 70), so it is not double-discounting. D38 (chip overload) remains OPEN.
 
+**D38 — RESOLVED and BUILT (same night, Ralph picked "coach proposes one
+note" from five UI options).** The end-of-session prompt now leads with ONE
+pre-picked chip + a session-grounded observation: "🎯 For next time, the
+coach suggests / [Keep climbing the tempo] / You banked your climb at 60,
+heading for 120." → Sounds right (one tap: note + one-shot reminder + save)
+· Something else… (unfolds the full chips + text box, unchanged) · Skip.
+Rules per session outcome (lib/practice/noteChips.ts proposeNote): ladder
+reached goal → "Introduce some variation"; grind (misses ≥ 2× target) →
+"Start slower next time"; else → "Keep climbing" with the banked numbers;
+ICU/RV/others → "Do this again next time"; Rep Rotator → no proposal (no
+chips by design). Edit flows keep the classic UI. The proposal is always an
+existing CHIP string so resurfaced-reminder action buttons work untouched.
+**SIM-VERIFIED end-to-end on an iPad simulator (Claude drove it): marked a
+passage → full 5-clean ladder set → End session → proposal stage rendered
+with real numbers, no keyboard → Something else… unfolded the classic six
+chips → chip + Save & finish → landed on the page → ‹ Library reached the
+library (F18 re-verified on the exact reported path).** Not yet verified on
+Ralph's physical iPad.
+
 **D41 — First live calibration of the suggestion card: too ladder-loyal.**
 Exploring "How should I practice?" across his practiced Adams passages, the
 card proposed "pick the Tempo Ladder back up" WITHOUT EXCEPTION — while his

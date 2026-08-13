@@ -973,6 +973,7 @@ export default function RhythmBuilderScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        sessionOutcome={{}}
         strategy="rhythmic"
         chipContext={{ builder: true }}
         visible={notePromptVisible}

@@ -916,6 +916,7 @@ export default function MicroChainingScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        sessionOutcome={{}}
         strategy="micro_chaining"
         chipContext={{ microMode: mode }}
         visible={!isGuided && (celebrating || notePromptVisible)}

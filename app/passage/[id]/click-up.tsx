@@ -1089,6 +1089,7 @@ export default function ClickUpScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        sessionOutcome={{}}
         strategy="click_up"
         visible={!isGuided && (celebrating || notePromptVisible)}
         emoji={celebrating ? '🎉' : undefined}

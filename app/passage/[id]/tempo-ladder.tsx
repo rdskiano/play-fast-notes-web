@@ -161,6 +161,7 @@ export default function TempoLadderScreen() {
     passage,
     progress,
     celebrating,
+    misses,
     mode,
     startTempo,
     goalTempo,
@@ -1046,6 +1047,13 @@ export default function TempoLadderScreen() {
         metronome={metronome}
         strategy="tempo_ladder"
         chipContext={{ increment }}
+        sessionOutcome={{
+          reachedGoal,
+          bankedAt: progress?.current_tempo,
+          goal: progress?.goal_tempo,
+          misses,
+          targetReps,
+        }}
         visible={
           !toolsOnly &&
           !isGuided &&

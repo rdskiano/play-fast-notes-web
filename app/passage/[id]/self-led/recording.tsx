@@ -365,6 +365,7 @@ export default function SelfLedRecordingScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        sessionOutcome={{}}
         strategy="recording"
         visible={notePromptVisible}
         emoji="🎙"

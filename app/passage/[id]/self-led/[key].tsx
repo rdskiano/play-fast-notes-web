@@ -196,6 +196,7 @@ export default function SelfLedSessionScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        sessionOutcome={{}}
         strategy={strategy.key}
         visible={notePromptVisible}
         emoji="🎉"

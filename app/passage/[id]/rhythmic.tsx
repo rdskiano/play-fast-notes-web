@@ -688,6 +688,7 @@ export default function RhythmicScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        sessionOutcome={{}}
         strategy="rhythmic"
         visible={notePromptVisible && !isGuided}
         emoji="🎉"
