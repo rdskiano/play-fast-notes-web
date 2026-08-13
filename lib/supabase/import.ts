@@ -52,12 +52,36 @@ export type ImportStatus = {
 };
 export type ImportStatusCb = (s: ImportStatus) => void;
 
+// Rows that live ONLY in this device's SQLite — they are not in the web
+// account, so a wipe erases the sole copy. Computed by comparing local ids
+// against the freshly fetched web rows.
+export type LocalOnlySummary = {
+  passages: number;
+  documents: number;
+  practiceSessions: number;
+};
+
+// Thrown when the user backs out of the wipe confirmation. Nothing has been
+// written or deleted at that point; the UI treats this as a quiet reset, not
+// an error.
+export class ImportCancelled extends Error {
+  constructor() {
+    super('Cancelled — nothing on this device was changed.');
+    this.name = 'ImportCancelled';
+  }
+}
+
 export type ImportOptions = {
   email: string;
   password: string;
   wipeFirst: boolean;
   onProgress: ImportProgress;
   onStatus?: ImportStatusCb;
+  // Called before ANY destructive step when wipeFirst is set and local-only
+  // rows exist. Return false to abort the whole import untouched. Callers that
+  // wipe MUST pass this — the local SQLite is the only copy of iPad-created
+  // work (there is no native→web sync).
+  confirmWipe?: (summary: LocalOnlySummary) => Promise<boolean>;
 };
 
 export type ImportResult = {
@@ -170,6 +194,52 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
   const tables: Record<string, Row[]> = {};
   for (const t of INSERT_ORDER) {
     tables[t] = await fetchTable(t, onProgress);
+  }
+
+  // 2b. Wipe guard — BEFORE anything is downloaded or deleted. The iPad is
+  // local-first with no sync back to the web, so any row created on the device
+  // exists nowhere else. Compare local ids against the web rows we just
+  // fetched; if anything is local-only, the caller must explicitly confirm
+  // before we proceed. Cancelling here leaves the device byte-for-byte intact.
+  if (wipeFirst) {
+    const dbForCheck = getDb();
+    const webPieceIds = new Set(tables.pieces.map((r) => r.id as string));
+    const webDocIds = new Set(tables.documents.map((r) => r.id as string));
+    const webLogIds = new Set(tables.practice_log.map((r) => Number(r.id)));
+    const localPieces = await dbForCheck.getAllAsync<{ id: string }>(
+      'SELECT id FROM pieces WHERE deleted_at IS NULL;',
+    );
+    const localDocs = await dbForCheck.getAllAsync<{ id: string }>(
+      'SELECT id FROM documents WHERE deleted_at IS NULL;',
+    );
+    const localLogs = await dbForCheck.getAllAsync<{ id: number }>('SELECT id FROM practice_log;');
+    const summary: LocalOnlySummary = {
+      passages: localPieces.filter((r) => !webPieceIds.has(r.id)).length,
+      documents: localDocs.filter((r) => !webDocIds.has(r.id)).length,
+      practiceSessions: localLogs.filter((r) => !webLogIds.has(Number(r.id))).length,
+    };
+    const hasLocalOnly =
+      summary.passages > 0 || summary.documents > 0 || summary.practiceSessions > 0;
+    if (hasLocalOnly) {
+      onProgress(
+        `⚠ Local-only data found: ${summary.passages} passage(s), ${summary.documents} document(s), ` +
+          `${summary.practiceSessions} practice session(s) exist ONLY on this device.`,
+      );
+      if (!opts.confirmWipe) {
+        // No way to ask → refuse to destroy the only copy.
+        throw new Error(
+          'This device has music or practice history that is not on the web. ' +
+            'Turn off "Replace what\'s on this iPad" to import without deleting it.',
+        );
+      }
+      onStatus({ phase: 'fetch', label: 'Waiting for your confirmation…', done: 0, total: 0 });
+      const ok = await opts.confirmWipe(summary);
+      if (!ok) {
+        onProgress('Cancelled by user — nothing was changed.');
+        throw new ImportCancelled();
+      }
+      onProgress('Wipe confirmed by user.');
+    }
   }
 
   // Count every file we're about to pull so the on-screen bar can be
