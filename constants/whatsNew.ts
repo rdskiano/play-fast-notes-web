@@ -20,6 +20,27 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-13-land-on-the-page',
+    date: 'August 13, 2026',
+    title: 'After a session, you land back on the page',
+    body:
+      'When you finish and log a practice session on a passage that lives in a PDF or photo, the app now returns you to that page of the score — right where the passage is — instead of the passage screen. You finish a spot, you\'re looking at the music, ready to pick the next one. Passages that aren\'t part of a bigger page work the way they always did.',
+  },
+  {
+    id: '2026-08-13-pills-first-pages',
+    date: 'August 13, 2026',
+    title: 'A cleaner score: passage boxes became name pills',
+    body:
+      'On PDF and photo pages, your marked passages no longer sit under gray rectangles. Each one is now a small name pill at the spot where it starts — the score itself stays clean. Tap a pill and that one passage lights up, with Practice, Edit, and History right there; tap anywhere on the score to tuck it away. Passages inside other passages finally work: only one box ever draws at a time, and pills that would land on top of each other stack neatly. The old "Hide boxes" button is now "View a blank page" for a completely clean read.',
+  },
+  {
+    id: '2026-08-13-smarter-session-notes',
+    date: 'August 13, 2026',
+    title: 'End-of-session notes that come back ready to act',
+    body:
+      'The one-tap suggestions at the end of a session now match the tool you just used — after Tempo Ladder you\'ll see "Keep climbing the tempo," after Interleaved Click-Up you\'ll see "Use larger units next time," and so on. Tapping a suggestion automatically checks "Remind me of this next time" (uncheck it and your choice wins). When a reminder greets you on the passage screen, it now carries buttons that take you straight into the right tool — "Start slower next time" even opens Tempo Ladder with your start tempo already dropped about 10%. Each reminder shows once: after your next session on that passage it stops nagging, though the note stays in your practice log.',
+  },
+  {
     id: '2026-08-13-rotation-fix-for-real',
     date: 'August 13, 2026',
     title: 'The rotation fix, take two — actually fixed this time',

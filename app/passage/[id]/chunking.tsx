@@ -27,6 +27,7 @@ import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
+import { returnToScoreAfterSession } from '@/lib/sessions/lastPassageInDoc';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import {
   SCORE_SIDE_BUFFER,
@@ -97,7 +98,8 @@ export default function ChunkingScreen() {
         Object.keys(data).length > 0 ? data : undefined,
       );
     }
-    router.back();
+    // A logged session lands back on the score page, not the passage hub.
+    returnToScoreAfterSession(router, passage);
   }
 
   return (
@@ -173,6 +175,7 @@ export default function ChunkingScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        strategy="chunking"
         visible={notePromptVisible}
         emoji="🎉"
         title="Chunking — session complete"

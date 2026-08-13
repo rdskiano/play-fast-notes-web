@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
+import { chipContextFromLogData } from '@/lib/practice/noteChips';
 import { RecordingPlayer } from '@/components/RecordingPlayer';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { ThemedText } from '@/components/themed-text';
@@ -411,6 +412,8 @@ export default function LibraryLogScreen() {
 
       <PracticeLogNotePrompt
         visible={editing !== null}
+        strategy={editing?.strategy}
+        chipContext={chipContextFromLogData(editing?.data_json)}
         title="Edit log entry"
         subtitle={editing?.piece_title ?? undefined}
         initialMood={editingParsed?.mood ?? null}

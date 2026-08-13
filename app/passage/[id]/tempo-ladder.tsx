@@ -107,7 +107,17 @@ const TL_SETUP_STEPS: TourStep[] = [
 ];
 
 export default function TempoLadderScreen() {
-  const { id, guided } = useLocalSearchParams<{ id: string; guided?: string }>();
+  // mode / startScale / increment arrive from a resurfaced reminder's action
+  // buttons ("Tempo Ladder — randomized cluster", "— slower start",
+  // "— N BPM steps") and nudge the loaded setup once, after prefill.
+  const { id, guided, mode: modeParam, startScale, increment: incrementParam } =
+    useLocalSearchParams<{
+      id: string;
+      guided?: string;
+      mode?: string;
+      startScale?: string;
+      increment?: string;
+    }>();
   const isGuided = guided === '1';
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -134,7 +144,14 @@ export default function TempoLadderScreen() {
   // when `passage?.source_uri` exists); the hook handles skipping all
   // passage-keyed persistence.
   const toolsOnly = isToolsOnly(id);
-  const session = useTempoLadderSession(id, toolsOnly, isGuided);
+  const session = useTempoLadderSession(id, toolsOnly, isGuided, {
+    mode: modeParam === 'cluster' ? 'cluster' : undefined,
+    startScale: startScale ? parseFloat(startScale) : undefined,
+    increment:
+      incrementParam === '2' || incrementParam === '5' || incrementParam === '10'
+        ? (parseInt(incrementParam, 10) as Increment)
+        : undefined,
+  });
   const {
     phase,
     passage,
@@ -1023,6 +1040,8 @@ export default function TempoLadderScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        strategy="tempo_ladder"
+        chipContext={{ increment }}
         visible={
           !toolsOnly &&
           !isGuided &&

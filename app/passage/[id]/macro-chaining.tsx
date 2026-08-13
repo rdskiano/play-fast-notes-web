@@ -521,6 +521,7 @@ export default function MacroChainingScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        strategy="macro_chaining"
         visible={celebrating || notePromptVisible}
         emoji={celebrating ? '🎉' : undefined}
         title={

@@ -195,7 +195,18 @@ export async function logPractice(
     client_id: newClientId(),
   };
   try {
-    return await withRetry(() => insertLogRow(row));
+    const newId = await withRetry(() => insertLogRow(row));
+    // A reminder lives for exactly ONE next session on its passage: logging
+    // any new session consumes the passage's flagged notes — displayed or
+    // not — so "do this again" always means the immediately previous session.
+    // The note text stays in the log forever; only the flag clears.
+    // Best-effort: a failure here must never lose the session just saved.
+    try {
+      await consumePassageReminders(piece_id, newId);
+    } catch (err) {
+      console.warn('reminder consumption failed', err);
+    }
+    return newId;
   } catch (e) {
     // Park it stamped with the current owner so it can only sync back here.
     const uid = await currentUserId();
@@ -209,6 +220,43 @@ export async function logPractice(
       );
     }
     return -1;
+  }
+}
+
+// Clear remindNext from every OTHER log row of this passage. exceptId is the
+// row just inserted — the user may have flagged a NEW reminder on it, which
+// must survive until the session after. (exceptId is 0 when the insert hit
+// the idempotency index; the retried row's id is unknown, but that row was
+// inserted milliseconds ago and can't be carrying a stale reminder.)
+async function consumePassageReminders(
+  piece_id: string,
+  exceptId: number,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from('practice_log')
+    .select('id, data_json')
+    .eq('piece_id', piece_id)
+    .neq('id', exceptId)
+    .like('data_json', '%"remindNext":true%');
+  if (error) throw error;
+  for (const r of (data ?? []) as Array<{ id: number; data_json: string | null }>) {
+    if (!r.data_json) continue;
+    try {
+      const parsed = JSON.parse(r.data_json);
+      if (parsed && typeof parsed === 'object' && parsed.remindNext === true) {
+        delete (parsed as Record<string, unknown>).remindNext;
+        const nextJson =
+          Object.keys(parsed).length > 0 ? JSON.stringify(parsed) : null;
+        const { error: upErr } = await supabase
+          .from('practice_log')
+          .update({ data_json: nextJson })
+          .eq('id', r.id);
+        if (upErr) throw upErr;
+      }
+    } catch (e) {
+      // A single corrupt row shouldn't strand the rest.
+      console.warn('skipping reminder row during consumption', e);
+    }
   }
 }
 
@@ -443,13 +491,16 @@ export async function updatePracticeLogMoodNote(
 }
 
 // A flagged practice-log note that should appear on the passage screen until
-// the user dismisses it.
+// the user dismisses it (or the next logged session consumes it).
 export type PassageReminder = {
   id: number;
   strategy: string;
   note: string;
   practiced_at: number;
   exercise_name: string | null;
+  // The row's parsed data_json — action buttons read session facts from it
+  // (e.g. the Tempo Ladder increment behind "use a larger increment").
+  data: Record<string, unknown> | null;
 };
 
 export async function listPassageReminders(
@@ -485,6 +536,7 @@ export async function listPassageReminders(
         note,
         practiced_at: r.practiced_at,
         exercise_name: null,
+        data: d && typeof d === 'object' ? (d as Record<string, unknown>) : null,
       });
       if (r.exercise_id) exerciseIds.add(r.exercise_id);
     } catch {

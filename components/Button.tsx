@@ -90,8 +90,11 @@ export function Button({
           borderColor: border,
           borderWidth: bordered ? Borders.thin : 0,
           opacity: disabled ? 0.5 : 1,
-          // v2 reskin — subtle press feedback.
-          transform: pressed && !disabled ? [{ scale: 0.985 }] : undefined,
+          // v2 reskin — subtle press feedback. The released state must be an
+          // EMPTY ARRAY, not undefined: RN's new-architecture dev validator
+          // crashes diffing transform back to undefined (forEach of null) —
+          // every Button release red-boxed the Debug dev client.
+          transform: pressed && !disabled ? [{ scale: 0.985 }] : [],
         },
         fullWidth && { alignSelf: 'stretch' },
         style,

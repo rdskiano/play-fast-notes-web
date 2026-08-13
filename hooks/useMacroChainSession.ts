@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { returnToScoreAfterSession } from '@/lib/sessions/lastPassageInDoc';
 import { useEffect, useState } from 'react';
 
 import {
@@ -197,7 +198,8 @@ export function useMacroChainSession(id: string | undefined) {
     await logPractice(id, 'macro_chaining', data, exerciseId);
     metronome.stop();
     setCelebrating(false);
-    router.back();
+    // A logged session lands back on the score page, not the passage hub.
+    returnToScoreAfterSession(router, passage);
   }
 
   function goBackToMarking() {

@@ -35,6 +35,7 @@ import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
+import { returnToScoreAfterSession } from '@/lib/sessions/lastPassageInDoc';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import {
   SCORE_SIDE_BUFFER,
@@ -112,7 +113,8 @@ export default function SelfLedSessionScreen() {
         Object.keys(data).length > 0 ? data : undefined,
       );
     }
-    router.back();
+    // A logged session lands back on the score page, not the passage hub.
+    returnToScoreAfterSession(router, passage);
   }
 
   return (
@@ -194,6 +196,7 @@ export default function SelfLedSessionScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        strategy={strategy.key}
         visible={notePromptVisible}
         emoji="🎉"
         title={`${strategy.title} — session complete`}

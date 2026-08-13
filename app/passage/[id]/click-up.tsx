@@ -118,7 +118,13 @@ const CU_CONFIG_STEPS: TourStep[] = [
 ];
 
 export default function ClickUpScreen() {
-  const { id, guided } = useLocalSearchParams<{ id: string; guided?: string }>();
+  // startScale arrives from a resurfaced reminder's "Interleaved Click-Up —
+  // slower start" button and nudges the loaded start tempo once.
+  const { id, guided, startScale } = useLocalSearchParams<{
+    id: string;
+    guided?: string;
+    startScale?: string;
+  }>();
   const isGuided = guided === '1';
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -131,7 +137,9 @@ export default function ClickUpScreen() {
   const isTouch = useIsTouchDevice();
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
-  const session = useClickUpSession(id, isGuided);
+  const session = useClickUpSession(id, isGuided, {
+    startScale: startScale ? parseFloat(startScale) : undefined,
+  });
 
   useEffect(() => {
     if (session.passage?.source_uri) {
@@ -1081,6 +1089,7 @@ export default function ClickUpScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        strategy="click_up"
         visible={!isGuided && (celebrating || notePromptVisible)}
         emoji={celebrating ? '🎉' : undefined}
         title={

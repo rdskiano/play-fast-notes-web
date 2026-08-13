@@ -15,12 +15,24 @@ import { Colors } from '@/constants/theme';
 import { Borders, Overlays, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { type MetronomeApi } from '@/lib/audio/useMetronome';
+import {
+  chipsForStrategy,
+  strategySupportsReminder,
+  type ChipContext,
+} from '@/lib/practice/noteChips';
 
 export const PRACTICE_MOODS = ['🔥', '😄', '😐', '😢', '💩'] as const;
 export type PracticeMood = (typeof PRACTICE_MOODS)[number];
 
 type Props = {
   visible: boolean;
+  // The strategy this session ran (or the log row's strategy in edit flows).
+  // Picks the chip list: each tool offers only chips that can act after it.
+  // 'interleaved' (Rep Rotator) gets no chips and no reminder checkbox.
+  strategy?: string;
+  // Session facts that gate individual chips (increment edges, micro mode,
+  // builder vs patterns-only).
+  chipContext?: ChipContext;
   emoji?: string;
   title?: string;
   subtitle?: string;
@@ -58,16 +70,12 @@ const PROMPT_TITLE =
 // app's own builder left it blank mid-practice, then knew the answer —
 // "introduce variation" — two hours later). Tapping a chip appends its phrase
 // to the note; tapping again removes it; the text stays fully editable.
-const NOTE_CHIPS = [
-  'Do this again next time',
-  'Keep climbing the tempo',
-  'Introduce some variation',
-  'Mind the dynamics',
-  'Start slower next time',
-] as const;
+// The list is strategy-aware — see lib/practice/noteChips.ts.
 
 export function PracticeLogNotePrompt({
   visible,
+  strategy,
+  chipContext,
   initialMood = null,
   initialNote = null,
   initialRemindNext = false,
@@ -79,6 +87,8 @@ export function PracticeLogNotePrompt({
   onKeepPracticing,
   metronome,
 }: Props) {
+  const chips = chipsForStrategy(strategy, chipContext);
+  const remindable = strategySupportsReminder(strategy);
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   // Preserve any prior mood through edit flows even though the UI no longer
@@ -86,6 +96,11 @@ export function PracticeLogNotePrompt({
   const [mood, setMood] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [remindNext, setRemindNext] = useState(false);
+  // Chips drive the reminder checkbox: selecting any chip checks it,
+  // deselecting the last chip un-checks it. A manual tap on the checkbox wins
+  // for the rest of the prompt, and typed text never moves the box. A prompt
+  // that opens already-checked (edit flow) counts as manual.
+  const remindTouched = useRef(false);
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -93,6 +108,7 @@ export function PracticeLogNotePrompt({
       setMood(initialMood ?? null);
       setNote(initialNote ?? '');
       setRemindNext(initialRemindNext ?? false);
+      remindTouched.current = initialRemindNext ?? false;
     }
   }, [visible, initialMood, initialNote, initialRemindNext]);
 
@@ -152,7 +168,11 @@ export function PracticeLogNotePrompt({
 
   function submit() {
     const trimmed = note.trim();
-    onSubmit({ mood, note: trimmed.length > 0 ? trimmed : null, remindNext });
+    onSubmit({
+      mood,
+      note: trimmed.length > 0 ? trimmed : null,
+      remindNext: remindable ? remindNext : false,
+    });
   }
 
   // Chip toggle: append the phrase if absent, strip it if present. Phrases
@@ -160,15 +180,19 @@ export function PracticeLogNotePrompt({
   // never disturbed beyond removing the exact chip phrase.
   function toggleChip(phrase: string) {
     setNote((cur) => {
-      if (cur.includes(phrase)) {
-        return cur
-          .split(' · ')
-          .map((part) => part.trim())
-          .filter((part) => part.length > 0 && part !== phrase)
-          .join(' · ');
+      const next = cur.includes(phrase)
+        ? cur
+            .split(' · ')
+            .map((part) => part.trim())
+            .filter((part) => part.length > 0 && part !== phrase)
+            .join(' · ')
+        : cur.trim().length > 0
+          ? `${cur.trim()} · ${phrase}`
+          : phrase;
+      if (remindable && !remindTouched.current) {
+        setRemindNext(chips.some((p) => next.includes(p)));
       }
-      const trimmed = cur.trim();
-      return trimmed.length > 0 ? `${trimmed} · ${phrase}` : phrase;
+      return next;
     });
   }
 
@@ -193,8 +217,9 @@ export function PracticeLogNotePrompt({
             {PROMPT_TITLE}
           </ThemedText>
 
+          {chips.length > 0 && (
           <View style={styles.chipRow}>
-            {NOTE_CHIPS.map((phrase) => {
+            {chips.map((phrase) => {
               const active = note.includes(phrase);
               return (
                 <Pressable
@@ -217,6 +242,7 @@ export function PracticeLogNotePrompt({
               );
             })}
           </View>
+          )}
 
           <TextInput
             ref={inputRef}
@@ -229,8 +255,12 @@ export function PracticeLogNotePrompt({
             style={[styles.input, { color: C.text, borderColor: C.icon }]}
           />
 
+          {remindable && (
           <Pressable
-            onPress={() => setRemindNext((v) => !v)}
+            onPress={() => {
+              remindTouched.current = true;
+              setRemindNext((v) => !v);
+            }}
             style={styles.remindRow}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: remindNext }}>
@@ -248,6 +278,7 @@ export function PracticeLogNotePrompt({
               Remind me of this next time
             </ThemedText>
           </Pressable>
+          )}
 
           <View style={styles.row}>
             {onDelete && (

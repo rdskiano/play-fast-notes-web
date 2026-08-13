@@ -45,6 +45,7 @@ import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { getFolder } from '@/lib/db/repos/folders';
 import { getDocument } from '@/lib/db/repos/documents';
 import { logPractice } from '@/lib/db/repos/practiceLog';
+import { returnToScoreAfterSession } from '@/lib/sessions/lastPassageInDoc';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import {
@@ -413,7 +414,10 @@ export default function RhythmBuilderScreen() {
     if (id) {
       try {
         await stampLastUsed(id, 'rhythmic');
-        const data: Record<string, unknown> = {};
+        // builder marks this rhythmic row as an Exercise Builder session —
+        // resurfaced "do this again" notes route back to the builder, and the
+        // patterns-only screen's rows (no flag) route to Rhythmic Variation.
+        const data: Record<string, unknown> = { builder: true };
         if (mood) data.mood = mood;
         if (note) data.note = note;
         if (remindNext) data.remindNext = true;
@@ -429,7 +433,8 @@ export default function RhythmBuilderScreen() {
     }
     metronome.stop();
     metronome.stopPitchSequence();
-    router.back();
+    // A logged session lands back on the score page, not the passage hub.
+    returnToScoreAfterSession(router, passage);
   }
 
   function pushHistory(snapshot: Pitch[]) {
@@ -968,6 +973,8 @@ export default function RhythmBuilderScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        strategy="rhythmic"
+        chipContext={{ builder: true }}
         visible={notePromptVisible}
         emoji="🎉"
         title="Exercise Builder — session complete"

@@ -953,7 +953,11 @@ export default function PassageDetailScreen() {
 
           {/* Reminders/notes-to-self live near the top so you see them the
               moment you open the passage — not buried under the strategies. */}
-          <PassageReminders passageId={passage.id} />
+          <PassageReminders
+            passageId={passage.id}
+            isPro={entitlement.isPro}
+            onProBlocked={() => setBuilderPaywall(true)}
+          />
 
           <Pressable
             onPress={() => guardedNav(() => router.push(`/passage/${passage.id}/coach`))}

@@ -93,7 +93,13 @@ const MC_MARKING_STEPS: TourStep[] = [
 ];
 
 export default function MicroChainingScreen() {
-  const { id, guided } = useLocalSearchParams<{ id: string; guided?: string }>();
+  // mode arrives from a resurfaced reminder's "Try ⟨mode⟩ chaining" button
+  // and pre-selects that mode card once the saved config loads.
+  const { id, guided, mode: modeParam } = useLocalSearchParams<{
+    id: string;
+    guided?: string;
+    mode?: string;
+  }>();
   const isGuided = guided === '1';
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -108,7 +114,12 @@ export default function MicroChainingScreen() {
   const isTouch = useIsTouchDevice();
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
-  const session = useMicroChainSession(id, isGuided);
+  const session = useMicroChainSession(id, isGuided, {
+    mode:
+      modeParam === 'forward' || modeParam === 'backward' || modeParam === 'problem'
+        ? modeParam
+        : undefined,
+  });
 
   useEffect(() => {
     if (session.passage?.source_uri) {
@@ -905,6 +916,8 @@ export default function MicroChainingScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        strategy="micro_chaining"
+        chipContext={{ microMode: mode }}
         visible={!isGuided && (celebrating || notePromptVisible)}
         emoji={celebrating ? '🎉' : undefined}
         title={

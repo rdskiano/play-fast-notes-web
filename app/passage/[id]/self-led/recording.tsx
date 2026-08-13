@@ -35,6 +35,7 @@ import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
+import { returnToScoreAfterSession } from '@/lib/sessions/lastPassageInDoc';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import { newRecordingId, uploadRecording } from '@/lib/supabase/recordings';
 
@@ -225,7 +226,8 @@ export default function SelfLedRecordingScreen() {
       if (note) data.note = note;
       if (remindNext) data.remindNext = true;
       await logPractice(id, 'recording', data);
-      router.back();
+      // A logged session lands back on the score page, not the passage hub.
+      returnToScoreAfterSession(router, passage);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(`Could not save: ${msg}`);
@@ -363,6 +365,7 @@ export default function SelfLedRecordingScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        strategy="recording"
         visible={notePromptVisible}
         emoji="🎙"
         title="Recording — log it"

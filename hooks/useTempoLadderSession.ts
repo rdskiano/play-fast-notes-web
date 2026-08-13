@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { returnToScoreAfterSession } from '@/lib/sessions/lastPassageInDoc';
 import { useEffect, useRef, useState } from 'react';
 
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
@@ -84,6 +85,17 @@ export function useTempoLadderSession(
   // half, default increment/reps). Completing one clean set ends the guided
   // session and lands them in their library. See the guided helpers below.
   guided: boolean = false,
+  // One-shot setup nudges from a resurfaced reminder's action buttons —
+  // applied AFTER the normal prefill so they override it, exactly as if the
+  // user had adjusted the setup form by hand. Nothing persists until the
+  // session actually starts.
+  overrides?: {
+    mode?: 'cluster';
+    // e.g. 0.9 = "start slower next time": start tempo × 0.9, rounded to a
+    // friendly number (nearest 5, floored at 30).
+    startScale?: number;
+    increment?: Increment;
+  },
 ) {
   const router = useRouter();
   const metronome = useMetronome(60);
@@ -162,6 +174,29 @@ export function useTempoLadderSession(
   const [customBlockIndex, setCustomBlockIndex] = useState(0);
   const [customRepInBlock, setCustomRepInBlock] = useState(0);
   const [customBase, setCustomBase] = useState(60);
+
+  // Reminder-button overrides live in a ref so the load effect reads the
+  // values from mount without re-running when the caller re-renders, and an
+  // apply-once flag so a reload of the same screen doesn't re-shrink an
+  // already-shrunk start tempo.
+  const overridesRef = useRef(overrides);
+  const overridesAppliedRef = useRef(false);
+  function applyOverrides() {
+    const o = overridesRef.current;
+    if (!o || overridesAppliedRef.current) return;
+    overridesAppliedRef.current = true;
+    if (o.mode === 'cluster') setMode('cluster');
+    if (o.increment === 2 || o.increment === 5 || o.increment === 10) {
+      setIncrement(o.increment);
+    }
+    if (o.startScale && o.startScale > 0 && o.startScale < 1) {
+      setStartTempo((cur) => {
+        const bpm = parseInt(cur, 10);
+        if (!Number.isFinite(bpm)) return cur;
+        return String(Math.max(30, Math.round((bpm * o.startScale!) / 5) * 5));
+      });
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -295,6 +330,10 @@ export function useTempoLadderSession(
       }
       setIncrement((existing.increment ?? 5) as Increment);
       setTargetReps(existing.target_reps as RepTarget);
+    }).then(() => {
+      // After the prefill settles (whichever branch ran), let a reminder
+      // button's overrides nudge the setup — same as a hand adjustment.
+      if (!cancelled) applyOverrides();
     });
     return () => {
       cancelled = true;
@@ -794,6 +833,9 @@ export function useTempoLadderSession(
         completedSets,
         misses,
         targetReps: progress?.target_reps,
+        // The increment used this session — a resurfaced "use a larger /
+        // smaller increment" note reads it to offer the next 2·5·10 step.
+        increment: progress?.increment ?? inc,
       };
       // Capture which Custom pattern was practiced so the practice log can
       // render "Tempo Ladder · My 9+1" rather than just "Tempo Ladder".
@@ -831,7 +873,8 @@ export function useTempoLadderSession(
       }
     }
     metronome.stop();
-    router.back();
+    // Ending a real session lands back on the score page, not the passage hub.
+    returnToScoreAfterSession(router, passage);
   }
 
   // ── guided (onboarding) helpers ─────────────────────────────────────────

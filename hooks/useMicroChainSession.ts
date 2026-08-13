@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { returnToScoreAfterSession } from '@/lib/sessions/lastPassageInDoc';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   getOrCreateExercise,
@@ -46,7 +47,14 @@ export type MicroStoredConfig = {
   steps: MicroStep[];
 };
 
-export function useMicroChainSession(id: string | undefined, guided = false) {
+export function useMicroChainSession(
+  id: string | undefined,
+  guided = false,
+  // One-shot mode pre-selection from a resurfaced reminder's "Try ⟨mode⟩
+  // chaining" button — applied AFTER the saved-config prefill, exactly as if
+  // the user had picked the mode card by hand.
+  overrides?: { mode?: MicroMode },
+) {
   const router = useRouter();
   const metronome = useMetronome(60);
   const microbreak = useMicrobreakTimer();
@@ -66,6 +74,11 @@ export function useMicroChainSession(id: string | undefined, guided = false) {
   // Surfaced on the config screen so a failed exercise load / start isn't a
   // dead button — e.g. if the network drops or the DB rejects the write.
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Applied once after the config prefill; the ref keeps the load effect
+  // from re-running when the caller re-renders.
+  const overridesRef = useRef(overrides);
+  const overridesAppliedRef = useRef(false);
 
   useEffect(() => {
     if (!id) return;
@@ -87,6 +100,13 @@ export function useMicroChainSession(id: string | undefined, guided = false) {
         if (parsed?.performanceTempo) setPerformanceTempo(String(parsed.performanceTempo));
       } catch {
         // ignore malformed config
+      }
+      // A reminder button's mode pre-selection overrides the saved mode —
+      // same as picking the mode card by hand.
+      const o = overridesRef.current;
+      if (!cancelled && o?.mode && !overridesAppliedRef.current) {
+        overridesAppliedRef.current = true;
+        setMode(o.mode);
       }
       const progress = await getClickUpProgress(ex.id);
       if (!cancelled && progress) setCurrentIndex(progress.current_index);
@@ -274,7 +294,8 @@ export function useMicroChainSession(id: string | undefined, guided = false) {
     await logPractice(id, 'micro_chaining', data, exerciseId);
     metronome.stop();
     setCelebrating(false);
-    router.back();
+    // A logged session lands back on the score page, not the passage hub.
+    returnToScoreAfterSession(router, passage);
   }
 
   function goBackToMarking() {

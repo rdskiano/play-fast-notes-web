@@ -41,7 +41,51 @@ export async function logPractice(
     data ? JSON.stringify(data) : null,
     exercise_id ?? null,
   );
+  // A reminder lives for exactly ONE next session on its passage: logging any
+  // new session consumes the passage's flagged notes — displayed or not — so
+  // "do this again" always means the immediately previous session. The note
+  // text itself stays in the log forever; only the flag clears. Best-effort:
+  // a failure here must never lose the session that was just saved.
+  try {
+    await consumePassageReminders(piece_id, result.lastInsertRowId);
+  } catch (e) {
+    console.warn('reminder consumption failed', e);
+  }
   return result.lastInsertRowId;
+}
+
+// Clear remindNext from every OTHER log row of this passage. exceptId is the
+// row just inserted — the user may have flagged a NEW reminder on it, which
+// must survive until the session after.
+async function consumePassageReminders(
+  piece_id: string,
+  exceptId: number,
+): Promise<void> {
+  const db = getDb();
+  const rows = await db.getAllAsync<{ id: number; data_json: string | null }>(
+    `SELECT id, data_json FROM practice_log
+     WHERE piece_id = ? AND id != ? AND data_json LIKE '%"remindNext":true%';`,
+    piece_id,
+    exceptId,
+  );
+  for (const r of rows) {
+    if (!r.data_json) continue;
+    try {
+      const parsed = JSON.parse(r.data_json);
+      if (parsed && typeof parsed === 'object' && parsed.remindNext === true) {
+        delete (parsed as Record<string, unknown>).remindNext;
+        const nextJson =
+          Object.keys(parsed).length > 0 ? JSON.stringify(parsed) : null;
+        await db.runAsync(
+          'UPDATE practice_log SET data_json = ? WHERE id = ?;',
+          nextJson,
+          r.id,
+        );
+      }
+    } catch {
+      // skip corrupt rows
+    }
+  }
 }
 
 // Total number of practice-log entries for this user. Used by the library
@@ -202,13 +246,16 @@ export async function updatePracticeLogMoodNote(
 }
 
 // A flagged practice-log note that should appear on the passage screen
-// until the user dismisses it.
+// until the user dismisses it (or the next logged session consumes it).
 export type PassageReminder = {
   id: number;
   strategy: string;
   note: string;
   practiced_at: number;
   exercise_name: string | null;
+  // The row's parsed data_json — action buttons read session facts from it
+  // (e.g. the Tempo Ladder increment behind "use a larger increment").
+  data: Record<string, unknown> | null;
 };
 
 export async function listPassageReminders(
@@ -244,6 +291,7 @@ export async function listPassageReminders(
         note,
         practiced_at: r.practiced_at,
         exercise_name: null,
+        data: d && typeof d === 'object' ? (d as Record<string, unknown>) : null,
       });
     } catch {
       // skip corrupt rows

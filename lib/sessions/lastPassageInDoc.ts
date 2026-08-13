@@ -14,3 +14,24 @@ export function consumeLastPassageInDoc(documentId: string): string | null {
   if (id !== undefined) lastPassageByDoc.delete(documentId);
   return id ?? null;
 }
+
+// After a LOGGED practice session, land on the page where the passage lives
+// (the document viewer, opened to that passage's page) instead of the
+// passage hub — you finish a spot and you're back at the score, ready to
+// pick the next one. Standalone passages (no parent document) have no page
+// to land on and return to wherever they came from, as before.
+//
+// router.navigate pops back to the document screen when it's already in the
+// stack (the normal pill → Practice → tool path), so Back from the score
+// goes to the library, not through a stale passage hub.
+export function returnToScoreAfterSession(
+  router: { navigate: (href: never) => void; back: () => void },
+  passage: { id: string; document_id: string | null } | null,
+): void {
+  if (passage?.document_id) {
+    rememberPassageInDoc(passage.document_id, passage.id);
+    router.navigate(`/document/${passage.document_id}` as never);
+  } else {
+    router.back();
+  }
+}

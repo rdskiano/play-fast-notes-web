@@ -29,6 +29,7 @@ import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
+import { returnToScoreAfterSession } from '@/lib/sessions/lastPassageInDoc';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import { buildRhythmAbc } from '@/lib/notation/buildAbc';
 import { isToolsOnly } from '@/lib/strategies/toolsMode';
@@ -226,7 +227,10 @@ export default function RhythmicScreen() {
     }
     metronome.stop();
     metronome.stopRhythmLoop();
-    router.back();
+    // A logged session lands back on the score page, not the passage hub.
+    // Tools-only sessions have no passage, so they exit the way they came.
+    if (toolsOnly) router.back();
+    else returnToScoreAfterSession(router, passage);
   }
 
   function exitSession() {
@@ -684,6 +688,7 @@ export default function RhythmicScreen() {
 
       <PracticeLogNotePrompt
         metronome={metronome}
+        strategy="rhythmic"
         visible={notePromptVisible && !isGuided}
         emoji="🎉"
         title="Rhythmic Variation — session complete"

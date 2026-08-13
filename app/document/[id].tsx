@@ -358,10 +358,6 @@ export default function DocumentScreen() {
     setPagerSize((prev) => (prev.width === w && prev.height === h ? prev : { width: w, height: h }));
   }, []);
 
-  const selectedPassage = selectedPassageId
-    ? passages.find((p) => p.id === selectedPassageId) ?? null
-    : null;
-
   const sections = doc ? parseSections(doc.sections_json) : [];
   // 1-indexed page on the LEFT of the current screen — used both for the
   // "Start section on p. X" affordance and for resolving the current section.
@@ -769,26 +765,6 @@ export default function DocumentScreen() {
   // "Practice this passage" (the obvious common case) and a small
   // "Edit…" entry. Tapping Edit hands off to `buildEditActions` below,
   // which renders Rename / Resize / Delete as its own focused sheet.
-  function buildSelectedActions(passage: Passage): ActionSheetItem[] {
-    return [
-      {
-        label: 'Practice this passage',
-        primary: true,
-        onPress: () => {
-          setSelectedPassageId(null);
-          guardedNav(() => router.push(`/passage/${passage.id}` as never));
-        },
-      },
-      {
-        label: 'Edit…',
-        onPress: () => {
-          setSelectedPassageId(null);
-          setEditPassage(passage);
-        },
-      },
-    ];
-  }
-
   function buildEditActions(passage: Passage): ActionSheetItem[] {
     return [
       {
@@ -1009,7 +985,7 @@ export default function DocumentScreen() {
                   />
                 )}
                 <Button
-                  label={boxesOn ? 'Hide boxes' : 'Show boxes'}
+                  label={boxesOn ? 'View a blank page' : 'View practice spots'}
                   variant="outline"
                   size="sm"
                   onPress={() => setBoxesOn(!boxesOn)}
@@ -1200,6 +1176,24 @@ export default function DocumentScreen() {
                             selectedId={selectedPassageId}
                             onSelect={setSelectedPassageId}
                             onDeselect={() => setSelectedPassageId(null)}
+                            onPractice={(passage) => {
+                              setSelectedPassageId(null);
+                              guardedNav(() =>
+                                router.push(`/passage/${passage.id}` as never),
+                              );
+                            }}
+                            onEdit={(passage) => {
+                              setSelectedPassageId(null);
+                              setEditPassage(passage);
+                            }}
+                            onHistory={(passage) => {
+                              setSelectedPassageId(null);
+                              guardedNav(() =>
+                                router.push(
+                                  `/passage/${passage.id}/history` as never,
+                                ),
+                              );
+                            }}
                           />
                           {docAnn.annotating && p.index === currentPage ? (
                             <RegionAnnotationCanvas
@@ -1446,7 +1440,7 @@ export default function DocumentScreen() {
             style={[styles.coachToast, { top: insets.top + 56 }]}>
             <View style={styles.coachToastInner}>
               <ThemedText style={styles.coachToastText}>
-                ▶ Tap a box to practice that passage
+                ▶ Tap a passage's name pill to practice it
               </ThemedText>
               <ThemedText style={styles.coachToastDismiss}>✕</ThemedText>
             </View>
@@ -1473,9 +1467,9 @@ export default function DocumentScreen() {
               ? 'Turn pages — tap the ‹ › chevrons at the edges, swipe sideways, or use the arrow keys.\n\n' +
                 'Spans two pages? Drag the box on the first page, tap "Add next page →", then drag the rest on the next page — they join into one passage.\n\n'
               : '') +
-            'Tap any box to practice that passage, or pick Edit to rename, resize, or delete it.\n\n' +
+            'Each passage shows as a small name pill on the page. Tap the pill to light up its spot and choose Practice, Edit, or History.\n\n' +
             'Sections — tap the page to mark where a movement or section begins; each marker runs until the next one (you only mark starts, not ends). This makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
-            'Hide boxes — a clean read of the full page without the gray rectangles.\n\n' +
+            'View a blank page — a clean read of the full page, no pills.\n\n' +
             'Practice Log — every session you\'ve done on this photo, across all passages.\n\n' +
             PRACTICE_TOOLS_HELP
           }
@@ -1491,22 +1485,18 @@ export default function DocumentScreen() {
             'Single / Spread (landscape only) — toggle between one page and a two-page spread.\n\n' +
             '+ Mark passage — drag a box around the music you want to practice. After you name it, it shows up in your library.\n\n' +
             'Spans two pages? Drag the box on the first page, tap "Add next page →", then drag the rest on the next page — they join into one passage.\n\n' +
-            'Tap any box to practice that passage, or pick Edit to rename, resize, or delete it.\n\n' +
+            'Each passage shows as a small name pill on the page. Tap the pill to light up its spot and choose Practice, Edit, or History.\n\n' +
             'Sections — tap the page to mark where a movement or section begins; each marker runs until the next one (you only mark starts, not ends). This makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
-            'Hide boxes — clean read of the score without the gray rectangles.\n\n' +
+            'View a blank page — clean read of the score, no pills.\n\n' +
             'Practice Log — every session you\'ve done on this PDF, across all passages.\n\n' +
             PRACTICE_TOOLS_HELP
           }
         />
       ))}
 
-      <ActionSheet
-        visible={selectedPassage !== null}
-        title={selectedPassage?.title}
-        items={selectedPassage ? buildSelectedActions(selectedPassage) : []}
-        onCancel={() => setSelectedPassageId(null)}
-      />
-
+      {/* The tap-a-box ActionSheet is gone — pills-first: tapping a pill
+          lights the box and opens the compact Practice / Edit / History bar
+          rendered by PageBoxOverlay itself. */}
       <ActionSheet
         visible={editPassage !== null}
         title={editPassage ? `Edit "${editPassage.title}"` : undefined}
@@ -1530,7 +1520,7 @@ export default function DocumentScreen() {
               ]
             : []),
           {
-            label: boxesOn ? 'Hide passage boxes' : 'Show passage boxes',
+            label: boxesOn ? 'View a blank page' : 'View practice spots',
             onPress: () => {
               setBoxesOn(!boxesOn);
               setPhoneMenuOpen(false);

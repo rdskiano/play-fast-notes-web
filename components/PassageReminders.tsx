@@ -7,6 +7,7 @@
 // collapsible list. Each entry has a "Dismiss" button that clears the flag
 // on that log row and removes it from the list.
 
+import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -19,6 +20,7 @@ import {
   listPassageReminders,
   type PassageReminder,
 } from '@/lib/db/repos/practiceLog';
+import { actionsForReminder } from '@/lib/practice/noteChips';
 
 const STRATEGY_LABELS: Record<string, string> = {
   tempo_ladder: 'Tempo Ladder',
@@ -38,11 +40,17 @@ const STRATEGY_LABELS: Record<string, string> = {
 
 type Props = {
   passageId: string;
+  // Gate for Pro-only action buttons (Exercise Builder). When the viewer
+  // isn't Pro, tapping such a button calls onProBlocked (the passage screen
+  // shows its paywall) instead of navigating.
+  isPro?: boolean;
+  onProBlocked?: () => void;
 };
 
-export function PassageReminders({ passageId }: Props) {
+export function PassageReminders({ passageId, isPro, onProBlocked }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const router = useRouter();
   // Capture the screen's open time once. Notes whose practiced_at is at or
   // after this time were flagged in the current visit and should not appear
   // here — they will surface on the next re-open.
@@ -95,6 +103,10 @@ export function PassageReminders({ passageId }: Props) {
           {reminders.map((r) => {
             const label = STRATEGY_LABELS[r.strategy] ?? r.strategy;
             const exerciseSuffix = r.exercise_name ? ` · ${r.exercise_name}` : '';
+            // Chip-created notes are known strings, so the app can put the
+            // matching tools right under the reminder. Free-text notes get no
+            // buttons and stay display-only.
+            const actions = actionsForReminder(r.strategy, r.note, r.data);
             return (
               <View
                 key={r.id}
@@ -107,6 +119,28 @@ export function PassageReminders({ passageId }: Props) {
                   <ThemedText style={[styles.itemNote, { color: C.text }]}>
                     {r.note}
                   </ThemedText>
+                  {actions.length > 0 && (
+                    <View style={styles.actionRow}>
+                      {actions.map((a) => (
+                        <Pressable
+                          key={`${a.label}|${a.path}`}
+                          onPress={() => {
+                            if (a.pro && !isPro && onProBlocked) {
+                              onProBlocked();
+                              return;
+                            }
+                            router.push(`/passage/${passageId}/${a.path}` as never);
+                          }}
+                          accessibilityRole="button"
+                          style={[styles.actionBtn, { borderColor: C.tint }]}>
+                          <ThemedText
+                            style={[styles.actionText, { color: C.tint }]}>
+                            {a.label}
+                          </ThemedText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
                 </View>
                 <Pressable
                   onPress={() => dismiss(r.id)}
@@ -146,6 +180,19 @@ const styles = StyleSheet.create({
   },
   itemStrategy: { fontSize: Type.size.xs, fontWeight: Type.weight.semibold },
   itemNote: { fontSize: Type.size.md, lineHeight: 20 },
+  actionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: 2,
+  },
+  actionBtn: {
+    borderWidth: Borders.thin,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  actionText: { fontSize: Type.size.sm, fontWeight: Type.weight.bold },
   dismissBtn: {
     borderWidth: Borders.thin,
     borderRadius: Radii.sm,

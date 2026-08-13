@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { returnToScoreAfterSession } from '@/lib/sessions/lastPassageInDoc';
+import { useEffect, useRef, useState } from 'react';
 
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import type { Increment } from '@/components/TempoConfigFields';
@@ -34,7 +35,14 @@ export type StoredConfig = {
   steps: ClickUpStep[];
 };
 
-export function useClickUpSession(id: string | undefined, guided = false) {
+export function useClickUpSession(
+  id: string | undefined,
+  guided = false,
+  // One-shot setup nudge from a resurfaced reminder's "slower start" button:
+  // start tempo × startScale, rounded to a friendly number (nearest 5,
+  // floored at 30). Applied AFTER the saved-config prefill, like a hand edit.
+  overrides?: { startScale?: number },
+) {
   const router = useRouter();
   const metronome = useMetronome(60);
   const microbreak = useMicrobreakTimer();
@@ -51,6 +59,23 @@ export function useClickUpSession(id: string | undefined, guided = false) {
 
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [celebrating, setCelebrating] = useState(false);
+
+  // Applied once after the config prefill; the ref keeps the load effect
+  // from re-running (and re-shrinking) when the caller re-renders.
+  const overridesRef = useRef(overrides);
+  const overridesAppliedRef = useRef(false);
+  function applyOverrides() {
+    const o = overridesRef.current;
+    if (!o || overridesAppliedRef.current) return;
+    overridesAppliedRef.current = true;
+    if (o.startScale && o.startScale > 0 && o.startScale < 1) {
+      setStartTempo((cur) => {
+        const bpm = parseInt(cur, 10);
+        if (!Number.isFinite(bpm)) return cur;
+        return String(Math.max(30, Math.round((bpm * o.startScale!) / 5) * 5));
+      });
+    }
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -88,6 +113,9 @@ export function useClickUpSession(id: string | undefined, guided = false) {
       if (!cancelled && progress) {
         setCurrentIndex(progress.current_index);
       }
+      // After the prefill settles, let a reminder button's overrides nudge
+      // the setup — same as a hand adjustment.
+      if (!cancelled) applyOverrides();
     });
     return () => {
       cancelled = true;
@@ -224,7 +252,8 @@ export function useClickUpSession(id: string | undefined, guided = false) {
     await logPractice(id, 'click_up', data, exerciseId);
     metronome.stop();
     setCelebrating(false);
-    router.back();
+    // A logged session lands back on the score page, not the passage hub.
+    returnToScoreAfterSession(router, passage);
   }
 
   // Guided onboarding finish: log the session like doneSession, but land the

@@ -1,14 +1,19 @@
-// Renders the passage-region rectangles overlaid on a single document page.
+// Pills-first passage overlay for a document page.
 //
-// Boxes are absolute-positioned inside a container sized to match the actual
-// rendered page image (which may be letterboxed inside the page slot because
-// expo-image uses contentFit="contain"). Coordinates persist in source-page
-// pixel space; the overlay converts to display space via a single ratio.
+// The page shows ONLY a small name pill per passage (anchored at its box's
+// top-left corner) — the box rectangle itself is not drawn. One tap on a
+// pill does everything: the box lights up AND a compact action bar opens
+// (Practice / Edit / History). Tap the empty score to tuck it away.
 //
-// Tap a box → onSelect(passage.id). Re-tap a different box switches selection.
-// If two boxes contain the tap point (overlapping passages), the smaller one
-// wins — small boxes are usually more specific (a 4-bar excerpt nested inside
-// a 16-bar phrase). v2 could add cycling for >2 overlaps.
+// Why: nested boxes (a passage fully inside another — e.g. the start of a
+// line inside a whole-line passage) made labels collide and the inner box
+// untappable when boxes were always drawn. With only ONE box ever drawn at
+// a time, nesting can't collide; the only remaining collision is
+// pill-vs-pill, and pills stack vertically when they'd overlap.
+//
+// Coordinates persist in source-page pixel space; the overlay converts to
+// display space via a single ratio (the page image is letterboxed inside its
+// slot by contentFit="contain").
 
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -33,13 +38,31 @@ type Props = {
   // Rendered dimensions of the page slot on screen (the parent container).
   slotWidth: number;
   slotHeight: number;
-  // Visibility toggle — when off, no boxes render and no taps are accepted.
+  // Visibility toggle — "View a blank page" hides pills, box, and bar, and
+  // no taps are accepted.
   visible: boolean;
   // Selection state.
   selectedId: string | null;
   onSelect: (passageId: string) => void;
   onDeselect: () => void;
+  // Action bar under the lit box.
+  onPractice: (passage: Passage) => void;
+  onEdit: (passage: Passage) => void;
+  onHistory: (passage: Passage) => void;
 };
+
+// Estimated pill metrics for collision stacking — RN can't measure text
+// before layout, so widths are approximated from character count. Verified
+// visually; a few px of error just makes the stacking slightly conservative.
+const PILL_H = 22;
+const PILL_GAP = 3;
+const PILL_MAX_W = 190;
+const BAR_W = 252;
+const BAR_H = 42;
+
+function estimatePillWidth(label: string): number {
+  return Math.min(PILL_MAX_W, 16 + label.length * 6.5);
+}
 
 export function PageBoxOverlay({
   passages,
@@ -53,6 +76,9 @@ export function PageBoxOverlay({
   selectedId,
   onSelect,
   onDeselect,
+  onPractice,
+  onEdit,
+  onHistory,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -62,26 +88,91 @@ export function PageBoxOverlay({
 
   const imageRect = fitContain(slotWidth, slotHeight, sourceWidth, sourceHeight);
 
-  // Collect every (passage, region) pair that lands on this page, then sort
-  // smallest-area-first so smaller boxes hit-test ahead of larger ones (the
-  // hit-test order = render order in reverse for a tap-to-select pattern,
-  // but we use explicit area sort to make it independent of render order).
-  type Hit = { passage: Passage; region: PassageRegion; area: number };
+  // Collect every (passage, region) pair that lands on this page.
+  type Hit = { passage: Passage; region: PassageRegion };
   const hits: Hit[] = [];
   for (const p of passages) {
     const regs = parseRegions(p.regions_json);
     for (const r of regs) {
       if (r.page !== pageIndex) continue;
-      hits.push({ passage: p, region: r, area: r.w * r.h });
+      hits.push({ passage: p, region: r });
     }
+  }
+  if (hits.length === 0) return null;
+
+  // Display-space box rect for a hit.
+  const boxRect = (region: PassageRegion) => ({
+    left: (region.x / sourceWidth) * imageRect.w,
+    top: (region.y / sourceHeight) * imageRect.h,
+    width: (region.w / sourceWidth) * imageRect.w,
+    height: (region.h / sourceHeight) * imageRect.h,
+  });
+
+  // Lay the pills out: each anchors at its box's top-left corner, straddling
+  // the top edge; when two pills would overlap, the later one stacks below
+  // the earlier (top-to-bottom, left-to-right order keeps the outcome
+  // stable). Nested passages therefore read as a tidy little stack.
+  type Placed = Hit & {
+    label: string;
+    badge: string | null;
+    x: number;
+    y: number;
+    w: number;
+  };
+  const placed: Placed[] = [];
+  const sorted = hits
+    .map((h) => ({ h, r: boxRect(h.region) }))
+    .sort((a, b) => a.r.top - b.r.top || a.r.left - b.r.left);
+  for (const { h, r } of sorted) {
+    const badge = formatStatusBadge(statusByPassage?.get(h.passage.id) ?? null);
+    const label = badge ? `${h.passage.title}  ·  ${badge}` : h.passage.title;
+    const w = estimatePillWidth(label);
+    const x = Math.max(0, Math.min(r.left + 2, imageRect.w - w));
+    let y = Math.max(0, r.top - PILL_H / 2);
+    // Push down until clear of every already-placed pill.
+    for (let guard = 0; guard < placed.length + 1; guard++) {
+      const clash = placed.find(
+        (p) =>
+          x < p.x + p.w + PILL_GAP &&
+          p.x < x + w + PILL_GAP &&
+          y < p.y + PILL_H + PILL_GAP &&
+          p.y < y + PILL_H + PILL_GAP,
+      );
+      if (!clash) break;
+      y = clash.y + PILL_H + PILL_GAP;
+    }
+    placed.push({ ...h, label, badge, x, y, w });
+  }
+
+  // The selected passage's box (every region of it on this page) plus the
+  // action bar anchored to the first region: below the box when there's
+  // room, above it otherwise, and pinned to the page bottom as a last
+  // resort — never covering the box when either side fits. The bar may use
+  // the letterbox margins around the image (the layer's parent doesn't clip).
+  const selectedHits = selectedId
+    ? hits.filter((h) => h.passage.id === selectedId)
+    : [];
+  let bar: { left: number; top: number; passage: Passage } | null = null;
+  if (selectedHits.length > 0) {
+    const first = boxRect(selectedHits[0].region);
+    const minTop = -imageRect.y + 4;
+    const maxTop = slotHeight - imageRect.y - BAR_H - 4;
+    let barTop = first.top + first.height + 8;
+    if (barTop > maxTop) barTop = first.top - BAR_H - 8;
+    if (barTop < minTop) barTop = maxTop;
+    const barLeft = Math.max(
+      4,
+      Math.min(first.left + first.width / 2 - BAR_W / 2, imageRect.w - BAR_W - 4),
+    );
+    bar = { left: barLeft, top: barTop, passage: selectedHits[0].passage };
   }
 
   return (
     <View
       pointerEvents="box-none"
       style={[styles.layer, { left: imageRect.x, top: imageRect.y, width: imageRect.w, height: imageRect.h }]}>
-      {/* Backdrop tap = deselect (only active when something is selected,
-          to avoid intercepting accidental presses). */}
+      {/* Tap the empty score = tuck the box away (only active while
+          something is selected, to avoid intercepting accidental presses). */}
       {selectedId && (
         <Pressable
           style={StyleSheet.absoluteFill}
@@ -89,77 +180,113 @@ export function PageBoxOverlay({
           accessibilityLabel="Deselect passage"
         />
       )}
-      {/* Render largest-first so smaller boxes are visually on top AND
-          hit-test first (they catch the tap). */}
-      {hits
-        .slice()
-        .sort((a, b) => b.area - a.area)
-        .map(({ passage, region }) => {
-          const selected = selectedId === passage.id;
-          const left = (region.x / sourceWidth) * imageRect.w;
-          const top = (region.y / sourceHeight) * imageRect.h;
-          const width = (region.w / sourceWidth) * imageRect.w;
-          const height = (region.h / sourceHeight) * imageRect.h;
-          const status = statusByPassage?.get(passage.id) ?? null;
-          const badge = formatStatusBadge(status);
-          return (
-            <Pressable
-              key={`${passage.id}:${region.page}`}
-              onPress={() => onSelect(passage.id)}
-              style={[
-                styles.box,
-                {
-                  left,
-                  top,
-                  width,
-                  height,
-                  borderColor: selected ? C.tint : '#000',
-                  borderWidth: selected ? 2 : 1.5,
-                  backgroundColor: selected ? C.tint + '22' : '#00000022',
-                },
-              ]}>
-              {/* Title + status share ONE pill in the top-left corner. They
-                  used to be two pills on opposite corners (name top-left,
-                  "65%" bottom-left) — with measure-per-box marking the boxes
-                  stack so tightly that one box's name pill sat on top of its
-                  neighbor's percent badge. Keeping the bottom edge empty
-                  removes the collision entirely. */}
-              <View style={[styles.label, { backgroundColor: '#ffffffd9' }]}>
+      {/* The ONE lit box — only the selected passage ever draws its
+          rectangle. Tapping the box itself starts practice (the box was the
+          old "tap to practice" surface; keeping that muscle memory). */}
+      {selectedHits.map(({ passage, region }) => {
+        const r = boxRect(region);
+        return (
+          <Pressable
+            key={`box:${passage.id}:${region.page}`}
+            onPress={() => onPractice(passage)}
+            accessibilityLabel={`Practice ${passage.title}`}
+            style={[
+              styles.litBox,
+              {
+                left: r.left,
+                top: r.top,
+                width: r.width,
+                height: r.height,
+                borderColor: C.tint,
+                backgroundColor: C.tint + '14',
+                shadowColor: C.tint,
+              },
+            ]}
+          />
+        );
+      })}
+      {/* The pills. Selected pill fills with the accent color. */}
+      {placed.map((p) => {
+        const selected = selectedId === p.passage.id;
+        return (
+          <Pressable
+            key={`pill:${p.passage.id}:${p.region.page}`}
+            onPress={() => (selected ? onDeselect() : onSelect(p.passage.id))}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            style={[
+              styles.pill,
+              {
+                left: p.x,
+                top: p.y,
+                maxWidth: PILL_MAX_W,
+                // Brand-accent pills so they read as controls, not smudges:
+                // unselected = white face with accent border + accent text
+                // (the app's outline-button look); selected = solid accent.
+                backgroundColor: selected ? C.tint : '#ffffffee',
+                borderColor: C.tint,
+              },
+            ]}>
+            <ThemedText
+              numberOfLines={1}
+              style={[styles.pillText, { color: selected ? '#fff' : C.tint }]}>
+              {p.passage.title}
+              {p.badge ? (
                 <ThemedText
-                  style={[styles.labelText, { color: selected ? C.tint : '#222' }]}
-                  numberOfLines={1}>
-                  {passage.title}
-                  {badge ? (
-                    <ThemedText style={[styles.labelText, styles.badgeInline]}>
-                      {'  ·  '}
-                      {badge}
-                    </ThemedText>
-                  ) : null}
+                  style={[
+                    styles.pillText,
+                    { color: selected ? '#ffffffcc' : C.tint + 'b0' },
+                  ]}>
+                  {'  ·  '}
+                  {p.badge}
                 </ThemedText>
-              </View>
-              {/* Play-triangle in the top-right corner so the box reads as
-                  "tappable to practice" instead of just a frame. Hidden
-                  while the box is selected — the action sheet already has
-                  "Practice this passage" front-and-center at that point.
-                  Uses the same translucent-white pill as the title/badge
-                  so it stays legible over any score color. */}
-              {!selected && (
-                <View
-                  pointerEvents="none"
-                  style={[styles.playGlyph, { backgroundColor: '#ffffffd9' }]}>
-                  <ThemedText style={[styles.playGlyphText, { color: C.tint }]}>
-                    ▶
-                  </ThemedText>
-                </View>
-              )}
-            </Pressable>
-          );
-        })}
+              ) : null}
+            </ThemedText>
+          </Pressable>
+        );
+      })}
+      {/* Compact action bar — Practice / Edit / History, one tap from the
+          pill, positioned to stay clear of the lit box. */}
+      {bar && (
+        <View
+          style={[
+            styles.bar,
+            {
+              left: bar.left,
+              top: bar.top,
+              width: BAR_W,
+              height: BAR_H,
+              backgroundColor: scheme === 'dark' ? '#26292b' : '#ffffff',
+              borderColor: scheme === 'dark' ? '#3a3e41' : '#e3ddd2',
+            },
+          ]}>
+          <Pressable
+            onPress={() => bar && onPractice(bar.passage)}
+            accessibilityRole="button"
+            style={[styles.barBtn, styles.barBtnPrimary, { backgroundColor: C.tint }]}>
+            <ThemedText style={[styles.barBtnText, { color: '#fff' }]}>
+              ▶ Practice
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={() => bar && onEdit(bar.passage)}
+            accessibilityRole="button"
+            style={[styles.barBtn, { backgroundColor: scheme === 'dark' ? '#33373a' : '#f4f1ea' }]}>
+            <ThemedText style={[styles.barBtnText, { color: C.text }]}>Edit</ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={() => bar && onHistory(bar.passage)}
+            accessibilityRole="button"
+            style={[styles.barBtn, { backgroundColor: scheme === 'dark' ? '#33373a' : '#f4f1ea' }]}>
+            <ThemedText style={[styles.barBtnText, { color: C.text }]}>History</ThemedText>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
 
-// Format the bottom-left status badge. Priority:
+// Format the pill's status suffix. Priority:
 //   practiced today  → "✓"  (or "✓ 65%" with Tempo Ladder)
 //   has TL %         → "65%" or "65% · 3d"
 //   else has date    → "3d"
@@ -187,8 +314,8 @@ function isToday(ts: number | null): boolean {
   return ts >= start.getTime();
 }
 
-// Compact relative-time label used by the box badge. Units stack: days → weeks
-// → months → years. Smallest unit that comes out >= 1 wins.
+// Compact relative-time label used by the pill badge. Units stack: days →
+// weeks → months → years. Smallest unit that comes out >= 1 wins.
 function relativeDays(ts: number): string {
   const days = Math.floor((Date.now() - ts) / 86_400_000);
   if (days < 1) return '1d';
@@ -219,42 +346,57 @@ const styles = StyleSheet.create({
   layer: {
     position: 'absolute',
   },
-  box: {
+  litBox: {
     position: 'absolute',
     borderRadius: Radii.sm,
+    borderWidth: 2,
+    // Soft glow so the box reads as "lit", not merely outlined.
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
   },
-  label: {
+  pill: {
     position: 'absolute',
-    top: 2,
-    left: 2,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: Radii.sm,
-    maxWidth: '90%',
-  },
-  labelText: {
-    fontSize: Type.size.xs,
-    fontWeight: Type.weight.medium,
-  },
-  // Status text riding inline after the title inside the shared pill.
-  badgeInline: {
-    color: '#444',
-  },
-  // Top-right ▶ play affordance. Square so it stays balanced with the
-  // rectangular title pill on the opposite corner.
-  playGlyph: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    width: 22,
-    height: 22,
-    borderRadius: Radii.sm,
-    alignItems: 'center',
+    height: PILL_H,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    borderWidth: 1,
     justifyContent: 'center',
+    // Lift the pill off the score slightly so it reads as a control.
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
   },
-  playGlyphText: {
-    fontSize: 12,
-    lineHeight: 14,
-    fontWeight: Type.weight.heavy,
+  pillText: {
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.bold,
+    lineHeight: PILL_H - 4,
+  },
+  bar: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  barBtn: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  barBtnPrimary: {},
+  barBtnText: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.bold,
   },
 });
