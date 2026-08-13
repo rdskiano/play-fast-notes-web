@@ -139,7 +139,11 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   heading: { textAlign: 'center' },
-  list: { flexGrow: 0 },
+  // flexShrink is what makes the list scrollable: without it the ScrollView
+  // grows to its full content height, blows past the card's maxHeight, and
+  // just gets clipped — it thinks it's fully visible, so it never scrolls.
+  // Invisible until the feed outgrew the card (5 entries, 2026-08-13).
+  list: { flexGrow: 0, flexShrink: 1 },
   listContent: { gap: Spacing.lg, paddingVertical: Spacing.sm },
   entry: { gap: 2 },
   entryDate: { fontSize: 12, color: Palette.textMuted },
