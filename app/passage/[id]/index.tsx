@@ -875,7 +875,14 @@ export default function PassageDetailScreen() {
           </View>
         </View>
 
+        {/* Keyed by viewport width: after a landscape⇄portrait round-trip,
+            percentage-based widths all down this subtree stay resolved
+            against the stale previous width (keying only the strategy grid
+            wasn't enough — its parents were stale too). Remounting the whole
+            hub column re-resolves everything. Frozen while annotating so a
+            rotation can never discard unsaved pencil strokes. */}
         <ScrollView
+          key={`hub-${annotating ? 'annotating' : vpW}`}
           contentContainerStyle={styles.heroScroll}
           showsVerticalScrollIndicator={false}>
           <View style={styles.heroColumn}>
