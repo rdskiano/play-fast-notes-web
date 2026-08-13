@@ -353,6 +353,57 @@ prefill fix would have erased.
 
 ═══════════════════════════════════════════════════════════════════════
 
+# SESSION 4 (2026-08-13 evening) — FIRST LIVE USE of the evaluation flow +
+# coach card (shipped same evening, commit 46a59df). Ralph's raw reactions,
+# recorded at his request before his usage window closed. NO fixes built yet.
+
+**✅ What landed well:** section-sibling tempo inheritance ("that was cool" —
+his own design from this morning's pushback, verified working in real use) and
+the overall pace — "it just gets me practicing pretty quickly."
+
+**D38 — Post-session chip overload: six options, no basis to choose.** Right
+after his first evaluation→ladder session, the practice-journal prompt offered
+~six chips and, playing a "beginner," he had no way to know which to pick.
+The chip spec was written for an expert who already has a next-time intent;
+a first-timer has none — the coach is helpful during the session and then
+abandons them at the exact moment it should keep carrying. Candidate
+directions (not decided): fewer chips early (just "Do this again next time" +
+Skip for a passage's first sessions), or the coach pre-sorts/highlights ONE
+suggested chip (the mock-up's "pre-sort best guess first" question, now with
+evidence), or the card explains what choosing does. HIS call.
+
+**D39 — Is the probe-at-goal step even useful for a normal user?** His doubt,
+verbatim in spirit: most users can't play it at tempo — if they could, they
+wouldn't be practicing it — so the probe may be a guaranteed-failure step.
+Tension to adjudicate against his OWN D6 (the probe was his expert first move:
+triage + feel the gap). Possible resolutions when he has budget: keep the probe
+but reframe its copy as reconnaissance ("see how far away it is" — expect to
+miss; a miss IS the measurement), make it skippable, or drop it for passages
+that inherit a goal. NOT changed yet — his pedagogy call.
+
+**D40 — ⚠️ The clean-tempo hunt biases LOW, and low is the dangerous
+direction.** The hunt preloaded 60 (half of goal — his own 50% call this
+morning), he could ✓ it easily — but he might have cleanly played 80, and
+nothing asked. A too-low "clean" tempo silently drags the whole handoff down
+(ladder start = clean − buffer). His asymmetry argument: too-high self-corrects
+("can't play it → slow down") but too-easy just gets a polite ✓. The step never
+communicated that the goal is the SWEET SPOT — the highest tempo that's clean
+and comfortable. Cheapest fix candidates: copy change ("nudge UP until it
+stops feeling easy, then back off one notch — we want your highest comfortable
+tempo") and/or an explicit "that was easy — try faster" response next to ✓/✗.
+Feels like the most build-ready of the three; still awaiting his word.
+
+**D39/D40 — RESOLVED by Ralph (same evening), both as COPY fixes, BUILT:**
+probe heading is now "Let's just make sure you can't already play it at
+tempo" (his wording — reframes the probe as reconnaissance, a miss is the
+expected outcome); find-step instruction is now "Nudge the tempo up until it
+stops feeling easy, then back off one notch — that's your clean tempo."
+Note: the ladder handoff still subtracts the ~12% comfort buffer BELOW that
+backed-off tempo — this matches his own Frenzy behavior (clean 80 → start
+70), so it is not double-discounting. D38 (chip overload) remains OPEN.
+
+═══════════════════════════════════════════════════════════════════════
+
 ═══════════════════════════════════════════════════════════════════════
 
 # 2026-08-12 — ⚠️ F17: TOTAL LOSS OF THE FRENZY DATA (accidental wipe)

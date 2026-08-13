@@ -292,9 +292,12 @@ export default function EvaluateScreen() {
         ) : step === 'probe' && goal ? (
           <View style={styles.section}>
             <StepDots step={1} />
-            <ThemedText style={styles.question}>Try it at {goal}, once.</ThemedText>
+            <ThemedText style={styles.question}>
+              Let’s just make sure you can’t already play it at tempo.
+            </ThemedText>
             <ThemedText style={styles.subtle}>
-              Straight at the goal — let’s see how far away it is. The click is running.
+              Try it once at {goal} — if it’s clean, there’s nothing to practice. The click is
+              running.
             </ThemedText>
             <ThemedText style={styles.bigBpm}>{goal}</ThemedText>
             <ThemedText style={[styles.subtle, { textAlign: 'center' }]}>Clean?</ThemedText>
@@ -312,7 +315,8 @@ export default function EvaluateScreen() {
             <StepDots step={2} />
             <ThemedText style={styles.question}>Find your clean tempo</ThemedText>
             <ThemedText style={styles.subtle}>
-              Nudge the click until you can play it cleanly and easily, then prove it with one rep.
+              Nudge the tempo up until it stops feeling easy, then back off one notch — that’s
+              your clean tempo. Prove it with one rep.
             </ThemedText>
             <View style={styles.bpmRow}>
               <Pressable onPress={() => nudge(-5)} style={styles.nudgeBtn} hitSlop={6}>
