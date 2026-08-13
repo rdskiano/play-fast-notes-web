@@ -50,3 +50,4 @@ app-example
 
 # Supabase CLI scratch (regenerated on every invocation, no secrets but churns)
 supabase/.temp/
+public/_pdf-preview.html

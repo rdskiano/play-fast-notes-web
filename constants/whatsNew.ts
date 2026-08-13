@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-12-wipe-guard-card-blurbs',
+    date: 'August 12, 2026',
+    title: 'A safety net for "Download my web library," and clearer strategy cards',
+    body:
+      'On the iPad app, "Download my web library" with the replace option could permanently delete passages and practice history that existed only on that iPad — with no warning about what would be lost. Now the app counts exactly what lives only on your device, tells you in plain English, and requires typing DELETE before anything is erased. Cancelling leaves everything untouched. Also: the six strategy cards now say when you\'d reach for each tool — like Rhythmic Variation for running sixteenths, or Rep Rotator for mock-audition practice near a performance — instead of just describing what they do.',
+  },
+  {
     id: '2026-07-28-crash-pencil-click-truth',
     date: 'July 28, 2026',
     title: 'Fixed: crash on "Save & finish," pencil marks vanishing, and the metronome dial now moves your ladder',

@@ -353,6 +353,265 @@ prefill fix would have erased.
 
 ═══════════════════════════════════════════════════════════════════════
 
+═══════════════════════════════════════════════════════════════════════
+
+# 2026-08-12 — ⚠️ F17: TOTAL LOSS OF THE FRENZY DATA (accidental wipe)
+
+Returning from vacation, Ralph tapped "Download my web library" with the
+wipe-local-data option before practicing. Frenzy existed ONLY on the iPad
+(no native→web sync), so ALL of it is gone: document, 9+ passages, sections,
+ladder progress, and every practice-log entry from sessions 1–2. Confirmed.
+
+**Product finding — the most serious of the whole log:** a settings-adjacent
+button destroyed weeks of local-only work, and it caught THE BUILDER. No
+warning proportional to the loss. Required fix (spun off): before any wipe,
+count what exists only on this device and say it plainly ("This will
+permanently delete N passages and M practice sessions that exist nowhere
+else"), with heavy friction. Root fix: native→web sync
+(project_ios_storage_rearchitecture), urgency raised hard.
+
+**What survives:** the scanned PDF (Genius Scan/Files), every design finding
+in this log, and the cheat sheet to rebuild the markup (~15 min): section
+stamp ♩=116 top of page 1 · boxes: m20-21 (merged), 22, 24, 25, 26, 27 +
+page-2 passages (one long/hard) · ladder 70→116, +5, 5 clean · hard page-2
+passage starts 65 · last known positions: 20-21 ≈ 85 BPM (73%), hard passage
+clean at 60-65, ICU reached tempo contact on both.
+**Silver lining:** a rebuild + re-probe by an out-of-shape player against
+KNOWN prior numbers (85) is accidentally a clean vacation-decay measurement —
+whatever clean tempo he re-finds vs. the old ledger = the dormancy discount,
+quantified.
+
+═══════════════════════════════════════════════════════════════════════
+
+## SESSION 3 SUMMARY (closed — Ralph to family time; mock-up session planned tonight)
+
+**Practice:** full recovery from the F17 wipe (rebuild ~15 min via this log),
+worked page 1 → measure 45 territory of Frenzy.
+**Headline findings:** D31 blind blocked-vs-interleaved retention result (ICU
+passages came back from vacation cold at tempo; ladder-only passage able but
+uneasy) · D29 dormancy ≈ zero decay on trained passages (my 10–15 BPM guess
+wrong twice) · D32 the mirror-coach design + Ralph's voice-spec draft ·
+D34 texture tags (the human is the OMR) · D37/a/b rest-handling fork,
+resolved then deliberately reopened · D35 when-to-use card blurbs BUILT
+(unshipped) + the Macro-Chaining "I don't know" tell · D33 post-session
+landing spot / D36 label collisions → fix pile.
+**TONIGHT'S MOCK-UP DOCKET (Ralph's ask):** 1) evaluation flow + one-button
+practice hub (the July design, now evidence-backed by D33's hub-as-toll-booth)
+· 2) margin-tab page labels (D36) · 3) actionable notes + insight card
+(D30/D32, his draft copy) · 4) m45 rest-semantics prototype, both forks
+(D37) · 5) small-fix batch review (landing spot, label collision nudge, card
+blurbs ship).
+**Unshipped code:** strategy-card blurbs (tsc clean). Wipe-guard session
+still running in background. App Store / IAP project parked as its own
+session (Small Business Program enrollment = Ralph's human task, START IT).
+
+# SESSION 3 (2026-08-12) — the return: rebuild + vacation-decay measurement
+Conditions: ~2.5 weeks off (vacation, no playing), instruments freshly
+serviced (feel different). ⚠️ Tag all session-3 rules "atypical conditions."
+
+**D29 — dormancy probe, take one (CORRECTED).** Rebuilt Measure 20-21, played
+at 70: clean ×5 and "extremely easy." ⚠️ RETRACTED my first inference — he
+started at 70 because MY rebuild cheat sheet said 70, not by instinct
+(experimenter contamination; Ralph caught it). "Extremely easy at 70" says
+decay may be much SMALLER than the 10–15 BPM I guessed. Real measurement in
+progress at his suggestion: direct probe at 85 (the pre-vacation clean).
+**RESULT: full set of five at 80 — one miss, "got through it just fine."**
+80 was the honestly-proven pre-vacation clean. So ~2.5 weeks fully off cost
+essentially NOTHING in tempo on this passage — slight roughness (1 miss in 5)
+at most. My 10–15 BPM decay guess: wrong twice in one hour. Coach
+implication (1 data point, atypical-conditions tag): dormant ≠ decayed — the
+banked resume point may be MORE trustworthy after a gap than intuition
+suggests, at least for passages that got real interleaved work before the
+break. Whether that's consolidation-during-rest is Ralph's domain to call.
+**D29 take three (Ralph's own design):** he flagged his OWN confound — 20-21
+got warm-up reps at 70 before the 80 set. Cleaner probe now: a rebuilt
+passage with ZERO practice today, cold, straight at 85. He's caught two
+experimental contaminations in a row (mine, then his). In progress.
+**RESULT: COLD, 85 BPM, FIVE IN A ROW, NO PROBLEM.** After ~2.5 weeks fully
+off. Ralph's own read (his pedagogy, logged as his claim): "Given that we did
+some interleaved click-up, I'm starting to not be surprised at how well the
+technique will survive pressure and lapses. It's truly impressive." →
+Candidate coach rule: ICU-trained passages carry a dormancy discount of ~ZERO
+— trust the ledger, verify with one rep. NATURAL NEXT PROBE (proposed):
+measures 24–27 got LADDER-ONLY work (never ICU'd) before the same vacation —
+cold-probe one of those at its old clean tempo. Same gap, different training
+history = the blocked-vs-interleaved retention comparison, in vivo.
+
+**D29/F17 coda — the wipe's real cost, in Ralph's words:** his starts today
+are faster than the originals "because I've already done practicing. That is
+not captured in the app at this moment because I erased everything." The
+inherited-start surprise (above) was largely the blank ledger's fault, not
+the feature's — the app's suggestions are only as good as its memory, and
+its memory was erased. Self-healing: each re-laddered passage rebuilds its
+row at his TRUE current level, so the distortion fades within a session or
+two. Keep full-config inheritance as-is pending post-recovery votes.
+
+**D31 — BLOCKED vs INTERLEAVED RETENTION, MEASURED BLIND. The headline finding
+of session 3.** Ralph worked down to measure 24 and probed it at 85 WITHOUT
+having read my suggestion to use 24 as the control (he read it afterward) — a
+genuinely blind probe, no expectation bias. Result: playable at 85, but
+"significantly less comfortable" than the ICU-trained passages, which came
+back cold and effortless. Same vacation, same piece, same player: interleaved
+training survived the gap with comfort intact; blocked-only training kept the
+ability but lost the ease. His reaction: "just fascinating."
+- **Caveats (honest):** N=1 per condition; comfort is subjective; measures
+  differ in content (difficulty not controlled, though all page-1 measures
+  played similarly on day 1); atypical-conditions tag applies.
+- **Coach rule this seeds (fully codable TODAY):** the practice log already
+  records WHICH strategy each session used per passage — so the trail knows
+  each passage's training history. Dormancy re-entry can be per-passage:
+  ICU-trained → trust the ledger, one verify rep; blocked-only → softer
+  re-entry (drop toward start). More deeply: after N blocked sessions the
+  coach should PUSH interleaving — not for faster learning, but for what
+  survives. This is the app's core pedagogy proven on its owner's hands.
+
+**D32 — Ralph's ask: the coach as a MIRROR — surface the user's own learning
+patterns.** Prompted by D31: can the coach do for users what the scribe did
+for him — notice (via missed takes on return, etc.) that comfort/retention
+differs by training history, and surface the realization so users "understand
+better how they learn"?
+- **Detectable with existing data:** per-passage strategy history + gap
+  lengths + first-session-back miss rates and tempo vs the pre-gap ledger.
+  Rule: after a gap, compare re-entry quality across passages with different
+  training mixes; when the split is clear, surface it. Comfort itself is
+  invisible (D9) but return-miss-rate is his own proposed proxy.
+- **Design principles:** (1) Insights are RARE and earned — an insight engine
+  that chats becomes the tutorial problem we just killed. (2) Delivery via the
+  quiet-dot bell pattern he praised today — never a popup. (3) Always show the
+  user THEIR numbers ("after 3 weeks off: Click-Up passages came back at
+  full tempo; ladder-only ones missed 3× more") and phrase as observation,
+  letting the musician judge the interpretation — same contract the scribe
+  uses with Ralph. (4) Deterministic pattern rules + template copy; no LLM
+  needed for v1, consistent with coaching-mode philosophy.
+- Converges with the transparent-history-first direction in
+  [[project_pfn_spacing_audition_mode]]. Metacognition as product: the app
+  doesn't just direct practice, it teaches the player how THEY learn.
+
+**D32a — Ralph's own draft of the insight moment (voice spec — use his words):**
+Timing: fires right after tapping Log at session end (the flow is already
+paused there — acceptable modal moment, unlike mid-play popups). Draft copy,
+lightly normalized: *"You may not use the app every day you're practicing,
+but it's been X days since you opened this app — that suggests maybe a
+vacation or an illness. I noticed measures 20-21 and 22 seemed more
+comfortable than measure 24 at this tempo. It could be that the passage is
+legitimately more difficult — or it could be that the first two were
+practiced with ICU and the third one wasn't. Just food for thought."*
+Key properties his draft nails: hedged gap inference (he KNOWS the trail is
+partial — users practice off-app; see the Beth caveat), two candidate
+explanations offered honestly, zero directive, "food for thought" sign-off.
+Refinement to carry: ride the EXISTING post-log surface (one card in the
+summary/note flow) rather than stacking a new modal; once per gap-return,
+never routine.
+
+**D33 — Post-session landing spot: the hub is a detour.** Finishing a session
+returns to the PASSAGE view (strategy hub); Ralph wants the PAGE (document
+viewer) — his working loop is page-driven: box → practice → next box on the
+page (consistent with D1 folders, session-1 "bottom of the page = natural
+stopping point"). He hedged ("don't know whether that would make sense") —
+so: candidate, not committed. Design principle: return to WHERE YOU LAUNCHED
+FROM, skipping the hub (doc → hub → tool → [end] → doc). Technically the hub
+sits in the nav stack so back() lands there; fix = dismiss past it when the
+passage came from a document. **Deeper signal: this is more evidence for the
+structure rethink** — in the one-button design the hub disappears entirely
+and this friction evaporates. The hub keeps showing up as overhead in the
+real working loop.
+
+**D34 — "The app can't read the music" — the texture problem, and two ways
+around it.** At measure 45 (running 16ths), post-ladder, Ralph's instinct
+said rhythmic variation — and he concluded the coach could never know that
+since it can't read notation. Two honest counters:
+1. **The human is the OMR (recommended).** One optional tap when a passage is
+   first practiced — "What kind of passage is this? Runs / Rhythm / Lyrical /
+   Leaps" — harvested at the same cheap moment as the rest of the evaluation.
+   Ralph is already looking at the music; the app just files his glance.
+   Rule it unlocks: runs + laddered plateau → suggest Rhythmic Variation
+   (his exact decision today, codable from one tag).
+2. **Light vision classification (someday, flagged).** Full music-reading is
+   a research project, but "is this mostly continuous fast runs?" is texture
+   CLASSIFICATION on an image the app already has — feasible with modern
+   models. ⚠️ Breaks the deliberate no-AI/deterministic coach philosophy
+   ([[project_coaching_mode]]) and adds cost; park unless tags prove too
+   much friction.
+Division of labor stays the established one: musical judgment is HUMAN input,
+harvested at cheap moments (boxes D4, units D19, tempo stamps D3, now
+texture tags); the coach's job is remembering and operationalizing it.
+
+**D35 — Strategy cards rewritten from what-it-does to WHEN-YOU'D-REACH-FOR-IT
+(Ralph's dictated copy, BUILT same-session).** New blurbs: Tempo Ladder +
+ICU = "works on everything" (ICU: "maybe the most effective way to make a
+passage solid"); Rhythmic Variation = running 16ths/sextuplets; Micro = first
+meetings or one hard spot; Rep Rotator = spaced sets approaching a
+performance/audition. Guidance-into-furniture: the coach's when-question,
+answered statically on the cards. Card blurbs get 2 lines everywhere now.
+- **⚠️ The Macro-Chaining tell:** asked when you'd use it, its own author
+  said "works on anything… I don't know." Claude drafted a placeholder
+  ("Join chunks you can already play into one seamless run") pending Ralph's
+  rewrite — but a card whose creator can't state its purpose is a prime
+  demote-to-More-fold candidate in the structure rethink (it's also the
+  least-used live tool: 8 users ever).
+- tsc clean; UNSHIPPED — rides the next batch. Ralph should eyeball wrapping
+  on the iPad cards + landscape rows after ship.
+
+**D36 — Overlapping boxes make labels unreadable (page 1: 4 boxes, 3 overlap,
+2 hide the completion %).** Root cause is honest: line-wrapped passages must
+box whole lines, so neighbor boxes legitimately share rows — fix the LABELS,
+not the boxes. Two tiers: (a) NEXT BATCH: collision-aware pill placement
+(shift a colliding pill to below-top-edge / other corner, map-label style;
+no movement when no collision); (b) MOCK-UP: margin tabs — name+% live in
+the page gutter at the box's height, stacked collision-free like rehearsal
+marks; tap a tab to light its box; score stays clean. (b) changes page feel
+→ clickable mock-up first.
+
+**D37 — Exercise Builder: rests + off-beat starts (m45 case: an 8th rest
+before running 16ths — currently unenterable).** Ralph's instinct: a 16th
+REST as a token "treated just the same as a 16th note." Design fork he
+correctly couldn't resolve in the abstract — two semantics:
+(a) REST-AS-NOTE: patterns transform rests too → downstream notes shift
+against the beat per variation = displacement training (potent, radical,
+breaks metronome-grid alignment);
+(b) REST-AS-GRID-HOLE: rests are fixed silences, patterns transform only the
+notes in place → off-beat starts + embedded rests work, metronome sync
+survives (probably the wanted v1).
+**Agreed path: prototype BOTH on his actual m45 passage** (notation side by
+side, machinery exists — abcjs + preview script), he plays them and picks.
+One-evening prototype, next design session, before any builder surgery.
+**D37a — RESOLVED by Ralph's real-world technique (better than both forks):
+patterns anchor to the METER, notes ride them; enter mid-pattern at a clean
+seam.** With an 8th-rest pickup he picks variations divisible per eighth
+(2/4 patterns yes — seam at every eighth; 3/8 patterns no — no seam at his
+entry) and starts on the pattern's second half. Feature spec this yields:
+(1) passage stores its start OFFSET within the beat; (2) patterns apply
+against the beat grid, notes inherit the slice at their grid position —
+leading rests just consume the pattern's front; (3) the pattern picker
+FILTERS to patterns with a seam at the entry offset (his 2/4-vs-3/8
+judgment as a divisibility check on the library). Prototype should build
+THIS; keep rest-as-transformed-token only as a cheap curiosity comparison.
+**D37b — REOPENED by Ralph himself:** his seam rule may be a HUMAN-LIMITATION
+workaround, not optimal pedagogy — "I don't have the ability to transform the
+rhythm without that super simple rule, but I bet if I could, it would be even
+more helpful." Precedent in his own app: Custom ladder exists because you
+can't surprise yourself — the machine doing what self-practice can't IS the
+product. Rest-as-token generates displacement variations no human can
+self-administer (and renders them as legible notation, removing the cognitive
+load that forced the simple rule). Honest label: untested pedagogy — possibly
+by anyone, since pre-machine nobody could practice this way. → Prototype
+BOTH as equals on m45; his fingers vote at the stand. If (a) works it's a
+teacher-toolbox-exceeding differentiator; if not, we learn why the seam rule
+was right.
+
+**D30 — The note that surfaced but couldn't act.** His session-2 remindNext
+note ("Introduce some variation") correctly greeted him on reopening the
+passage — the loop WORKS — but "there's no indication of how to do that."
+His ask: the note should offer options. His three variation paths: (1) Tempo
+Ladder randomized cluster, (2) ICU, (3) Rhythmic Variation.
+**Design candidate (closes a beautiful loop):** chip-created notes are KNOWN
+STRINGS — the app can recognize "Introduce some variation" and render action
+buttons under the reminder that deep-link to those three tools. Chips (F4) →
+structured intent → actionable reminder = the coach's first real muscle, no
+AI required. The free-text path stays display-only.
+
+═══════════════════════════════════════════════════════════════════════
+
 # SESSION 2 — day-two practice on Frenzy (fixes batch is LIVE on the iPad)
 
 **The two questions this session answers:**

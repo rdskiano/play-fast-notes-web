@@ -76,13 +76,15 @@ type StrategyDef = {
   blurb: string;
 };
 
+// Blurbs answer "when would I reach for this?", not "what does it do?" —
+// all six are Ralph's dictated wording (2026-08-12).
 const STRATEGIES: StrategyDef[] = [
-  { key: 'tempo_ladder', label: 'Tempo Ladder', enabled: true, mono: 'TL', blurb: 'Climb to performance tempo one rung at a time.' },
-  { key: 'click_up', label: 'Interleaved Click-Up', enabled: true, mono: 'IC', blurb: 'Interleave units as the tempo climbs.' },
-  { key: 'rhythmic', label: 'Rhythmic Variation', enabled: true, mono: 'RV', blurb: 'Shift rhythms to expose weak spots.' },
-  { key: 'micro_chaining', label: 'Micro-Chaining', enabled: true, mono: 'Mi', blurb: 'Add one note at a time to tiny cells.' },
-  { key: 'macro_chaining', label: 'Macro-Chaining', enabled: true, mono: 'Ma', blurb: 'Link mastered chunks into longer spans.' },
-  { key: 'rep_rotator', label: 'Rep Rotator', enabled: true, mono: 'RR', blurb: 'Rotate passages in spaced sets.' },
+  { key: 'tempo_ladder', label: 'Tempo Ladder', enabled: true, mono: 'TL', blurb: 'Works on everything — climb step by step, track your progress, and train with some performance anxiety.' },
+  { key: 'click_up', label: 'Interleaved Click-Up', enabled: true, mono: 'IC', blurb: 'Works on everything — maybe the most effective way to make a passage solid.' },
+  { key: 'rhythmic', label: 'Rhythmic Variation', enabled: true, mono: 'RV', blurb: 'Solidify technique in running passages — sixteenths, sextuplets.' },
+  { key: 'micro_chaining', label: 'Micro-Chaining', enabled: true, mono: 'Mi', blurb: 'For your first meetings with a passage, or one specific hard spot.' },
+  { key: 'macro_chaining', label: 'Macro-Chaining', enabled: true, mono: 'Ma', blurb: 'Break the music into chunks and join them together. Can work for anything.' },
+  { key: 'rep_rotator', label: 'Rep Rotator', enabled: true, mono: 'RR', blurb: 'Interleaved practicing — think mock audition: one shot at each passage. Most effective close to performance date.' },
 ];
 
 // Reading order across a document: page first, then top-to-bottom, then
@@ -476,7 +478,9 @@ export default function PassageDetailScreen() {
           <ThemedText style={styles.stratRowName} numberOfLines={1}>
             {s.label}
           </ThemedText>
-          <ThemedText style={styles.stratCardBlurb} numberOfLines={1}>
+          {/* Two lines: the when-to-use blurbs are longer than the old
+              what-it-does one-liners and truncated ugly at one line. */}
+          <ThemedText style={styles.stratCardBlurb} numberOfLines={2}>
             {s.blurb}
           </ThemedText>
         </View>
