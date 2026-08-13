@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-13-rotation-fix-for-real',
+    date: 'August 13, 2026',
+    title: 'The rotation fix, take two — actually fixed this time',
+    body:
+      'Yesterday\'s note said rotating your phone no longer scrambled the strategy cards — that fix didn\'t hold, and if you rotated you still got stretched, stacked cards. The real cause is now found and the fix verified on a simulator before shipping: rotate as much as you like, the cards stay in their two columns.',
+  },
+  {
     id: '2026-08-12-rotation-grid-and-blurb-clipping',
     date: 'August 12, 2026',
     title: 'Fixed: strategy cards scrambled after rotating your phone',

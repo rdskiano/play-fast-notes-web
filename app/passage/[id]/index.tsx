@@ -407,6 +407,16 @@ export default function PassageDetailScreen() {
     ? Math.round(vpH * 0.32)
     : Math.min(620, Math.round(vpH * 0.52));
 
+  // Card width in plain pixels, from the live viewport. Percentage flexBasis
+  // does NOT re-resolve after a landscape⇄portrait round-trip on iOS (Yoga
+  // keeps the stale width even across remounts — sim-verified 2026-08-13),
+  // so the grid must never depend on '%'. Two columns whenever they fit.
+  const stratContentW = Math.min(vpW, 1100) - 2 * Spacing.lg;
+  const stratCardW =
+    stratContentW >= 2 * 150 + Spacing.md
+      ? (stratContentW - Spacing.md) / 2
+      : stratContentW;
+
   function renderStratCard(s: StrategyDef) {
     const color = strategyColors[s.key] ?? Palette.accent;
     const pct =
@@ -419,7 +429,7 @@ export default function PassageDetailScreen() {
         key={s.key}
         disabled={!s.enabled}
         onPress={() => openStrategy(s.key)}
-        style={[styles.stratCard, !s.enabled && { opacity: 0.4 }]}>
+        style={[styles.stratCard, { width: stratCardW }, !s.enabled && { opacity: 0.4 }]}>
         <View style={styles.stratCardTop}>
           <View style={[styles.stratMono, { backgroundColor: color + '22' }]}>
             <ThemedText style={[styles.stratMonoText, { color }]}>{s.mono}</ThemedText>
@@ -1310,9 +1320,8 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   stratCard: {
-    flexGrow: 1,
-    flexBasis: '46%',
-    minWidth: 150,
+    // Width is set inline in px from the viewport (see stratCardW) — never
+    // use % here; see the rotation-staleness note above renderStratCard.
     padding: Spacing.md,
     borderRadius: Radii.lg,
     backgroundColor: Palette.card,
