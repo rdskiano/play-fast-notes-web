@@ -415,6 +415,13 @@ Interleaved Click-Up ("cement it") even on mixed trails. PROPOSED RULE
 (awaiting his word, not built): last tool = ladder AND banked ≥ ~2/3 of goal
 → suggest ICU regardless of prior ICU count; wording varies ("come back to
 ICU" when he's used it before). Braids with the open D18×D27 adjudication.
+**RESOLVED by Ralph (same night): TIME-based, not %-based — "the coach
+should suggest ICU after 2 days of tempo ladder." BUILT: ladder sessions on
+≥2 distinct calendar days + ladder was the last tool → ICU card; prior ICU
+use only changes the wording ("come back to ICU"). Days, not sessions —
+multiple stints in one evening are still day one. Note the %-gate (D18) and
+long-passage exception (D27) remain unadjudicated; this rule supersedes the
+old 2-sessions-and-never-ICU'd rule.**
 
 **F18 — ⚠️ BUG (fixed same evening): after a logged session, PDF → "‹
 Library" dropped him back into the Tempo Ladder.** The land-on-the-page

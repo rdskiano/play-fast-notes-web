@@ -11,9 +11,10 @@
 //   1. Never practiced → route to the first-practice evaluation instead of
 //      guessing (marking stays cheap; measurement fires on first practice).
 //   2. At goal tempo → Rep Rotator (maintenance — the perform end of the arc).
-//   3. Two-plus ladder sessions, no Interleaved Click-Up yet → suggest ICU
-//      ("the notes are in — cement them with interference"). This is D15/D17:
-//      the user's own day-two move, made a rule.
+//   3. Ladder work on two distinct DAYS, and the ladder was the last tool →
+//      suggest ICU ("the notes are in — cement them with interference").
+//      This is D15/D17 made a rule, threshold set by Ralph (D41): two DAYS,
+//      not two sessions, and prior ICU use only softens the wording.
 //   4. Anything else → pick up where you left off (the last tool, with its
 //      resume numbers when we have them). Honest, never wrong, never pushy.
 //
@@ -106,16 +107,27 @@ export function suggestFromTrail(
     };
   }
 
-  // 3. Blocked ladder work with no interference yet → cement with ICU.
-  if (counts.ladder >= 2 && counts.icu === 0) {
-    const stints = `${countWord(counts.ladder).toLowerCase()} steady ladder ${counts.ladder === 1 ? 'stint' : 'stints'}`;
+  // 3. Two distinct DAYS of ladder work and still laddering → cement with
+  //    ICU. Ralph's rule (2026-08-13, resolving D41): days, not sessions —
+  //    three stints in one evening are still day one; the phase flip belongs
+  //    to the calendar. Fires on mixed trails too: prior ICU use must not
+  //    lock the card into parroting the ladder forever (his D41 complaint),
+  //    so only the wording changes when ICU has been used before.
+  const ladderDays = new Set(
+    entries
+      .filter((e) => STRATEGY_TO_TOOL[e.strategy] === 'ladder')
+      .map((e) => new Date(e.practiced_at).toDateString()),
+  ).size;
+  if (lastTool === 'ladder' && ladderDays >= 2) {
+    const banked = ladder ? ` banked you at ${ladder.current} —` : ' —';
     return {
       kind: 'tool',
       tool: 'icu',
       title: CARD_TOOL_NAME.icu,
-      why: ladder
-        ? `${countWord(counts.ladder)} steady ladder stints banked you at ${ladder.current} — the notes are in. Time to cement them with some interference: varied tempos, varied starting points.`
-        : `You've put in ${stints} — the notes are going in. Time to cement them with some interference: varied tempos, varied starting points.`,
+      why:
+        counts.icu === 0
+          ? `${countWord(ladderDays)} days of steady ladder work${banked} the notes are in. Time to cement them with some interference: varied tempos, varied starting points.`
+          : `${countWord(ladderDays)} days of ladder work${banked} time to come back to Interleaved Click-Up and cement what you've built.`,
     };
   }
 
