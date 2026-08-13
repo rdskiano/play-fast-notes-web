@@ -95,6 +95,10 @@ export function useTempoLadderSession(
     // friendly number (nearest 5, floored at 30).
     startScale?: number;
     increment?: Increment;
+    // An absolute start BPM — the first-practice evaluation hands off with
+    // start = the player's proven clean tempo minus a comfort buffer. Wins
+    // over startScale when both are present.
+    startBpm?: number;
   },
 ) {
   const router = useRouter();
@@ -189,7 +193,9 @@ export function useTempoLadderSession(
     if (o.increment === 2 || o.increment === 5 || o.increment === 10) {
       setIncrement(o.increment);
     }
-    if (o.startScale && o.startScale > 0 && o.startScale < 1) {
+    if (o.startBpm && Number.isFinite(o.startBpm) && o.startBpm >= 30 && o.startBpm <= 400) {
+      setStartTempo(String(Math.round(o.startBpm)));
+    } else if (o.startScale && o.startScale > 0 && o.startScale < 1) {
       setStartTempo((cur) => {
         const bpm = parseInt(cur, 10);
         if (!Number.isFinite(bpm)) return cur;

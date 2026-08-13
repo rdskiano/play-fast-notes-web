@@ -24,7 +24,7 @@ export const TOOL_NAME: Record<ToolKey, string> = {
 
 // practice_log.strategy string → our tool key. (These are the values the
 // strategy screens actually write: Rep Rotator still logs 'interleaved'.)
-const STRATEGY_TO_TOOL: Record<string, ToolKey> = {
+export const STRATEGY_TO_TOOL: Record<string, ToolKey> = {
   tempo_ladder: 'ladder',
   click_up: 'icu',
   interleaved: 'rep',

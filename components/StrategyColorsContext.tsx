@@ -18,7 +18,8 @@ export type StrategyKey =
   | 'interleaved'
   | 'rep_rotator'
   | 'chunking'
-  | 'recording';
+  | 'recording'
+  | 'evaluation';
 
 // One coordinated jewel-tone family: matched depth + saturation, hues spread
 // evenly around the wheel so no two are neighbors. They harmonize yet stay
@@ -48,6 +49,7 @@ export const DEFAULT_STRATEGY_COLORS: Record<StrategyKey, string> = {
   rep_rotator: '#C9772E', // Rep Rotator — orange
   chunking: '#6f8e2a', // olive
   recording: '#5b6b7a', // slate — a capture, not a drill, so near-neutral
+  evaluation: '#8a7d5c', // warm stone — a measurement, not a drill, so near-neutral
 };
 
 const SETTINGS_KEY = 'strategy_colors';

@@ -20,6 +20,20 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-13-first-practice-evaluation',
+    date: 'August 13, 2026',
+    title: 'New passages start with a one-minute measurement',
+    body:
+      'The first time you practice a passage, the app now takes its measurements: the goal tempo (offered automatically once you\'ve set one for any other passage in the same section — always changeable), one try straight at that goal — if it\'s clean, the passage is marked performance-ready and you\'re done — and if not, you find your comfortable clean tempo. Then the Tempo Ladder is set up for you: starting a notch below your clean tempo, aiming at the goal. You type nothing.',
+  },
+  {
+    id: '2026-08-13-coach-reads-your-trail',
+    date: 'August 13, 2026',
+    title: 'The coach now reads your practice history',
+    body:
+      '"How should I practice?" no longer asks you a list of questions. It looks at what you\'ve actually done with the passage and makes one suggestion with the reason spelled out — for example, after a few steady Tempo Ladder sessions it suggests Interleaved Click-Up to cement what you\'ve built. The full strategy list is right below it, so the coach only ever suggests; you decide.',
+  },
+  {
     id: '2026-08-13-land-on-the-page',
     date: 'August 13, 2026',
     title: 'After a session, you land back on the page',

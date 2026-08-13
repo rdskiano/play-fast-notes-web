@@ -32,6 +32,7 @@ export const STRATEGY_LABELS: Record<string, string> = {
   phrasing: 'Phrasing',
   recording: 'Recording',
   freeform: 'Freeform',
+  evaluation: 'Evaluation',
 };
 
 // The display name for an entry's strategy. Interleaved is special: a
@@ -89,6 +90,19 @@ export function formatPracticeDetail(
         parts.push(`${data.completedSets} ${data.completedSets === 1 ? 'set' : 'sets'}`);
       }
       return parts.join(' · ');
+    }
+
+    if (entry.strategy === 'evaluation') {
+      // First-practice measurements: {goal, probeClean, tempo?, clean?, misses?}.
+      if (data.probeClean) {
+        return compact
+          ? `${data.goal} ✓`
+          : `probed at ${data.goal} BPM — clean, performance-ready`;
+      }
+      const parts: string[] = [];
+      if (data.clean) parts.push(compact ? `clean ${data.clean}` : `clean at ${data.clean} BPM`);
+      if (data.goal) parts.push(`goal ${data.goal}`);
+      return parts.length ? parts.join(' · ') : null;
     }
 
     if (entry.strategy === 'click_up') {

@@ -110,13 +110,16 @@ export default function TempoLadderScreen() {
   // mode / startScale / increment arrive from a resurfaced reminder's action
   // buttons ("Tempo Ladder — randomized cluster", "— slower start",
   // "— N BPM steps") and nudge the loaded setup once, after prefill.
-  const { id, guided, mode: modeParam, startScale, increment: incrementParam } =
+  const { id, guided, mode: modeParam, startScale, increment: incrementParam, start: startParam } =
     useLocalSearchParams<{
       id: string;
       guided?: string;
       mode?: string;
       startScale?: string;
       increment?: string;
+      // Absolute start BPM from the first-practice evaluation's handoff
+      // (clean tempo minus the comfort buffer). Applied after prefill.
+      start?: string;
     }>();
   const isGuided = guided === '1';
   const router = useRouter();
@@ -151,6 +154,7 @@ export default function TempoLadderScreen() {
       incrementParam === '2' || incrementParam === '5' || incrementParam === '10'
         ? (parseInt(incrementParam, 10) as Increment)
         : undefined,
+    startBpm: startParam ? parseInt(startParam, 10) : undefined,
   });
   const {
     phase,

@@ -1,6 +1,19 @@
+// The coach — one suggestion read from the practice trail, above the menu.
+//
+// This replaces the questionnaire (the fixed question tree in
+// lib/coach/engine.ts) as the coach's face. The August live-practice sessions
+// showed the interview asks for facts the app already knows and can't tell
+// day one from day two — the differentiator lives in the TRAIL. So "How
+// should I practice?" now answers immediately: a suggestion card with a
+// plain-language why, a Practice-this button, and the full strategy list
+// right below it (the coach suggests; it never decides).
+//
+// A never-practiced passage routes to the first-practice evaluation instead —
+// measurements before advice.
+
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,30 +24,17 @@ import { ThemedView } from '@/components/themed-view';
 import { Lift, Palette } from '@/constants/palette';
 import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
-import { getPassage, updatePassageDueDate, type Passage } from '@/lib/db/repos/passages';
-import {
-  getPracticeLogForPassage,
-  listPassageReminders,
-} from '@/lib/db/repos/practiceLog';
+import { TOOL_ROUTE, type ToolKey } from '@/lib/coach/engine';
+import { CARD_TOOL_NAME, suggestFromTrail, type CoachCard, type LadderSnapshot } from '@/lib/coach/suggest';
+import { getOrCreateExercise } from '@/lib/db/repos/exercises';
+import { getPassage, type Passage } from '@/lib/db/repos/passages';
+import { getPracticeLogForPassage } from '@/lib/db/repos/practiceLog';
 import { setSetting } from '@/lib/db/repos/settings';
-import {
-  CHALLENGES,
-  FOLLOW_REROUTE,
-  FOLLOWUPS,
-  recommend,
-  summarizeHistory,
-  TOOL_NAME,
-  TOOL_ROUTE,
-  type ChallengeKey,
-  type HistorySummary,
-  type ToolKey,
-} from '@/lib/coach/engine';
+import { getTempoLadder } from '@/lib/db/repos/tempoLadder';
 
-type Step = 'feedback' | 'due' | 'challenge' | 'follow' | 'rec';
-
-// The coach's last suggestion for a piece, stored in settings so the NEXT visit
-// can ask "did it help?". helpful: undefined = unrated; true/false = thumbs;
-// null = skipped. Read by analytics off `coach:lastRec:*` settings rows.
+// The coach's last suggestion for a piece, stored in settings so the return
+// visit can ask "did it help?". helpful: undefined = unrated; true/false =
+// thumbs; null = skipped. Read by analytics off `coach:lastRec:*` rows.
 type PendingRec = {
   tool: ToolKey;
   challenge: string;
@@ -44,8 +44,8 @@ type PendingRec = {
 };
 const recKey = (pieceId: string) => 'coach:lastRec:' + pieceId;
 
-// The coach's ToolKey → the strategy-demo id used by StrategyDemoModal. Only
-// 'ladder' differs (its demo id is 'tempo'); the rest match by name.
+// ToolKey → the strategy-demo id used by StrategyDemoModal. Only 'ladder'
+// differs (its demo id is 'tempo'); the rest match by name.
 const DEMO_FOR_TOOL: Record<ToolKey, StrategyDemoId> = {
   ladder: 'tempo',
   icu: 'icu',
@@ -55,15 +55,9 @@ const DEMO_FOR_TOOL: Record<ToolKey, StrategyDemoId> = {
   macro: 'macro',
 };
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
-const DUE_OPTIONS: { label: string; weeks: number | null }[] = [
-  { label: 'No deadline', weeks: null },
-  { label: 'This week', weeks: 1 },
-  { label: 'In a couple of weeks', weeks: 2 },
-  { label: 'In a month', weeks: 4 },
-  { label: 'Further off', weeks: 9 },
-];
+// The self-pick list under the card — same six tools as the passage hub, in
+// the hub's order.
+const PICK_LIST: ToolKey[] = ['ladder', 'icu', 'rv', 'micro', 'macro', 'rep'];
 
 export default function CoachScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -72,41 +66,44 @@ export default function CoachScreen() {
 
   const [loading, setLoading] = useState(true);
   const [passage, setPassage] = useState<Passage | null>(null);
-  const [summary, setSummary] = useState<HistorySummary | null>(null);
-  const [reminder, setReminder] = useState<string | null>(null);
-  const [dueWeeks, setDueWeeks] = useState<number | null>(null);
+  const [card, setCard] = useState<CoachCard | null>(null);
   const [pendingFeedback, setPendingFeedback] = useState<PendingRec | null>(null);
-  // The suggestion we just launched — set on "Start", read when the finished
-  // session navigates back here so we can ask "did that help?".
+  // The suggestion we just launched — set on "Practice this", read when the
+  // finished session navigates back here so we can ask "did that help?".
   const launchedRecRef = useRef<PendingRec | null>(null);
-
   const [demoId, setDemoId] = useState<StrategyDemoId | null>(null);
-  const [step, setStep] = useState<Step>('challenge');
-  const [challenge, setChallenge] = useState<ChallengeKey | null>(null);
-  const [follow, setFollow] = useState<string | undefined>(undefined);
-  const [special, setSpecial] = useState<'maint' | undefined>(undefined);
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     (async () => {
       try {
-        const [p, entries, reminders] = await Promise.all([
+        const [p, entries] = await Promise.all([
           getPassage(id),
           getPracticeLogForPassage(id).catch(() => []),
-          listPassageReminders(id).catch(() => []),
         ]);
         if (cancelled) return;
         setPassage(p);
-        setSummary(summarizeHistory(entries));
-        setReminder(reminders[0]?.note ?? null);
-        // due_date: null/undefined = never asked; 0 = "no deadline";
-        // >0 = a real date we turn into weeks-remaining for the urgency read.
-        const due = p?.due_date;
-        if (due != null && due > 0) {
-          setDueWeeks(Math.max(0, Math.ceil((due - Date.now()) / WEEK_MS)));
+        // Ladder snapshot for the card's numbers ("banked you at 85"). The
+        // exercise row exists for any passage that laddered; getOrCreate is
+        // the established read path (the hub uses it the same way).
+        let ladder: LadderSnapshot = null;
+        try {
+          const ex = await getOrCreateExercise(id, 'tempo_ladder');
+          const tl = await getTempoLadder(ex.id);
+          if (tl) ladder = { current: tl.current_tempo, goal: tl.goal_tempo };
+        } catch {
+          // no ladder yet — the card just speaks without numbers
         }
-        setStep(due == null ? 'due' : 'challenge');
+        if (cancelled) return;
+        const suggestion = suggestFromTrail(entries, ladder);
+        if (suggestion.kind === 'evaluate') {
+          // Never practiced → measurements first. Replace so Back from the
+          // evaluation lands on the passage, not this interstitial.
+          router.replace({ pathname: '/passage/[id]/evaluate', params: { id } });
+          return;
+        }
+        setCard(suggestion);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -114,7 +111,7 @@ export default function CoachScreen() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, router]);
 
   // When a coach-launched session finishes, the tool does a normal "back" and
   // lands us here again — that's the moment to ask whether the suggestion
@@ -125,93 +122,20 @@ export default function CoachScreen() {
       if (rec) {
         launchedRecRef.current = null;
         setPendingFeedback(rec);
-        setStep('feedback');
       }
     }, []),
   );
 
-  const reset = useCallback(() => {
-    setStep('challenge');
-    setChallenge(null);
-    setFollow(undefined);
-    setSpecial(undefined);
-  }, []);
-
-  const pickChallenge = useCallback((c: ChallengeKey) => {
-    setSpecial(undefined);
-    setFollow(undefined);
-    setChallenge(c);
-    // Coordination and "just getting started" have no follow-up — they go
-    // straight to a recommendation.
-    setStep(c === 'e' || c === 'g' ? 'rec' : 'follow');
-  }, []);
-
-  const pickFollow = useCallback(
-    (c: ChallengeKey, value: string) => {
-      if (c === 'f') {
-        const next = FOLLOW_REROUTE[value];
-        if (next === 'maint') {
-          setSpecial('maint');
-          setStep('rec');
-          return;
-        }
-        // Re-route into the matching branch and ask ITS follow-up.
-        setChallenge(next);
-        setFollow(undefined);
-        setStep('follow');
-        return;
-      }
-      setFollow(value);
-      setStep('rec');
-    },
-    [],
-  );
-
-  const pickDue = useCallback(
-    (weeks: number | null) => {
-      if (!passage) return;
-      setDueWeeks(weeks);
-      const value = weeks == null ? 0 : Date.now() + weeks * WEEK_MS;
-      // Tolerate the column not existing yet (migration not run) — the coach
-      // still works, it just won't persist the date.
-      updatePassageDueDate(passage.id, value).catch(() => {});
-      setStep('challenge');
-    },
-    [passage],
-  );
-
-  const rec = useMemo(() => {
-    if (step !== 'rec' || !summary) return null;
-    if (!challenge && special !== 'maint') return null;
-    return recommend({
-      challenge: challenge ?? 'a',
-      follow,
-      history: summary,
-      dueWeeks,
-      special,
-    });
-  }, [step, summary, challenge, follow, special, dueWeeks]);
-
-  const launch = useCallback(
+  const openTool = useCallback(
     (tool: ToolKey) => {
       if (!passage) return;
-      // Stash this suggestion so we can ask "did that help?" the instant the
-      // finished session navigates back here, and persist it (unrated) for
-      // analytics.
-      const rec: PendingRec = {
-        tool,
-        challenge: special === 'maint' ? 'maint' : challenge ?? 'unknown',
-        at: Date.now(),
-      };
-      launchedRecRef.current = rec;
-      setSetting(recKey(passage.id), JSON.stringify(rec)).catch(() => {});
       if (tool === 'rep') {
         router.push({ pathname: '/interleaved', params: { seedPassageId: passage.id } });
         return;
       }
       if (tool === 'rv') {
-        // Rhythm Variations needs a note-grouping; default to 4 (the user can
-        // change it in-tool). Bypasses the mode/grouping chooser sheet.
+        // Rhythmic Variation needs a note-grouping; default to 4 (changeable
+        // in-tool). Bypasses the mode/grouping chooser sheet.
         router.push({
           pathname: '/passage/[id]/rhythmic',
           params: { id: passage.id, grouping: '4' },
@@ -220,8 +144,19 @@ export default function CoachScreen() {
       }
       router.push(`/passage/${passage.id}/${TOOL_ROUTE[tool]}`);
     },
-    [passage, router, challenge, special],
+    [passage, router],
   );
+
+  // "Practice this" — launches AND stamps the suggestion so the return visit
+  // asks "did that help?". Self-picks from the list below launch unstamped:
+  // the coach only gets rated on advice that was actually followed.
+  const followSuggestion = useCallback(() => {
+    if (!passage || !card || card.kind !== 'tool') return;
+    const rec: PendingRec = { tool: card.tool, challenge: 'trail', at: Date.now() };
+    launchedRecRef.current = rec;
+    setSetting(recKey(passage.id), JSON.stringify(rec)).catch(() => {});
+    openTool(card.tool);
+  }, [passage, card, openTool]);
 
   const rateFeedback = useCallback(
     (helpful: boolean | null) => {
@@ -237,20 +172,6 @@ export default function CoachScreen() {
     },
     [passage, pendingFeedback, router],
   );
-
-  function Option({ label, onPress }: { label: string; onPress: () => void }) {
-    return (
-      <Pressable
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.option,
-          pressed && styles.optionPressed,
-        ]}
-        hitSlop={4}>
-        <ThemedText style={styles.optionText}>{label}</ThemedText>
-      </Pressable>
-    );
-  }
 
   return (
     <ThemedView style={{ flex: 1 }}>
@@ -270,104 +191,69 @@ export default function CoachScreen() {
           <ThemedText style={styles.muted}>Loading…</ThemedText>
         ) : !passage ? (
           <ThemedText>Passage not found.</ThemedText>
-        ) : step === 'feedback' && pendingFeedback ? (
+        ) : pendingFeedback ? (
           <View style={styles.section}>
             <ThemedText style={styles.lead}>
               How did that go? You just worked on this with{' '}
               <ThemedText style={styles.leadStrong}>
-                {TOOL_NAME[pendingFeedback.tool]}
+                {CARD_TOOL_NAME[pendingFeedback.tool]}
               </ThemedText>
               . Did it help?
             </ThemedText>
             <View style={styles.thumbRow}>
               <Pressable
                 onPress={() => rateFeedback(true)}
-                style={({ pressed }) => [styles.thumb, pressed && styles.optionPressed]}>
+                style={({ pressed }) => [styles.thumb, pressed && styles.pressed]}>
                 <Feather name="thumbs-up" size={26} color={Palette.text} />
                 <ThemedText style={styles.thumbLabel}>Helped</ThemedText>
               </Pressable>
               <Pressable
                 onPress={() => rateFeedback(false)}
-                style={({ pressed }) => [styles.thumb, pressed && styles.optionPressed]}>
+                style={({ pressed }) => [styles.thumb, pressed && styles.pressed]}>
                 <Feather name="thumbs-down" size={26} color={Palette.text} />
                 <ThemedText style={styles.thumbLabel}>Not really</ThemedText>
               </Pressable>
             </View>
-            <Pressable onPress={() => rateFeedback(null)} hitSlop={8} style={styles.startOver}>
-              <ThemedText style={styles.startOverText}>skip</ThemedText>
+            <Pressable onPress={() => rateFeedback(null)} hitSlop={8} style={styles.ghost}>
+              <ThemedText style={styles.ghostText}>skip</ThemedText>
             </Pressable>
           </View>
-        ) : step === 'due' ? (
+        ) : card && card.kind === 'tool' ? (
           <View style={styles.section}>
-            <ThemedText style={styles.lead}>
-              First — when do you need{' '}
-              <ThemedText style={styles.leadStrong}>{passage.title}</ThemedText> ready?
-            </ThemedText>
-            <ThemedText style={styles.subtle}>
-              It helps me tell whether to build it up or get it performance-ready.
-            </ThemedText>
-            {DUE_OPTIONS.map((o) => (
-              <Option key={o.label} label={o.label} onPress={() => pickDue(o.weeks)} />
-            ))}
-          </View>
-        ) : step === 'challenge' ? (
-          <View style={styles.section}>
-            <ThemedText style={styles.lead}>
-              Let’s figure out what to work on for{' '}
-              <ThemedText style={styles.leadStrong}>{passage.title}</ThemedText>.
-            </ThemedText>
-            {reminder ? (
-              <View style={styles.noteCard}>
-                <ThemedText style={styles.noteLabel}>Last time you noted</ThemedText>
-                <ThemedText style={styles.noteText}>“{reminder}”</ThemedText>
-              </View>
-            ) : null}
-            <ThemedText style={styles.question}>What’s getting in your way right now?</ThemedText>
-            {CHALLENGES.map((ch) => (
-              <Option key={ch.key} label={ch.label} onPress={() => pickChallenge(ch.key)} />
-            ))}
-          </View>
-        ) : step === 'follow' && challenge && FOLLOWUPS[challenge] ? (
-          <View style={styles.section}>
-            <ThemedText style={styles.question}>{FOLLOWUPS[challenge].q}</ThemedText>
-            {FOLLOWUPS[challenge].options.map((opt) => (
-              <Option
-                key={opt.value}
-                label={opt.label}
-                onPress={() => pickFollow(challenge, opt.value)}
-              />
-            ))}
-            <Pressable onPress={reset} hitSlop={8} style={styles.startOver}>
-              <ThemedText style={styles.startOverText}>‹ start over</ThemedText>
-            </Pressable>
-          </View>
-        ) : step === 'rec' && rec ? (
-          <View style={styles.section}>
-            <View style={styles.recCard}>
-              <ThemedText style={styles.recLead}>{rec.lead}</ThemedText>
-              <ThemedText style={styles.recCall}>{rec.call}</ThemedText>
-            </View>
-            {rec.startTool ? (
-              <>
-                <Button
-                  label={`Start ${TOOL_NAME[rec.startTool]}`}
-                  onPress={() => launch(rec.startTool!)}
-                  fullWidth
-                />
+            <View style={styles.card}>
+              <ThemedText style={styles.eyebrow}>🎯 Coach’s suggestion</ThemedText>
+              <ThemedText style={styles.cardTitle}>{card.title}</ThemedText>
+              <ThemedText style={styles.cardWhy}>{card.why}</ThemedText>
+              <View style={styles.cardBtnRow}>
+                <View style={{ flex: 1 }}>
+                  <Button label="Practice this" onPress={followSuggestion} fullWidth />
+                </View>
                 <Pressable
-                  onPress={() => setDemoId(DEMO_FOR_TOOL[rec.startTool!])}
-                  hitSlop={8}
-                  style={styles.seeDemo}>
-                  <ThemedText style={styles.seeDemoText}>▷ See how it works</ThemedText>
+                  onPress={() => router.back()}
+                  style={({ pressed }) => [styles.noThanks, pressed && styles.pressed]}>
+                  <ThemedText style={styles.noThanksText}>No thanks</ThemedText>
                 </Pressable>
-              </>
-            ) : null}
-            {rec.escape ? (
-              <ThemedText style={styles.escape}>{rec.escape}</ThemedText>
-            ) : null}
-            <Pressable onPress={reset} hitSlop={8} style={styles.startOver}>
-              <ThemedText style={styles.startOverText}>‹ start over</ThemedText>
-            </Pressable>
+              </View>
+              <Pressable
+                onPress={() => setDemoId(DEMO_FOR_TOOL[card.tool])}
+                hitSlop={8}
+                style={styles.seeDemo}>
+                <ThemedText style={styles.seeDemoText}>▷ See how it works</ThemedText>
+              </Pressable>
+            </View>
+
+            <ThemedText style={styles.pickHeading}>
+              Or pick your own — same list as always:
+            </ThemedText>
+            {PICK_LIST.map((tool) => (
+              <Pressable
+                key={tool}
+                onPress={() => openTool(tool)}
+                style={({ pressed }) => [styles.pickRow, pressed && styles.pressed]}>
+                <ThemedText style={styles.pickLabel}>{CARD_TOOL_NAME[tool]}</ThemedText>
+                <ThemedText style={styles.pickChevron}>›</ThemedText>
+              </Pressable>
+            ))}
           </View>
         ) : (
           <ThemedText style={styles.muted}>Loading…</ThemedText>
@@ -393,15 +279,6 @@ const styles = StyleSheet.create({
   muted: { color: Palette.textMuted },
   lead: { fontSize: Type.size.lg, lineHeight: 26, color: Palette.text },
   leadStrong: { fontWeight: Type.weight.bold, color: Palette.text },
-  question: {
-    fontFamily: Fonts.rounded,
-    fontSize: Type.size.lg,
-    fontWeight: Type.weight.heavy,
-    color: Palette.text,
-    letterSpacing: -0.2,
-    marginTop: Spacing.sm,
-  },
-  subtle: { fontSize: Type.size.sm, color: Palette.textSecondary, lineHeight: 18 },
   thumbRow: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.sm },
   thumb: {
     flex: 1,
@@ -415,47 +292,63 @@ const styles = StyleSheet.create({
     ...Lift,
   },
   thumbLabel: { fontSize: Type.size.sm, color: Palette.textSecondary },
-  option: {
-    backgroundColor: Palette.card,
-    borderWidth: Borders.thin,
-    borderColor: Palette.border,
-    borderRadius: Radii['2xl'],
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    minHeight: 44,
-    justifyContent: 'center',
-    ...Lift,
-  },
-  optionPressed: { transform: [{ scale: 0.985 }] },
-  optionText: { fontSize: Type.size.md, color: Palette.text },
-  noteCard: {
+  pressed: { transform: [{ scale: 0.985 }] },
+  card: {
     backgroundColor: Palette.accentSoft,
     borderWidth: Borders.thin,
-    borderColor: Palette.border,
+    borderColor: Palette.accent,
     borderRadius: Radii['2xl'],
-    padding: 12,
-    gap: 2,
+    padding: Spacing.md,
+    gap: 6,
+    ...Lift,
   },
-  noteLabel: {
-    fontSize: 12,
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: Type.weight.bold,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: Palette.accent,
+  },
+  cardTitle: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.xl,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.2,
+  },
+  cardWhy: { fontSize: Type.size.md, lineHeight: 22, color: Palette.textSecondary },
+  cardBtnRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', marginTop: 4 },
+  noThanks: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: Radii['2xl'],
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    backgroundColor: Palette.card,
+  },
+  noThanksText: { fontSize: Type.size.sm, fontWeight: Type.weight.semibold, color: Palette.text },
+  seeDemo: { alignSelf: 'center', paddingVertical: 6 },
+  seeDemoText: { fontSize: Type.size.sm, fontWeight: Type.weight.semibold, color: Palette.accent },
+  pickHeading: {
+    fontSize: Type.size.sm,
     color: Palette.textMuted,
-    textTransform: 'lowercase',
+    marginTop: Spacing.sm,
   },
-  noteText: { fontSize: Type.size.md, fontStyle: 'italic', color: Palette.text },
-  recCard: {
+  pickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: Palette.card,
     borderWidth: Borders.thin,
     borderColor: Palette.border,
     borderRadius: Radii['2xl'],
-    padding: 16,
-    gap: 8,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    minHeight: 44,
     ...Lift,
   },
-  recLead: { fontSize: Type.size.md, lineHeight: 24, color: Palette.text },
-  recCall: { fontSize: Type.size.md, lineHeight: 24, color: Palette.textSecondary },
-  escape: { fontSize: Type.size.sm, marginTop: 2, paddingHorizontal: 2, color: Palette.textMuted },
-  startOver: { alignSelf: 'flex-start', paddingVertical: 8 },
-  startOverText: { fontSize: Type.size.sm, color: Palette.textMuted },
-  seeDemo: { alignSelf: 'center', paddingVertical: 6 },
-  seeDemoText: { fontSize: Type.size.sm, fontWeight: Type.weight.semibold, color: Palette.accent },
+  pickLabel: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, color: Palette.text },
+  pickChevron: { fontSize: Type.size.lg, color: Palette.textMuted },
+  ghost: { alignSelf: 'flex-start', paddingVertical: 8 },
+  ghostText: { fontSize: Type.size.sm, color: Palette.textMuted },
 });

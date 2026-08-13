@@ -43,6 +43,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getOrCreateExercise } from '@/lib/db/repos/exercises';
+import { getDocumentPassageStatus } from '@/lib/db/repos/passageStatus';
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
 import {
   getPassage,
@@ -147,6 +148,10 @@ export default function PassageDetailScreen() {
   // null = still loading; 0 means the user has added pieces but never
   // practiced, which is the trigger for the "pick a strategy" tutorial.
   const [practiceLogCount, setPracticeLogCount] = useState<number | null>(null);
+  // Whether THIS passage has ever been practiced. false flips the coach row
+  // into the first-practice evaluation entry ("take its measurements");
+  // null = still loading (treated like practiced, so the row never flashes).
+  const [hasPracticed, setHasPracticed] = useState<boolean | null>(null);
   const [demoId, setDemoId] = useState<StrategyDemoId | null>(null);
   const [rhythmicSheetOpen, setRhythmicSheetOpen] = useState(false);
   const [rhythmicStep, setRhythmicStep] = useState<'mode' | 'grouping'>('mode');
@@ -221,6 +226,14 @@ export default function PassageDetailScreen() {
             if (!cancelled) setPracticeLogCount(n);
           } catch {
             // count failing just suppresses the tutorial — not fatal
+          }
+          try {
+            const status = await getDocumentPassageStatus([id]);
+            if (!cancelled) {
+              setHasPracticed((status.get(id)?.lastPracticedAt ?? null) != null);
+            }
+          } catch {
+            // status failing just keeps the normal coach row — not fatal
           }
         } finally {
           if (!cancelled) setLoading(false);
@@ -813,14 +826,20 @@ export default function PassageDetailScreen() {
                 <Pressable
                   onPress={() => {
                     setPracticeOpen(false);
-                    guardedNav(() => router.push(`/passage/${passage.id}/coach`));
+                    guardedNav(() =>
+                      router.push(
+                        `/passage/${passage.id}/${hasPracticed === false ? 'evaluate' : 'coach'}`,
+                      ),
+                    );
                   }}
                   style={styles.heroCoach}>
                   <View style={styles.heroCoachIcon}>
                     <Feather name="zap" size={18} color="#fff" />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <ThemedText style={styles.heroCoachTitle}>How should I practice?</ThemedText>
+                    <ThemedText style={styles.heroCoachTitle}>
+                      {hasPracticed === false ? 'Ready to practice?' : 'How should I practice?'}
+                    </ThemedText>
                   </View>
                   <View style={styles.heroBeta}>
                     <ThemedText style={styles.heroBetaText}>BETA</ThemedText>
@@ -960,15 +979,25 @@ export default function PassageDetailScreen() {
           />
 
           <Pressable
-            onPress={() => guardedNav(() => router.push(`/passage/${passage.id}/coach`))}
+            onPress={() =>
+              guardedNav(() =>
+                router.push(
+                  `/passage/${passage.id}/${hasPracticed === false ? 'evaluate' : 'coach'}`,
+                ),
+              )
+            }
             style={styles.heroCoach}>
             <View style={styles.heroCoachIcon}>
               <Feather name="zap" size={18} color="#fff" />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <ThemedText style={styles.heroCoachTitle}>How should I practice?</ThemedText>
+              <ThemedText style={styles.heroCoachTitle}>
+                {hasPracticed === false ? 'Ready to practice?' : 'How should I practice?'}
+              </ThemedText>
               <ThemedText style={styles.heroCoachSub} numberOfLines={1}>
-                Get a strategy suggestion for this passage
+                {hasPracticed === false
+                  ? 'First time here — take its measurements (under a minute)'
+                  : 'Get a strategy suggestion for this passage'}
               </ThemedText>
             </View>
             <View style={styles.heroBeta}>
