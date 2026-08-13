@@ -21,16 +21,21 @@ export function consumeLastPassageInDoc(documentId: string): string | null {
 // pick the next one. Standalone passages (no parent document) have no page
 // to land on and return to wherever they came from, as before.
 //
-// router.navigate pops back to the document screen when it's already in the
-// stack (the normal pill → Practice → tool path), so Back from the score
-// goes to the library, not through a stale passage hub.
+// router.dismissTo pops back to the document screen when it's already in the
+// stack (the normal pill → Practice → tool path — Back from the score then
+// goes to the library, not through a stale passage hub). When the document
+// is NOT in the stack, dismissTo REPLACES the tool screen instead of pushing
+// on top of it. The first version used router.navigate, which pushes in that
+// case — leaving the finished tempo ladder underneath the score, so "‹
+// Library" dropped the user back INTO the ladder (F18, found live
+// 2026-08-13).
 export function returnToScoreAfterSession(
-  router: { navigate: (href: never) => void; back: () => void },
+  router: { dismissTo: (href: never) => void; back: () => void },
   passage: { id: string; document_id: string | null } | null,
 ): void {
   if (passage?.document_id) {
     rememberPassageInDoc(passage.document_id, passage.id);
-    router.navigate(`/document/${passage.document_id}` as never);
+    router.dismissTo(`/document/${passage.document_id}` as never);
   } else {
     router.back();
   }

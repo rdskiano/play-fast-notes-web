@@ -402,6 +402,30 @@ Note: the ladder handoff still subtracts the ~12% comfort buffer BELOW that
 backed-off tempo — this matches his own Frenzy behavior (clean 80 → start
 70), so it is not double-discounting. D38 (chip overload) remains OPEN.
 
+**D41 — First live calibration of the suggestion card: too ladder-loyal.**
+Exploring "How should I practice?" across his practiced Adams passages, the
+card proposed "pick the Tempo Ladder back up" WITHOUT EXCEPTION — while his
+own read is "I've done enough tempo ladder to feel like I've practiced the
+notes; ICU would be way more powerful now." Why the code did that: the ICU
+rule only fires on 2+ ladder sessions with ZERO ICU ever; any other trail
+falls through to "continue your last tool," which parrots the ladder
+forever. This is his D18 %-threshold voting itself back in: once the ladder
+has the passage banked around ~65–70% of goal, the suggestion should flip to
+Interleaved Click-Up ("cement it") even on mixed trails. PROPOSED RULE
+(awaiting his word, not built): last tool = ladder AND banked ≥ ~2/3 of goal
+→ suggest ICU regardless of prior ICU count; wording varies ("come back to
+ICU" when he's used it before). Braids with the open D18×D27 adjudication.
+
+**F18 — ⚠️ BUG (fixed same evening): after a logged session, PDF → "‹
+Library" dropped him back into the Tempo Ladder.** The land-on-the-page
+feature (eb6a58f, D33) used router.navigate, which PUSHES the document on
+top of the tool when the document isn't already in the nav stack — so the
+score's back/exit found the finished ladder underneath. Fixed in
+returnToScoreAfterSession with router.dismissTo (pops to the existing
+document, or REPLACES the tool screen when absent) — one helper, all ten
+tools inherit the fix. Needs a live check: finish a logged session from a
+PDF passage → land on the page → "‹ Library" should reach the library.
+
 ═══════════════════════════════════════════════════════════════════════
 
 ═══════════════════════════════════════════════════════════════════════
