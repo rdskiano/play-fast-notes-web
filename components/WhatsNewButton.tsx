@@ -66,8 +66,18 @@ export function WhatsNewButton() {
         transparent
         animationType="fade"
         onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-          <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
+        {/* The scrim is a SIBLING behind the card, not a wrapper around it —
+            a Pressable ancestor competes with the ScrollView for the drag
+            gesture on native iOS and can eat it entirely (same fix as the
+            landscape practice panel). Tap-outside still closes; the card
+            itself has no press handling at all. */}
+        <View style={styles.backdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            accessibilityLabel="Close"
+            onPress={() => setOpen(false)}
+          />
+          <View style={styles.card}>
             <ThemedText type="subtitle" style={styles.heading}>
               What’s new
             </ThemedText>
@@ -94,8 +104,8 @@ export function WhatsNewButton() {
               style={styles.closeBtn}>
               <ThemedText style={styles.closeText}>Close</ThemedText>
             </Pressable>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </>
   );
