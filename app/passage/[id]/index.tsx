@@ -447,9 +447,10 @@ export default function PassageDetailScreen() {
         <ThemedText style={styles.stratCardName} numberOfLines={1}>
           {s.label}
         </ThemedText>
-        <ThemedText style={styles.stratCardBlurb} numberOfLines={2}>
-          {s.blurb}
-        </ThemedText>
+        {/* No line clamp: Ralph's when-to-use blurbs must never truncate —
+            two of them run long and clipped on iPhone (2026-08-12). Cards in
+            a grid row stretch to the tallest sibling, so uneven text is fine. */}
+        <ThemedText style={styles.stratCardBlurb}>{s.blurb}</ThemedText>
       </Pressable>
     );
   }
@@ -478,11 +479,9 @@ export default function PassageDetailScreen() {
           <ThemedText style={styles.stratRowName} numberOfLines={1}>
             {s.label}
           </ThemedText>
-          {/* Two lines: the when-to-use blurbs are longer than the old
-              what-it-does one-liners and truncated ugly at one line. */}
-          <ThemedText style={styles.stratCardBlurb} numberOfLines={2}>
-            {s.blurb}
-          </ThemedText>
+          {/* No line clamp: Ralph's when-to-use blurbs must never truncate —
+              they clipped at 2 lines in the narrow landscape panel (2026-08-12). */}
+          <ThemedText style={styles.stratCardBlurb}>{s.blurb}</ThemedText>
         </View>
         {pct !== null && (
           <View style={[styles.stratPct, { backgroundColor: color + '22' }]}>
@@ -957,7 +956,11 @@ export default function PassageDetailScreen() {
           </Pressable>
 
           <ThemedText style={styles.heroSectionHeading}>Practice strategies</ThemedText>
-          <View style={styles.stratGrid}>
+          {/* Keyed by viewport width: after a landscape→portrait round-trip the
+              cards' 46% flexBasis stays resolved against the stale landscape
+              width, wrapping every card onto its own row (sim-reproduced
+              2026-08-12). Remounting on width change re-resolves it. */}
+          <View key={`stratGrid-${vpW}`} style={styles.stratGrid}>
             {STRATEGIES.map(renderStratCard)}
           </View>
 

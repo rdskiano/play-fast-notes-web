@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-12-rotation-grid-and-blurb-clipping',
+    date: 'August 12, 2026',
+    title: 'Fixed: strategy cards scrambled after rotating your phone',
+    body:
+      'On iPhone, turning the phone sideways and back left the practice-strategy cards stretched and stacked wrong until you left the screen. They now snap back to their proper two-column layout the moment you rotate. Also fixed: the cards\' descriptions were getting cut off mid-sentence — they now always show in full.',
+  },
+  {
     id: '2026-08-12-wipe-guard-card-blurbs',
     date: 'August 12, 2026',
     title: 'A safety net for "Download my web library," and clearer strategy cards',
