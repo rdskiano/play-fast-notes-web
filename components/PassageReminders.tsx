@@ -106,7 +106,7 @@ export function PassageReminders({ passageId, isPro, onProBlocked }: Props) {
             // Chip-created notes are known strings, so the app can put the
             // matching tools right under the reminder. Free-text notes get no
             // buttons and stay display-only.
-            const actions = actionsForReminder(r.strategy, r.note, r.data);
+            const actions = actionsForReminder(r.strategy, r.note, r.data, r.exercise_id);
             return (
               <View
                 key={r.id}

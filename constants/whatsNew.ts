@@ -73,7 +73,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     date: 'August 13, 2026',
     title: 'End-of-session notes that come back ready to act',
     body:
-      'The one-tap suggestions at the end of a session now match the tool you just used — after Tempo Ladder you\'ll see "Keep climbing the tempo," after Interleaved Click-Up you\'ll see "Use larger units next time," and so on. Tapping a suggestion automatically checks "Remind me of this next time" (uncheck it and your choice wins). When a reminder greets you on the passage screen, it now carries buttons that take you straight into the right tool — "Start slower next time" even opens Tempo Ladder with your start tempo already dropped about 10%. Each reminder shows once: after your next session on that passage it stops nagging, though the note stays in your practice log.',
+      'The one-tap suggestions at the end of a session now match the tool you just used — after Tempo Ladder you\'ll see "Keep climbing the tempo," after Interleaved Click-Up you\'ll see "Use larger units next time," and so on. Tapping a suggestion automatically checks "Remind me of this next time" (uncheck it and your choice wins). When a reminder greets you on the passage screen, it now carries buttons that take you straight into the right tool — "Start slower next time" even opens Tempo Ladder with your start tempo already dropped about 10%, and an Exercise Builder reminder reopens the exact exercise you built, ready to play. Each reminder shows once: after your next session on that passage it stops nagging, though the note stays in your practice log.',
   },
   {
     id: '2026-08-13-rotation-fix-for-real',

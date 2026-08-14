@@ -221,11 +221,16 @@ export type ReminderAction = {
 const TL: ReminderAction = { label: 'Tempo Ladder', path: 'tempo-ladder' };
 const ICU: ReminderAction = { label: 'Interleaved Click-Up', path: 'click-up' };
 const RV: ReminderAction = { label: 'Rhythmic Variation', path: 'rhythmic' };
-const BUILDER: ReminderAction = {
-  label: 'Exercise Builder',
-  path: 'rhythm-builder',
-  pro: true,
-};
+// When the log row remembers which exercise the session ran, the button
+// reopens THAT exercise (the builder screen jumps straight to its generated
+// exercises); without one it falls back to the blank setup.
+function builderAction(exerciseId?: string | null): ReminderAction {
+  return {
+    label: 'Exercise Builder',
+    path: exerciseId ? `rhythm-builder?exerciseId=${exerciseId}` : 'rhythm-builder',
+    pro: true,
+  };
+}
 
 // Turn a resurfaced note into its action buttons. `strategy` and `data` come
 // from the practice-log row the note was saved on; free-text notes (no chip
@@ -234,6 +239,7 @@ export function actionsForReminder(
   strategy: string,
   note: string,
   data?: Record<string, unknown> | null,
+  exerciseId?: string | null,
 ): ReminderAction[] {
   const actions: ReminderAction[] = [];
   const has = (phrase: string) => note.includes(phrase);
@@ -252,7 +258,7 @@ export function actionsForReminder(
         push(ICU);
         break;
       case 'rhythmic':
-        push(data?.builder === true ? BUILDER : RV);
+        push(data?.builder === true ? builderAction(exerciseId) : RV);
         break;
       case 'micro_chaining':
         push({ label: 'Micro-Chaining', path: 'micro-chaining' });
@@ -317,6 +323,6 @@ export function actionsForReminder(
   if (has(CHIP.icuWork)) push(ICU);
   if (has(CHIP.rvWork)) push(RV);
   if (has(CHIP.patternsOnly)) push(RV);
-  if (has(CHIP.buildExercise)) push(BUILDER);
+  if (has(CHIP.buildExercise)) push(builderAction(exerciseId));
   return actions;
 }

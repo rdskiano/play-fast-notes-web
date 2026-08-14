@@ -253,6 +253,9 @@ export type PassageReminder = {
   note: string;
   practiced_at: number;
   exercise_name: string | null;
+  // The exercise the session ran on (null for non-exercise sessions) — lets
+  // "do this again" reopen the built exercise instead of a blank setup.
+  exercise_id: string | null;
   // The row's parsed data_json — action buttons read session facts from it
   // (e.g. the Tempo Ladder increment behind "use a larger increment").
   data: Record<string, unknown> | null;
@@ -291,6 +294,7 @@ export async function listPassageReminders(
         note,
         practiced_at: r.practiced_at,
         exercise_name: null,
+        exercise_id: r.exercise_id,
         data: d && typeof d === 'object' ? (d as Record<string, unknown>) : null,
       });
     } catch {
