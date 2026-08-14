@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-14-score-page-pills-polish',
+    date: 'August 14, 2026',
+    title: 'Passage pills: easier to spot, quicker to get out of the way',
+    body:
+      'The name pills on your score pages are now solid blue with white text, so they stand out instead of fading into the page. And when you tap one to open a spot, every pill disappears so nothing sits on top of your music — just the highlighted box and its Practice, Edit, and History buttons. Tap anywhere else on the page and the pills come back.',
+  },
+  {
     id: '2026-08-13-exercise-builder-rests',
     date: 'August 13, 2026',
     title: 'The Exercise Builder can finally hold its breath',

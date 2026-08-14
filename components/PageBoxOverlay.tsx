@@ -205,47 +205,40 @@ export function PageBoxOverlay({
           />
         );
       })}
-      {/* The pills. Selected pill fills with the accent color. */}
-      {placed.map((p) => {
-        const selected = selectedId === p.passage.id;
-        return (
+      {/* The pills — solid brand-accent fill + white text (outline pills
+          washed out against the white score page). While a passage is
+          selected, ALL pills hide so nothing covers the music; the lit box
+          + action bar carry the selection, and tapping the empty score
+          brings the pills back. */}
+      {!selectedId &&
+        placed.map((p) => (
           <Pressable
             key={`pill:${p.passage.id}:${p.region.page}`}
-            onPress={() => (selected ? onDeselect() : onSelect(p.passage.id))}
+            onPress={() => onSelect(p.passage.id)}
             accessibilityRole="button"
-            accessibilityState={{ selected }}
             style={[
               styles.pill,
               {
                 left: p.x,
                 top: p.y,
                 maxWidth: PILL_MAX_W,
-                // Solid brand-accent fill + white text — outline pills
-                // washed out against the white score page. Selection
-                // inverts to a white face (the lit box + action bar sit
-                // right there, so the pale pill can't get lost).
-                backgroundColor: selected ? '#ffffff' : C.tint,
+                backgroundColor: C.tint,
                 borderColor: C.tint,
               },
             ]}>
             <ThemedText
               numberOfLines={1}
-              style={[styles.pillText, { color: selected ? C.tint : '#fff' }]}>
+              style={[styles.pillText, { color: '#fff' }]}>
               {p.passage.title}
               {p.badge ? (
-                <ThemedText
-                  style={[
-                    styles.pillText,
-                    { color: selected ? C.tint + 'b0' : '#ffffffcc' },
-                  ]}>
+                <ThemedText style={[styles.pillText, { color: '#ffffffcc' }]}>
                   {'  ·  '}
                   {p.badge}
                 </ThemedText>
               ) : null}
             </ThemedText>
           </Pressable>
-        );
-      })}
+        ))}
       {/* Compact action bar — Practice / Edit / History, one tap from the
           pill, positioned to stay clear of the lit box. */}
       {bar && (
