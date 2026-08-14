@@ -145,10 +145,11 @@ export function PageBoxOverlay({
   }
 
   // The selected passage's box (every region of it on this page) plus the
-  // action bar anchored to the first region: below the box when there's
-  // room, above it otherwise, and pinned to the page bottom as a last
-  // resort — never covering the box when either side fits. The bar may use
-  // the letterbox margins around the image (the layer's parent doesn't clip).
+  // action bar anchored to the first region: above the box when there's
+  // room (that's where the eye goes), below it otherwise, and pinned to
+  // the page top as a last resort — never covering the box when either
+  // side fits. The bar may use the letterbox margins around the image
+  // (the layer's parent doesn't clip).
   const selectedHits = selectedId
     ? hits.filter((h) => h.passage.id === selectedId)
     : [];
@@ -157,9 +158,9 @@ export function PageBoxOverlay({
     const first = boxRect(selectedHits[0].region);
     const minTop = -imageRect.y + 4;
     const maxTop = slotHeight - imageRect.y - BAR_H - 4;
-    let barTop = first.top + first.height + 8;
-    if (barTop > maxTop) barTop = first.top - BAR_H - 8;
-    if (barTop < minTop) barTop = maxTop;
+    let barTop = first.top - BAR_H - 8;
+    if (barTop < minTop) barTop = first.top + first.height + 8;
+    if (barTop > maxTop) barTop = minTop;
     const barLeft = Math.max(
       4,
       Math.min(first.left + first.width / 2 - BAR_W / 2, imageRect.w - BAR_W - 4),

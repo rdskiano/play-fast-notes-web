@@ -24,7 +24,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     date: 'August 14, 2026',
     title: 'Passage pills: easier to spot, quicker to get out of the way',
     body:
-      'The name pills on your score pages are now solid blue with white text, so they stand out instead of fading into the page. And when you tap one to open a spot, every pill disappears so nothing sits on top of your music — just the highlighted box and its Practice, Edit, and History buttons. Tap anywhere else on the page and the pills come back.',
+      'The name pills on your score pages are now solid blue with white text, so they stand out instead of fading into the page. And when you tap one to open a spot, every pill disappears so nothing sits on top of your music — just the highlighted box, with its Practice, Edit, and History buttons floating right above it. Tap anywhere else on the page and the pills come back.',
   },
   {
     id: '2026-08-13-exercise-builder-rests',
