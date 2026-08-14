@@ -63,7 +63,7 @@ export function PaywallModal({ visible, contextLine, onClose }: Props) {
 
   async function buy() {
     if (Platform.OS !== 'web') {
-      setError('Buy on the web at playfastnotes.com — your account syncs here.');
+      setError('Upgrading is not available on this device yet.');
       return;
     }
     setBusy(true);

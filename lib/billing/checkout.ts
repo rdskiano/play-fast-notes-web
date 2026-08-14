@@ -7,5 +7,5 @@
 // paywall goes live on native, region-gate any external purchase link.
 
 export async function startCheckout(): Promise<void> {
-  throw new Error('Purchase on the web for now — playfastnotes.com.');
+  throw new Error('Upgrading is not available on this device yet.');
 }
