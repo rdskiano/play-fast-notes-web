@@ -584,6 +584,12 @@ export class MetronomeEngine {
       const token = tokens[i % tokens.length];
       const dur = TOKEN_QUARTER_FRACTIONS[token] * secondsPerQuarter;
       const when = this.pitchNextStart;
+      // freq 0 = a rest slot: keep its time, schedule no voice.
+      if (freqs[i] <= 0) {
+        this.pitchNextStart += dur;
+        this.pitchIdx = i + 1;
+        continue;
+      }
       try {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -652,6 +658,8 @@ export class MetronomeEngine {
     }
     const dest = this.pitchGate;
     for (let i = 0; i < freqs.length; i++) {
+      // freq 0 = a rest slot: keep its time, schedule no voice.
+      if (freqs[i] <= 0) continue;
       try {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();

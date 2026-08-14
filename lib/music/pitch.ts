@@ -23,6 +23,15 @@ export type Pitch = {
    * make it implicit. Used for courtesy / cautionary accidentals.
    */
   courtesy?: boolean;
+  /**
+   * If true, this sequence item is a REST placeholder, not a sounding note.
+   * It occupies exactly one slot in the Exercise Builder's sequence — rests
+   * enter at the running-note resolution (an 8th rest before 16ths = two
+   * placeholders) and generated patterns re-time it like any note. `midi` /
+   * `accidental` keep sensible values so clients that predate rests degrade
+   * to rendering a note instead of crashing.
+   */
+  rest?: boolean;
 };
 
 // ── Note name conversion ────────────────────────────────────────────────────

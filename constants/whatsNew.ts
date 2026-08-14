@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-13-exercise-builder-rests',
+    date: 'August 13, 2026',
+    title: 'The Exercise Builder can finally hold its breath',
+    body:
+      'Passages that start with — or contain — a rest couldn\'t be entered into the Exercise Builder before. There\'s now a rest palette above the piano: tap a 16th, 8th, or quarter rest and the app fits it into your running sixteenths automatically. A · button dots the next rest, and ³ is for passages that run in triplets. Generated exercises re-time the rest along with the notes — the notes after it land in new, sometimes surprising places, which is exactly the kind of displacement practice you can\'t give yourself. Playback and the printable PDF include the rests too.',
+  },
+  {
     id: '2026-08-13-coach-proposes-the-note',
     date: 'August 13, 2026',
     title: 'The end-of-session note now comes with a suggestion',

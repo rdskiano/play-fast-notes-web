@@ -51,7 +51,10 @@ export function NoteCardEditor({
     );
   }
 
-  const spellings = enharmonicSpellings(pitch.midi);
+  // A rest placeholder has no spelling to edit — the card collapses to
+  // Insert / Delete / Done so the user can still reposition or remove it.
+  const isRest = pitch.rest === true;
+  const spellings = isRest ? [] : enharmonicSpellings(pitch.midi);
   const currentSymbol = ACCIDENTAL_SYMBOL[pitch.accidental];
   const showCourtesy = pitch.courtesy === true;
 
@@ -72,10 +75,14 @@ export function NoteCardEditor({
       <View style={styles.backdrop}>
         <View style={[styles.card, { backgroundColor: C.background }]}>
           <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
-            Edit note
+            {isRest ? 'Edit rest' : 'Edit note'}
           </ThemedText>
-          <ThemedText style={styles.bigName}>{pitchName(pitch)}</ThemedText>
+          <ThemedText style={styles.bigName}>
+            {isRest ? 'Rest' : pitchName(pitch)}
+          </ThemedText>
 
+          {!isRest && (
+          <>
           <ThemedText style={styles.label}>Enharmonic respelling</ThemedText>
           <View style={styles.row}>
             {spellings.map((s) => {
@@ -143,6 +150,8 @@ export function NoteCardEditor({
               </ThemedText>
             </Pressable>
           </View>
+          </>
+          )}
 
           {(onInsertBefore || onInsertAfter) && (
             <>

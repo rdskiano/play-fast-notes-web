@@ -24,6 +24,92 @@ function toAbcBody(letter: Letter, octave: number): string {
   return letter + ','.repeat(4 - octave);
 }
 
+export type EntrySequenceAbc = {
+  abc: string;
+  /**
+   * Char offset (into `abc`) of each sequence item's token. Items of a
+   * merged rest run share the same offset — used to map an abcjs click
+   * back to a sequence index.
+   */
+  itemStartChars: number[];
+  /**
+   * Rendered element ordinal (notes + rests, document order) per item —
+   * used to translate an item index into the element abcjs draws, since
+   * a merged rest run renders as ONE element.
+   */
+  elementIndexOfItem: number[];
+};
+
+/**
+ * The Exercise Builder's pitch-entry staff. Unlike the plain uniform-value
+ * staff, this renders the sequence at the SLOT resolution the builder
+ * actually means: notes as running sixteenths beamed per `grouping` chunk
+ * (one chunk = one generated measure), and consecutive rest placeholders
+ * MERGED into a single rest at their combined value — so tapping the 8th
+ * rest palette key (2 slots) reads back as one 8th rest, not two loose
+ * placeholders. Accidental rules match buildPitchAbc (out-of-key spellings
+ * reprint every time so edits stay visible).
+ */
+export function buildEntrySequenceAbc(
+  pitches: Pitch[],
+  keySignature: KeySignature,
+  clef: Clef,
+  grouping: number,
+): EntrySequenceAbc {
+  const head =
+    ['X:1', 'M:none', 'L:1/16', `K:${keySignature.abcKey} clef=${clef.abcClef}`].join(
+      '\n',
+    ) + '\n';
+  if (pitches.length === 0) {
+    return { abc: `${head}x8|`, itemStartChars: [], elementIndexOfItem: [] };
+  }
+
+  const keySigDefaults = keySignatureLetterAccidentals(keySignature) as Record<
+    Letter,
+    Accidental
+  >;
+  const active = new Map<string, Accidental>();
+
+  let body = '';
+  const itemStartChars: number[] = [];
+  const elementIndexOfItem: number[] = [];
+  let elemCount = 0;
+  let i = 0;
+  while (i < pitches.length) {
+    if (i > 0 && i % grouping === 0) body += ' ';
+    const p = pitches[i];
+    const start = head.length + body.length;
+    if (p.rest) {
+      let j = i;
+      while (j < pitches.length && pitches[j].rest) j++;
+      const len = j - i;
+      body += len === 1 ? 'z' : `z${len}`;
+      for (let k = i; k < j; k++) {
+        itemStartChars.push(start);
+        elementIndexOfItem.push(elemCount);
+      }
+      elemCount++;
+      i = j;
+      continue;
+    }
+    const { letter, octave } = pitchLetter(p);
+    const L = letter as Letter;
+    const key = `${L}:${octave}`;
+    const want = p.accidental;
+    const current = active.has(key) ? active.get(key)! : keySigDefaults[L];
+    const needed = want !== current;
+    const outOfKey = want !== keySigDefaults[L];
+    const prefix = needed || outOfKey || p.courtesy ? ACC_PREFIX[want] : '';
+    if (needed) active.set(key, want);
+    body += prefix + toAbcBody(L, octave);
+    itemStartChars.push(start);
+    elementIndexOfItem.push(elemCount);
+    elemCount++;
+    i++;
+  }
+  return { abc: `${head}${body}|`, itemStartChars, elementIndexOfItem };
+}
+
 export function buildPitchAbc(
   pitches: Pitch[],
   keySignature: KeySignature,
@@ -57,6 +143,12 @@ export function buildPitchAbc(
 
   const tokens: string[] = [];
   for (const p of pitches) {
+    if (p.rest) {
+      // Rest placeholder — renders as a rest of the staff's uniform note
+      // value. No accidental bookkeeping; a rest can't carry a spelling.
+      tokens.push('z');
+      continue;
+    }
     const { letter, octave } = pitchLetter(p);
     const L = letter as Letter;
     const key = `${L}:${octave}`;

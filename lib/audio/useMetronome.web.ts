@@ -965,7 +965,10 @@ export function useMetronome(initialBpm = 60) {
     const start = ctx.currentTime + 0.05;
     for (let i = 0; i < freqs.length; i++) {
       const t = start + i * secondsPerNote;
-      scheduleMelodyVoice(ctx, gate, freqs[i], t, secondsPerNote, 0.5 * volRef.current);
+      // freq 0 = a rest slot: keep its time, schedule no voice.
+      if (freqs[i] > 0) {
+        scheduleMelodyVoice(ctx, gate, freqs[i], t, secondsPerNote, 0.5 * volRef.current);
+      }
     }
     const totalSec = freqs.length * secondsPerNote;
     setPlayingSequence(true);
@@ -1005,7 +1008,10 @@ export function useMetronome(initialBpm = 60) {
       const token = tokens[i % tokens.length];
       const dur = TOKEN_QUARTER_FRACTIONS[token] * secondsPerQuarter;
       const t = pitchNextStartRef.current;
-      scheduleMelodyVoice(ctx, gate, freqs[i], t, dur, 0.5 * volRef.current);
+      // freq 0 = a rest slot: keep its time, schedule no voice.
+      if (freqs[i] > 0) {
+        scheduleMelodyVoice(ctx, gate, freqs[i], t, dur, 0.5 * volRef.current);
+      }
       pitchNextStartRef.current += dur;
       pitchIdxRef.current = i + 1;
     }

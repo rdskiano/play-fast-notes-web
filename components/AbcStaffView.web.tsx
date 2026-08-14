@@ -68,6 +68,14 @@ type Props = {
   onNoteTap?: (noteIndex: number) => void;
   /** When set, draws a coloured highlight under the note at this index. */
   activeNoteIndex?: number | null;
+  /**
+   * Explicit char offsets (into `abc`) of each tappable token, overriding
+   * the default space-separated parse. Lets callers whose tokens aren't
+   * 1:1 with spaces (e.g. the entry staff's merged rests / beamed groups)
+   * keep tap indices aligned. onNoteTap then reports the index into THIS
+   * array.
+   */
+  noteStartChars?: number[];
 };
 
 // Web AbcStaffView — renders abcjs into a DOM node. The native sibling
@@ -85,6 +93,7 @@ export function AbcStaffView({
   fallbackText,
   onNoteTap,
   activeNoteIndex,
+  noteStartChars,
   fitWidth,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
@@ -126,7 +135,11 @@ export function AbcStaffView({
 
     // Pre-compute note start char offsets (space-separated tokens) so the
     // click handler can map an abcelem back to the user's pitch index.
-    if (onNoteTap) {
+    // Callers with tokens that aren't 1:1 with spaces pass noteStartChars
+    // explicitly instead.
+    if (onNoteTap && noteStartChars) {
+      noteStartsRef.current = noteStartChars.slice();
+    } else if (onNoteTap) {
       const bodyStart = abc.lastIndexOf('\n') + 1;
       let bodyEnd = abc.lastIndexOf('|');
       if (bodyEnd < 0) bodyEnd = abc.length;
@@ -175,7 +188,11 @@ export function AbcStaffView({
             const lo = starts[i];
             const hi = i + 1 < starts.length ? starts[i + 1] : Infinity;
             if (sc >= lo && sc < hi) {
-              onNoteTapRef.current?.(i);
+              // Duplicate offsets mark items that share one rendered token
+              // (a merged rest run) — report the FIRST item of the run.
+              let first = i;
+              while (first > 0 && starts[first - 1] === starts[i]) first--;
+              onNoteTapRef.current?.(first);
               return;
             }
           }
@@ -235,6 +252,7 @@ export function AbcStaffView({
     preferredMeasuresPerLine,
     autoHeight,
     onNoteTap,
+    noteStartChars,
     fitWidth,
   ]);
 
@@ -243,7 +261,9 @@ export function AbcStaffView({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    el.querySelectorAll<SVGElement>('.abcjs-note').forEach((node, idx) => {
+    // Rests are classed `abcjs-rest`, not `abcjs-note` — include them so
+    // sequence indices stay aligned when the entry staff contains rests.
+    el.querySelectorAll<SVGElement>('.abcjs-note, .abcjs-rest').forEach((node, idx) => {
       if (activeNoteIndex != null && idx === activeNoteIndex) {
         node.setAttribute('fill', '#9b59b6');
       } else {

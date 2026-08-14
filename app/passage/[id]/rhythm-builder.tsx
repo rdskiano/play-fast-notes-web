@@ -2,6 +2,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -80,6 +81,46 @@ import {
 
 type Phase = 'setup' | 'entry' | 'generate';
 
+// Rest-palette glyphs, rasterized from abcjs's own engraving paths (Unicode
+// musical-rest codepoints are missing from common browser fonts — they tofu
+// on Chrome). Black source art; the palette tints them via `tintColor`.
+// Each entry's w/h preserves the source aspect at a 22 px glyph height.
+const REST_GLYPHS = {
+  sixteenth: { src: require('@/assets/images/rests/rest-16.png'), w: 11, h: 22 },
+  eighth: { src: require('@/assets/images/rests/rest-8.png'), w: 13, h: 22 },
+  quarter: { src: require('@/assets/images/rests/rest-q.png'), w: 10, h: 22 },
+} as const;
+
+type RestOption = {
+  glyph: (typeof REST_GLYPHS)[keyof typeof REST_GLYPHS];
+  label: string;
+  slots: number;
+};
+
+// Straight mode assumes running SIXTEENTHS (the calibrated grouping-4 world).
+const REST_OPTIONS_STRAIGHT: RestOption[] = [
+  { glyph: REST_GLYPHS.sixteenth, label: '16th', slots: 1 },
+  { glyph: REST_GLYPHS.eighth, label: '8th', slots: 2 },
+  { glyph: REST_GLYPHS.quarter, label: 'quarter', slots: 4 },
+];
+
+// Triplet mode: the slot is a triplet sixteenth — an 8th spans 3 slots, a
+// quarter 6.
+const REST_OPTIONS_TRIPLET: RestOption[] = [
+  { glyph: REST_GLYPHS.sixteenth, label: '16th', slots: 1 },
+  { glyph: REST_GLYPHS.eighth, label: '8th', slots: 3 },
+  { glyph: REST_GLYPHS.quarter, label: 'quarter', slots: 6 },
+];
+
+// The · modifier multiplies a rest value by 1.5. Values whose dotted slot
+// count isn't a whole number (dotted 16th = 1.5 sixteenth slots; dotted 8th
+// in triplet mode = 4.5 triplet slots) can't land on the slot grid, so
+// those buttons disable while the dot is armed.
+function dottedSlots(base: number): number | null {
+  const n = base * 1.5;
+  return Number.isInteger(n) ? n : null;
+}
+
 const LAST_INSTRUMENT_KEY = 'rhythm.lastInstrumentId';
 
 type StoredConfig = {
@@ -142,7 +183,8 @@ const RB_ENTRY_STEPS: TourStep[] = [
     dotOffset: { x: -20 },
     title: 'Tap in your pitches',
     body:
-      'Tap the piano keys to enter your passage’s pitches, one note at a time. They build up on the staff below.',
+      'Tap the piano keys to enter your passage’s pitches, one note at a time. They build up on the staff below.\n\n' +
+      'The rest keys in the button row enter rests by value — 16th, 8th, or quarter — and the app fills the right number of slots against your running sixteenths. Arm · to dot the next rest, or ³ if your passage runs in triplets.',
   },
   {
     target: 'rb-staff',
@@ -189,6 +231,13 @@ export default function RhythmBuilderScreen() {
   const [pitches, setPitches] = useState<Pitch[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
+  // Rest palette mode: straight (running sixteenths) vs triplet running notes.
+  const [restTriplet, setRestTriplet] = useState(false);
+  // One-shot · modifier: armed, the next rest tap enters dotted, then clears.
+  const [restDot, setRestDot] = useState(false);
+  // Phone only: the rest palette collapses to one toggle key (space is
+  // tight, especially landscape); tablet/laptop always show the full row.
+  const [restPaletteOpen, setRestPaletteOpen] = useState(false);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
 
   // The master instrument the current pitch-level choice belongs to (legacy
@@ -480,6 +529,25 @@ export default function RhythmBuilderScreen() {
     addPitches([spellForKey(writtenMidi, keySignature, useSharps)]);
   }
 
+  // Rest palette: each button inserts a real rest VALUE as the equivalent
+  // number of single-slot placeholders (the confirmed tokenization — a rest
+  // enters at the running-note resolution, one placeholder per pattern slot).
+  // Straight mode assumes running SIXTEENTHS (the calibrated grouping-4
+  // world): 16th = 1 slot, 8th = 2, dotted 8th = 3, quarter = 4. Triplet
+  // mode is for triplet-running passages, where the slot is a triplet
+  // sixteenth: 8th = 3 slots, quarter = 6 (dotted 8th isn't a whole number
+  // of triplet slots, so it hides). One button tap = one undo step.
+  function addRests(count: number) {
+    // The placeholder keeps a plausible midi/spelling so clients that
+    // predate rests degrade to a note instead of crashing.
+    const lastNote = [...pitches].reverse().find((p) => !p.rest);
+    const base = spellForKey(lastNote?.midi ?? 71, keySignature, useSharps);
+    addPitches(
+      Array.from({ length: count }, () => ({ ...base, rest: true as const })),
+    );
+    setRestDot(false);
+  }
+
   function toggleSharpsFlats() {
     setUseSharps((v) => !v);
   }
@@ -497,14 +565,28 @@ export default function RhythmBuilderScreen() {
   function onEditorDelete() {
     if (editingIndex === null) return;
     pushHistory(pitches);
-    setPitches((prev) => prev.filter((_, i) => i !== editingIndex));
+    setPitches((prev) => {
+      // A rest run displays as ONE symbol on the staff (an 8th rest = two
+      // merged slots), so deleting it removes the whole contiguous run —
+      // what the user sees disappear is what they tapped Delete on.
+      if (prev[editingIndex]?.rest) {
+        let lo = editingIndex;
+        let hi = editingIndex;
+        while (lo > 0 && prev[lo - 1].rest) lo--;
+        while (hi + 1 < prev.length && prev[hi + 1].rest) hi++;
+        return prev.filter((_, i) => i < lo || i > hi);
+      }
+      return prev.filter((_, i) => i !== editingIndex);
+    });
     setEditingIndex(null);
   }
 
   function playSequence() {
     if (pitches.length === 0) return;
+    // Rest slots pass freq 0 — the schedulers keep the slot's time but
+    // skip the voice, so playback stays in step with the notation.
     const freqs = pitches.map((p) =>
-      midiToFrequency(writtenToConcert(p.midi, instrument)),
+      p.rest ? 0 : midiToFrequency(writtenToConcert(p.midi, instrument)),
     );
     const secondsPerNote = 60 / metronome.bpm / 2;
     metronome.playPitchSequence(freqs, secondsPerNote);
@@ -809,68 +891,206 @@ export default function RhythmBuilderScreen() {
             </Pressable>
           )}
 
-          <View style={styles.transportRow} {...tourTag('rb-transport')}>
-            <Pressable
-              onPress={metronome.playingSequence ? metronome.stopPitchSequence : playSequence}
-              disabled={pitches.length === 0 && !metronome.playingSequence}
-              style={[
-                styles.playBtn,
-                {
-                  backgroundColor: metronome.playingSequence
-                    ? Palette.danger
-                    : pitches.length > 0
-                      ? C.tint
-                      : C.icon,
-                },
-              ]}>
-              <ThemedText style={styles.playText}>
-                {metronome.playingSequence
-                  ? '■ Stop'
-                  : `▶ Play (${pitches.length})`}
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={toggleSharpsFlats}
-              style={[styles.accBtn, { borderColor: C.tint }]}>
-              <ThemedText style={[styles.accText, { color: C.tint }]}>
-                {useSharps ? 'Switch to flats' : 'Switch to sharps'}
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={undo}
-              disabled={historyRef.current.length === 0}
-              style={[
-                styles.utilBtn,
-                {
-                  borderColor: C.icon,
-                  opacity: historyRef.current.length > 0 ? 1 : 0.35,
-                },
-              ]}>
-              <ThemedText style={[styles.utilText, { color: C.text }]}>
-                ↶ Undo
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={clearAll}
-              disabled={pitches.length === 0}
-              style={[
-                styles.utilBtn,
-                { borderColor: C.icon, opacity: pitches.length > 0 ? 1 : 0.35 },
-              ]}>
-              <ThemedText style={[styles.utilText, { color: C.text }]}>
-                Clear
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={() => setPhase('generate')}
-              disabled={pitches.length === 0}
-              style={[
-                styles.genBtn,
-                { backgroundColor: pitches.length > 0 ? '#9b59b6' : C.icon },
-              ]}>
-              <ThemedText style={styles.genText}>Generate →</ThemedText>
-            </Pressable>
-          </View>
+          {/* Entry transport controls. Tablet/laptop: three balanced
+              sections (buttons · rest keys · Generate) with equal-flex
+              sides, so the rest keys sit at the TRUE center of the row
+              rather than centered in the leftover space. Phone: the row is
+              too narrow for that — the rest keys take their own centered
+              line under the buttons. */}
+          {(() => {
+            const buttons = (
+              <>
+                <Pressable
+                  onPress={metronome.playingSequence ? metronome.stopPitchSequence : playSequence}
+                  disabled={pitches.length === 0 && !metronome.playingSequence}
+                  style={[
+                    styles.playBtn,
+                    {
+                      backgroundColor: metronome.playingSequence
+                        ? Palette.danger
+                        : pitches.length > 0
+                          ? C.tint
+                          : C.icon,
+                    },
+                  ]}>
+                  <ThemedText style={styles.playText}>
+                    {metronome.playingSequence
+                      ? '■ Stop'
+                      : `▶ Play (${pitches.length})`}
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={toggleSharpsFlats}
+                  style={[styles.accBtn, { borderColor: C.tint }]}>
+                  <ThemedText style={[styles.accText, { color: C.tint }]}>
+                    {useSharps ? 'Switch to flats' : 'Switch to sharps'}
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={undo}
+                  disabled={historyRef.current.length === 0}
+                  style={[
+                    styles.utilBtn,
+                    {
+                      borderColor: C.icon,
+                      opacity: historyRef.current.length > 0 ? 1 : 0.35,
+                    },
+                  ]}>
+                  <ThemedText style={[styles.utilText, { color: C.text }]}>
+                    ↶ Undo
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={clearAll}
+                  disabled={pitches.length === 0}
+                  style={[
+                    styles.utilBtn,
+                    { borderColor: C.icon, opacity: pitches.length > 0 ? 1 : 0.35 },
+                  ]}>
+                  <ThemedText style={[styles.utilText, { color: C.text }]}>
+                    Clear
+                  </ThemedText>
+                </Pressable>
+              </>
+            );
+            const restKeys = (
+              <View style={styles.restKeyGroup}>
+                {(restTriplet ? REST_OPTIONS_TRIPLET : REST_OPTIONS_STRAIGHT).map(
+                  (r) => {
+                    const slots = restDot ? dottedSlots(r.slots) : r.slots;
+                    const disabled = slots === null;
+                    return (
+                      <Pressable
+                        key={r.label}
+                        onPress={() => slots !== null && addRests(slots)}
+                        disabled={disabled}
+                        style={[
+                          styles.restKey,
+                          { borderColor: C.tint, opacity: disabled ? 0.3 : 1 },
+                        ]}>
+                        <Image
+                          source={r.glyph.src}
+                          style={{
+                            width: r.glyph.w,
+                            height: r.glyph.h,
+                            tintColor: C.tint,
+                            resizeMode: 'contain',
+                          }}
+                        />
+                        <ThemedText style={[styles.restKeyLabel, { color: C.icon }]}>
+                          {r.label}
+                        </ThemedText>
+                      </Pressable>
+                    );
+                  },
+                )}
+                <Pressable
+                  onPress={() => setRestDot((v) => !v)}
+                  style={[
+                    styles.restKey,
+                    {
+                      borderColor: restDot ? C.tint : C.icon,
+                      backgroundColor: restDot ? C.tint + '22' : 'transparent',
+                    },
+                  ]}>
+                  <ThemedText
+                    style={[
+                      styles.restKeyGlyph,
+                      { color: restDot ? C.tint : C.text },
+                    ]}>
+                    ·
+                  </ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.restKeyLabel,
+                      { color: restDot ? C.tint : C.icon },
+                    ]}>
+                    dot
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={() => setRestTriplet((v) => !v)}
+                  style={[
+                    styles.restKey,
+                    {
+                      borderColor: restTriplet ? C.tint : C.icon,
+                      backgroundColor: restTriplet ? C.tint + '22' : 'transparent',
+                    },
+                  ]}>
+                  <ThemedText
+                    style={[
+                      styles.restKeyGlyph,
+                      { color: restTriplet ? C.tint : C.text },
+                    ]}>
+                    ³
+                  </ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.restKeyLabel,
+                      { color: restTriplet ? C.tint : C.icon },
+                    ]}>
+                    triplets
+                  </ThemedText>
+                </Pressable>
+              </View>
+            );
+            const generate = (
+              <Pressable
+                onPress={() => setPhase('generate')}
+                disabled={pitches.length === 0}
+                style={[
+                  styles.genBtn,
+                  { backgroundColor: pitches.length > 0 ? '#9b59b6' : C.icon },
+                ]}>
+                <ThemedText style={styles.genText}>Generate →</ThemedText>
+              </Pressable>
+            );
+            return isPhone ? (
+              <>
+                <View style={styles.transportRow} {...tourTag('rb-transport')}>
+                  {buttons}
+                  <Pressable
+                    onPress={() => setRestPaletteOpen((v) => !v)}
+                    style={[
+                      styles.restKey,
+                      {
+                        borderColor: restPaletteOpen ? C.tint : C.icon,
+                        backgroundColor: restPaletteOpen
+                          ? C.tint + '22'
+                          : 'transparent',
+                      },
+                    ]}>
+                    <Image
+                      source={REST_GLYPHS.quarter.src}
+                      style={{
+                        width: REST_GLYPHS.quarter.w,
+                        height: REST_GLYPHS.quarter.h,
+                        tintColor: restPaletteOpen ? C.tint : C.text,
+                        resizeMode: 'contain',
+                      }}
+                    />
+                    <ThemedText
+                      style={[
+                        styles.restKeyLabel,
+                        { color: restPaletteOpen ? C.tint : C.icon },
+                      ]}>
+                      rests
+                    </ThemedText>
+                  </Pressable>
+                  {generate}
+                </View>
+                {restPaletteOpen && (
+                  <View style={styles.restRowPhone}>{restKeys}</View>
+                )}
+              </>
+            ) : (
+              <View style={styles.transportRow} {...tourTag('rb-transport')}>
+                <View style={styles.transportSide}>{buttons}</View>
+                {restKeys}
+                <View style={styles.transportSideEnd}>{generate}</View>
+              </View>
+            );
+          })()}
 
           <View style={styles.keyboardWrap} {...tourTag('rb-keyboard')}>
             <PianoKeyboard onKeyPress={onKeyPress} preferSharps={useSharps} />
@@ -888,6 +1108,7 @@ export default function RhythmBuilderScreen() {
               keySignature={keySignature}
               clef={clef}
               width={winWidth}
+              grouping={grouping}
               onNoteTap={(i) => setEditingIndex(i)}
               activeNoteIndex={editingIndex}
             />
@@ -906,6 +1127,7 @@ export default function RhythmBuilderScreen() {
             title="Exercise Builder — enter pitches"
             body={
               "Tap the piano keys to enter the pitches of your passage one note at a time. The notation builds up on screen as you go.\n\n" +
+              "Rest keys (in the button row above the keyboard) — enter rests by value: 16th, 8th, or quarter. The app fills the right number of slots against your running sixteenths (an 8th rest = two slots). Arm · to dot the next rest; tap ³ first if your passage runs in triplets. Generated exercises re-time rests just like notes.\n\n" +
               "Click a note on the staff to respell it (e.g. B♭ → A♯), force an accidental to display, or insert a new note before or after it.\n\n" +
               "▶ Play — play back the pitches you've entered with the metronome, so you can hear and check before generating.\n\n" +
               "Switch to sharps / Switch to flats — toggles the default enharmonic spelling for new notes.\n\n" +
@@ -1003,7 +1225,13 @@ export default function RhythmBuilderScreen() {
         }}
         onInsertAfter={() => {
           if (editingIndex === null) return;
-          setInsertIndex(editingIndex + 1);
+          // "After" a merged rest means after the whole run, not between
+          // its slots.
+          let end = editingIndex;
+          if (pitches[editingIndex]?.rest) {
+            while (end + 1 < pitches.length && pitches[end + 1].rest) end++;
+          }
+          setInsertIndex(end + 1);
           setEditingIndex(null);
         }}
       />
@@ -1182,8 +1410,10 @@ function ExercisesPhase({
       const chunkEnd = Math.min(idx + G, pitches.length);
       for (let k = 0; k < chunkEnd - idx; k++) {
         const p = pitches[idx + k];
+        // Rest slots pass freq 0 — the scheduler keeps the slot's time
+        // but skips the voice.
         const concert = writtenToConcert(p.midi, instrument);
-        freqs.push(midiToFrequency(concert));
+        freqs.push(p.rest ? 0 : midiToFrequency(concert));
         tokens.push(pattern.notes[k]);
       }
       idx = chunkEnd;
@@ -1466,6 +1696,46 @@ const styles = StyleSheet.create({
   keyboardWrap: {
     marginVertical: Spacing.md,
   },
+  // Equal-flex sides flanking the rest keys: both take the same share of
+  // the row, so the rest keys land at the row's true center regardless of
+  // how wide each side's buttons are. The sides wrap internally when a
+  // half runs out of room (iPad portrait).
+  transportSide: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  transportSideEnd: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  // Phone: the rest keys get their own centered line under the buttons.
+  restRowPhone: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+  },
+  restKeyGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  restKey: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: Borders.thin,
+    borderRadius: Radii.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    minWidth: 48,
+  },
+  restKeyGlyph: { fontSize: 18, lineHeight: 22, fontWeight: Type.weight.bold },
+  restKeyLabel: { fontSize: 10, letterSpacing: 0.02 },
   respellHint: {
     textAlign: 'center',
     fontSize: 12,

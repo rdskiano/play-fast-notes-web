@@ -114,6 +114,17 @@ export function buildExerciseAbc(
     let body = '';
     let rendered = 0;
     let cumDur3 = 0;
+    // Rest placeholders take the pattern token's duration exactly like
+    // notes (the confirmed rest-as-placeholder model); consecutive rests
+    // merge into one printed rest. Units accumulate here and flush as a
+    // single `z` before the next sounding note or at the measure's end.
+    // Rests break beams regardless, so the surrounding spaces are safe.
+    let pendingRest = 0;
+    const flushRest = () => {
+      if (pendingRest === 0) return;
+      body += `${body.length > 0 ? ' ' : ''}z${pendingRest !== 1 ? pendingRest : ''} `;
+      pendingRest = 0;
+    };
     outer: for (let gi = 0; gi < groups.length; gi++) {
       const g = groups[gi];
       let groupSpaced = false;
@@ -133,12 +144,23 @@ export function buildExerciseAbc(
       }
       if (g.triplet) {
         const count = g.end - g.start + 1;
+        flushRest();
         body += `(${count}`;
       }
       for (let k = g.start; k <= g.end; k++) {
         if (rendered >= stopAt) break outer;
         const token = pattern.notes[k];
         const dur = TOKEN_UNITS[token];
+
+        // Rest placeholder outside a tuplet: accumulate for merging and
+        // move on. Inside a tuplet it must print individually (below) to
+        // keep the tuplet's element count intact.
+        if (chunkPitches[rendered].rest && !g.triplet) {
+          pendingRest += dur;
+          cumDur3 += dur * 3;
+          rendered++;
+          continue;
+        }
 
         if (
           !noBeam &&
@@ -153,22 +175,30 @@ export function buildExerciseAbc(
         groupSpaced = false;
 
         const p = chunkPitches[rendered];
-        const { letter, octave } = pitchLetter(p);
-        const L = letter as Letter;
-        const key = `${L}:${octave}`;
-        const want = p.accidental;
-        const current = active.has(key) ? active.get(key)! : keySigDefaults[L];
-        const needed = want !== current;
-        const prefix = needed || p.courtesy ? ACC_PREFIX[want] : '';
-        if (needed) active.set(key, want);
-        body += prefix + toAbcBody(L, octave);
-        if (dur !== 1) body += String(dur);
+        if (p.rest) {
+          // Rest inside a tuplet bracket — printed as its own element.
+          body += 'z';
+          if (dur !== 1) body += String(dur);
+        } else {
+          flushRest();
+          const { letter, octave } = pitchLetter(p);
+          const L = letter as Letter;
+          const key = `${L}:${octave}`;
+          const want = p.accidental;
+          const current = active.has(key) ? active.get(key)! : keySigDefaults[L];
+          const needed = want !== current;
+          const prefix = needed || p.courtesy ? ACC_PREFIX[want] : '';
+          if (needed) active.set(key, want);
+          body += prefix + toAbcBody(L, octave);
+          if (dur !== 1) body += String(dur);
+        }
         if (noBeam && k < g.end) body += ' ';
         cumDur3 += g.triplet ? dur * 2 : dur * 3;
         rendered++;
       }
       if (noBeam && gi < groups.length - 1) body += ' ';
     }
+    flushRest();
     return body;
   };
 

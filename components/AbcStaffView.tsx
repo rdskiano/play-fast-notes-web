@@ -69,6 +69,11 @@ type Props = {
   onNoteTap?: (noteIndex: number) => void;
   /** Draws a coloured highlight on the note at this index. */
   activeNoteIndex?: number | null;
+  /**
+   * Explicit char offsets (into `abc`) of each tappable token, overriding
+   * the default space-separated parse — see AbcStaffView.web.tsx.
+   */
+  noteStartChars?: number[];
 };
 
 function buildHtml(o: {
@@ -82,6 +87,7 @@ function buildHtml(o: {
   preferredMeasuresPerLine: number;
   hasTap: boolean;
   activeNoteIndex: number | null;
+  noteStartChars: number[] | null;
 }): string {
   const staffWidth = Math.max(40, o.width - 10);
   const wrapStmt = o.wrap
@@ -109,6 +115,7 @@ function buildHtml(o: {
   var INK = ${JSON.stringify(o.ink)};
   var ACTIVE = ${o.activeNoteIndex == null ? 'null' : String(o.activeNoteIndex)};
   var HAS_TAP = ${o.hasTap ? 'true' : 'false'};
+  var NOTE_STARTS = ${o.noteStartChars ? JSON.stringify(o.noteStartChars) : 'null'};
   function post(m){ if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(m); }
   function noteStarts(){
     var bs = ABC.lastIndexOf('\\n') + 1;
@@ -119,7 +126,9 @@ function buildHtml(o: {
     return starts;
   }
   function highlight(){
-    var notes = document.querySelectorAll('.abcjs-note');
+    // Rests are classed abcjs-rest, not abcjs-note — include them so
+    // sequence indices stay aligned when the staff contains rests.
+    var notes = document.querySelectorAll('.abcjs-note, .abcjs-rest');
     for (var i=0;i<notes.length;i++){
       notes[i].setAttribute('fill', (ACTIVE !== null && i === ACTIVE) ? '#9b59b6' : INK);
     }
@@ -135,13 +144,20 @@ function buildHtml(o: {
       };
       ${wrapStmt}
       if (HAS_TAP) {
-        var starts = noteStarts();
+        var starts = NOTE_STARTS || noteStarts();
         opts.clickListener = function(el){
           if (!el || typeof el.startChar !== 'number') return;
           var sc = el.startChar;
           for (var i=0;i<starts.length;i++){
             var lo = starts[i], hi = (i+1 < starts.length) ? starts[i+1] : Infinity;
-            if (sc >= lo && sc < hi) { post(String(i)); return; }
+            if (sc >= lo && sc < hi) {
+              // Duplicate offsets = one rendered token shared by several
+              // items (a merged rest run) — report the FIRST of the run.
+              var first = i;
+              while (first > 0 && starts[first-1] === starts[i]) first--;
+              post(String(first));
+              return;
+            }
           }
         };
       }
@@ -205,6 +221,7 @@ export function AbcStaffView({
   fallbackText,
   onNoteTap,
   activeNoteIndex,
+  noteStartChars,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -232,6 +249,7 @@ export function AbcStaffView({
         preferredMeasuresPerLine,
         hasTap: !!onNoteTap,
         activeNoteIndex: activeNoteIndex ?? null,
+        noteStartChars: noteStartChars ?? null,
       }),
     // activeNoteIndex is intentionally excluded — its changes are pushed via
     // injectJavaScript below so the WebView doesn't reload on every note.
@@ -246,6 +264,7 @@ export function AbcStaffView({
       wrap,
       preferredMeasuresPerLine,
       onNoteTap,
+      noteStartChars,
     ],
   );
 
