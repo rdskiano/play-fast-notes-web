@@ -186,24 +186,34 @@ export default function EvaluateScreen() {
   // recreated on each render would remount (and drop keyboard focus) on
   // every keystroke into the TextInput.
   function goalInputRow(primary: boolean) {
+    // The box must read as "type here", not as a button — Ralph froze on a
+    // pill-shaped input with a bold BPM placeholder (looked like a disabled
+    // control). So: an explicit instruction, a ♩ = prefix, and an example
+    // number as the placeholder.
     return (
-      <View style={styles.inputRow}>
-        <TextInput
-          value={goalInput}
-          onChangeText={setGoalInput}
-          keyboardType="number-pad"
-          inputMode="numeric"
-          placeholder="BPM"
-          placeholderTextColor={Palette.textMuted}
-          style={styles.bpmInput}
-        />
-        <View style={{ flex: 1 }}>
-          <Button
-            label={primary ? 'Use this tempo' : 'Use it'}
-            onPress={() => typedGoalValid && beginProbe(typedGoal, false)}
-            disabled={!typedGoalValid}
-            fullWidth
+      <View style={{ gap: 6 }}>
+        <ThemedText style={styles.inputLabel}>
+          {primary ? 'Enter the tempo here:' : 'Or enter a different tempo:'}
+        </ThemedText>
+        <View style={styles.inputRow}>
+          <ThemedText style={styles.inputPrefix}>♩ =</ThemedText>
+          <TextInput
+            value={goalInput}
+            onChangeText={setGoalInput}
+            keyboardType="number-pad"
+            inputMode="numeric"
+            placeholder="120"
+            placeholderTextColor={Palette.textMuted}
+            style={styles.bpmInput}
           />
+          <View style={{ flex: 1 }}>
+            <Button
+              label={primary ? 'Use this tempo' : 'Use it'}
+              onPress={() => typedGoalValid && beginProbe(typedGoal, false)}
+              disabled={!typedGoalValid}
+              fullWidth
+            />
+          </View>
         </View>
       </View>
     );
@@ -464,12 +474,22 @@ const styles = StyleSheet.create({
     color: Palette.accent,
   },
   inputRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
+  inputLabel: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    color: Palette.text,
+  },
+  inputPrefix: {
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.bold,
+    color: Palette.textSecondary,
+  },
   bpmInput: {
     width: 92,
     backgroundColor: Palette.card,
     borderWidth: Borders.thin,
     borderColor: Palette.border,
-    borderRadius: Radii.xl,
+    borderRadius: Radii.md,
     paddingVertical: 12,
     paddingHorizontal: 14,
     fontSize: Type.size.lg,

@@ -14,6 +14,26 @@ starts from inputting the music.
 
 ---
 
+# 2026-08-14 — D42 (STANDING): Ralph does not yet trust the coach's advice
+
+Pinned at the stand after his first real day using the D38 one-modal prompt +
+suggestion rules. His words: "Mechanically, everything is working. I just am not
+sure about the logic behind the scenes."
+
+- **What this means for the rules:** every routing/proposal rule in
+  `lib/coach/suggest.ts` + `proposeNote` is PROVISIONAL. The rules encode guesses;
+  none has been validated against Ralph's judgment on resistant material.
+- **How the coach gets educated:** NOT by his practicing (the rules don't learn) —
+  only by his disagreement reports landing here as D-entries and becoming rule
+  changes he signs off on. When Ralph reports on a coached session, ask whether
+  the suggestion felt right, and log the answer.
+- **Standing instruction:** don't present the coach's pedagogy as validated,
+  in-app or in conversation. This is the live thread of the July decision to
+  build transparent history + a coach disagreement log before trusting anything
+  deeper.
+
+---
+
 **Date:** 2026-07-27
 **Piece/excerpt:** *Frenzy: A Short Symphony for Orchestra* — John Adams (clarinet part)
 **Device:** iOS app on iPad ("if I even get that far" — iPad add-music friction is itself a known sore spot; log it)
