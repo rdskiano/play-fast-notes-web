@@ -98,10 +98,11 @@ export function PracticeLogNotePrompt({
   const chips = chipsForStrategy(strategy, chipContext);
   const remindable = strategySupportsReminder(strategy);
   // The coach's proposal — session-end flows only (edit flows pass no
-  // outcome). "Something else…" flips `expanded` and reveals the classic UI.
+  // outcome). Shown as an asterisk on the matching chip + a footnote with
+  // the reasoning, inside the ONE classic modal. (The earlier two-stage
+  // "Sounds right / Something else…" card confused Ralph — the suggestion
+  // pill read as a button — and hid the notes box behind a tap.)
   const proposal = sessionOutcome ? proposeNote(strategy, sessionOutcome) : null;
-  const [expanded, setExpanded] = useState(false);
-  const proposing = proposal !== null && !expanded;
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   // Preserve any prior mood through edit flows even though the UI no longer
@@ -122,7 +123,6 @@ export function PracticeLogNotePrompt({
       setNote(initialNote ?? '');
       setRemindNext(initialRemindNext ?? false);
       remindTouched.current = initialRemindNext ?? false;
-      setExpanded(false);
     }
   }, [visible, initialMood, initialNote, initialRemindNext]);
 
@@ -159,8 +159,8 @@ export function PracticeLogNotePrompt({
   // gesture window. (Auto-opens with no gesture — e.g. the goal-reached
   // celebration — still can't raise the keyboard; that's an iOS hard limit.)
   useLayoutEffect(() => {
-    if (visible && !proposing) inputRef.current?.focus();
-  }, [visible, proposing]);
+    if (visible) inputRef.current?.focus();
+  }, [visible]);
 
   // Belt-and-suspenders for iPad Safari (web). The synchronous focus above
   // catches the gesture-window case, but RN-Web mounts the modal's content a
@@ -171,14 +171,14 @@ export function PracticeLogNotePrompt({
   // gesture. (iPhone Safari ignores a deferred focus, and native already worked
   // via the layout effect — so no regression on either.)
   useEffect(() => {
-    if (!visible || proposing) return;
+    if (!visible) return;
     const raf = requestAnimationFrame(() => inputRef.current?.focus());
     const t = setTimeout(() => inputRef.current?.focus(), 150);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(t);
     };
-  }, [visible, proposing]);
+  }, [visible]);
 
   function submit() {
     const trimmed = note.trim();
@@ -225,51 +225,6 @@ export function PracticeLogNotePrompt({
               <ThemedText style={[styles.keepCloseText, { color: C.icon }]}>✕</ThemedText>
             </Pressable>
           )}
-          {proposing && proposal ? (
-            <>
-              <ThemedText style={styles.proposalEyebrow}>
-                🎯 For next time, the coach suggests
-              </ThemedText>
-              <View style={[styles.proposalPill, { backgroundColor: C.tint }]}>
-                <ThemedText style={styles.proposalPhrase}>{proposal.phrase}</ThemedText>
-              </View>
-              <ThemedText style={[styles.proposalWhy, { color: C.text }]}>
-                {proposal.why}
-              </ThemedText>
-              <View style={styles.row}>
-                <Pressable onPress={onSkip} style={styles.skip}>
-                  <ThemedText style={[styles.skipText, { color: C.icon }]}>
-                    {cancelLabel}
-                  </ThemedText>
-                </Pressable>
-                <View style={{ flex: 1 }} />
-                <Pressable
-                  onPress={() => setExpanded(true)}
-                  style={[styles.somethingElse, { borderColor: C.icon }]}>
-                  <ThemedText style={[styles.somethingElseText, { color: C.text }]}>
-                    Something else…
-                  </ThemedText>
-                </Pressable>
-                <Pressable
-                  onPress={() =>
-                    onSubmit({
-                      mood,
-                      note: proposal.phrase,
-                      remindNext: remindable,
-                    })
-                  }
-                  style={[styles.save, { backgroundColor: C.tint }]}>
-                  <ThemedText style={styles.saveText}>Sounds right</ThemedText>
-                </Pressable>
-              </View>
-              {remindable && (
-                <ThemedText style={[styles.proposalFootnote, { color: C.icon }]}>
-                  “Sounds right” saves the session and reminds you once, next time.
-                </ThemedText>
-              )}
-            </>
-          ) : (
-            <>
           <ThemedText
             type="subtitle"
             style={{ textAlign: 'center', paddingHorizontal: onKeepPracticing ? 28 : 0 }}>
@@ -280,6 +235,7 @@ export function PracticeLogNotePrompt({
           <View style={styles.chipRow}>
             {chips.map((phrase) => {
               const active = note.includes(phrase);
+              const suggested = proposal?.phrase === phrase;
               return (
                 <Pressable
                   key={phrase}
@@ -295,7 +251,7 @@ export function PracticeLogNotePrompt({
                   ]}>
                   <ThemedText
                     style={[styles.chipText, { color: active ? '#fff' : C.text }]}>
-                    {phrase}
+                    {suggested ? `${phrase} *` : phrase}
                   </ThemedText>
                 </Pressable>
               );
@@ -303,6 +259,15 @@ export function PracticeLogNotePrompt({
           </View>
           )}
 
+          {proposal && (
+            <ThemedText style={[styles.coachNote, { color: C.icon }]}>
+              * The coach’s pick — {proposal.why}
+            </ThemedText>
+          )}
+
+          <ThemedText style={[styles.inputLabel, { color: C.text }]}>
+            Any notes from this session?
+          </ThemedText>
           <TextInput
             ref={inputRef}
             value={note}
@@ -357,8 +322,6 @@ export function PracticeLogNotePrompt({
               <ThemedText style={styles.saveText}>{submitLabel}</ThemedText>
             </Pressable>
           </View>
-            </>
-          )}
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -457,40 +420,14 @@ const styles = StyleSheet.create({
   saveText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: 15 },
   delete: { paddingHorizontal: 14, paddingVertical: 10 },
   deleteText: { color: Status.danger, fontWeight: Type.weight.bold, fontSize: Type.size.md },
-  proposalEyebrow: {
-    fontSize: 11,
-    fontWeight: Type.weight.bold,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    textAlign: 'center',
-    color: Palette.textMuted,
-    paddingHorizontal: 28,
+  coachNote: {
+    fontSize: Type.size.sm,
+    lineHeight: 19,
+    marginTop: -4,
   },
-  proposalPill: {
-    alignSelf: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 22,
+  inputLabel: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    marginBottom: -8,
   },
-  proposalPhrase: {
-    color: '#fff',
-    fontSize: Type.size.lg,
-    fontWeight: Type.weight.heavy,
-    textAlign: 'center',
-  },
-  proposalWhy: {
-    fontSize: Type.size.md,
-    lineHeight: 21,
-    textAlign: 'center',
-    paddingHorizontal: 6,
-  },
-  somethingElse: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: Radii.md,
-    borderWidth: Borders.medium,
-    marginRight: 4,
-  },
-  somethingElseText: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
-  proposalFootnote: { fontSize: Type.size.xs, textAlign: 'center', marginTop: -4 },
 });

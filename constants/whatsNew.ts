@@ -38,7 +38,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     date: 'August 13, 2026',
     title: 'The end-of-session note now comes with a suggestion',
     body:
-      'When you finish a session, the app no longer greets you with six choices. It watched your session, so it leads with one suggestion — "Keep climbing the tempo," with your numbers under it — and "Sounds right" saves everything in one tap, reminder included. "Something else…" brings back the full set of choices and the text box, exactly as before.',
+      'The coach watched your session, so when you finish, its pick among the choices is marked with a * and a short line explaining why. Tap any choice and the app will remind you of it once, next session — and there\'s always a notes box for your own words.',
   },
   {
     id: '2026-08-13-first-practice-evaluation',
