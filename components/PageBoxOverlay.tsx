@@ -220,22 +220,23 @@ export function PageBoxOverlay({
                 left: p.x,
                 top: p.y,
                 maxWidth: PILL_MAX_W,
-                // Brand-accent pills so they read as controls, not smudges:
-                // unselected = white face with accent border + accent text
-                // (the app's outline-button look); selected = solid accent.
-                backgroundColor: selected ? C.tint : '#ffffffee',
+                // Solid brand-accent fill + white text — outline pills
+                // washed out against the white score page. Selection
+                // inverts to a white face (the lit box + action bar sit
+                // right there, so the pale pill can't get lost).
+                backgroundColor: selected ? '#ffffff' : C.tint,
                 borderColor: C.tint,
               },
             ]}>
             <ThemedText
               numberOfLines={1}
-              style={[styles.pillText, { color: selected ? '#fff' : C.tint }]}>
+              style={[styles.pillText, { color: selected ? C.tint : '#fff' }]}>
               {p.passage.title}
               {p.badge ? (
                 <ThemedText
                   style={[
                     styles.pillText,
-                    { color: selected ? '#ffffffcc' : C.tint + 'b0' },
+                    { color: selected ? C.tint + 'b0' : '#ffffffcc' },
                   ]}>
                   {'  ·  '}
                   {p.badge}
