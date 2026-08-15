@@ -413,4 +413,10 @@ export const MIGRATIONS: string[] = [
     SELECT 'strategy_last_used', piece_id || '|' || strategy, strftime('%s','now') * 1000 FROM strategy_last_used WHERE piece_id IS NOT NULL
   ON CONFLICT (table_name, row_id) DO NOTHING;
   `,
+  `
+  -- Sync diagnostics: when the engine sets a row aside (missing file, folder
+  -- conflict, network...), it records why, so the Account Sync card can NAME
+  -- the stuck item in plain English instead of just counting it.
+  ALTER TABLE sync_outbox ADD COLUMN last_error TEXT;
+  `,
 ];

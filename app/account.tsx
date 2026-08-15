@@ -328,6 +328,12 @@ export default function AccountScreen() {
               <ThemedText style={styles.sectionTitle}>Sync</ThemedText>
               <View style={styles.card}>
                 <ThemedText style={styles.hint}>{syncStatusLine(sync)}</ThemedText>
+                {sync.pendingCount > 0 &&
+                  sync.stuck.map((s, i) => (
+                    <ThemedText key={i} style={styles.hint}>
+                      • {s.label} — {s.reason}
+                    </ThemedText>
+                  ))}
                 <View style={styles.accountActions}>
                   {sync.state === 'signed-out' ? (
                     <Button

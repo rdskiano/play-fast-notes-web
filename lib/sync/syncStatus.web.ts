@@ -6,10 +6,11 @@ export type SyncStatus = {
   lastSyncAt: number | null;
   pendingCount: number;
   lastError: string | null;
+  stuck: { label: string; reason: string }[];
 };
 
 export async function getSyncStatus(): Promise<SyncStatus> {
-  return { state: 'idle', lastSyncAt: null, pendingCount: 0, lastError: null };
+  return { state: 'idle', lastSyncAt: null, pendingCount: 0, lastError: null, stuck: [] };
 }
 
 export async function syncNow(): Promise<void> {}

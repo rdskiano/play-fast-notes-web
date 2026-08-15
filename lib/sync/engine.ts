@@ -36,6 +36,8 @@ export type SyncStatus = {
   lastSyncAt: number | null;
   pendingCount: number;
   lastError: string | null;
+  /** Up to 3 waiting items, named in plain English with why they're waiting. */
+  stuck: { label: string; reason: string }[];
 };
 
 let running = false;
@@ -84,6 +86,16 @@ export const withSyncApplying = withApplying;
 
 // ── public status (Account screen) ──────────────────────────────────────────
 
+// Turn a raw defer error into a sentence a musician can act on.
+function plainReason(raw: string | null): string {
+  if (!raw) return 'will keep retrying automatically';
+  if (/local file (missing|empty)/i.test(raw)) return 'its image file is missing on this device';
+  if (/assets not uploadable/i.test(raw)) return 'its page images are missing on this device';
+  if (/foreign key/i.test(raw)) return 'it belongs to something that no longer exists (like a deleted folder)';
+  if (/network|fetch|timeout/i.test(raw)) return 'waiting for internet';
+  return 'hit a problem; retrying automatically';
+}
+
 export async function getSyncStatus(): Promise<SyncStatus> {
   const db = getDb();
   const pending = await db.getFirstAsync<{ n: number }>(
@@ -92,6 +104,36 @@ export async function getSyncStatus(): Promise<SyncStatus> {
   const last = await getState('last_sync_at');
   const err = await getState('last_error');
   const state = await getState('last_state');
+
+  // Name up to 3 waiting items so the card can say WHAT is stuck and why.
+  const stuck: SyncStatus['stuck'] = [];
+  if ((pending?.n ?? 0) > 0) {
+    try {
+      const rows = await db.getAllAsync<{ table_name: string; row_id: string; last_error: string | null }>(
+        'SELECT table_name, row_id, last_error FROM sync_outbox ORDER BY queued_at LIMIT 3;',
+      );
+      for (const r of rows) {
+        let label = 'an item';
+        if (r.table_name === 'pieces') {
+          const p = await db.getFirstAsync<{ title: string }>('SELECT title FROM pieces WHERE id = ?;', r.row_id);
+          label = p?.title ? `“${p.title}”` : 'a passage';
+        } else if (r.table_name === 'documents') {
+          const d = await db.getFirstAsync<{ title: string }>('SELECT title FROM documents WHERE id = ?;', r.row_id);
+          label = d?.title ? `“${d.title}”` : 'a piece of music';
+        } else if (r.table_name === 'practice_log') {
+          label = 'a practice session';
+        } else if (r.table_name === 'strategy_last_used') {
+          label = 'a practice bookmark';
+        } else {
+          label = 'practice progress';
+        }
+        stuck.push({ label, reason: plainReason(r.last_error) });
+      }
+    } catch {
+      // pre-migration DB or transient read issue — the count still shows
+    }
+  }
+
   return {
     state: running
       ? 'syncing'
@@ -99,6 +141,7 @@ export async function getSyncStatus(): Promise<SyncStatus> {
     lastSyncAt: last ? Number(last) : null,
     pendingCount: pending?.n ?? 0,
     lastError: err,
+    stuck,
   };
 }
 
@@ -254,6 +297,24 @@ async function clearQueued(table: string, q: Queued): Promise<void> {
     q.row_id,
     q.queued_at,
   );
+}
+
+// Record WHY a row was set aside, so the Sync card can name it instead of
+// just counting it. Best-effort — diagnostics must never break the sync.
+async function markDeferred(table: string, rowId: string, e: unknown): Promise<void> {
+  try {
+    const msg =
+      e instanceof Error ? e.message : (() => { try { return JSON.stringify(e); } catch { return String(e); } })();
+    const db = getDb();
+    await db.runAsync(
+      'UPDATE sync_outbox SET last_error = ? WHERE table_name = ? AND row_id = ?;',
+      msg.slice(0, 300),
+      table,
+      rowId,
+    );
+  } catch {
+    // diagnostics only
+  }
 }
 
 // Parents before children — cloud foreign keys demand it.
@@ -511,6 +572,7 @@ async function pushDocuments(userId: string): Promise<void> {
       // Leave this document queued (missing file, offline mid-upload…) and
       // keep going — one stuck row must not dam the whole outbox.
       console.warn('[sync] document push deferred', q.row_id, e);
+      await markDeferred('documents', q.row_id, e);
     }
   }
 }
@@ -638,6 +700,7 @@ async function pushPieces(userId: string): Promise<void> {
       await clearQueued('pieces', q);
     } catch (e) {
       console.warn('[sync] piece push deferred', q.row_id, e);
+      await markDeferred('pieces', q.row_id, e);
     }
   }
 }
@@ -688,6 +751,7 @@ async function pushExercises(): Promise<void> {
       await clearQueued('exercises', q);
     } catch (e) {
       console.warn('[sync] exercise push deferred', q.row_id, e);
+      await markDeferred('exercises', q.row_id, e);
     }
   }
 }
@@ -733,6 +797,7 @@ async function pushProgress(table: string, cols: string[]): Promise<void> {
       await clearQueued(table, q);
     } catch (e) {
       console.warn(`[sync] ${table} push deferred`, q.row_id, e);
+      await markDeferred(table, q.row_id, e);
     }
   }
 }
@@ -782,6 +847,7 @@ async function pushStrategyLastUsed(): Promise<void> {
       await clearQueued('strategy_last_used', q);
     } catch (e) {
       console.warn('[sync] strategy_last_used push deferred', q.row_id, e);
+      await markDeferred('strategy_last_used', q.row_id, e);
     }
   }
 }
@@ -833,6 +899,7 @@ async function pushPracticeLog(): Promise<void> {
       await clearQueued('practice_log', q);
     } catch (e) {
       console.warn('[sync] practice_log push deferred', q.row_id, e);
+      await markDeferred('practice_log', q.row_id, e);
     }
   }
 }
