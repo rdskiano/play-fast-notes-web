@@ -31,6 +31,11 @@ import { useSubscription } from '@/lib/supabase/subscription';
 import { getSyncStatus, syncNow, type SyncStatus } from '@/lib/sync/syncStatus';
 import { DEMO_TUTORIAL_EMAIL } from '@/lib/tutorials/demoMode';
 
+// What to call the machine in user-facing copy. Platform.isPad is iOS-only;
+// web and Android fall back to the neutral word.
+const DEVICE_WORD =
+  Platform.OS === 'ios' ? (Platform.isPad ? 'iPad' : 'iPhone') : 'device';
+
 function formatExpiry(unixMs: number): string {
   const d = new Date(unixMs);
   return d.toLocaleDateString(undefined, {
@@ -104,7 +109,7 @@ export default function AccountScreen() {
           })}.`
         : 'Not synced yet.';
     if (s.state === 'signed-out')
-      return 'Sign in to back up this iPad’s work to your web account.';
+      return `Sign in to back up this ${DEVICE_WORD}’s work to your web account.`;
     if (s.state === 'waiting-server')
       return 'Sync is installed but waiting on a server update.';
     if (s.pendingCount > 0)

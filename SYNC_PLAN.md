@@ -1,6 +1,8 @@
 # Cross-device sync plan — iPad ⇄ iPhone ⇄ web
 
-Status: **Phases 1 + 2 BUILT 2026-08-15 (uncommitted, not yet runtime-tested).**
+Status: **Phases 1 + 2 SHIPPED 2026-08-15** (commit 4491522, live web + OTA
+`production`; two-way loop verified on the iPad simulator with the newbie
+account before shipping). Phase 3 (lazy assets + annotations) not started.
 Written 2026-06-05. Decisions captured from the user (a musician, not a
 developer) are marked **[DECIDED]**; things still to confirm are marked
 **[OPEN]**.

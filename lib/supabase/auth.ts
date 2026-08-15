@@ -85,10 +85,15 @@ export async function signOut(): Promise<void> {
  */
 export async function requestPasswordReset(email: string): Promise<void> {
   const trimmedEmail = email.trim();
-  const redirectTo =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/reset-password`
-      : undefined;
+  // React Native defines a global `window` WITHOUT `location`, so a bare
+  // typeof-window check passes and then `.origin` crashes. In the app, the
+  // emailed link should open the WEB reset page — the app can't consume a
+  // recovery URL anyway.
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://playfastnotes.com';
+  const redirectTo = `${origin}/reset-password`;
   const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
     redirectTo,
   });
