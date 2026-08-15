@@ -106,7 +106,10 @@ export default function RhythmListScreen() {
     await refresh();
     router.push({
       pathname: '/passage/[id]/rhythm-builder',
-      params: { id, exerciseId: created.id },
+      // fresh=1: the builder deletes this row again if the user exits
+      // without entering any notes, so backing out of a brand-new exercise
+      // doesn't leave an empty shell in this list.
+      params: { id, exerciseId: created.id, fresh: '1' },
     });
   }
 

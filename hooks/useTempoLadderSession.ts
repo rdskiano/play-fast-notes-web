@@ -143,6 +143,30 @@ export function useTempoLadderSession(
   // carrying real prior progress.
   const hadDurableRowRef = useRef(false);
 
+  // ── D46: slow-down offer (step mode) ─────────────────────────────────────
+  // Three misses at a rung before ANY clean rep there → offer to drop the
+  // tempo. The offer buttons just turn the metronome dial; the
+  // click-is-the-truth effect above makes the ladder follow honestly.
+  // Declining is final for the session. Counters reset whenever the rung
+  // changes (dial, step-up, session start) via the effect below.
+  const [slowDownOffer, setSlowDownOffer] = useState(false);
+  const slowDownDeclinedRef = useRef(false);
+  const missesAtRungRef = useRef(0);
+  const cleanAtRungRef = useRef(false);
+  useEffect(() => {
+    missesAtRungRef.current = 0;
+    cleanAtRungRef.current = false;
+  }, [progress?.current_tempo]);
+  function acceptSlowDown(delta: number) {
+    setSlowDownOffer(false);
+    const cur = metronome.bpm || progress?.current_tempo || 60;
+    metronome.setBpm(Math.max(30, cur - delta));
+  }
+  function dismissSlowDown() {
+    setSlowDownOffer(false);
+    slowDownDeclinedRef.current = true;
+  }
+
   // Latest micro-break API, read by the unmount cleanup below (avoids a stale
   // closure on setConfig).
   const microbreakRef = useRef(microbreak);
@@ -322,15 +346,18 @@ export function useTempoLadderSession(
             .catch((e) => console.warn('[tempoLadder] getCustomPattern failed:', e));
         }
       } else {
-        // Resume from the highest tempo the user climbed to last session.
-        // start_tempo only bumps when goal is reached (SUCCESS_BUMP_BPM); if
-        // they advanced mid-ladder and ended, current_tempo holds the real
-        // progress. Goal-reach case keeps the bumped start_tempo (current is
-        // already at goal so we'd lose climbing room).
+        // Resume from the banked tempo, wherever it is. current_tempo holds
+        // the real position: above start after climbing, or BELOW start after
+        // a mid-session dial-down (click-is-the-truth banks the sounding
+        // tempo honestly — F20: the old Math.max(start, current) floor here
+        // silently resurrected the stale configured start and then start-time
+        // persistence overwrote the honest bank). Goal-reach case keeps the
+        // bumped start_tempo (current is already at goal so we'd lose
+        // climbing room).
         const effectiveStart =
           existing.current_tempo >= existing.goal_tempo
             ? existing.start_tempo
-            : Math.max(existing.start_tempo, existing.current_tempo);
+            : existing.current_tempo || existing.start_tempo;
         setStartTempo(String(effectiveStart));
         setGoalTempo(String(existing.goal_tempo));
       }
@@ -365,7 +392,11 @@ export function useTempoLadderSession(
     const bpm = metronome.bpm;
     if (!bpm || bpm === progress.current_tempo) return;
     setProgress({ ...progress, current_tempo: bpm, current_streak: 0 });
-    if (!toolsOnly && exerciseId) {
+    // F20: only persist the dial once a rep has actually been played this
+    // session (touchedRef). Before that, the in-memory session follows the
+    // dial but the durable row stays put — dialing around and exiting moves
+    // nothing. onClean/onMiss persist the sounding tempo with the rep.
+    if (!toolsOnly && exerciseId && touchedRef.current) {
       updateTempoLadderState(exerciseId, bpm, 0).catch((e) =>
         console.warn('[tempoLadder] follow-the-dial persist failed:', e),
       );
@@ -524,7 +555,11 @@ export function useTempoLadderSession(
         !toolsOnly && exerciseId
           ? await upsertTempoLadder(cfg)
           : synthProgress(cfg, start);
-      if (!toolsOnly && exerciseId) await updateTempoLadderState(exerciseId, start, 0);
+      // F20 (Ralph's rule: the trail only moves when logged practice
+      // happened). No durable state write here — upsertTempoLadder persists
+      // the CONFIG but preserves the banked current_tempo, and the first
+      // real rep (onClean/onMiss) persists the new position. Merely starting
+      // and exiting no longer moves the pill.
       setProgress({ ...saved, current_tempo: start, current_streak: 0 });
       metronome.setBpm(start);
       metronome.start();
@@ -552,8 +587,10 @@ export function useTempoLadderSession(
       !toolsOnly && exerciseId
         ? await upsertTempoLadder(cfg)
         : synthProgress(cfg, firstBpm);
-    if (!toolsOnly && exerciseId)
-      await advanceClusterWindow(exerciseId, low, high, firstBpm, 0);
+    // F20: no durable state write at start (see the step branch). The upsert
+    // above already persists the window bounds; the first real rep persists
+    // position. Also keeps the random first pick out of the durable row,
+    // matching onClean's persist-the-floor-not-the-pick rule.
     setProgress({
       ...saved,
       cluster_low: low,
@@ -569,6 +606,8 @@ export function useTempoLadderSession(
   async function onClean() {
     if (!progress || (!toolsOnly && (!exerciseId || !id))) return;
     touchedRef.current = true; // a rep happened → this is a real session
+    // D46: a clean run at this rung proves it's playable — no slow-down offer.
+    cleanAtRungRef.current = true;
 
     // ── Custom mode ──────────────────────────────────────────────────
     // One full execution of the pattern with no misses = one clean set,
@@ -703,6 +742,14 @@ export function useTempoLadderSession(
     setProgress({ ...progress, current_streak: 0 });
     const base = durableBase(progress.mode, progress.current_tempo, progress, customBase);
     if (!toolsOnly && exerciseId) await updateTempoLadderState(exerciseId, base, 0);
+    // D46: three misses at this rung with no clean run yet → offer to drop
+    // the tempo. Declining earlier this session keeps the coach quiet.
+    if (progress.mode === 'step' && !cleanAtRungRef.current) {
+      missesAtRungRef.current += 1;
+      if (missesAtRungRef.current >= 3 && !slowDownDeclinedRef.current) {
+        setSlowDownOffer(true);
+      }
+    }
   }
 
   async function advanceAfterCelebration() {
@@ -985,6 +1032,10 @@ export function useTempoLadderSession(
     advanceAfterCelebration,
     dismissCelebration,
     endSession,
+    // D46 slow-down offer
+    slowDownOffer,
+    acceptSlowDown,
+    dismissSlowDown,
     // guided onboarding
     confirmPerformanceTempo,
     goBackToTempo,

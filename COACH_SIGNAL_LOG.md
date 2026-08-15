@@ -373,6 +373,279 @@ prefill fix would have erased.
 
 ═══════════════════════════════════════════════════════════════════════
 
+# SESSION 5 (2026-08-14) — narrated scribe session, planned as the
+# "teach the coach" pass on resistant material. Ralph practices + narrates;
+# entries logged live. No fixes built mid-session.
+#
+# POST-SESSION BUILD BATCH (same day, typecheck + web export clean, NOT
+# shipped, NOT click-tested by anyone): F19 evaluation screen shows the
+# zoomable passage under every step · F20 resume prefill honors a banked
+# tempo below start + NO durable writes until the first rep (start-persist
+# removed in step AND cluster branches; dial-persist gated on touchedRef) ·
+# F21 fresh empty exercise soft-deletes on exit (fresh=1 param from
+# rhythm-list) · D45 rest palette replaced by the single "Skip a note" key
+# (glyph tables/modes/dot removed) · D46 slow-down modal (3 misses, no
+# clean, step mode, not guided; −5/−10/−15/−20 dial the metronome; No
+# thanks is final for the session). Still open: D44 pill meaning, D47
+# rotator rescue (waits on D46), D48 chaining decision.
+
+**F19 — ⚠️ The evaluation flow hides the music it asks you to play.**
+- **What Ralph hit:** on a first-time passage, "Ready to practice?" opens the
+  evaluation, the tempo loads correctly, and the probe asks "Can you play it?"
+  — but the passage image is nowhere on screen. Same at the find-your-clean-tempo
+  step. He literally cannot see the notes he's being asked to play, so the probe
+  answer defaults to "not yet" for the wrong reason (can't see it ≠ can't play it).
+- **Why it matters for the coach:** the probe and the clean-tempo hunt are the
+  coach's two measurement anchors (D6/D8). If the player answers them without the
+  score in front of them, the measurements are junk — this quietly corrupts the
+  very trail the coach reasons from.
+- **Ralph's proposed fix (his words):** put the passage underneath what's
+  currently on that page — i.e. render the passage crop below the step content,
+  the way the practice tools all show the score. Every other screen that asks
+  for a rep shows the music; the evaluation is the odd one out.
+- **Status:** logged, not built (scribe-session rule). Build after the session.
+
+**D43 — D14 observed live at last: too fast at the rung → his instinct was to
+EXIT the session, when the dial-down affordance already exists (and he didn't
+know it).**
+- **What happened:** goal 100, ladder rung 70, can't play it. Ralph's plan:
+  "exit out of the tempo ladder and turn the tempo down" — a full
+  quit-and-reconfigure round trip. Mid-sentence he pivoted to an experiment:
+  "what happens when I turn the metronome down WITHIN the tempo ladder?" and
+  dialed to 50.
+- **What the app actually does:** the right thing, already. The
+  click-is-the-truth rule (useTempoLadderSession, built after the Session-3
+  played-60-banked-80 incident) makes the rung FOLLOW the dial: streak resets,
+  cleans credit at the sounding tempo, resume point banks honestly. Step mode
+  only.
+- **The finding: a discoverability hole, not a missing feature.** The BUILDER
+  of the app did not know the escape hatch existed at the moment he needed it —
+  no student will ever find it. D14's "repeated misses → offer to drop tempo"
+  should therefore be a SURFACING rule, not new mechanics: after N misses at a
+  rung (D14's threshold, ~4, still TBD), say "Too fast? Turn the metronome
+  down — the ladder will follow you." The machinery is done; only the whisper
+  is missing.
+- **Also feeds D40/D8:** his 70 start came out ~30% under goal and was STILL
+  unplayable — first live datapoint of a ladder start that was too HIGH on
+  resistant material (every prior start-tempo rule came from easy material).
+  Watch where his clean tempo actually lands today vs the handoff's guess.
+- **Status:** watching what happens at 50; wording/threshold are Ralph's call
+  after the session.
+- **VERIFIED LIVE (same sitting):** dialed to 50 → 5 clean → 5 clean at 55 →
+  practice log correctly says "finished tempo ladder at 55." Click-is-the-truth
+  works in real use on resistant material. Ralph, unprompted: "that's great."
+
+**D44 — The passage pill shows the RESUME point, Ralph read it as the
+ACHIEVED point.**
+- **What happened:** after the 55-clean session the score-page pill said 60%.
+  His read: "I'm at 55 out of 100, it should say 55."
+- **Mechanism (not a math bug):** pill % = tempo_ladder_progress.current_tempo
+  / goal (passageStatus repos). Five cleans at 55 step the ladder UP and bank
+  60 as the next rung — so the pill reports where he'll START next time, while
+  the log reports what he FINISHED. Two honest numbers answering different
+  questions, and the pill doesn't say which it's answering.
+- **The design tension:** "60%" claims a tempo he has never played clean —
+  reads as inflation to the player. Counterpoint: it matches the banked-climb
+  end-of-session message and tells you where you resume. If the pill switches
+  to achieved-tempo, the banked chip copy ("banked your climb at 60") should
+  probably switch too, or the two will contradict each other in the other
+  direction.
+- **Coach relevance:** the D41 ICU rule and any future %-gates (D18) read the
+  same banked number — if we redefine what the trail's "current tempo" means,
+  every rule that consumes it must be re-checked against which number it wants.
+- **Status:** Ralph leans "show 55" (achieved). HIS call, not built —
+  adjudicate after the session alongside D18.
+
+**F20 — ⚠️ BUG: re-entering the ladder discards a banked tempo that sits
+BELOW the configured start. Click-is-the-truth banks honestly; the resume
+prefill throws it away.**
+- **What Ralph hit:** came back to the passage via his practice note, expecting
+  to pick up around his banked climb (55, per the log) — the setup's Start box
+  said 70 and the session really started at 70. Confirmed on-device.
+- **Mechanism (exact):** the setup prefill "resumes from the highest tempo you
+  climbed to" via `Math.max(start_tempo, current_tempo)`
+  (useTempoLadderSession, step-mode resume branch). That assumption — current
+  can only be ABOVE start — predates click-is-the-truth. Once the dial can
+  honestly bank a tempo BELOW the configured start (70 → dialed to 50, climbed
+  to 55), Math.max(70, 55) silently resurrects 70. Compounding it: pressing
+  Start then calls updateTempoLadderState(exerciseId, start, 0), OVERWRITING
+  the banked 55 with 70 — the honest record from the last session is now gone
+  from the progress row.
+- **Why it matters for the coach:** the banked tempo is the trail's core
+  number (pill %, banked-climb chip, D41 ICU rule). This bug means a
+  dial-down session's truth survives only until the next visit — the trail
+  self-corrupts on exactly the struggling-player path the coach most needs to
+  see.
+- **Candidate fix (post-session, Ralph approves):** when current_tempo <
+  start_tempo, resume AT current_tempo (drop the Math.max floor), and
+  consider having a mid-session dial-down also lower the stored start_tempo
+  so the config stops disagreeing with reality. Also decide whether the log's
+  session-note copy should say "banked at N" using the same number the resume
+  will actually use — one vocabulary across log/pill/setup (braids with D44).
+- **Unresolved sub-question:** whether the row banked 55 or 60 before being
+  clobbered (log said "finished at 55"; pill said 60%; iPad data is local so
+  unverifiable now). Doesn't change the bug; matters for the D44 wording.
+- **CONFIRMED LIVE + WORSE (same sitting, Ralph's pin):** he started the
+  70-prefilled session and exited WITHOUT a single rep — no practice-log
+  entry (correct; endSession gates on completedSets>0) — yet the score-page
+  pill AND the strategy-card pill both now read 70%. So the overwrite fires
+  at session START (startSession → updateTempoLadderState(exerciseId, start,
+  0)), and an untouched exit never rolls it back. Zero practice moved the
+  trail from 55 to 70. Both pills read the same progress row, so they agree
+  with each other and disagree with the log.
+- **Ralph's stated principle (worth adopting as a coach-data rule):** "the
+  practice log doesn't show it, so it shouldn't have updated the pill" — the
+  TRAIL MAY ONLY MOVE WHEN LOGGED PRACTICE HAPPENED. Fix shape: defer the
+  start-tempo persist until the first rep is played (or restore the prior
+  current_tempo on untouched exit — the hadDurableRowRef cleanup path already
+  knows the session was untouched).
+
+**D45 — Rest palette on a sextuplet passage: the right mechanism exists,
+invisibly (the D43 pattern again — this session's theme is discoverability,
+not missing features).**
+- **What Ralph hit (m45 play-test of the rest-entry ship):** entering a
+  running-sextuplet passage in the Exercise Builder, he assumed tapping the
+  8th-rest key would count as ONE entity, and didn't know what a 16th rest
+  would do. His stated mental model: "the rest should represent a certain
+  number of the rhythmic units we are working with" — in sextuplets, an 8th
+  rest = 3 missing notes, a 16th rest = 1.
+- **What's actually built (rest-entry ship, 2026-08-13):** exactly that. The
+  palette has straight mode (running 16ths: 16th=1 / 8th=2 / quarter=4 slots)
+  and a triplet toggle (slot = triplet 16th: 16th=1 / 8th=3 / quarter=6),
+  plus a · dot modifier that disables buttons whose dotted value can't land
+  on the slot grid. In triplet mode his sextuplet case is already correct.
+- **The finding:** the BUILDER assumed his own feature lacked the semantics
+  it has. Nothing on the palette says a rest key inserts N placeholders, or
+  that a mode toggle changes N. A student in the wrong mode gets silently
+  wrong counts (8th = 2 where the passage needs 3) with no feedback.
+- **Design directions floated (Ralph to pick after the session):**
+  (a) INFER the mode from the exercise's grouping the user already chose —
+  grouping 6/3 → triplet slots, 4/2 → straight; demote or remove the manual
+  toggle (the app already knows the running unit; asking again is a quiz).
+  (b) Make the insertion visible: per-key sublabel ("= 3 notes") and/or a
+  post-tap flash ("filled 3 of 6"), so the slot math teaches itself.
+  (c) His literal mental model as UI: keys labeled in units ("1 / 2 / 3
+  notes' worth") rendering the correct glyph per mode — trades familiar
+  notation vocabulary for explicitness.
+- **Status:** logged only; no fix built mid-session. Braids with D43/F20 as
+  the session's emerging pattern: mechanisms outrunning their visibility.
+- **RESOLVED IN DISCUSSION (same sitting) — direction (a) inference is DEAD,
+  killed by Ralph with a correct counterexample:** grouping is pattern
+  length, not note value (running 8ths with grouping 4; sextuplets with
+  grouping 3). The running unit lives on a photo the app can't read — the
+  information isn't there to infer. **LEADING CANDIDATE (Ralph: "might be a
+  very elegant solution", wants to SEE it in practice before committing):
+  replace the entire rest palette with a single SKIP key.** One tap inserts
+  one placeholder — the same interaction grammar as note entry (one tap =
+  one slot). The user counts missing notes in their OWN passage's terms; the
+  app never claims what an "8th rest" means. Collapses three glyph buttons +
+  straight/triplet modes + the · dot modifier into one un-misunderstandable
+  key. Known trade-off (his open question): long rests = many taps (quarter
+  rest in sextuplets = 6); hold-to-repeat is the escape hatch if real
+  repertoire demands it. Build as a post-session trial for him to play with
+  — not a committed replacement until he's used it.
+
+**D46 — Ralph's ruling on the miss-triggered tempo-drop (adjudicates D14's
+threshold and upgrades D43's whisper into an action).**
+- **Context he gave first:** today's 70-unplayable situation arose from the
+  broken handoff — a correctly-clocked passage wouldn't normally start that
+  high. So he HESITATES to have the coach step in ("I hesitate to have the
+  coach step in and say try it slower") — but concedes "there will be people
+  who do that." The intervention is for THEM, not for his own workflow.
+- **His spec (near-verbatim):** if the user hits Miss THREE times before
+  finishing a sequence without a mistake, the coach pops up: "The purpose of
+  this exercise is to play the passage without a mistake. Perhaps you should
+  try it slower?" with tempo-drop buttons (−5 / −10 / −15 / −20 BPM, or
+  similar) plus a Dismiss so the user can say no.
+- **Why the machinery is nearly free:** the drop buttons just set the
+  metronome — click-is-the-truth already makes the ladder follow, credit
+  cleans at the new tempo, and bank honestly. The modal is the only new
+  build. This supersedes D43's copy-only "surface the dial" idea; the modal
+  could still mention the dial exists (teaches the affordance for next
+  time).
+- **Details RESOLVED by Ralph (same sitting):** (1) Dismiss is final — the
+  coach does not ask again that session. (2) Step mode ONLY, even though
+  cluster/custom also capture misses (neither has a single rung to slow
+  down, and custom's strict miss-restart is already its own pressure).
+  (3) Copy LOCKED: Ralph approved the voice-rules rewrite. Final wording:
+  "This one's about clean runs. Want to drop the tempo and nail it?"
+  ⚠️ HIS STYLE RULE, remember it for all coach copy: avoid em dashes so the
+  text doesn't read as AI-written.
+- **Miss-capture inventory (established same sitting):** only Tempo Ladder
+  (all modes) and Rep Rotator consistency mode capture clean/miss. ICU
+  (NEXT/BACK only), chaining tools, and rhythm tools are blind; the
+  evaluation probe is a one-shot measurement, not a stream.
+- **OPEN THREAD spun off (not designed):** a LIVE mid-session intervention
+  for Rep Rotator would need a different remedy than "slower" (spots have no
+  rung). Honest shape: "this spot isn't ready for rotation, want to rebuild
+  it with Micro-chaining?" The existing July grind rule already covers this
+  post-hoc at the next coach visit. Park until D46 proves itself in the
+  ladder.
+- **Resolves D14's "~4, TBD" threshold to 3-misses-before-first-clean-at-
+  the-rung. Status: agreed direction, post-session build.**
+
+**D47 — Rep Rotator: the failing passage takes over the rotation. Ralph's
+design: drop it from the lap, rescue it at the end.**
+- **His observation (confirmed in code):** rotate five passages, four
+  complete their reps and DROP OUT of the lap (only uncompleted spots
+  rotate; missed spots are front-loaded, useInterleavedSession). The
+  rotation shrinks until the one passage you can't play is soloing. "If I
+  can't play it, I can't play it" and the rotator's whole premise
+  (interference between passages) has silently vanished by then.
+- **His spec:** after 3 misses on a spot with no clean run, gentle nudge:
+  "Maybe this passage isn't quite ready for the rep rotator yet." Offer to
+  DROP that passage from the rotation. The rotation continues with the
+  rest. At the END of the session, offer to drop into the removed passage
+  with a more focused session, with a button that takes them right there.
+- **The remedy tools (his student answer, verbatim intent):** "you need to
+  go back and do some interleaved click-up and tempo ladder interspersed."
+  NOT micro-chaining. This supersedes the July repGrind→micro-chaining rule
+  (06802fc) for this signal; see D48 for why.
+- **Coach-copy style rules apply (gentle, no em dashes). Status: agreed
+  direction, post-session build, after D46 proves the pattern in the
+  ladder.**
+
+**D48 — ⚠️ PRODUCT LEANING (not decided): chaining strategies are on the
+chopping block.**
+- **Ralph, unprompted, "if I'm being completely honest":** he NEVER uses
+  micro- or macro-chaining and finds them unhelpful; he is heading toward
+  hiding both or removing them altogether. This is his own prejudice, his
+  word, but it is also his pedagogy, and the app's coach speaks with his
+  voice.
+- **Live usage data (prod, read-only, 2026-08-14):** micro 51 sessions / 16
+  distinct users; macro 36 / 11. Versus ladder 576/22, ICU 272/30,
+  interleaved 582/14. Roughly 3 sessions per user who tried chaining =
+  sampled, not adopted. But 16 real users have history there, so removal
+  isn't free; hide-for-new / keep-for-history is the gentler shape.
+- **Blast radius if hidden/removed:** the July repGrind→micro rule, the
+  "floor" rule (stuck → drop back to Macro-chaining, Session-June H), coach
+  routing + reminder action buttons that reference chaining, and the
+  strategy list on passage detail. Every one needs a re-route decision
+  before any hiding ships.
+- **Status: leaning logged, NO decision. Needs a dedicated non-practice
+  session with the usage data on screen.**
+
+**F21 — Exiting the Exercise Builder before saving still leaves a created
+exercise behind.**
+- **What Ralph hit (his pin):** create a rhythm exercise → exit before
+  saving → an exercise exists anyway.
+- **Mechanism:** the exercise row is minted the moment the name prompt is
+  submitted on the rhythm-list screen (insertExercise(id, 'rhythmic', name,
+  '{}')) — BEFORE the builder even opens — because the builder needs a row id
+  to autosave config into (debounced updateExerciseConfig on every edit).
+  There is no explicit "save" act at all: creation happens at naming, content
+  saves continuously. So "exit before saving" leaves an empty named shell in
+  the rhythm list.
+- **Fix shape (post-session):** the Tempo Ladder already solved this exact
+  problem — its untouched-session cleanup deletes the progress row on exit
+  when nothing was practiced (hadDurableRowRef). Builder equivalent: on
+  unmount, if the exercise has zero pitches AND was created this visit,
+  delete it (softDeleteExercise). Deferring creation until the first note is
+  the purer fix but restructures the autosave; the sweep is the cheap one.
+- **Status:** logged only; Ralph picks the fix shape after the session.
+
+═══════════════════════════════════════════════════════════════════════
+
 # SESSION 4 (2026-08-13 evening) — FIRST LIVE USE of the evaluation flow +
 # coach card (shipped same evening, commit 46a59df). Ralph's raw reactions,
 # recorded at his request before his usage window closed. NO fixes built yet.

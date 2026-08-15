@@ -39,6 +39,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import {
   getExerciseById,
+  softDeleteExercise,
   updateExerciseConfig,
   type Exercise,
 } from '@/lib/db/repos/exercises';
@@ -91,35 +92,11 @@ const REST_GLYPHS = {
   quarter: { src: require('@/assets/images/rests/rest-q.png'), w: 10, h: 22 },
 } as const;
 
-type RestOption = {
-  glyph: (typeof REST_GLYPHS)[keyof typeof REST_GLYPHS];
-  label: string;
-  slots: number;
-};
-
-// Straight mode assumes running SIXTEENTHS (the calibrated grouping-4 world).
-const REST_OPTIONS_STRAIGHT: RestOption[] = [
-  { glyph: REST_GLYPHS.sixteenth, label: '16th', slots: 1 },
-  { glyph: REST_GLYPHS.eighth, label: '8th', slots: 2 },
-  { glyph: REST_GLYPHS.quarter, label: 'quarter', slots: 4 },
-];
-
-// Triplet mode: the slot is a triplet sixteenth — an 8th spans 3 slots, a
-// quarter 6.
-const REST_OPTIONS_TRIPLET: RestOption[] = [
-  { glyph: REST_GLYPHS.sixteenth, label: '16th', slots: 1 },
-  { glyph: REST_GLYPHS.eighth, label: '8th', slots: 3 },
-  { glyph: REST_GLYPHS.quarter, label: 'quarter', slots: 6 },
-];
-
-// The · modifier multiplies a rest value by 1.5. Values whose dotted slot
-// count isn't a whole number (dotted 16th = 1.5 sixteenth slots; dotted 8th
-// in triplet mode = 4.5 triplet slots) can't land on the slot grid, so
-// those buttons disable while the dot is armed.
-function dottedSlots(base: number): number | null {
-  const n = base * 1.5;
-  return Number.isInteger(n) ? n : null;
-}
+// D45 (2026-08-14): the multi-value rest palette (16th/8th/quarter glyphs ×
+// straight/triplet modes × dot modifier) is retired in favor of the single
+// Skip key below. The glyph-value → slot-count translation depended on
+// knowing the passage's running note value, which lives on a photo the app
+// can't read; users in the wrong mode got silently wrong counts.
 
 const LAST_INSTRUMENT_KEY = 'rhythm.lastInstrumentId';
 
@@ -203,11 +180,16 @@ const RB_ENTRY_STEPS: TourStep[] = [
 ];
 
 export default function RhythmBuilderScreen() {
-  const params = useLocalSearchParams<{ id: string; exerciseId?: string }>();
+  const params = useLocalSearchParams<{
+    id: string;
+    exerciseId?: string;
+    fresh?: string;
+  }>();
   const id = params.id;
   const exerciseIdParam = Array.isArray(params.exerciseId)
     ? params.exerciseId[0]
     : params.exerciseId;
+  const isFreshExercise = params.fresh === '1';
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -231,13 +213,6 @@ export default function RhythmBuilderScreen() {
   const [pitches, setPitches] = useState<Pitch[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
-  // Rest palette mode: straight (running sixteenths) vs triplet running notes.
-  const [restTriplet, setRestTriplet] = useState(false);
-  // One-shot · modifier: armed, the next rest tap enters dotted, then clears.
-  const [restDot, setRestDot] = useState(false);
-  // Phone only: the rest palette collapses to one toggle key (space is
-  // tight, especially landscape); tablet/laptop always show the full row.
-  const [restPaletteOpen, setRestPaletteOpen] = useState(false);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
 
   // The master instrument the current pitch-level choice belongs to (legacy
@@ -433,8 +408,23 @@ export default function RhythmBuilderScreen() {
   // user's last edits aren't lost when they navigate away quickly. The
   // promise is intentionally not awaited — the component is gone, but
   // the network request continues to completion in the background.
+  //
+  // Exception: a brand-new exercise (fresh=1, minted moments ago by the
+  // rhythm list) that still has zero notes gets DELETED instead of saved.
+  // The row only exists because the builder needs an id to autosave into;
+  // if the user backs out without entering anything, keeping it would
+  // leave an empty named shell in their exercise list.
+  const pitchCountRef = useRef(0);
+  pitchCountRef.current = pitches.length;
   useEffect(() => {
     return () => {
+      if (isFreshExercise && exerciseIdParam && pitchCountRef.current === 0) {
+        pendingSaveRef.current = null;
+        softDeleteExercise(exerciseIdParam).catch((err) => {
+          console.warn('[rhythm-builder] empty-exercise cleanup failed', err);
+        });
+        return;
+      }
       const pending = pendingSaveRef.current;
       if (!pending) return;
       pendingSaveRef.current = null;
@@ -442,6 +432,7 @@ export default function RhythmBuilderScreen() {
         console.warn('[rhythm-builder] unmount flush failed', err);
       });
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function exitSession() {
@@ -529,14 +520,9 @@ export default function RhythmBuilderScreen() {
     addPitches([spellForKey(writtenMidi, keySignature, useSharps)]);
   }
 
-  // Rest palette: each button inserts a real rest VALUE as the equivalent
-  // number of single-slot placeholders (the confirmed tokenization — a rest
-  // enters at the running-note resolution, one placeholder per pattern slot).
-  // Straight mode assumes running SIXTEENTHS (the calibrated grouping-4
-  // world): 16th = 1 slot, 8th = 2, dotted 8th = 3, quarter = 4. Triplet
-  // mode is for triplet-running passages, where the slot is a triplet
-  // sixteenth: 8th = 3 slots, quarter = 6 (dotted 8th isn't a whole number
-  // of triplet slots, so it hides). One button tap = one undo step.
+  // Skip key (D45): one tap = one rest placeholder = one pattern slot, the
+  // same grammar as a piano-key tap inserting one note. The user counts
+  // missing notes in their own passage's terms.
   function addRests(count: number) {
     // The placeholder keeps a plausible midi/spelling so clients that
     // predate rests degrade to a note instead of crashing.
@@ -545,7 +531,6 @@ export default function RhythmBuilderScreen() {
     addPitches(
       Array.from({ length: count }, () => ({ ...base, rest: true as const })),
     );
-    setRestDot(false);
   }
 
   function toggleSharpsFlats() {
@@ -953,83 +938,27 @@ export default function RhythmBuilderScreen() {
                 </Pressable>
               </>
             );
+            // D45 trial: the glyph palette (16th/8th/quarter + dot + triplet
+            // modes) is replaced by ONE Skip key. A tap inserts one rest
+            // placeholder, the same grammar as a piano-key tap inserting one
+            // note. The user counts missing notes in their own passage's
+            // terms; the app never claims what an "8th rest" means.
             const restKeys = (
               <View style={styles.restKeyGroup}>
-                {(restTriplet ? REST_OPTIONS_TRIPLET : REST_OPTIONS_STRAIGHT).map(
-                  (r) => {
-                    const slots = restDot ? dottedSlots(r.slots) : r.slots;
-                    const disabled = slots === null;
-                    return (
-                      <Pressable
-                        key={r.label}
-                        onPress={() => slots !== null && addRests(slots)}
-                        disabled={disabled}
-                        style={[
-                          styles.restKey,
-                          { borderColor: C.tint, opacity: disabled ? 0.3 : 1 },
-                        ]}>
-                        <Image
-                          source={r.glyph.src}
-                          style={{
-                            width: r.glyph.w,
-                            height: r.glyph.h,
-                            tintColor: C.tint,
-                            resizeMode: 'contain',
-                          }}
-                        />
-                        <ThemedText style={[styles.restKeyLabel, { color: C.icon }]}>
-                          {r.label}
-                        </ThemedText>
-                      </Pressable>
-                    );
-                  },
-                )}
                 <Pressable
-                  onPress={() => setRestDot((v) => !v)}
-                  style={[
-                    styles.restKey,
-                    {
-                      borderColor: restDot ? C.tint : C.icon,
-                      backgroundColor: restDot ? C.tint + '22' : 'transparent',
-                    },
-                  ]}>
-                  <ThemedText
-                    style={[
-                      styles.restKeyGlyph,
-                      { color: restDot ? C.tint : C.text },
-                    ]}>
-                    ·
-                  </ThemedText>
-                  <ThemedText
-                    style={[
-                      styles.restKeyLabel,
-                      { color: restDot ? C.tint : C.icon },
-                    ]}>
-                    dot
-                  </ThemedText>
-                </Pressable>
-                <Pressable
-                  onPress={() => setRestTriplet((v) => !v)}
-                  style={[
-                    styles.restKey,
-                    {
-                      borderColor: restTriplet ? C.tint : C.icon,
-                      backgroundColor: restTriplet ? C.tint + '22' : 'transparent',
-                    },
-                  ]}>
-                  <ThemedText
-                    style={[
-                      styles.restKeyGlyph,
-                      { color: restTriplet ? C.tint : C.text },
-                    ]}>
-                    ³
-                  </ThemedText>
-                  <ThemedText
-                    style={[
-                      styles.restKeyLabel,
-                      { color: restTriplet ? C.tint : C.icon },
-                    ]}>
-                    triplets
+                  onPress={() => addRests(1)}
+                  style={[styles.restKey, { borderColor: C.tint }]}>
+                  <Image
+                    source={REST_GLYPHS.sixteenth.src}
+                    style={{
+                      width: REST_GLYPHS.sixteenth.w,
+                      height: REST_GLYPHS.sixteenth.h,
+                      tintColor: C.tint,
+                      resizeMode: 'contain',
+                    }}
+                  />
+                  <ThemedText style={[styles.restKeyLabel, { color: C.icon }]}>
+                    Skip a note
                   </ThemedText>
                 </Pressable>
               </View>
@@ -1049,39 +978,9 @@ export default function RhythmBuilderScreen() {
               <>
                 <View style={styles.transportRow} {...tourTag('rb-transport')}>
                   {buttons}
-                  <Pressable
-                    onPress={() => setRestPaletteOpen((v) => !v)}
-                    style={[
-                      styles.restKey,
-                      {
-                        borderColor: restPaletteOpen ? C.tint : C.icon,
-                        backgroundColor: restPaletteOpen
-                          ? C.tint + '22'
-                          : 'transparent',
-                      },
-                    ]}>
-                    <Image
-                      source={REST_GLYPHS.quarter.src}
-                      style={{
-                        width: REST_GLYPHS.quarter.w,
-                        height: REST_GLYPHS.quarter.h,
-                        tintColor: restPaletteOpen ? C.tint : C.text,
-                        resizeMode: 'contain',
-                      }}
-                    />
-                    <ThemedText
-                      style={[
-                        styles.restKeyLabel,
-                        { color: restPaletteOpen ? C.tint : C.icon },
-                      ]}>
-                      rests
-                    </ThemedText>
-                  </Pressable>
+                  {restKeys}
                   {generate}
                 </View>
-                {restPaletteOpen && (
-                  <View style={styles.restRowPhone}>{restKeys}</View>
-                )}
               </>
             ) : (
               <View style={styles.transportRow} {...tourTag('rb-transport')}>
@@ -1713,13 +1612,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
-  // Phone: the rest keys get their own centered line under the buttons.
-  restRowPhone: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.sm,
-  },
   restKeyGroup: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1734,7 +1626,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     minWidth: 48,
   },
-  restKeyGlyph: { fontSize: 18, lineHeight: 22, fontWeight: Type.weight.bold },
   restKeyLabel: { fontSize: 10, letterSpacing: 0.02 },
   respellHint: {
     textAlign: 'center',

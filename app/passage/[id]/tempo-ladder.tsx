@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BpmStepper } from '@/components/BpmStepper';
@@ -192,6 +192,9 @@ export default function TempoLadderScreen() {
     advanceAfterCelebration,
     dismissCelebration,
     endSession,
+    slowDownOffer,
+    acceptSlowDown,
+    dismissSlowDown,
     confirmPerformanceTempo,
     goBackToTempo,
     startGuidedPlaying,
@@ -1043,6 +1046,55 @@ export default function TempoLadderScreen() {
         }
       />
 
+      {/* D46: three misses at this rung before any clean run → the coach
+          offers a tempo drop. The buttons just turn the dial and
+          click-is-the-truth makes the ladder follow honestly. "No thanks"
+          keeps the coach quiet for the rest of the session. */}
+      <Modal
+        visible={
+          slowDownOffer &&
+          !isGuided &&
+          celebrating === null &&
+          !notePromptVisible
+        }
+        transparent
+        animationType="fade"
+        supportedOrientations={[
+          'portrait',
+          'landscape',
+          'landscape-left',
+          'landscape-right',
+        ]}
+        onRequestClose={dismissSlowDown}>
+        <View style={styles.slowOverlay}>
+          <View style={[styles.slowCard, { backgroundColor: C.background }]}>
+            <ThemedText type="subtitle" style={styles.slowTitle}>
+              This one's about clean runs.
+            </ThemedText>
+            <ThemedText style={styles.slowBody}>
+              Want to drop the tempo and nail it?
+            </ThemedText>
+            <View style={styles.slowRow}>
+              {([5, 10, 15, 20] as const).map((d) => (
+                <Pressable
+                  key={d}
+                  onPress={() => acceptSlowDown(d)}
+                  style={[styles.slowBtn, { borderColor: Palette.accent }]}>
+                  <ThemedText style={styles.slowBtnText}>−{d}</ThemedText>
+                </Pressable>
+              ))}
+            </View>
+            <ThemedText style={styles.slowUnit}>BPM</ThemedText>
+            <Pressable
+              onPress={dismissSlowDown}
+              hitSlop={8}
+              style={styles.slowDismiss}>
+              <ThemedText style={styles.slowDismissText}>No thanks</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       <PracticeLogNotePrompt
         metronome={metronome}
         strategy="tempo_ladder"
@@ -1705,4 +1757,44 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     fontWeight: Type.weight.heavy,
   },
+  // D46 slow-down offer
+  slowOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  slowCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: Radii.lg,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+    alignItems: 'center',
+    ...Lift,
+  },
+  slowTitle: { textAlign: 'center' },
+  slowBody: { textAlign: 'center', color: Palette.textMuted },
+  slowRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  slowBtn: {
+    minWidth: 64,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderWidth: Borders.thin,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+  },
+  slowBtnText: {
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.bold,
+    color: Palette.accent,
+  },
+  slowUnit: { fontSize: Type.size.sm, color: Palette.textMuted },
+  slowDismiss: { marginTop: Spacing.xs, padding: Spacing.xs },
+  slowDismissText: { color: Palette.textMuted, fontWeight: Type.weight.semibold },
 });

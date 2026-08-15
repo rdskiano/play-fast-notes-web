@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ZoomableImage } from '@/components/ZoomableImage';
 import { Lift, Palette } from '@/constants/palette';
 import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
@@ -411,6 +412,18 @@ export default function EvaluateScreen() {
         ) : (
           <ThemedText style={styles.muted}>Loading…</ThemedText>
         )}
+        {/* F19: every step here asks the user to PLAY something, so the music
+            must be on screen. Same zoomable score the practice tools show,
+            docked under the step content. */}
+        {!loading && passage?.source_uri ? (
+          <View style={styles.scoreWrap}>
+            <ZoomableImage
+              uri={passage.source_uri}
+              style={styles.scoreImage}
+              persistKey={passage.id}
+            />
+          </View>
+        ) : null}
       </ScrollView>
     </ThemedView>
   );
@@ -440,6 +453,16 @@ const styles = StyleSheet.create({
   },
   body: { padding: Spacing.lg, gap: Spacing.md, maxWidth: 560, width: '100%', alignSelf: 'center' },
   section: { gap: Spacing.sm },
+  // F19: the passage image shown under every step (pinch to zoom).
+  scoreWrap: {
+    width: '100%',
+    height: 300,
+    borderRadius: Radii.md,
+    overflow: 'hidden',
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+  },
+  scoreImage: { width: '100%', height: '100%' },
   muted: { color: Palette.textMuted },
   subtle: { fontSize: Type.size.sm, color: Palette.textSecondary, lineHeight: 19 },
   question: {

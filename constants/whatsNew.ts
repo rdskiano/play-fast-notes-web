@@ -20,6 +20,27 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-14-ladder-honesty',
+    date: 'August 14, 2026',
+    title: 'The Tempo Ladder remembers honestly, and helps when you are stuck',
+    body:
+      'If you turned the metronome down mid-session, your next session used to reopen at the old, higher start tempo and quietly overwrite your real progress. Now the ladder reopens right where you actually left off, and just opening a session without playing a rep no longer moves your progress number. One more thing: if you miss three times at a tempo before landing a clean run, the coach now offers to drop the tempo for you, one tap. "No thanks" keeps it quiet for the rest of the session.',
+  },
+  {
+    id: '2026-08-14-evaluation-shows-the-music',
+    date: 'August 14, 2026',
+    title: 'The first-practice measurement now shows your music',
+    body:
+      'The measurement flow was asking "can you play it?" on a screen that hid the passage. The passage now sits right under every step, pinch to zoom, so you can see exactly what you are being asked to play.',
+  },
+  {
+    id: '2026-08-14-skip-a-note',
+    date: 'August 14, 2026',
+    title: 'Entering rests in the Exercise Builder: one simple key',
+    body:
+      'The rest palette from yesterday (16th, 8th, quarter, dot, triplet mode) turned out to require translation math that was easy to get silently wrong. It is now a single "Skip a note" key: one tap for each missing note, counted the way you read your own passage. Also fixed: backing out of a brand-new exercise before entering any notes no longer leaves an empty exercise in your list.',
+  },
+  {
     id: '2026-08-14-score-page-pills-polish',
     date: 'August 14, 2026',
     title: 'Passage pills: easier to spot, quicker to get out of the way',
