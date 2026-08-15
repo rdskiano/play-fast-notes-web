@@ -162,8 +162,9 @@ export async function updateExerciseSortOrder(
 ): Promise<void> {
   const db = getDb();
   await db.runAsync(
-    `UPDATE exercises SET sort_order = ? WHERE id = ?;`,
+    `UPDATE exercises SET sort_order = ?, updated_at = ? WHERE id = ?;`,
     sort_order,
+    Date.now(),
     id,
   );
 }

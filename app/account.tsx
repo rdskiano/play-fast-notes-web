@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -28,6 +28,7 @@ import {
 import { deleteAccount, wipeUserData } from '@/lib/supabase/account';
 import { signOut, useSession } from '@/lib/supabase/auth';
 import { useSubscription } from '@/lib/supabase/subscription';
+import { getSyncStatus, syncNow, type SyncStatus } from '@/lib/sync/syncStatus';
 import { DEMO_TUTORIAL_EMAIL } from '@/lib/tutorials/demoMode';
 
 function formatExpiry(unixMs: number): string {
@@ -70,6 +71,48 @@ export default function AccountScreen() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Device ⇄ web sync status (native only; web stubs return an idle status
+  // and the whole section is hidden there).
+  const [sync, setSync] = useState<SyncStatus | null>(null);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const refreshSync = useCallback(() => {
+    if (Platform.OS === 'web') return;
+    getSyncStatus().then(setSync).catch(() => {});
+  }, []);
+  useEffect(() => {
+    refreshSync();
+    const t = setInterval(refreshSync, 5000);
+    return () => clearInterval(t);
+  }, [refreshSync]);
+
+  async function handleSyncNow() {
+    setSyncBusy(true);
+    try {
+      await syncNow();
+    } finally {
+      setSyncBusy(false);
+      refreshSync();
+    }
+  }
+
+  function syncStatusLine(s: SyncStatus): string {
+    const when =
+      s.lastSyncAt != null
+        ? `Last synced ${new Date(s.lastSyncAt).toLocaleString(undefined, {
+            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+          })}.`
+        : 'Not synced yet.';
+    if (s.state === 'signed-out')
+      return 'Sign in to back up this iPad’s work to your web account.';
+    if (s.state === 'waiting-server')
+      return 'Sync is installed but waiting on a server update.';
+    if (s.pendingCount > 0)
+      return `${when} ${s.pendingCount} change${s.pendingCount === 1 ? '' : 's'} waiting to upload.`;
+    if (s.state === 'offline') return `${when} Offline — will retry automatically.`;
+    if (s.state === 'error') return `${when} Last attempt hit a problem — will retry automatically.`;
+    return `${when} Everything on this device is backed up.`;
+  }
 
   async function pickTrim(months: number, label: string) {
     const cutoffMs =
@@ -273,6 +316,34 @@ export default function AccountScreen() {
               </View>
             </View>
           </View>
+
+          {/* Native only: background sync status + manual kick. */}
+          {Platform.OS !== 'web' && sync && (
+            <View style={styles.section}>
+              <ThemedText style={styles.sectionTitle}>Sync</ThemedText>
+              <View style={styles.card}>
+                <ThemedText style={styles.hint}>{syncStatusLine(sync)}</ThemedText>
+                <View style={styles.accountActions}>
+                  {sync.state === 'signed-out' ? (
+                    <Button
+                      label="Sign in"
+                      variant="outline"
+                      size="sm"
+                      onPress={() => router.replace('/sign-in')}
+                    />
+                  ) : (
+                    <Button
+                      label={syncBusy || sync.state === 'syncing' ? 'Syncing…' : 'Sync now'}
+                      variant="outline"
+                      size="sm"
+                      disabled={syncBusy}
+                      onPress={() => void handleSyncNow()}
+                    />
+                  )}
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* Native only: friendly entry to the web→device import that used to
               hide behind the /import-supabase URL. */}

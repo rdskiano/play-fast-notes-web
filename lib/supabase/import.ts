@@ -19,6 +19,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 
 import { supabase } from './client';
 import { getDb } from '../db/client';
+import { withSyncApplying } from '../sync/engine';
 
 type Row = Record<string, unknown>;
 
@@ -396,7 +397,9 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
 
   onProgress('Inserting rows…');
   const counts: Record<string, number> = {};
-  await db.withTransactionAsync(async () => {
+  // Guard up: these rows came FROM the cloud, so the sync triggers must not
+  // queue them to be pushed straight back.
+  await withSyncApplying(() => db.withTransactionAsync(async () => {
     for (const t of INSERT_ORDER) {
       const rows = tables[t] ?? [];
       // The on-device table can have fewer columns than Supabase (the web
@@ -410,6 +413,12 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
       let inserted = 0;
       for (const row of rows) {
         const r = sanitizeRow(t, row);
+        // Carry the cloud identity into the local sync column so future edits
+        // and deletes of this session can travel back (legacy cloud rows have
+        // no client_id — synthesize the same web_<id> the engine uses).
+        if (t === 'practice_log') {
+          r.sync_id = (r.client_id as string) ?? `web_${r.id}`;
+        }
         // Drop incompatible documents and anything that belongs to them.
         if (t === 'documents' && incompatibleDocIds.has(r.id as string)) continue;
         if (
@@ -441,7 +450,7 @@ export async function runImport(opts: ImportOptions): Promise<ImportResult> {
       counts[t] = inserted;
       onProgress(`  ${t}: inserted ${inserted}/${rows.length}`);
     }
-  });
+  }));
 
   onStatus({ phase: 'done', label: 'Done', done: totalFiles, total: totalFiles });
   onProgress('Done.');

@@ -218,4 +218,199 @@ export const MIGRATIONS: string[] = [
   -- their own, and write it back when a session starts. NULL = never set.
   ALTER TABLE pieces ADD COLUMN performance_tempo INTEGER;
   `,
+  `
+  -- When a pencil annotation was last saved ON THIS DEVICE (epoch ms). Once
+  -- set, the local annotation_data/annotation_image_uri are the source of
+  -- truth for this passage and win over Supabase reads — iPad-created
+  -- passages have no Supabase pieces row at all, and an offline save must not
+  -- be shadowed by an older or empty cloud row. NULL = never drawn natively
+  -- (imported/web-synced passages keep reading from Supabase).
+  ALTER TABLE pieces ADD COLUMN annotation_saved_at INTEGER;
+  `,
+  `
+  -- ── Sync groundwork (SYNC_PLAN Phase 1) ──────────────────────────────
+  -- practice_log keeps its local INTEGER id (UI identity, untouched) and
+  -- gains sync_id: a client-minted, globally-unique text id matching the
+  -- cloud's practice_log.client_id — the cross-device identity of a session.
+  -- updated_at/deleted_at let edits + deletions travel; deletes are
+  -- tombstones from now on.
+  ALTER TABLE practice_log ADD COLUMN sync_id TEXT;
+  ALTER TABLE practice_log ADD COLUMN updated_at INTEGER;
+  ALTER TABLE practice_log ADD COLUMN deleted_at INTEGER;
+  UPDATE practice_log
+     SET sync_id = 'lg_' || id || '_' || lower(hex(randomblob(6))),
+         updated_at = practiced_at
+   WHERE sync_id IS NULL;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_practice_log_sync_id ON practice_log(sync_id);
+
+  -- Sync bookkeeping. sync_ctl.applying is a guard raised while cloud rows
+  -- are being written locally (engine pull, /import-supabase) so they don't
+  -- echo back into the outbox. sync_state holds watermarks + flags.
+  -- sync_outbox is the change log: one row per dirty (table, row).
+  CREATE TABLE IF NOT EXISTS sync_ctl (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    applying INTEGER NOT NULL DEFAULT 0
+  );
+  INSERT OR IGNORE INTO sync_ctl (id, applying) VALUES (1, 0);
+  CREATE TABLE IF NOT EXISTS sync_state (
+    key TEXT PRIMARY KEY NOT NULL,
+    value TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS sync_outbox (
+    table_name TEXT NOT NULL,
+    row_id TEXT NOT NULL,
+    queued_at INTEGER NOT NULL,
+    PRIMARY KEY (table_name, row_id)
+  );
+
+  -- Change-capture triggers: every INSERT/UPDATE on a synced table queues
+  -- the row for push, so repos never have to remember to enqueue. No DELETE
+  -- triggers on purpose — real deletes are local housekeeping (the import
+  -- wipe) and must never push a deletion; only deleted_at tombstones travel.
+  CREATE TRIGGER IF NOT EXISTS trg_sync_pieces_i AFTER INSERT ON pieces
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('pieces', NEW.id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_pieces_u AFTER UPDATE ON pieces
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('pieces', NEW.id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_folders_i AFTER INSERT ON folders
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('folders', NEW.id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_folders_u AFTER UPDATE ON folders
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('folders', NEW.id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_documents_i AFTER INSERT ON documents
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('documents', NEW.id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_documents_u AFTER UPDATE ON documents
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('documents', NEW.id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_exercises_i AFTER INSERT ON exercises
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('exercises', NEW.id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_exercises_u AFTER UPDATE ON exercises
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('exercises', NEW.id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_practice_log_i AFTER INSERT ON practice_log
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0 AND NEW.sync_id IS NOT NULL
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('practice_log', NEW.sync_id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_practice_log_u AFTER UPDATE ON practice_log
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0 AND NEW.sync_id IS NOT NULL
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('practice_log', NEW.sync_id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_tlp_i AFTER INSERT ON tempo_ladder_progress
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('tempo_ladder_progress', NEW.exercise_id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_tlp_u AFTER UPDATE ON tempo_ladder_progress
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('tempo_ladder_progress', NEW.exercise_id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_cup_i AFTER INSERT ON click_up_progress
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('click_up_progress', NEW.exercise_id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_cup_u AFTER UPDATE ON click_up_progress
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('click_up_progress', NEW.exercise_id, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_slu_i AFTER INSERT ON strategy_last_used
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('strategy_last_used', NEW.piece_id || '|' || NEW.strategy, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+  CREATE TRIGGER IF NOT EXISTS trg_sync_slu_u AFTER UPDATE ON strategy_last_used
+    WHEN (SELECT applying FROM sync_ctl WHERE id = 1) = 0
+  BEGIN
+    INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    VALUES ('strategy_last_used', NEW.piece_id || '|' || NEW.strategy, strftime('%s','now') * 1000)
+    ON CONFLICT (table_name, row_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END;
+
+  -- Seed the outbox with everything LIVE on this device: the first sync
+  -- pushes the whole local library up, which is the point — nothing on the
+  -- iPad should exist only on the iPad. Rows the cloud already has are
+  -- skipped by the engine's "cloud is at least as new" check, so the seed
+  -- costs one metadata pass, not a re-upload. Every SELECT here carries a
+  -- WHERE clause — SQLite refuses to parse INSERT..SELECT..ON CONFLICT
+  -- without one (the "upsert-from-select" rule), and that parse error once
+  -- silently killed this whole seed block.
+  INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    SELECT 'folders', id, strftime('%s','now') * 1000 FROM folders WHERE deleted_at IS NULL
+  ON CONFLICT (table_name, row_id) DO NOTHING;
+  INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    SELECT 'documents', id, strftime('%s','now') * 1000 FROM documents WHERE deleted_at IS NULL
+  ON CONFLICT (table_name, row_id) DO NOTHING;
+  INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    SELECT 'pieces', id, strftime('%s','now') * 1000 FROM pieces WHERE deleted_at IS NULL
+  ON CONFLICT (table_name, row_id) DO NOTHING;
+  INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    SELECT 'exercises', id, strftime('%s','now') * 1000 FROM exercises WHERE deleted_at IS NULL
+  ON CONFLICT (table_name, row_id) DO NOTHING;
+  INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    SELECT 'practice_log', sync_id, strftime('%s','now') * 1000 FROM practice_log WHERE sync_id IS NOT NULL AND deleted_at IS NULL
+  ON CONFLICT (table_name, row_id) DO NOTHING;
+  INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    SELECT 'tempo_ladder_progress', exercise_id, strftime('%s','now') * 1000 FROM tempo_ladder_progress WHERE exercise_id IS NOT NULL
+  ON CONFLICT (table_name, row_id) DO NOTHING;
+  INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    SELECT 'click_up_progress', exercise_id, strftime('%s','now') * 1000 FROM click_up_progress WHERE exercise_id IS NOT NULL
+  ON CONFLICT (table_name, row_id) DO NOTHING;
+  INSERT INTO sync_outbox (table_name, row_id, queued_at)
+    SELECT 'strategy_last_used', piece_id || '|' || strategy, strftime('%s','now') * 1000 FROM strategy_last_used WHERE piece_id IS NOT NULL
+  ON CONFLICT (table_name, row_id) DO NOTHING;
+  `,
 ];

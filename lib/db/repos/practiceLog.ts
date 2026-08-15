@@ -1,4 +1,5 @@
 import { getAllRecordingEntries } from '@/lib/supabase/recordingLog';
+import { newPracticeSyncId } from '@/lib/sync/ids';
 
 import { getDb } from '../client';
 import { parseSections, sectionForPosition } from './documents';
@@ -33,13 +34,18 @@ export async function logPractice(
   exercise_id?: string | null,
 ): Promise<number> {
   const db = getDb();
+  const now = Date.now();
+  // sync_id is the row's cross-device identity (cloud client_id); updated_at
+  // is what newest-wins sync compares. The local INTEGER id stays the UI key.
   const result = await db.runAsync(
-    'INSERT INTO practice_log (piece_id, strategy, practiced_at, data_json, exercise_id) VALUES (?, ?, ?, ?, ?);',
+    'INSERT INTO practice_log (piece_id, strategy, practiced_at, data_json, exercise_id, sync_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?);',
     piece_id,
     strategy,
-    Date.now(),
+    now,
     data ? JSON.stringify(data) : null,
     exercise_id ?? null,
+    newPracticeSyncId(),
+    now,
   );
   // A reminder lives for exactly ONE next session on its passage: logging any
   // new session consumes the passage's flagged notes — displayed or not — so
@@ -77,8 +83,9 @@ async function consumePassageReminders(
         const nextJson =
           Object.keys(parsed).length > 0 ? JSON.stringify(parsed) : null;
         await db.runAsync(
-          'UPDATE practice_log SET data_json = ? WHERE id = ?;',
+          'UPDATE practice_log SET data_json = ?, updated_at = ? WHERE id = ?;',
           nextJson,
+          Date.now(),
           r.id,
         );
       }
@@ -94,7 +101,7 @@ async function consumePassageReminders(
 export async function countPracticeLogEntries(): Promise<number> {
   const db = getDb();
   const row = await db.getFirstAsync<{ n: number }>(
-    `SELECT COUNT(*) AS n FROM practice_log;`,
+    `SELECT COUNT(*) AS n FROM practice_log WHERE deleted_at IS NULL;`,
   );
   return row?.n ?? 0;
 }
@@ -108,7 +115,7 @@ export async function getPracticeLogForPassage(
             pl.exercise_id, e.name AS exercise_name
      FROM practice_log pl
      LEFT JOIN exercises e ON e.id = pl.exercise_id
-     WHERE pl.piece_id = ? AND pl.strategy != 'recording'
+     WHERE pl.piece_id = ? AND pl.strategy != 'recording' AND pl.deleted_at IS NULL
      ORDER BY pl.practiced_at DESC;`,
     piece_id,
   );
@@ -183,7 +190,7 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
      LEFT JOIN exercises e ON e.id = pl.exercise_id
      LEFT JOIN folders f ON f.id = p.folder_id
      LEFT JOIN documents d ON d.id = p.document_id
-     WHERE pl.strategy != 'recording'
+     WHERE pl.strategy != 'recording' AND pl.deleted_at IS NULL
      ORDER BY pl.practiced_at DESC;`,
   );
   const local = rows.map((r) => ({
@@ -274,7 +281,7 @@ export async function listPassageReminders(
   }>(
     `SELECT id, strategy, practiced_at, data_json, exercise_id
      FROM practice_log
-     WHERE piece_id = ?
+     WHERE piece_id = ? AND deleted_at IS NULL
      ORDER BY practiced_at DESC
      LIMIT 40;`,
     piece_id,
@@ -343,8 +350,9 @@ export async function clearReminder(id: number): Promise<void> {
       const nextJson =
         Object.keys(parsed).length > 0 ? JSON.stringify(parsed) : null;
       await db.runAsync(
-        'UPDATE practice_log SET data_json = ? WHERE id = ?;',
+        'UPDATE practice_log SET data_json = ?, updated_at = ? WHERE id = ?;',
         nextJson,
+        Date.now(),
         id,
       );
     }
@@ -353,9 +361,17 @@ export async function clearReminder(id: number): Promise<void> {
   }
 }
 
+// Soft delete (tombstone), not a real DELETE: the deletion has to travel to
+// the web account via sync instead of the row silently reappearing there.
 export async function deletePracticeLog(id: number): Promise<void> {
   const db = getDb();
-  await db.runAsync('DELETE FROM practice_log WHERE id = ?;', id);
+  const now = Date.now();
+  await db.runAsync(
+    'UPDATE practice_log SET deleted_at = ?, updated_at = ? WHERE id = ?;',
+    now,
+    now,
+    id,
+  );
 }
 
 // ── History trimming ────────────────────────────────────────────────────────
@@ -366,7 +382,7 @@ export async function deletePracticeLog(id: number): Promise<void> {
 export async function countPracticeLogOlderThan(cutoffMs: number): Promise<number> {
   const db = getDb();
   const row = await db.getFirstAsync<{ n: number }>(
-    'SELECT COUNT(*) AS n FROM practice_log WHERE practiced_at < ?;',
+    'SELECT COUNT(*) AS n FROM practice_log WHERE practiced_at < ? AND deleted_at IS NULL;',
     cutoffMs,
   );
   return row?.n ?? 0;
@@ -374,8 +390,12 @@ export async function countPracticeLogOlderThan(cutoffMs: number): Promise<numbe
 
 export async function deletePracticeLogOlderThan(cutoffMs: number): Promise<number> {
   const db = getDb();
+  const now = Date.now();
+  // Tombstones, not DELETEs — see deletePracticeLog.
   const result = await db.runAsync(
-    'DELETE FROM practice_log WHERE practiced_at < ?;',
+    'UPDATE practice_log SET deleted_at = ?, updated_at = ? WHERE practiced_at < ? AND deleted_at IS NULL;',
+    now,
+    now,
     cutoffMs,
   );
   return result.changes;
@@ -411,7 +431,7 @@ export async function getPracticeLogForDocument(
      JOIN pieces p ON pl.piece_id = p.id
      LEFT JOIN exercises e ON e.id = pl.exercise_id
      LEFT JOIN documents d ON d.id = p.document_id
-     WHERE p.document_id = ? AND p.deleted_at IS NULL AND pl.strategy != 'recording'
+     WHERE p.document_id = ? AND p.deleted_at IS NULL AND pl.strategy != 'recording' AND pl.deleted_at IS NULL
      ORDER BY pl.practiced_at DESC;`,
     document_id,
   );
@@ -477,7 +497,7 @@ export async function getPracticeLogForFolder(
      JOIN pieces p ON pl.piece_id = p.id
      LEFT JOIN exercises e ON e.id = pl.exercise_id
      LEFT JOIN documents d ON d.id = p.document_id
-     WHERE ${where} AND p.deleted_at IS NULL AND pl.strategy != 'recording'
+     WHERE ${where} AND p.deleted_at IS NULL AND pl.strategy != 'recording' AND pl.deleted_at IS NULL
      ORDER BY pl.practiced_at DESC;`,
     ...params,
   );

@@ -46,6 +46,7 @@ import { TourProvider } from '@/components/tour/TourContext';
 import { useSession } from '@/lib/supabase/auth';
 import { registerServiceWorker } from '@/lib/sw/registerServiceWorker';
 import { startupMigrate } from '@/lib/startup/migrate';
+import { useSyncEngine } from '@/lib/sync/useSyncEngine';
 
 LogBox.ignoreLogs([/Failed to install react-native-audio-api/]);
 
@@ -67,6 +68,10 @@ export default function RootLayout() {
   const session = useSession();
   const pathname = usePathname();
   const [dbReady, setDbReady] = useState(IS_WEB);
+  // Background two-way sync (native; web resolves to a no-op). Its first run
+  // is delayed past startup, and every run is self-guarded — if it ever fires
+  // before migrations settle it just fails quietly and retries on the timer.
+  useSyncEngine();
 
   useEffect(() => {
     if (IS_WEB) return;

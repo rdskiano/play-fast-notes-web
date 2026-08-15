@@ -54,6 +54,8 @@ type InsertRow = {
   data_json: string | null;
   exercise_id: string | null;
   client_id: string;
+  // Newest-wins timestamp for cross-device sync; edits/deletes bump it.
+  updated_at?: number;
 };
 
 // A parked (offline) row also remembers whose session it was, so on a shared
@@ -186,13 +188,15 @@ export async function logPractice(
 ): Promise<number> {
   // Opportunistic sync of anything parked by an earlier failure.
   flushPendingPracticeLogs().catch(() => {});
+  const now = Date.now();
   const row: InsertRow = {
     piece_id,
     strategy,
-    practiced_at: Date.now(),
+    practiced_at: now,
     data_json: data ? JSON.stringify(data) : null,
     exercise_id: exercise_id ?? null,
     client_id: newClientId(),
+    updated_at: now,
   };
   try {
     const newId = await withRetry(() => insertLogRow(row));
@@ -249,7 +253,7 @@ async function consumePassageReminders(
           Object.keys(parsed).length > 0 ? JSON.stringify(parsed) : null;
         const { error: upErr } = await supabase
           .from('practice_log')
-          .update({ data_json: nextJson })
+          .update({ data_json: nextJson, updated_at: Date.now() })
           .eq('id', r.id);
         if (upErr) throw upErr;
       }
@@ -270,7 +274,8 @@ export async function countPracticeLogEntries(): Promise<number> {
   flushPendingPracticeLogs().catch(() => {});
   const { count, error } = await supabase
     .from('practice_log')
-    .select('id', { count: 'exact', head: true });
+    .select('id', { count: 'exact', head: true })
+    .is('deleted_at', null);
   if (error) throw error;
   return count ?? 0;
 }
@@ -286,6 +291,7 @@ export async function getPracticeLogForPassage(
       .from('practice_log')
       .select('id, piece_id, strategy, practiced_at, data_json, exercise_id')
       .eq('piece_id', piece_id)
+      .is('deleted_at', null)
       .order('practiced_at', { ascending: false }),
     supabase.from('exercises').select('id, name').eq('piece_id', piece_id),
   ]);
@@ -354,6 +360,7 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
     supabase
       .from('practice_log')
       .select('id, piece_id, document_id, strategy, practiced_at, data_json, exercise_id')
+      .is('deleted_at', null)
       .order('practiced_at', { ascending: false }),
     // Include deleted rows here: the practice log is meant to preserve work done
     // on passages/documents even after they've been deleted from the library.
@@ -485,7 +492,7 @@ export async function updatePracticeLogMoodNote(
 
   const { error } = await supabase
     .from('practice_log')
-    .update({ data_json: nextJson })
+    .update({ data_json: nextJson, updated_at: Date.now() })
     .eq('id', id);
   if (error) throw error;
 }
@@ -513,6 +520,7 @@ export async function listPassageReminders(
     .from('practice_log')
     .select('id, strategy, practiced_at, data_json, exercise_id')
     .eq('piece_id', piece_id)
+    .is('deleted_at', null)
     .order('practiced_at', { ascending: false })
     .limit(40);
   if (error) throw error;
@@ -583,7 +591,7 @@ export async function clearReminder(id: number): Promise<void> {
         Object.keys(parsed).length > 0 ? JSON.stringify(parsed) : null;
       const { error } = await supabase
         .from('practice_log')
-        .update({ data_json: nextJson })
+        .update({ data_json: nextJson, updated_at: Date.now() })
         .eq('id', id);
       if (error) throw error;
     }
@@ -592,21 +600,31 @@ export async function clearReminder(id: number): Promise<void> {
   }
 }
 
+// Soft delete (tombstone), not a real DELETE: with two-way sync, a deletion
+// has to TRAVEL to the other devices. A hard delete leaves nothing behind to
+// travel, so the iPad's copy would just re-upload the row and history would
+// resurrect itself. (Recording entries are removed via deleteRecording, which
+// also cleans their audio.)
 export async function deletePracticeLog(id: number): Promise<void> {
-  const { error } = await supabase.from('practice_log').delete().eq('id', id);
+  const now = Date.now();
+  const { error } = await supabase
+    .from('practice_log')
+    .update({ deleted_at: now, updated_at: now })
+    .eq('id', id);
   if (error) throw error;
 }
 
 // ── History trimming ────────────────────────────────────────────────────────
 // "Keep my log from becoming a never-ending scroll." Entries strictly older
-// than the cutoff are permanently deleted. RLS scopes everything to the
-// signed-in user.
+// than the cutoff are tombstoned (deleted_at) so the deletion syncs to every
+// device; recording audio in Storage is still freed for real.
 
 export async function countPracticeLogOlderThan(cutoffMs: number): Promise<number> {
   const { count, error } = await supabase
     .from('practice_log')
     .select('id', { count: 'exact', head: true })
-    .lt('practiced_at', cutoffMs);
+    .lt('practiced_at', cutoffMs)
+    .is('deleted_at', null);
   if (error) throw error;
   return count ?? 0;
 }
@@ -620,7 +638,8 @@ export async function deletePracticeLogOlderThan(cutoffMs: number): Promise<numb
     .from('practice_log')
     .select('id, data_json')
     .eq('strategy', 'recording')
-    .lt('practiced_at', cutoffMs);
+    .lt('practiced_at', cutoffMs)
+    .is('deleted_at', null);
   if (recErr) throw recErr;
   const paths: string[] = [];
   for (const r of (recRows ?? []) as Array<{ data_json: string | null }>) {
@@ -640,10 +659,12 @@ export async function deletePracticeLogOlderThan(cutoffMs: number): Promise<numb
     if (rmErr) console.warn('recording cleanup during trim failed', rmErr);
   }
 
+  const now = Date.now();
   const { data: deleted, error } = await supabase
     .from('practice_log')
-    .delete()
+    .update({ deleted_at: now, updated_at: now })
     .lt('practiced_at', cutoffMs)
+    .is('deleted_at', null)
     .select('id');
   if (error) throw error;
   return (deleted ?? []).length;
@@ -662,6 +683,7 @@ export async function getPracticeLogForDocument(
     supabase
       .from('practice_log')
       .select('id, piece_id, document_id, strategy, practiced_at, data_json, exercise_id')
+      .is('deleted_at', null)
       .order('practiced_at', { ascending: false }),
     supabase.from('exercises').select('id, name'),
     supabase.from('documents').select('id, title, sections_json, folder_id').eq('id', document_id),
@@ -755,6 +777,7 @@ export async function getPracticeLogForFolder(
     supabase
       .from('practice_log')
       .select('id, piece_id, document_id, strategy, practiced_at, data_json, exercise_id')
+      .is('deleted_at', null)
       .order('practiced_at', { ascending: false }),
     supabase.from('exercises').select('id, name'),
     supabase.from('documents').select('id, title, sections_json, folder_id').is('deleted_at', null),

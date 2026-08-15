@@ -72,7 +72,7 @@ export async function listFoldersInParent(
 
 export async function updateFolderSortOrder(id: string, sortOrder: number): Promise<void> {
   const db = getDb();
-  await db.runAsync('UPDATE folders SET sort_order = ? WHERE id = ?;', sortOrder, id);
+  await db.runAsync('UPDATE folders SET sort_order = ?, updated_at = ? WHERE id = ?;', sortOrder, Date.now(), id);
 }
 
 export async function getFolder(id: string): Promise<Folder | null> {

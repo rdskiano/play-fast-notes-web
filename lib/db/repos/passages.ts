@@ -193,7 +193,7 @@ export async function listPassagesInDocument(document_id: string): Promise<Passa
 
 export async function updatePassageSortOrder(id: string, sortOrder: number): Promise<void> {
   const db = getDb();
-  await db.runAsync('UPDATE pieces SET sort_order = ? WHERE id = ?;', sortOrder, id);
+  await db.runAsync('UPDATE pieces SET sort_order = ?, updated_at = ? WHERE id = ?;', sortOrder, Date.now(), id);
 }
 
 export async function renamePassage(id: string, title: string): Promise<void> {

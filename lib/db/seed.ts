@@ -1,6 +1,8 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
 import seedData from '@/assets/seeds/initial-seed.json';
+import { withSyncApplying } from '@/lib/sync/engine';
+
 import { getDb } from './client';
 
 const SEED_VERSION = 1;
@@ -122,7 +124,11 @@ export async function seedIfEmpty(): Promise<void> {
   }
 
   const db = getDb();
-  await db.withTransactionAsync(async () => {
+  // Guard up: bundled starter content ships with the SAME row ids on every
+  // install, so it must not queue itself for cloud sync — the first account
+  // to sync would push starter junk to its web library and claim those ids
+  // for everyone. A user's later EDITS to starter pieces still sync normally.
+  await withSyncApplying(() => db.withTransactionAsync(async () => {
     for (const t of TABLE_ORDER) {
       const rows = seed.tables![t] ?? [];
       for (const row of rows) {
@@ -141,7 +147,7 @@ export async function seedIfEmpty(): Promise<void> {
         await db.runAsync(sql, ...vals);
       }
     }
-  });
+  }));
 
   console.log('[seed] Imported successfully');
 }

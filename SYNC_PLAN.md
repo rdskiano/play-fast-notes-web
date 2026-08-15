@@ -1,8 +1,26 @@
 # Cross-device sync plan — iPad ⇄ iPhone ⇄ web
 
-Status: **PLAN / not started.** Written 2026-06-05. Decisions captured from the
-user (a musician, not a developer) are marked **[DECIDED]**; things still to
-confirm are marked **[OPEN]**.
+Status: **Phases 1 + 2 BUILT 2026-08-15 (uncommitted, not yet runtime-tested).**
+Written 2026-06-05. Decisions captured from the user (a musician, not a
+developer) are marked **[DECIDED]**; things still to confirm are marked
+**[OPEN]**.
+
+> **2026-08-15 implementation notes.** `lib/sync/engine.ts` (push/pull engine,
+> native-only), `lib/sync/useSyncEngine.ts` (foreground + 60s timer mount in
+> `_layout`), SQLite migration 17 (practice_log sync_id/updated_at/deleted_at,
+> sync_ctl/sync_state/sync_outbox + change-capture triggers + full-library
+> outbox seed), Account-screen Sync card, tombstone practice-log deletes on
+> BOTH platforms. Deviations from this plan: practice_log keeps its local
+> INTEGER id and gains `sync_id` bound to the cloud's existing `client_id`
+> (no PK migration needed); `settings` sync dropped (only key in use is
+> device-local); recordings already sync cloud-natively (this plan's §2 was
+> stale); annotations excluded here (local-first rework happening separately —
+> Phase 3 must coordinate with `annotation_saved_at`). pieces/documents PULL
+> applies updates+tombstones to rows the device already has; brand-new web
+> rows still arrive via the import screen until Phase 3 lazy assets.
+> **Cloud prerequisite (NOT yet applied):** `db/migrations/2026-08-15-sync-groundwork.sql`
+> — the engine probes for `server_updated_at` and stays dormant until it runs.
+> Apply it BEFORE the next web deploy (web now writes practice_log tombstones).
 
 ---
 

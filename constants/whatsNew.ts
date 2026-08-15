@@ -20,6 +20,20 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-15-ipad-two-way-sync',
+    date: 'August 15, 2026',
+    title: 'Your iPad now backs itself up',
+    body:
+      'Until now, work you did on the iPad app (marking passages, renaming, practice history, progress) stayed only on the iPad, and only new pieces reached your web account. Now the iPad quietly syncs both ways in the background: everything you do on the device is backed up to your account, and renames, moves, and deletions made on the web come back to the iPad. Sign in once on the iPad (Account screen) and it takes care of itself; a new Sync section in Account shows you its status.',
+  },
+  {
+    id: '2026-08-15-pencil-marks-stick',
+    date: 'August 15, 2026',
+    title: 'Pencil marks on iPad-created passages no longer vanish',
+    body:
+      'If you created a passage on the iPad (a photo, or an excerpt spanning two pages) and drew on it with the Apple Pencil, your marks could silently disappear the next time the passage loaded. They now save on the iPad itself first, so they survive reloads, offline sessions, and app updates. Marks on pages of PDFs and photo documents were never affected.',
+  },
+  {
     id: '2026-08-14-ladder-honesty',
     date: 'August 14, 2026',
     title: 'The Tempo Ladder remembers honestly, and helps when you are stuck',

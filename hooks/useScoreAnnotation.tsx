@@ -162,7 +162,8 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
   //
   // The drawing DATA is the source of truth and is written even when the
   // overlay-PNG upload fails (stale sign-in, offline): on iOS the data write
-  // is local SQLite, so the user's marks survive no matter what the network
+  // is local SQLite with a best-effort cloud mirror (lib/db/repos/
+  // annotations.ts), so the user's marks survive no matter what the network
   // does. A failed upload keeps the previous overlay URL instead of nulling
   // it, and the next successful save heals it. Losing real strokes because a
   // best-effort PNG sync threw was the original data-loss bug here.

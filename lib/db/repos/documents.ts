@@ -237,7 +237,7 @@ export async function moveDocument(id: string, folder_id: string | null): Promis
 
 export async function updateDocumentSortOrder(id: string, sortOrder: number): Promise<void> {
   const db = getDb();
-  await db.runAsync('UPDATE documents SET sort_order = ? WHERE id = ?;', sortOrder, id);
+  await db.runAsync('UPDATE documents SET sort_order = ?, updated_at = ? WHERE id = ?;', sortOrder, Date.now(), id);
 }
 
 function safeDeleteFile(uri: string | null) {
