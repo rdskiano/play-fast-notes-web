@@ -772,14 +772,25 @@ async function pushProgress(table: string, cols: string[]): Promise<void> {
         .from(table)
         .upsert([row], { onConflict: 'exercise_id', ignoreDuplicates: true });
       if (insErr) {
-        // Parent exercise not in the cloud: gone/deleted locally → drop the
-        // entry; otherwise its push was deferred, so defer this too.
+        // Parent exercise not in the cloud. Drop the entry when the chain
+        // above it is dead — exercise gone/deleted, OR its PIECE deleted
+        // (a deleted piece's exercises are dropped from sync, so their
+        // progress can never land and is invisible in the app anyway).
+        // A live chain means the exercise push was merely deferred: retry.
         if ((insErr as { code?: string }).code === '23503') {
-          const parent = await db.getFirstAsync<{ deleted_at: number | null }>(
-            'SELECT deleted_at FROM exercises WHERE id = ?;',
+          const chain = await db.getFirstAsync<{ ex_deleted: number | null; piece_deleted: number | null; piece_exists: number }>(
+            `SELECT e.deleted_at AS ex_deleted, p.deleted_at AS piece_deleted,
+                    CASE WHEN p.id IS NULL THEN 0 ELSE 1 END AS piece_exists
+             FROM exercises e LEFT JOIN pieces p ON p.id = e.piece_id
+             WHERE e.id = ?;`,
             r.exercise_id as string,
           );
-          if (!parent || parent.deleted_at != null) {
+          const chainDead =
+            !chain ||
+            chain.ex_deleted != null ||
+            !chain.piece_exists ||
+            chain.piece_deleted != null;
+          if (chainDead) {
             await clearQueued(table, q);
             continue;
           }
