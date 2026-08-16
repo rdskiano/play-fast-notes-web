@@ -26,7 +26,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Palette } from '@/constants/palette';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
-import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
+import { PRACTICE_TOOLS_EDGE_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { actionButtonStyle, HELP_CLEARANCE } from '@/lib/layout/configForm';
@@ -386,7 +386,7 @@ export default function SelfLedRecordingScreen() {
           '● Record starts capturing from your mic; ■ Stop ends the take.\n\n' +
           'After recording you can play it back with the audio controls, then choose: ↻ Record again to re-take, Log session only to save just the duration to your practice log, or Log + keep recording to also upload the audio so you can play it back later.\n\n' +
           '‹ Back (top-left) leaves without logging.\n\n' +
-          PRACTICE_TOOLS_HELP
+          PRACTICE_TOOLS_EDGE_HELP
         }
       />
     </ThemedView>

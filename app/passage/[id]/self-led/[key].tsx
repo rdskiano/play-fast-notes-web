@@ -26,7 +26,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
-import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
+import { PRACTICE_TOOLS_EDGE_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -217,7 +217,7 @@ export default function SelfLedSessionScreen() {
           "How to — opens step-by-step guidance for this specific technique, including what to focus on and why it works.\n\n" +
           "DONE — ends the session and logs it. You can attach a mood and a note, or skip and just log the session.\n\n" +
           "To capture audio, use the 🎤 Recorder practice tool while you play — saved takes attach to your practice log.\n\n" +
-          `${PRACTICE_TOOLS_HELP}`
+          `${PRACTICE_TOOLS_EDGE_HELP}`
         }
       />
     </ThemedView>

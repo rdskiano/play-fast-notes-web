@@ -1609,7 +1609,7 @@ export default function LibraryScreen() {
         body={
           '+ Add (top right) — snap a photo of a page, upload a PDF of the full part, or make a folder. The easiest first move: a photo of the page, then mark the spots you want to practice right on it.\n\n' +
           'The icons next to + Add:\n' +
-          'Clock — Practice Log: every session you\'ve logged, for this folder or the whole library.\n' +
+          'Open book — Practice Log: every session you\'ve logged, for this folder or the whole library.\n' +
           'Circular arrow — Rep Rotator: practice several passages in shuffled order.\n' +
           'Wrench — Tools: the metronome, tempo ladder, and rhythm variations on their own, without uploading any music.\n' +
           'Person — Account: your plan, sign out, reset your data, or delete your account.\n\n' +

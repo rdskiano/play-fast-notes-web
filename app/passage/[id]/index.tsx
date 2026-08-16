@@ -684,8 +684,7 @@ export default function PassageDetailScreen() {
           "Micro-Chaining — build a tricky spot back one note at a time (forward, backward, or out from the problem note).\n\n" +
           "Macro-Chaining — play it in chunks at goal tempo with beats of rest between, then remove the rests as it locks in.\n\n" +
           "Rep Rotator — drill this passage shuffled together with its siblings.\n\n" +
-          "Practice History — every session you've logged on this passage.\n\n" +
-          "Crop — re-trim the boxed region of the score.\n\n" +
+          "Practice History — the open-book button at the top-right: every session you've logged on this passage.\n\n" +
           "Move between passages with the ‹ › arrows, by swiping, or with the ← / → keys.\n\n" +
           "Notes for next time — a reminders banner near the top; tap to expand, or dismiss when done.\n\n" +
           PRACTICE_TOOLS_HELP
@@ -1031,17 +1030,26 @@ export default function PassageDetailScreen() {
           </View>
         </ScrollView>
 
-        {/* Tools as a horizontal pill in line with the practice-log / crop
-            icons in the hero top bar (anchorRight clears that cluster). */}
+        {/* Tools as a horizontal pill in line with the practice-log icon in
+            the hero top bar. The top bar is width-capped and centered, so on
+            wide windows the anchor adds the column's inset — a bare 58 kept
+            the pill glued to the window edge while the history button moved
+            inward with the column, and the two collided at laptop widths. */}
         <PracticeToolsBar
           pencil={{ ...ann.pencil, onUndo: ann.undo }}
           recorderPassageId={passage?.id}
-          anchorRight={58}
+          anchorRight={58 + Math.max(0, (vpW - HERO_COL_MAX) / 2)}
         />
         {overlays}
       </ThemedView>
     );
 }
+
+// Width cap of the hero column (heroColumnCap / heroColumn below). The tools
+// pill is window-anchored, so on windows wider than the cap its anchor must
+// add the centered column's inset — otherwise it collides with the history
+// button, which lives inside the capped top bar.
+const HERO_COL_MAX = 1100;
 
 const styles = StyleSheet.create({
   sheetBackdrop: {
@@ -1226,21 +1234,24 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   heroTopActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  heroColumnCap: { width: '100%', maxWidth: 1100, alignSelf: 'center' },
+  heroColumnCap: { width: '100%', maxWidth: HERO_COL_MAX, alignSelf: 'center' },
   // Inner column for the scrollable hub body. The ScrollView's content
   // container centers it (alignItems:center); this caps its width on wide
   // screens without the width:'100%' + alignSelf trick that overflowed on
   // iPad. maxWidth never exceeds the viewport, so no horizontal bleed.
-  heroColumn: { width: '100%', maxWidth: 1100, gap: Spacing.md },
+  heroColumn: { width: '100%', maxWidth: HERO_COL_MAX, gap: Spacing.md },
+  // Round white chip, matching the tools pill's material (fully-rounded +
+  // Lift) so the corner reads as one family of controls.
   heroIconBtn: {
     width: 38,
     height: 38,
-    borderRadius: Radii.md,
+    borderRadius: 19,
     backgroundColor: Palette.card,
     borderWidth: Borders.thin,
     borderColor: Palette.border,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Lift,
   },
   heroScroll: {
     paddingHorizontal: Spacing.lg,
@@ -1450,15 +1461,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
   },
+  // Same round-chip material as heroIconBtn so landscape's corner matches
+  // the hub (translucent bg kept — it floats over the score here).
   lsIconBtn: {
     width: 38,
     height: 38,
-    borderRadius: Radii.md,
+    borderRadius: 19,
     backgroundColor: '#ffffffe6',
     borderWidth: Borders.thin,
     borderColor: Palette.border,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Lift,
   },
   lsCounter: { position: 'absolute', left: Spacing.md, bottom: Spacing.md },
   lsPracticeBtn: {

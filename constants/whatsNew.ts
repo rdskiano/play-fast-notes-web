@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-16-tidy-corner',
+    date: 'August 16, 2026',
+    title: 'The tool icons stopped stepping on each other',
+    body:
+      'On laptop screens, the practice history button could land on top of the row of tool icons in the upper-right corner of a passage. The corner is now one tidy row: your tools in the white pill, and the history button as a matching round chip beside it. The in-app help was also rewritten to describe the tools as they look today, instead of the older design where they docked to the edge of the screen.',
+  },
+  {
     id: '2026-08-16-simpler-start',
     date: 'August 16, 2026',
     title: 'A simpler start',

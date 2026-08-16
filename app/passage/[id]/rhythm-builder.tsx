@@ -31,7 +31,7 @@ import { useScreenTour } from '@/components/tour/TourContext';
 import { tourTag, type TourStep } from '@/components/tour/types';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { ThemedView } from '@/components/themed-view';
-import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
+import { PRACTICE_TOOLS_EDGE_HELP, PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
 import { Palette } from '@/constants/palette';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
@@ -1086,7 +1086,8 @@ export default function RhythmBuilderScreen() {
               "EDIT — go back and tweak the pitches, key, or grouping.\n\n" +
               "← Back to pitch entry — at the bottom of the list, returns you to the pitch keyboard without leaving the session.\n\n" +
               "DONE — save the session and exit." +
-              `\n\n${PRACTICE_TOOLS_HELP}`
+              // Phone keeps the edge-docked rail; tablet/laptop use the pill.
+              `\n\n${isPhone ? PRACTICE_TOOLS_EDGE_HELP : PRACTICE_TOOLS_HELP}`
             }
           />
         </View>

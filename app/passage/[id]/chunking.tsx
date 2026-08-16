@@ -18,7 +18,7 @@ import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Button } from '@/components/Button';
-import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
+import { PRACTICE_TOOLS_EDGE_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -195,7 +195,7 @@ export default function ChunkingScreen() {
           'Drill the passage one chunk at a time — a small group of beamed notes on one breath — instead of facing it as one wall of notes.\n\n' +
           'Tap How to chunk (top-right) for the three-step method: play the chunk, shape the phrase, then take a quick "sip breath" before the next one.\n\n' +
           "Work through the passage chunk by chunk at your own pace, then tap DONE to log the session. ‹ Back leaves without logging.\n\n" +
-          PRACTICE_TOOLS_HELP
+          PRACTICE_TOOLS_EDGE_HELP
         }
       />
     </ThemedView>
