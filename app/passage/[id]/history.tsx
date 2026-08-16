@@ -157,7 +157,7 @@ export default function HistoryScreen() {
         <Pressable onPress={() => router.back()} hitSlop={8}>
           <ThemedText style={styles.backLink}>‹ Back</ThemedText>
         </Pressable>
-        <ThemedText type="title">Practice history</ThemedText>
+        <ThemedText type="title">Practice Log</ThemedText>
         <ThemedText style={styles.headerSub} numberOfLines={1}>
           {passage.title}
         </ThemedText>

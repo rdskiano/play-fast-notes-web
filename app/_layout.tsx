@@ -197,7 +197,7 @@ export default function RootLayout() {
                 />
                 <Stack.Screen
                   name="passage/[id]/history"
-                  options={IS_WEB ? {} : { title: 'Practice History' }}
+                  options={IS_WEB ? {} : { title: 'Practice Log' }}
                 />
                 <Stack.Screen
                   name="passage/[id]/self-led/[key]"

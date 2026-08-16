@@ -29,17 +29,27 @@ export const SHORTCUT_HINT_NEXT_BACK =
 //     phones. If a screen migrates to the pill, switch its help body too.
 // Not every screen mounts every tool, so the copy is deliberately general.
 
-const TOOL_LINES =
-  '🥁 Metronome — play/stop, set the tempo, meter, and subdivision, and tap out beat accents. Along the bottom: RHYTHMS swaps the click for a drum groove matched to your meter (rock, waltz, etc.), DRONE adds a steady pitch underneath to tune against, and GAPS randomly silences a share of the beats so you keep time on your own.\n' +
-  '⏱ Timers — optional nudges to rotate passages, take a micro-break, play it cold, or move your body.\n' +
-  '🎤 Recorder — capture a take and play it back; saved takes attach to your practice log.\n';
+const METRONOME_DESC =
+  'play/stop, set the tempo, meter, and subdivision, and tap out beat accents. Along the bottom: RHYTHMS swaps the click for a drum groove matched to your meter (rock, waltz, etc.), DRONE adds a steady pitch underneath to tune against, and GAPS randomly silences a share of the beats so you keep time on your own.';
+const TIMERS_DESC =
+  'optional nudges to rotate passages, take a micro-break, play it cold, or move your body.';
+const RECORDER_DESC =
+  'capture a take and play it back; saved takes attach to your practice log.';
 
+// The pill draws real icon glyphs (a metronome, a stopwatch, a microphone,
+// a pencil), so its list leads with plain names and points out the two
+// glyphs whose meaning isn't obvious. The emoji bullets live only in the
+// edge variant below, whose phone tabs literally display those emoji.
 export const PRACTICE_TOOLS_HELP =
   'Practice tools: the row of icons in the white pill at the top-right. Tap an icon to open that tool right below it; tap it again, or tap anywhere else on the screen, to put it away.\n\n' +
-  TOOL_LINES +
-  '✏️ Pencil — mark up the score. While you draw, a red ↶ appears in the pill to undo your last mark; tap the ✓ to save your marks and put the pencil down.';
+  'Metronome — ' + METRONOME_DESC + '\n' +
+  'Timers (the stopwatch icon) — ' + TIMERS_DESC + '\n' +
+  'Recorder (the microphone icon) — ' + RECORDER_DESC + '\n' +
+  'Pencil — mark up the score. While you draw, a red ↶ appears in the pill to undo your last mark; tap the ✓ to save your marks and put the pencil down.';
 
 export const PRACTICE_TOOLS_EDGE_HELP =
   'Practice tools: tap a tab on the edge of the screen to pop out a tool — drag it to reposition, pinch to resize, tap the tab again to dock it.\n\n' +
-  TOOL_LINES +
+  '🥁 Metronome — ' + METRONOME_DESC + '\n' +
+  '⏱ Timers — ' + TIMERS_DESC + '\n' +
+  '🎤 Recorder — ' + RECORDER_DESC + '\n' +
   '✏️ Pencil — mark up the score (stylus only; the tab appears when a pen is detected).';

@@ -11,10 +11,12 @@ export const TOOLS_HUB_HELP: ToolsHelp = {
   title: 'Practice tools',
   body:
     'These tools work on their own — no piece of music needed, and nothing is saved to your practice log. They’re for warming up and drilling technique.\n\n' +
-    '🥁 Metronome — tempo, meter, subdivisions, drum grooves, drone, and random gaps.\n' +
-    '🪜 Tempo Ladder — climb the tempo with Step, Cluster, or your saved Custom patterns.\n' +
-    '🎵 Rhythm Variations — practice with different rhythm patterns against the click.\n' +
-    '🌐 Community Library — browse and download rhythm exercises shared by other players.\n\n' +
+    // Plain names, no emoji bullets: the cards below carry their own drawn
+    // icons + printed titles, and the old emoji didn't match those glyphs.
+    'Metronome — tempo, meter, subdivisions, drum grooves, drone, and random gaps.\n' +
+    'Tempo Ladder — climb the tempo with Step, Cluster, or your saved Custom patterns.\n' +
+    'Rhythm Variations — practice with different rhythm patterns against the click.\n' +
+    'Community Library — browse and download rhythm exercises shared by other players.\n\n' +
     'Tap any card to begin. To tie a tool to specific music and save your progress, open a passage from the library instead.',
 };
 

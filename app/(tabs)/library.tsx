@@ -866,7 +866,7 @@ export default function LibraryScreen() {
     if (
       !(await confirmDelete(
         d.title,
-        'This removes the full part and any passages you marked inside it. Practice history under those passages stays in your log.',
+        'This removes the full part and any passages you marked inside it. Practice sessions you logged under those passages stay in your Practice Log.',
       ))
     )
       return;

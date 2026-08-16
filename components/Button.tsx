@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -24,6 +25,10 @@ export type ButtonSize = 'xs' | 'sm' | 'lg';
 
 type Props = {
   label: string;
+  /** Optional Feather glyph before the label — ties a labeled button to the
+      bare-icon version of the same action elsewhere (e.g. book-open on
+      "Practice Log", whose passage-screen sibling is icon-only). */
+  icon?: keyof typeof Feather.glyphMap;
   onPress: () => void;
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -35,6 +40,7 @@ type Props = {
 
 export function Button({
   label,
+  icon,
   onPress,
   variant = 'primary',
   size = 'lg',
@@ -97,8 +103,10 @@ export function Button({
           transform: pressed && !disabled ? [{ scale: 0.985 }] : [],
         },
         fullWidth && { alignSelf: 'stretch' },
+        icon != null && styles.withIcon,
         style,
       ]}>
+      {icon != null && <Feather name={icon} size={14} color={labelColor} />}
       <ThemedText style={[labelSize, { color: labelColor }]}>{label}</ThemedText>
     </Pressable>
   );
@@ -109,6 +117,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  withIcon: { flexDirection: 'row', gap: 6 },
   sizeXs: {
     paddingHorizontal: 10,
     paddingVertical: 6,

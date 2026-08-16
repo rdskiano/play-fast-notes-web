@@ -351,7 +351,7 @@ export default function LibraryLogScreen() {
         <Pressable onPress={() => router.back()} hitSlop={8}>
           <ThemedText style={styles.backLink}>‹ Library</ThemedText>
         </Pressable>
-        <ThemedText type="title">Practice log</ThemedText>
+        <ThemedText type="title">Practice Log</ThemedText>
       </View>
 
       {entries.length === 0 ? (

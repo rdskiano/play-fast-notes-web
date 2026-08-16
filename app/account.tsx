@@ -380,7 +380,7 @@ export default function AccountScreen() {
 
           {/* Practice history */}
           <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>Practice history</ThemedText>
+            <ThemedText style={styles.sectionTitle}>Practice Log</ThemedText>
             <View style={styles.card}>
               <ThemedText style={styles.hint}>
                 Trimming permanently deletes older practice-log entries, including

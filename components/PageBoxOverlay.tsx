@@ -273,7 +273,7 @@ export function PageBoxOverlay({
             onPress={() => bar && onHistory(bar.passage)}
             accessibilityRole="button"
             style={[styles.barBtn, { backgroundColor: scheme === 'dark' ? '#33373a' : '#f4f1ea' }]}>
-            <ThemedText style={[styles.barBtnText, { color: C.text }]}>History</ThemedText>
+            <ThemedText style={[styles.barBtnText, { color: C.text }]}>Log</ThemedText>
           </Pressable>
         </View>
       )}

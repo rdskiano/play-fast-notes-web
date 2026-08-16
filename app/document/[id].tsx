@@ -1009,6 +1009,7 @@ export default function DocumentScreen() {
                 />
                 <Button
                   label="Practice Log"
+                  icon="book-open"
                   variant="outline"
                   size="sm"
                   onPress={() => {
@@ -1474,7 +1475,7 @@ export default function DocumentScreen() {
               ? 'Turn pages — tap the ‹ › chevrons at the edges, swipe sideways, or use the arrow keys.\n\n' +
                 'Spans two pages? Drag the box on the first page, tap "Add next page →", then drag the rest on the next page — they join into one passage.\n\n'
               : '') +
-            'Each passage shows as a small name pill on the page. Tap the pill to light up its spot and choose Practice, Edit, or History.\n\n' +
+            'Each passage shows as a small name pill on the page. Tap the pill to light up its spot and choose Practice, Edit, or Log.\n\n' +
             'Sections — tap the page to mark where a movement or section begins; each marker runs until the next one (you only mark starts, not ends). This makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
             'View a blank page — a clean read of the full page, no pills.\n\n' +
             'Practice Log — every session you\'ve done on this photo, across all passages.\n\n' +
@@ -1492,7 +1493,7 @@ export default function DocumentScreen() {
             'Single / Spread (landscape only) — toggle between one page and a two-page spread.\n\n' +
             '+ Mark passage — drag a box around the music you want to practice. After you name it, it shows up in your library.\n\n' +
             'Spans two pages? Drag the box on the first page, tap "Add next page →", then drag the rest on the next page — they join into one passage.\n\n' +
-            'Each passage shows as a small name pill on the page. Tap the pill to light up its spot and choose Practice, Edit, or History.\n\n' +
+            'Each passage shows as a small name pill on the page. Tap the pill to light up its spot and choose Practice, Edit, or Log.\n\n' +
             'Sections — tap the page to mark where a movement or section begins; each marker runs until the next one (you only mark starts, not ends). This makes the practice log easier to read. Long-press the section label at the top to manage them.\n\n' +
             'View a blank page — clean read of the score, no pills.\n\n' +
             'Practice Log — every session you\'ve done on this PDF, across all passages.\n\n' +

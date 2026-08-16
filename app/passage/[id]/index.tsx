@@ -684,7 +684,7 @@ export default function PassageDetailScreen() {
           "Micro-Chaining — build a tricky spot back one note at a time (forward, backward, or out from the problem note).\n\n" +
           "Macro-Chaining — play it in chunks at goal tempo with beats of rest between, then remove the rests as it locks in.\n\n" +
           "Rep Rotator — drill this passage shuffled together with its siblings.\n\n" +
-          "Practice History — the open-book button at the top-right: every session you've logged on this passage.\n\n" +
+          "Practice Log — the open-book button at the top-right: every session you've logged on this passage.\n\n" +
           "Move between passages with the ‹ › arrows, by swiping, or with the ← / → keys.\n\n" +
           "Notes for next time — a reminders banner near the top; tap to expand, or dismiss when done.\n\n" +
           PRACTICE_TOOLS_HELP
@@ -790,7 +790,7 @@ export default function PassageDetailScreen() {
                 <Pressable
                   onPress={() => guardedNav(() => router.push(`/passage/${passage.id}/history`))}
                   hitSlop={8}
-                  accessibilityLabel="Practice history"
+                  accessibilityLabel="Practice Log"
                   style={styles.lsIconBtn}>
                   <Feather name="book-open" size={18} color={Palette.text} />
                 </Pressable>
@@ -910,7 +910,7 @@ export default function PassageDetailScreen() {
             <Pressable
               onPress={() => guardedNav(() => router.push(`/passage/${passage.id}/history`))}
               hitSlop={8}
-              accessibilityLabel="Practice history"
+              accessibilityLabel="Practice Log"
               style={styles.heroIconBtn}>
               <Feather name="book-open" size={18} color={Palette.text} />
             </Pressable>
