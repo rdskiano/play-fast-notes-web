@@ -2,10 +2,19 @@
 
 Status: **Phases 1 + 2 SHIPPED 2026-08-15** (commit 4491522, live web + OTA
 `production`; two-way loop verified on the iPad simulator with the newbie
-account before shipping). Phase 3 (lazy assets + annotations) not started.
-Written 2026-06-05. Decisions captured from the user (a musician, not a
-developer) are marked **[DECIDED]**; things still to confirm are marked
-**[OPEN]**.
+account before shipping). **Phase 3 BUILT + SIMULATOR-VERIFIED 2026-08-15
+(not yet shipped)** — full loop confirmed on the iPad simulator with the
+newbie account: cloud-created pieces/PDF appeared on the iPad in <60s with
+thumbnails; opening them downloaded files to permanent sandbox storage
+(no outbox echo); pencil marks drawn on the iPad reached the cloud with
+mirror stamps confirmed; a cloud-side annotation edit was adopted back on
+the iPad in <60s; the PDF rendered on-device from its downloaded original.
+Finding for later: "Reset all my data" hard-deletes cloud rows while device
+copies keep a drained outbox → those copies become local-only forever
+(pre-existing wipe-vs-sync wrinkle, not Phase 3). See implementation notes
+below. Written 2026-06-05. Decisions
+captured from the user (a musician, not a developer) are marked **[DECIDED]**;
+things still to confirm are marked **[OPEN]**.
 
 > **2026-08-15 implementation notes.** `lib/sync/engine.ts` (push/pull engine,
 > native-only), `lib/sync/useSyncEngine.ts` (foreground + 60s timer mount in
@@ -20,9 +29,36 @@ developer) are marked **[DECIDED]**; things still to confirm are marked
 > Phase 3 must coordinate with `annotation_saved_at`). pieces/documents PULL
 > applies updates+tombstones to rows the device already has; brand-new web
 > rows still arrive via the import screen until Phase 3 lazy assets.
-> **Cloud prerequisite (NOT yet applied):** `db/migrations/2026-08-15-sync-groundwork.sql`
-> — the engine probes for `server_updated_at` and stays dormant until it runs.
-> Apply it BEFORE the next web deploy (web now writes practice_log tombstones).
+> **Cloud prerequisite: APPLIED** (verified live 2026-08-15 — pieces/documents/
+> practice_log all carry `server_updated_at`), so the iPad engine is active.
+> `db/migrations/2026-08-15-sync-groundwork.sql` is the record of what ran.
+
+> **2026-08-15 Phase 3 implementation notes (BUILT, not shipped).**
+> - **New-row pull.** `applyPiece`/`applyDocument` now INSERT brand-new cloud
+>   rows (tombstoned ones skipped), keeping their cloud https URLs — music
+>   added on the web appears on the iPad by itself; "Download my web library"
+>   is no longer the arrival path. Native screens render remote URLs directly
+>   (expo-image; the PDF page renderer already fetched remote originals).
+> - **Lazy download on open** (`lib/assets/materializeAssets.ts` + web no-op):
+>   opening a passage or document downloads its remote files into the sandbox
+>   (same layout as /import-supabase: `pieces/<id>-src` etc., `documents/<id>/
+>   original.pdf`, `page-N`) and rewrites the row via `withSyncApplying`
+>   WITHOUT bumping `updated_at` — no outbox echo, no fake edit. Hooked into
+>   `app/passage/[id]/index.tsx` and `app/document/[id].tsx`, fire-and-forget
+>   with a re-read on completion; 30s per-file timeout; in-flight de-dupe.
+> - **Annotations sync.** SQLite migration 18: `pieces.annotation_mirrored_at`
+>   + a local `document_annotations` table (per-PDF-page marks now save
+>   offline). Saves stay local-first with a best-effort cloud mirror (repos
+>   stamp `mirrored_at` only when the cloud CONFIRMS a row — `.select()`
+>   guards PostgREST's silent zero-row updates). The engine re-mirrors any
+>   row whose `saved_at` outruns `mirrored_at` (push), and adopts cloud marks
+>   on pull UNLESS the device holds unmirrored strokes (offline drawings can
+>   never be clobbered by an older web copy). Sync card counts waiting
+>   drawings. `documentAnnotations` split `.ts`/`.web.ts` (web unchanged).
+> - **Cloud prerequisite for doc-annotation PULL: APPLIED 2026-08-15** with
+>   Ralph's approval (migration `sync_phase3_document_annotations_watermark`;
+>   column verified live). `db/migrations/2026-08-15-sync-phase3-annotations.sql`
+>   is the record of what ran. The cloud side of Phase 3 is fully ready.
 
 ---
 

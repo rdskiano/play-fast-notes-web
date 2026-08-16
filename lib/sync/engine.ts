@@ -9,13 +9,21 @@
 // immune to device-clock skew), applied to SQLite newest-wins. Deletes travel
 // as deleted_at tombstones in BOTH directions; the engine never hard-deletes.
 //
+// Phase 3 (lazy assets + annotations):
+// - pieces/documents PULL now also INSERTS brand-new cloud rows, keeping
+//   their cloud https URLs — music added on the web appears on the iPad by
+//   itself. Native screens render remote URLs directly; opening the passage/
+//   document downloads its files into the sandbox for offline use
+//   (lib/assets/materializeAssets.ts).
+// - Pencil marks sync. Saves are local-first with a best-effort cloud mirror
+//   (repos annotations.ts / documentAnnotations.ts); rows whose saved_at
+//   outruns mirrored_at are re-mirrored here, and cloud-side marks are
+//   adopted on pull unless this device holds unmirrored strokes (those push
+//   first — an offline drawing must never be clobbered by an older web copy).
+//   document_annotations PULL additionally waits for the cloud to have
+//   server_updated_at (db/migrations/2026-08-15-sync-phase3-annotations.sql).
+//
 // Scope guards, deliberate:
-// - pieces/documents PULL only updates rows this device already has (+ their
-//   tombstones). Brand-new web rows still arrive via "Download my web
-//   library" until lazy asset download ships (Phase 3) — a new catalog row
-//   without its image would be a broken passage on the iPad.
-// - annotation_* columns never sync here (annotations have their own
-//   cloud-direct path, being reworked separately).
 // - recordings + custom patterns are already cloud-native on both platforms.
 //
 // The whole engine is best-effort and resumable: any failure leaves the row
@@ -101,6 +109,22 @@ export async function getSyncStatus(): Promise<SyncStatus> {
   const pending = await db.getFirstAsync<{ n: number }>(
     'SELECT COUNT(*) AS n FROM sync_outbox;',
   );
+  // Pencil marks waiting to reach the cloud aren't outbox rows — they're
+  // tracked by saved/mirrored stamps on the rows themselves.
+  let annPending = 0;
+  try {
+    const ann = await db.getFirstAsync<{ n: number }>(
+      `SELECT
+         (SELECT COUNT(*) FROM pieces
+           WHERE annotation_saved_at IS NOT NULL
+             AND annotation_saved_at > COALESCE(annotation_mirrored_at, 0))
+       + (SELECT COUNT(*) FROM document_annotations
+           WHERE saved_at IS NOT NULL AND saved_at > COALESCE(mirrored_at, 0)) AS n;`,
+    );
+    annPending = ann?.n ?? 0;
+  } catch {
+    // pre-migration DB — outbox count still shows
+  }
   const last = await getState('last_sync_at');
   const err = await getState('last_error');
   const state = await getState('last_state');
@@ -134,12 +158,19 @@ export async function getSyncStatus(): Promise<SyncStatus> {
     }
   }
 
+  if (annPending > 0 && stuck.length < 3) {
+    stuck.push({
+      label: annPending === 1 ? 'a pencil drawing' : 'pencil drawings',
+      reason: 'will keep retrying automatically',
+    });
+  }
+
   return {
     state: running
       ? 'syncing'
       : ((state as SyncStatus['state']) ?? 'idle'),
     lastSyncAt: last ? Number(last) : null,
-    pendingCount: pending?.n ?? 0,
+    pendingCount: (pending?.n ?? 0) + annPending,
     lastError: err,
     stuck,
   };
@@ -322,6 +353,8 @@ async function pushAll(userId: string): Promise<void> {
   await pushFolders();
   await pushDocuments(userId);
   await pushPieces(userId);
+  await pushAnnotations();
+  await pushDocumentAnnotations();
   await pushExercises();
   await pushProgress('tempo_ladder_progress', [
     'mode', 'start_tempo', 'goal_tempo', 'increment', 'cluster_low',
@@ -685,6 +718,8 @@ async function pushPieces(userId: string): Promise<void> {
           source_uri: isLocalUri(sourceUri) ? '' : sourceUri,
           thumbnail_uri: isLocalUri(sourceUri) ? null : thumbUri,
           original_uri: originalUri,
+          annotation_data: r.annotation_data ?? null,
+          annotation_image_uri: r.annotation_image_uri ?? null,
           created_at: r.created_at, ...base,
         });
         // 23505 = this id already exists in the cloud but RLS hid it from
@@ -701,6 +736,112 @@ async function pushPieces(userId: string): Promise<void> {
     } catch (e) {
       console.warn('[sync] piece push deferred', q.row_id, e);
       await markDeferred('pieces', q.row_id, e);
+    }
+  }
+}
+
+// Pencil marks whose local save outran their cloud mirror (offline drawing,
+// stale session, passage not pushed yet). Not outbox-driven: the saved/
+// mirrored stamps on the rows themselves are the queue, so a crash can never
+// lose track of an unmirrored drawing.
+async function pushAnnotations(): Promise<void> {
+  const db = getDb();
+  const rows = await db.getAllAsync<{
+    id: string;
+    annotation_data: string | null;
+    annotation_image_uri: string | null;
+    annotation_saved_at: number;
+  }>(
+    `SELECT id, annotation_data, annotation_image_uri, annotation_saved_at
+     FROM pieces
+     WHERE annotation_saved_at IS NOT NULL
+       AND annotation_saved_at > COALESCE(annotation_mirrored_at, 0)
+     LIMIT 100;`,
+  );
+  for (const r of rows) {
+    try {
+      // .select confirms a row was actually written — PostgREST reports a
+      // zero-row update (piece not in the cloud yet) as success. Zero rows =
+      // leave unmirrored; it retries after the piece's own push lands.
+      const { data, error } = await supabase
+        .from('pieces')
+        .update({
+          annotation_data: r.annotation_data,
+          annotation_image_uri: r.annotation_image_uri,
+        })
+        .eq('id', r.id)
+        .select('id');
+      if (error) throw error;
+      if ((data ?? []).length === 0) continue;
+      await withApplying(() =>
+        db.runAsync(
+          'UPDATE pieces SET annotation_mirrored_at = ? WHERE id = ? AND annotation_saved_at = ?;',
+          r.annotation_saved_at,
+          r.id,
+          r.annotation_saved_at,
+        ),
+      );
+    } catch (e) {
+      console.warn('[sync] annotation push deferred', r.id, e);
+    }
+  }
+}
+
+async function pushDocumentAnnotations(): Promise<void> {
+  const db = getDb();
+  const rows = await db.getAllAsync<{
+    document_id: string;
+    page: number;
+    annotation_data: string | null;
+    annotation_image_uri: string | null;
+    updated_at: number;
+    saved_at: number;
+  }>(
+    `SELECT document_id, page, annotation_data, annotation_image_uri, updated_at, saved_at
+     FROM document_annotations
+     WHERE saved_at IS NOT NULL AND saved_at > COALESCE(mirrored_at, 0)
+     LIMIT 100;`,
+  );
+  for (const r of rows) {
+    try {
+      const { error } = await supabase.from('document_annotations').upsert({
+        document_id: r.document_id,
+        page: r.page,
+        annotation_data: r.annotation_data,
+        annotation_image_uri: r.annotation_image_uri,
+        updated_at: r.updated_at,
+      });
+      if (error) {
+        // 23503 = the parent document isn't in the cloud. Deleted/gone
+        // locally → these marks can never land and are invisible anyway;
+        // stamp them mirrored so they stop retrying. Otherwise the document
+        // push was merely deferred — retry next run.
+        if ((error as { code?: string }).code === '23503') {
+          const parent = await db.getFirstAsync<{ deleted_at: number | null }>(
+            'SELECT deleted_at FROM documents WHERE id = ?;',
+            r.document_id,
+          );
+          if (!parent || parent.deleted_at != null) {
+            await db.runAsync(
+              'UPDATE document_annotations SET mirrored_at = ? WHERE document_id = ? AND page = ?;',
+              r.saved_at,
+              r.document_id,
+              r.page,
+            );
+            continue;
+          }
+        }
+        throw error;
+      }
+      await db.runAsync(
+        'UPDATE document_annotations SET mirrored_at = ? WHERE document_id = ? AND page = ? AND saved_at = ?;',
+        r.saved_at,
+        r.document_id,
+        r.page,
+        r.saved_at,
+      );
+    } catch (e) {
+      console.warn('[sync] doc-annotation push deferred', `${r.document_id} p${r.page}`, e);
     }
   }
 }
@@ -921,6 +1062,7 @@ async function pullAll(): Promise<void> {
   await pullTable('folders', applyFolder);
   await pullTable('documents', applyDocument);
   await pullTable('pieces', applyPiece);
+  await pullDocumentAnnotations();
   await pullTable('exercises', applyExercise);
   await pullTable('tempo_ladder_progress', applyTempoLadderProgress);
   await pullTable('click_up_progress', applyClickUpProgress);
@@ -950,6 +1092,61 @@ async function pullTable(
     await setState(wmKey, watermark);
     if (data.length < PULL_PAGE) break;
   }
+}
+
+// document_annotations pull needs its own cloud groundwork (server_updated_at
+// — db/migrations/2026-08-15-sync-phase3-annotations.sql). Until it's applied
+// the pull is a quiet no-op; pushes work regardless. Probed once per launch.
+let docAnnCloudReady: boolean | null = null;
+
+async function pullDocumentAnnotations(): Promise<void> {
+  if (docAnnCloudReady === false) return;
+  try {
+    await pullTable('document_annotations', applyDocumentAnnotation);
+    docAnnCloudReady = true;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/server_updated_at/.test(msg)) {
+      docAnnCloudReady = false;
+      return;
+    }
+    throw e;
+  }
+}
+
+async function applyDocumentAnnotation(c: Row): Promise<void> {
+  const db = getDb();
+  const local = await db.getFirstAsync<{
+    updated_at: number;
+    saved_at: number | null;
+    mirrored_at: number | null;
+  }>(
+    'SELECT updated_at, saved_at, mirrored_at FROM document_annotations WHERE document_id = ? AND page = ?;',
+    c.document_id as string,
+    c.page as number,
+  );
+  if (local) {
+    // This device's unpushed strokes win until they've mirrored.
+    const unmirrored =
+      local.saved_at != null && local.saved_at > (local.mirrored_at ?? 0);
+    if (unmirrored) return;
+    if (!cloudWins(c, local.updated_at)) return;
+  }
+  await db.runAsync(
+    `INSERT INTO document_annotations (document_id, page, annotation_data, annotation_image_uri, updated_at, saved_at, mirrored_at)
+     VALUES (?, ?, ?, ?, ?, NULL, NULL)
+     ON CONFLICT (document_id, page) DO UPDATE SET
+       annotation_data = excluded.annotation_data,
+       annotation_image_uri = excluded.annotation_image_uri,
+       updated_at = excluded.updated_at,
+       saved_at = NULL,
+       mirrored_at = NULL;`,
+    c.document_id as string,
+    c.page as number,
+    (c.annotation_data as string) ?? null,
+    (c.annotation_image_uri as string) ?? null,
+    (c.updated_at as number) ?? 0,
+  );
 }
 
 // Newest-wins compare: apply the cloud row only when it's at least as new as
@@ -982,14 +1179,32 @@ async function applyFolder(c: Row): Promise<void> {
   }
 }
 
-// Documents + pieces: update-existing only (see the scope note up top).
+// Documents + pieces: existing rows get catalog updates only (their asset
+// columns stay local — the iPad's files are its source of truth). BRAND-NEW
+// cloud rows are inserted whole, cloud https URLs included: screens render
+// those directly, and opening the item downloads the files for offline
+// (Phase 3 lazy assets).
 async function applyDocument(c: Row): Promise<void> {
   const db = getDb();
   const local = await db.getFirstAsync<{ updated_at: number }>(
     'SELECT updated_at FROM documents WHERE id = ?;',
     c.id as string,
   );
-  if (!local || !cloudWins(c, local.updated_at)) return;
+  if (!local) {
+    if (c.deleted_at) return; // never materialize already-deleted music
+    await db.runAsync(
+      `INSERT INTO documents (id, title, composer, source_kind, original_uri, page_count, pages_json, folder_id, sort_order, sections_json, created_at, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      c.id as string, c.title as string, (c.composer as string) ?? null,
+      c.source_kind as string, (c.original_uri as string) ?? null,
+      (c.page_count as number) ?? 0, (c.pages_json as string) ?? '[]',
+      (c.folder_id as string) ?? null, (c.sort_order as number) ?? 0,
+      (c.sections_json as string) ?? null, c.created_at as number,
+      c.updated_at as number, null,
+    );
+    return;
+  }
+  if (!cloudWins(c, local.updated_at)) return;
   await db.runAsync(
     `UPDATE documents SET title = ?, composer = ?, folder_id = ?, sort_order = ?, sections_json = ?, updated_at = ?, deleted_at = ? WHERE id = ?;`,
     c.title as string, (c.composer as string) ?? null, (c.folder_id as string) ?? null,
@@ -1000,13 +1215,34 @@ async function applyDocument(c: Row): Promise<void> {
 
 async function applyPiece(c: Row): Promise<void> {
   const db = getDb();
-  const local = await db.getFirstAsync<{ updated_at: number }>(
-    'SELECT updated_at FROM pieces WHERE id = ?;',
+  const local = await db.getFirstAsync<{
+    updated_at: number;
+    annotation_saved_at: number | null;
+    annotation_mirrored_at: number | null;
+  }>(
+    'SELECT updated_at, annotation_saved_at, annotation_mirrored_at FROM pieces WHERE id = ?;',
     c.id as string,
   );
-  if (!local || !cloudWins(c, local.updated_at)) return;
-  // Asset URI + annotation columns deliberately untouched: local files stay
-  // the iPad's source of truth (Phase 3 owns asset movement).
+  if (!local) {
+    if (c.deleted_at) return; // never materialize already-deleted music
+    await db.runAsync(
+      `INSERT INTO pieces (id, title, composer, source_kind, source_uri, thumbnail_uri, original_uri, units_json, folder_id, sort_order, due_date, performance_tempo, document_id, regions_json, annotation_data, annotation_image_uri, annotation_saved_at, annotation_mirrored_at, created_at, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL);`,
+      c.id as string, c.title as string, (c.composer as string) ?? null,
+      (c.source_kind as string) ?? 'image', (c.source_uri as string) ?? '',
+      (c.thumbnail_uri as string) ?? null, (c.original_uri as string) ?? null,
+      (c.units_json as string) ?? null, (c.folder_id as string) ?? null,
+      (c.sort_order as number) ?? 0, (c.due_date as number) ?? null,
+      (c.performance_tempo as number) ?? null, (c.document_id as string) ?? null,
+      (c.regions_json as string) ?? null, (c.annotation_data as string) ?? null,
+      (c.annotation_image_uri as string) ?? null,
+      c.created_at as number, c.updated_at as number,
+    );
+    return;
+  }
+  if (!cloudWins(c, local.updated_at)) return;
+  // Asset URI columns deliberately untouched on updates: local files stay
+  // the iPad's source of truth.
   await db.runAsync(
     `UPDATE pieces SET title = ?, composer = ?, units_json = ?, folder_id = ?, sort_order = ?, due_date = ?, performance_tempo = ?, document_id = ?, regions_json = ?, updated_at = ?, deleted_at = ? WHERE id = ?;`,
     c.title as string, (c.composer as string) ?? null, (c.units_json as string) ?? null,
@@ -1015,6 +1251,21 @@ async function applyPiece(c: Row): Promise<void> {
     (c.document_id as string) ?? null, (c.regions_json as string) ?? null,
     c.updated_at as number, (c.deleted_at as number) ?? null, c.id as string,
   );
+  // Adopt the cloud's pencil marks — unless this device holds strokes the
+  // cloud hasn't seen yet (those push first; an offline drawing must never
+  // be clobbered by an older web copy). Clearing saved/mirrored records that
+  // the local copy now came FROM the cloud, so reads go cloud-first again.
+  const unmirrored =
+    local.annotation_saved_at != null &&
+    local.annotation_saved_at > (local.annotation_mirrored_at ?? 0);
+  if (!unmirrored) {
+    await db.runAsync(
+      `UPDATE pieces SET annotation_data = ?, annotation_image_uri = ?, annotation_saved_at = NULL, annotation_mirrored_at = NULL WHERE id = ?;`,
+      (c.annotation_data as string) ?? null,
+      (c.annotation_image_uri as string) ?? null,
+      c.id as string,
+    );
+  }
 }
 
 async function applyExercise(c: Row): Promise<void> {

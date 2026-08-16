@@ -419,4 +419,28 @@ export const MIGRATIONS: string[] = [
   -- the stuck item in plain English instead of just counting it.
   ALTER TABLE sync_outbox ADD COLUMN last_error TEXT;
   `,
+  `
+  -- ── Annotation sync (SYNC_PLAN Phase 3) ─────────────────────────────
+  -- annotation_mirrored_at: when this passage's pencil marks last reached the
+  -- cloud (epoch ms, compared against annotation_saved_at). saved > mirrored
+  -- means an offline/failed mirror left strokes only on this device — the
+  -- sync engine re-mirrors them on its next run. Pre-existing native drawings
+  -- start unmirrored, so the first Phase-3 sync re-sends them once (idempotent).
+  ALTER TABLE pieces ADD COLUMN annotation_mirrored_at INTEGER;
+
+  -- Local copy of the cloud's document_annotations (per-PDF-page pencil
+  -- marks), so drawing on a PDF page works offline. Same local-first rules as
+  -- pieces.annotation_*: saved_at = last save ON THIS DEVICE (local copy wins
+  -- reads while set), mirrored_at = last successful push to the cloud.
+  CREATE TABLE IF NOT EXISTS document_annotations (
+    document_id TEXT NOT NULL,
+    page INTEGER NOT NULL,
+    annotation_data TEXT,
+    annotation_image_uri TEXT,
+    updated_at INTEGER NOT NULL,
+    saved_at INTEGER,
+    mirrored_at INTEGER,
+    PRIMARY KEY (document_id, page)
+  );
+  `,
 ];

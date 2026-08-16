@@ -82,7 +82,7 @@ export async function saveAnnotation(
   const db = getDb();
   await db.runAsync(
     `UPDATE pieces
-     SET annotation_data = ?, annotation_image_uri = ?, annotation_saved_at = ?, updated_at = ?
+     SET annotation_data = ?, annotation_image_uri = ?, annotation_saved_at = ?, annotation_mirrored_at = NULL, updated_at = ?
      WHERE id = ?;`,
     annotation.data,
     annotation.imageUri,
@@ -91,18 +91,31 @@ export async function saveAnnotation(
     passageId,
   );
   // Mirror to Supabase so the web app shows the marks on passages it knows
-  // about. Zero rows matched (iPad-only passage) or a network/auth failure is
-  // fine — the SQLite write above already secured the strokes.
+  // about. Zero rows matched (passage not pushed to the cloud yet) or a
+  // network/auth failure is fine — the SQLite write above already secured the
+  // strokes, and the sync engine re-mirrors any row whose annotation_saved_at
+  // is newer than annotation_mirrored_at on its next run. mirrored_at is only
+  // stamped when the cloud CONFIRMS a row was written (.select), because
+  // PostgREST reports a zero-row update as success.
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('pieces')
       .update({
         annotation_data: annotation.data,
         annotation_image_uri: annotation.imageUri,
         updated_at: now,
       })
-      .eq('id', passageId);
+      .eq('id', passageId)
+      .select('id');
     if (error) throw error;
+    if ((data ?? []).length > 0) {
+      await db.runAsync(
+        'UPDATE pieces SET annotation_mirrored_at = ? WHERE id = ? AND annotation_saved_at = ?;',
+        now,
+        passageId,
+        now,
+      );
+    }
   } catch (e) {
     console.warn('[annotations] cloud mirror failed — marks saved locally:', e);
   }

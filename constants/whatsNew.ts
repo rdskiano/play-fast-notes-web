@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-15-music-follows-you',
+    date: 'August 15, 2026',
+    title: 'Music you add on the web now appears on your iPad by itself',
+    body:
+      'Add a piece on playfastnotes.com at home, and it shows up in your iPad library on its own, usually within a minute. The first time you open it on the iPad, its pages download and stay on the device, so it keeps working in a practice room with no wifi. Pencil marks now travel too: draw on the iPad and the marks show up on the web, edit on the web and the iPad picks it up.',
+  },
+  {
     id: '2026-08-15-ipad-two-way-sync',
     date: 'August 15, 2026',
     title: 'Your iPad now backs itself up',

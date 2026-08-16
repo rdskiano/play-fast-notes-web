@@ -42,6 +42,10 @@ import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
+import {
+  materializeDocumentAssets,
+  materializePassageAssets,
+} from '@/lib/assets/materializeAssets';
 import { getOrCreateExercise } from '@/lib/db/repos/exercises';
 import { getDocumentPassageStatus } from '@/lib/db/repos/passageStatus';
 import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
@@ -203,7 +207,17 @@ export default function PassageDetailScreen() {
           const p = await getPassage(id);
           if (cancelled) return;
           setPassage(p);
+          // A passage that arrived from another device still points at cloud
+          // URLs — fetch its images into the sandbox in the background so it
+          // works offline, then swap the freshly localized row in. (No-op on
+          // web and for passages whose files are already local.)
+          void materializePassageAssets(id).then(async (changed) => {
+            if (!changed || cancelled) return;
+            const fresh = await getPassage(id);
+            if (!cancelled && fresh) setPassage(fresh);
+          });
           if (p?.document_id) {
+            void materializeDocumentAssets(p.document_id);
             rememberPassageInDoc(p.document_id, p.id);
             try {
               const sibs = await listPassagesInDocument(p.document_id);

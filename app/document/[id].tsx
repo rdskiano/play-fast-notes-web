@@ -56,6 +56,7 @@ import { getSetting, setSetting } from '@/lib/db/repos/settings';
 const PDF_BOX_COACHED_KEY = 'pdfBox.coached';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { materializeDocumentAssets } from '@/lib/assets/materializeAssets';
 import {
   getDocument,
   parsePages,
@@ -333,11 +334,17 @@ export default function DocumentScreen() {
     (async () => {
       await refresh();
       if (cancelled) return;
+      // A document that arrived from another device still points at cloud
+      // URLs — fetch its files into the sandbox in the background so it works
+      // offline, then re-read the localized row. (No-op on web and for
+      // documents whose files are already local.)
+      const changed = await materializeDocumentAssets(id);
+      if (changed && !cancelled) await refresh();
     })();
     return () => {
       cancelled = true;
     };
-  }, [refresh]);
+  }, [refresh, id]);
 
   // If the caller navigated here with ?resize=<passageId> (the Crop button on
   // the passage screen for document-backed passages), jump straight into
