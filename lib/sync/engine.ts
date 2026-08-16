@@ -189,6 +189,21 @@ export async function syncNow(): Promise<void> {
     }
     const userId = data.session.user.id;
 
+    // Sync bookkeeping is PER-ACCOUNT. If a different user signs in on this
+    // device (account switch, or a test account), the previous account's pull
+    // watermarks and reconcile flag must not carry over: stale watermarks
+    // would silently skip pulling the new account's older rows, and a stale
+    // plog_reconciled would skip the duplicate-guard binding for its practice
+    // history. Reset both; a fresh full pull and re-reconcile are idempotent.
+    const owner = await getState('owner_user_id');
+    if (owner !== userId) {
+      const db = getDb();
+      await db.runAsync(
+        "DELETE FROM sync_state WHERE key LIKE 'wm_%' OR key = 'plog_reconciled';",
+      );
+      await setState('owner_user_id', userId);
+    }
+
     // The cloud needs its side of the groundwork (server_updated_at etc.)
     // before any of this can run. Probe once per app launch; until the
     // migration is applied the engine is a clean no-op.
