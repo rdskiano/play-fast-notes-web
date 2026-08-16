@@ -2,8 +2,9 @@
 
 Status: **Phases 1 + 2 SHIPPED 2026-08-15** (commit 4491522, live web + OTA
 `production`; two-way loop verified on the iPad simulator with the newbie
-account before shipping). **Phase 3 BUILT + SIMULATOR-VERIFIED 2026-08-15
-(not yet shipped)** — full loop confirmed on the iPad simulator with the
+account before shipping). **Phase 3 SHIPPED 2026-08-15 night** (commit
+b218245, live web + OTA `production`) — the plan is COMPLETE. Simulator-verified
+before shipping: full loop confirmed on the iPad simulator with the
 newbie account: cloud-created pieces/PDF appeared on the iPad in <60s with
 thumbnails; opening them downloaded files to permanent sandbox storage
 (no outbox echo); pencil marks drawn on the iPad reached the cloud with
