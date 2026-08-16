@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AbcStaffView } from '@/components/AbcStaffView';
 import { Button } from '@/components/Button';
+import { ONBOARDING_FUNNEL_ENABLED } from '@/constants/onboardingFunnel';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Lift, Palette } from '@/constants/palette';
@@ -93,6 +94,15 @@ const STRATEGIES: {
 export default function OnboardingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ passageId?: string; demo?: string }>();
+
+  // Funnel boxed off (constants/onboardingFunnel.ts): anyone landing on this
+  // route — old links, bookmarks — goes to the setup form instead.
+  useEffect(() => {
+    if (!ONBOARDING_FUNNEL_ENABLED) {
+      router.replace('/sign-in?signup=1' as never);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const session = useSession();
@@ -368,6 +378,9 @@ export default function OnboardingScreen() {
       </View>
     );
   }
+
+  // Boxed off: render nothing while the redirect above replaces the route.
+  if (!ONBOARDING_FUNNEL_ENABLED) return null;
 
   return (
     <ThemedView style={{ flex: 1 }}>

@@ -51,11 +51,9 @@ export async function continueWithPassword(
 
 /**
  * Sign in an EXISTING account ONLY — never creates one. The default sign-in
- * screen uses this so a new visitor can't bypass the value-first funnel by
- * typing a fresh email here; new users go through /onboarding and their account
- * is created at the end via continueWithPassword. Supabase doesn't reveal
- * whether the failure was "no account" vs "wrong password" (by design), so the
- * error nudges toward both the password and the Get-started path.
+ * screen uses this; new users create their account via the setup form
+ * (signUpWithProfile). Supabase doesn't reveal whether the failure was "no
+ * account" vs "wrong password" (by design), so the error nudges toward both.
  */
 export async function signInOnly(email: string, password: string): Promise<void> {
   const { error } = await supabase.auth.signInWithPassword({
@@ -64,9 +62,84 @@ export async function signInOnly(email: string, password: string): Promise<void>
   });
   if (error) {
     throw new Error(
-      'We couldn’t sign you in. Double-check your email and password — or if you’re new, tap “Get started” below.',
+      'We couldn’t sign you in. Double-check your email and password, or create an account below if you’re new.',
     );
   }
+}
+
+export type SignUpProfile = { name: string; instrument: string };
+export type SignUpResult =
+  /** Account created and signed in (email confirmation is off). */
+  | { kind: 'signed-in' }
+  /** Account created; Supabase sent a confirmation email and there is no
+   *  session until the user clicks it. */
+  | { kind: 'confirm-email' };
+
+/**
+ * Create an account from the setup form. Name + instrument ride along as auth
+ * user metadata so they survive the email-confirmation gap (the user may even
+ * confirm on a different device) — applySignupProfile() copies the instrument
+ * into settings on the first signed-in load.
+ *
+ * Handles both Supabase configurations: with "Confirm email" off the user is
+ * signed in immediately; with it on we report confirm-email so the screen can
+ * show "check your inbox". Throws a friendly Error otherwise.
+ */
+export async function signUpWithProfile(
+  email: string,
+  password: string,
+  profile: SignUpProfile,
+): Promise<SignUpResult> {
+  const trimmedEmail = email.trim();
+  const { data, error } = await supabase.auth.signUp({
+    email: trimmedEmail,
+    password,
+    options: {
+      data: {
+        full_name: profile.name.trim(),
+        instrument: profile.instrument,
+      },
+    },
+  });
+
+  if (error) {
+    const msg = (error.message ?? '').toLowerCase();
+    if (msg.includes('already') || msg.includes('registered')) {
+      // The email has an account. Maybe they forgot — try their password
+      // before bouncing them, so an existing user who lands on the setup
+      // form still gets in.
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password,
+      });
+      if (!signInError) return { kind: 'signed-in' };
+      throw new Error(
+        'That email already has an account. Tap "Sign in" below and use the password you set before (or "Forgot password?" if it\'s lost).',
+      );
+    }
+    throw error;
+  }
+
+  if (data.session) return { kind: 'signed-in' };
+
+  // No session + no error. With email confirmation ON, Supabase also lands
+  // here for an email that ALREADY has a confirmed account (it hides the
+  // difference on purpose); such users get an empty identities list.
+  if (data.user && (data.user.identities?.length ?? 0) === 0) {
+    throw new Error(
+      'That email already has an account. Tap "Sign in" below and use the password you set before (or "Forgot password?" if it\'s lost).',
+    );
+  }
+  return { kind: 'confirm-email' };
+}
+
+/** Re-send the signup confirmation email. */
+export async function resendConfirmationEmail(email: string): Promise<void> {
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email: email.trim(),
+  });
+  if (error) throw error;
 }
 
 export async function signOut(): Promise<void> {

@@ -12,6 +12,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["expo", "start", "--web", "--port", "8082"],
       "port": 8082
+    },
+    {
+      "name": "playfast-metro-8085",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--dev-client", "--port", "8085"],
+      "port": 8085
     }
   ]
 }

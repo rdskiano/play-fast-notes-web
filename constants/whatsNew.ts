@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-16-simpler-start',
+    date: 'August 16, 2026',
+    title: 'A simpler start',
+    body:
+      'Creating an account is now one quick setup: your name, your instrument, your email, and a password. The guided demo tour is retired, and new users land in their own empty library, ready to add their first passage. On the iPad the app now asks you to sign in before you start, so everything you do is backed up to your account from day one.',
+  },
+  {
     id: '2026-08-15-music-follows-you',
     date: 'August 15, 2026',
     title: 'Music you add on the web now appears on your iPad by itself',

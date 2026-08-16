@@ -26,8 +26,10 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { WhatsNewButton } from '@/components/WhatsNewButton';
+import { ONBOARDING_FUNNEL_ENABLED } from '@/constants/onboardingFunnel';
 import { Colors, Fonts } from '@/constants/theme';
 import { Lift, Palette } from '@/constants/palette';
+import { applySignupProfile } from '@/lib/onboarding/applySignupProfile';
 import { Borders, Opacity, Overlays, Radii, Spacing, Type } from '@/constants/tokens';
 
 // v2 reskin — Tempo-progress bar color by how close the passage is to its goal
@@ -742,8 +744,22 @@ export default function LibraryScreen() {
   // (best-effort) and flip local state BEFORE navigating, so the user sees the
   // quiz exactly once across sessions and devices — and a mid-quiz bail doesn't
   // restart them. The ref blocks a double-fire while this mount tears down.
+  //
+  // The setup form may have run without a session (email confirmation), or on
+  // a different device than this one — copy its choices (instrument) out of
+  // the account metadata into settings on the first signed-in library load.
+  useEffect(() => {
+    void applySignupProfile();
+  }, []);
+
+  // Funnel era only (boxed off — constants/onboardingFunnel.ts), and web only:
+  // the funnel's audio, notation rendering, and account handoff are web-shaped,
+  // and on native it dead-ends at forced account creation. With the funnel off,
+  // a fresh empty library shows the first-passage hero below instead.
   useEffect(() => {
     if (
+      ONBOARDING_FUNNEL_ENABLED &&
+      Platform.OS === 'web' &&
       !redirectingToOnboarding.current &&
       onboardingSeen === false &&
       practiceCount === 0 &&
@@ -1188,7 +1204,12 @@ export default function LibraryScreen() {
   // Returning users with content fall through immediately (rows.length > 0),
   // and a user who already finished onboarding (onboardingSeen === true) sees
   // the normal empty-state hero if they later delete everything.
+  // Only while the funnel is enabled (and web only), like the redirect it
+  // fronts for — otherwise there is no quiz to hold for, and holding would
+  // blank a fresh empty install forever.
   const decidingFirstRun =
+    ONBOARDING_FUNNEL_ENABLED &&
+    Platform.OS === 'web' &&
     !q &&
     !currentFolderId &&
     !error &&

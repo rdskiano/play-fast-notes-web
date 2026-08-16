@@ -43,6 +43,7 @@ import { PracticeTimersProvider } from '@/components/PracticeTimersContext';
 import { StitchHost } from '@/components/StitchHost';
 import { StrategyColorsProvider } from '@/components/StrategyColorsContext';
 import { TourProvider } from '@/components/tour/TourContext';
+import { ONBOARDING_FUNNEL_ENABLED } from '@/constants/onboardingFunnel';
 import { useSession } from '@/lib/supabase/auth';
 import { registerServiceWorker } from '@/lib/sw/registerServiceWorker';
 import { startupMigrate } from '@/lib/startup/migrate';
@@ -88,39 +89,36 @@ export default function RootLayout() {
 
   if (!dbReady) return null;
 
-  // Web auth gate. Native skips this — no sign-in required.
-  if (IS_WEB) {
-    if (session === undefined) return null;
-    if (session === null) {
-      // Value-first funnel: a stranger's landing page is the Bumblebee taste
-      // (/onboarding), NOT a sign-in wall. Onboarding is fully client-side, so
-      // it runs with no account; it only asks for email at the handoff. /sign-in
-      // + /reset-password stay reachable for returning users (the welcome screen
-      // links to sign-in). Everything else falls back to the onboarding landing.
-      const isPublic =
-        pathname === '/sign-in' ||
-        pathname === '/reset-password' ||
-        pathname === '/onboarding';
-      return (
-        <ThemeProvider value={DefaultTheme}>
-          <SafeAreaProvider>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="onboarding" />
-              <Stack.Screen name="sign-in" />
-              <Stack.Screen name="reset-password" />
-            </Stack>
-            {/* Logged-out default = sign-in (existing users). New visitors
-                self-select into the value-first funnel via "Get started" on the
-                sign-in screen; their account is created at the funnel's end. */}
-            {!isPublic && <Redirect href="/sign-in" />}
-            {/* Install prompt lives here too so a friend opening the link on
-                their phone still gets coached into Add-to-Home-Screen. */}
-            <InstallPrompt />
-            <StatusBar style="dark" />
-          </SafeAreaProvider>
-        </ThemeProvider>
-      );
-    }
+  // Auth gate, BOTH platforms (native gained it 2026-08-16, Ralph's call:
+  // every account exists from day one so sync backs everything up — no more
+  // local-only libraries that can be lost). A signed-in device keeps working
+  // offline: the stored session counts even when it can't refresh.
+  if (session === undefined) return null;
+  if (session === null) {
+    // /onboarding is public only while the funnel is enabled (and only on
+    // web — the funnel is web-shaped). /sign-in + /reset-password are always
+    // reachable; everything else lands on sign-in.
+    const isPublic =
+      pathname === '/sign-in' ||
+      pathname === '/reset-password' ||
+      (IS_WEB && ONBOARDING_FUNNEL_ENABLED && pathname === '/onboarding');
+    return (
+      <ThemeProvider value={DefaultTheme}>
+        <SafeAreaProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="onboarding" />
+            <Stack.Screen name="sign-in" />
+            <Stack.Screen name="reset-password" />
+          </Stack>
+          {!isPublic && <Redirect href="/sign-in" />}
+          {/* Install prompt (web; native resolves to a no-op) lives here too
+              so a friend opening the link on their phone still gets coached
+              into Add-to-Home-Screen. */}
+          <InstallPrompt />
+          <StatusBar style="dark" />
+        </SafeAreaProvider>
+      </ThemeProvider>
+    );
   }
 
   return (

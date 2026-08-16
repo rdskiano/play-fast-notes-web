@@ -1,7 +1,11 @@
-import { Directory, File, Paths } from 'expo-file-system';
+// Dev tool: export this device's library as a seed JSON. The bundled-seed
+// IMPORT path (seedIfEmpty) was retired 2026-08-15 — fresh installs start
+// empty now, and lib/db/seedCleanup.ts un-seeds installs that older binaries
+// already planted the starter content into. assets/seeds/initial-seed.json
+// stays in the repo for history but is no longer imported, so it's out of the
+// app bundle.
 
-import seedData from '@/assets/seeds/initial-seed.json';
-import { withSyncApplying } from '@/lib/sync/engine';
+import { Directory, File, Paths } from 'expo-file-system';
 
 import { getDb } from './client';
 
@@ -97,57 +101,3 @@ export async function exportSeed(): Promise<string> {
   return out.uri;
 }
 
-async function isDbEmpty(): Promise<boolean> {
-  const db = getDb();
-  const pieces = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM pieces;');
-  const folders = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM folders;');
-  return (pieces?.c ?? 0) === 0 && (folders?.c ?? 0) === 0;
-}
-
-export async function seedIfEmpty(): Promise<void> {
-  const seed = seedData as Partial<SeedFile>;
-  if (!seed?.tables || !seed.version) return;
-  if (!(await isDbEmpty())) return;
-
-  console.log('[seed] Empty DB detected, importing seed...');
-
-  const piecesDir = new Directory(Paths.document, 'pieces');
-  if (!piecesDir.exists) piecesDir.create({ intermediates: true });
-
-  const writtenPaths: Record<string, string> = {};
-  for (const [name, b64] of Object.entries(seed.files ?? {})) {
-    const f = new File(piecesDir, name);
-    if (f.exists) f.delete();
-    f.create();
-    f.write(b64, { encoding: 'base64' });
-    writtenPaths[name] = f.uri;
-  }
-
-  const db = getDb();
-  // Guard up: bundled starter content ships with the SAME row ids on every
-  // install, so it must not queue itself for cloud sync — the first account
-  // to sync would push starter junk to its web library and claim those ids
-  // for everyone. A user's later EDITS to starter pieces still sync normally.
-  await withSyncApplying(() => db.withTransactionAsync(async () => {
-    for (const t of TABLE_ORDER) {
-      const rows = seed.tables![t] ?? [];
-      for (const row of rows) {
-        const r: Row = { ...row };
-        if (t === 'pieces') {
-          const src = r.source_uri;
-          const thumb = r.thumbnail_uri;
-          if (typeof src === 'string' && writtenPaths[src]) r.source_uri = writtenPaths[src];
-          if (typeof thumb === 'string' && writtenPaths[thumb]) r.thumbnail_uri = writtenPaths[thumb];
-        }
-        const cols = Object.keys(r);
-        if (cols.length === 0) continue;
-        const placeholders = cols.map(() => '?').join(', ');
-        const sql = `INSERT INTO ${t} (${cols.join(', ')}) VALUES (${placeholders});`;
-        const vals = cols.map((c) => r[c] as string | number | null);
-        await db.runAsync(sql, ...vals);
-      }
-    }
-  }));
-
-  console.log('[seed] Imported successfully');
-}
