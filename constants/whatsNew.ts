@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-16-smoother-scanning',
+    date: 'August 16, 2026',
+    title: 'Scanning pages is smoother',
+    body:
+      'When you scan a part with the camera, fix each page right in the scanner as you take it: drag the corners or retake the shot before moving on. The extra page-by-page review screen after scanning is gone. You now name your piece right after scanning, and a scanned part shows up in your library as a full part with its page count, not as a photo.',
+  },
+  {
     id: '2026-08-16-tidy-corner',
     date: 'August 16, 2026',
     title: 'The tool icons stopped stepping on each other',

@@ -280,8 +280,10 @@ function DocumentCard({
             <ThemedText style={{ opacity: Opacity.muted }}>{document.composer}</ThemedText>
           )}
           <ThemedText style={{ opacity: Opacity.muted, fontSize: 12 }}>
-            {document.source_kind === 'images'
-              ? `Photo${document.page_count > 1 ? ` · ${document.page_count} pages` : ''}`
+            {/* Multi-page image docs (camera scans) are full parts to the user,
+                even though they're stored as page images rather than a PDF. */}
+            {document.source_kind === 'images' && document.page_count === 1
+              ? 'Photo'
               : `Full part · ${document.page_count} page${document.page_count === 1 ? '' : 's'}`}
           </ThemedText>
           {breadcrumb ? (

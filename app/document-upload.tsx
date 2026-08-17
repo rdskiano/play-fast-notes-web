@@ -1,4 +1,3 @@
-import Feather from '@expo/vector-icons/Feather';
 import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -27,8 +26,10 @@ import { addScannedDocument } from '@/lib/scan/addScannedDocument';
 //    (lib/scan/addScannedDocument).
 // Both save on-device and sync to the user's account when signed in.
 //
-// Scanned pages get a review list before "Add to library" (B-009): reorder,
-// remove, retake a single page, or scan more — nothing is saved until Add.
+// Per-page fixing happens INSIDE the system scanner (adjust corners / retake
+// right after each shot), so there's no review list here — just a thumbnail
+// strip (tap a page to rescan it) and the naming fields. Nothing is saved
+// until Add.
 type ScannedPage = { id: string; uri: string };
 
 function newPageId(): string {
@@ -85,7 +86,8 @@ export default function DocumentUploadScreen() {
       if (!imgs) return;
       setPicked(null);
       setScanned((prev) => [...prev, ...imgs.map((uri) => ({ id: newPageId(), uri }))]);
-      if (!title.trim()) setTitle('Scanned music');
+      // No default title — the Add button stays disabled until the user names
+      // the piece, so naming can't be skipped by accident.
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -106,21 +108,6 @@ export default function DocumentUploadScreen() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }
-
-  function removeScannedPage(id: string) {
-    setScanned((prev) => prev.filter((p) => p.id !== id));
-  }
-
-  function moveScannedPage(id: string, dir: -1 | 1) {
-    setScanned((prev) => {
-      const i = prev.findIndex((p) => p.id === id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= prev.length) return prev;
-      const next = [...prev];
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
   }
 
   const hasSource = !!picked || scanned.length > 0;
@@ -172,9 +159,11 @@ export default function DocumentUploadScreen() {
           <ThemedText style={{ opacity: 0.6, fontSize: Type.size.sm }}>
             Choose a PDF, or scan pages with the camera (auto-cropped and cleaned to
             black &amp; white). After it&apos;s added you can mark passages inside it.
+            {'\n\n'}Tip: in the scanner, switch Auto to Manual (top right) to check
+            and fix each page&apos;s corners as you shoot.
             {'\n\n'}Tip: for a bound part (facing pages with a center fold), a
-            dedicated scanner app like Genius Scan splits the pages better —
-            scan there, save the PDF to Files, then Choose PDF here.
+            dedicated scanner app like Genius Scan splits the pages better.
+            Scan there, save the PDF to Files, then Choose PDF here.
           </ThemedText>
         )}
 
@@ -204,50 +193,25 @@ export default function DocumentUploadScreen() {
         {scanned.length > 0 && (
           <View style={styles.pagesBlock}>
             <ThemedText style={styles.pagesHeading}>
-              {scanned.length === 1 ? '1 page scanned' : `${scanned.length} pages scanned`} —
-              check each one before adding
+              {scanned.length === 1 ? '1 page scanned' : `${scanned.length} pages scanned`}
             </ThemedText>
-            {scanned.map((p, i) => (
-              <View key={p.id} style={styles.pageRow}>
-                <Image source={{ uri: p.uri }} style={styles.pageThumb} contentFit="cover" />
-                <ThemedText style={styles.pageLabel}>Page {i + 1}</ThemedText>
-                <View style={styles.pageActions}>
-                  <Pressable
-                    onPress={() => moveScannedPage(p.id, -1)}
-                    disabled={busy || i === 0}
-                    hitSlop={6}
-                    style={[styles.pageIconBtn, i === 0 && styles.pageIconDisabled]}>
-                    <Feather name="arrow-up" size={16} color={Palette.text} />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => moveScannedPage(p.id, 1)}
-                    disabled={busy || i === scanned.length - 1}
-                    hitSlop={6}
-                    style={[
-                      styles.pageIconBtn,
-                      i === scanned.length - 1 && styles.pageIconDisabled,
-                    ]}>
-                    <Feather name="arrow-down" size={16} color={Palette.text} />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => retakePage(p.id)}
-                    disabled={busy}
-                    hitSlop={6}
-                    style={styles.pageIconBtn}>
-                    <Feather name="camera" size={16} color={Palette.text} />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => removeScannedPage(p.id)}
-                    disabled={busy}
-                    hitSlop={6}
-                    style={styles.pageIconBtn}>
-                    <Feather name="x" size={16} color={Palette.danger} />
-                  </Pressable>
-                </View>
-              </View>
-            ))}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.thumbStrip}>
+              {scanned.map((p, i) => (
+                <Pressable
+                  key={p.id}
+                  onPress={() => retakePage(p.id)}
+                  disabled={busy}
+                  style={styles.thumbCell}>
+                  <Image source={{ uri: p.uri }} style={styles.thumb} contentFit="cover" />
+                  <ThemedText style={styles.thumbLabel}>{i + 1}</ThemedText>
+                </Pressable>
+              ))}
+            </ScrollView>
             <ThemedText style={styles.pagesHint}>
-              📷 = retake that page with the camera. Arrows reorder; ✕ removes.
+              Tap a page to rescan just that page. Now name your piece below.
             </ThemedText>
           </View>
         )}
@@ -325,39 +289,28 @@ const styles = StyleSheet.create({
     color: Palette.textSecondary,
     paddingHorizontal: Spacing.xs,
   },
-  pageRow: {
-    flexDirection: 'row',
+  thumbStrip: { flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.xs },
+  thumbCell: {
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: 2,
     backgroundColor: Palette.card,
     borderWidth: Borders.thin,
     borderColor: Palette.border,
-    borderRadius: Radii.lg,
-    padding: Spacing.sm,
+    borderRadius: Radii.md,
+    padding: Spacing.xs,
     ...Lift,
   },
-  pageThumb: {
-    width: 48,
-    height: 48,
+  thumb: {
+    width: 64,
+    height: 84,
     borderRadius: Radii.sm,
     backgroundColor: Palette.surfaceSunk,
   },
-  pageLabel: {
-    flex: 1,
-    fontSize: Type.size.md,
+  thumbLabel: {
+    fontSize: Type.size.xs,
     fontWeight: Type.weight.semibold,
-    color: Palette.text,
+    color: Palette.textSecondary,
   },
-  pageActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  pageIconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: Radii.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Palette.surfaceSunk,
-  },
-  pageIconDisabled: { opacity: 0.35 },
   pagesHint: {
     fontSize: Type.size.xs,
     color: Palette.textSecondary,
