@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import {
   Image,
   Platform,
@@ -35,6 +35,38 @@ import { logOnboardingStep } from '@/lib/onboarding/telemetry';
 import { suggestEmailCorrection } from '@/lib/validation/emailTypo';
 
 const MIN_PASSWORD = 6;
+
+// The setup screen's instrument picker lists instruments in orchestral score
+// order (winds top to bottom, brass, keyboard/fretted, strings) rather than by
+// transposition group. Any instrument added to ONBOARDING_INSTRUMENTS but
+// missing here falls to the end of the list instead of disappearing.
+const INSTRUMENT_SCORE_ORDER = [
+  'Flute',
+  'Oboe',
+  'Clarinet',
+  'Alto saxophone',
+  'Tenor saxophone',
+  'Baritone saxophone',
+  'Bassoon',
+  'French horn',
+  'Trumpet',
+  'Trombone',
+  'Tuba',
+  'Piano',
+  'Guitar',
+  'Violin',
+  'Viola',
+  'Cello',
+];
+
+function scoreOrderedInstruments() {
+  return [...ONBOARDING_INSTRUMENTS].sort((a, b) => {
+    const ai = INSTRUMENT_SCORE_ORDER.indexOf(a.name);
+    const bi = INSTRUMENT_SCORE_ORDER.indexOf(b.name);
+    return (ai === -1 ? INSTRUMENT_SCORE_ORDER.length : ai) -
+      (bi === -1 ? INSTRUMENT_SCORE_ORDER.length : bi);
+  });
+}
 
 type Status =
   | { kind: 'idle' }
@@ -284,53 +316,41 @@ export default function SignInScreen() {
             <ThemedText style={[styles.body, styles.bodySecondary, styles.instrumentHint]}>
               Exercises and demos will show up in your clef and key.
             </ThemedText>
-            {(() => {
-              let lastGroup = '';
-              const rows: ReactNode[] = [];
-              let chips: ReactNode[] = [];
-              const flush = (group: string) => {
-                if (chips.length === 0) return;
-                rows.push(
-                  <View key={group}>
-                    <ThemedText style={[styles.instrumentGroup, { color: Palette.textMuted }]}>
-                      {group}
-                    </ThemedText>
-                    <View style={styles.chipRow}>{chips}</View>
-                  </View>,
-                );
-                chips = [];
-              };
-              for (const it of ONBOARDING_INSTRUMENTS) {
-                if (it.group !== lastGroup) {
-                  flush(lastGroup);
-                  lastGroup = it.group;
-                }
+            <ScrollView
+              style={[
+                styles.instrumentList,
+                { borderColor: Palette.border, backgroundColor: Palette.card },
+              ]}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator>
+              {scoreOrderedInstruments().map((it, idx, arr) => {
                 const selected = instrument === it.name;
-                chips.push(
+                return (
                   <Pressable
                     key={it.name}
                     onPress={() => setInstrument(it.name)}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     style={[
-                      styles.chip,
-                      selected
-                        ? { backgroundColor: Palette.accent, borderColor: Palette.accent }
-                        : { backgroundColor: Palette.card, borderColor: Palette.border },
+                      styles.instrumentRow,
+                      idx < arr.length - 1 && {
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: Palette.border,
+                      },
+                      selected && { backgroundColor: Palette.accent },
                     ]}>
                     <ThemedText
                       style={[
-                        styles.chipText,
+                        styles.instrumentRowText,
                         { color: selected ? '#fff' : Palette.textSecondary },
                       ]}>
                       {it.name}
                     </ThemedText>
-                  </Pressable>,
+                    {selected && <MaterialIcons name="check" size={18} color="#fff" />}
+                  </Pressable>
                 );
-              }
-              flush(lastGroup);
-              return rows;
-            })()}
+              })}
+            </ScrollView>
           </View>
         )}
 
@@ -547,25 +567,21 @@ const styles = StyleSheet.create({
     marginTop: 0,
     marginBottom: Spacing.xs,
   },
-  instrumentGroup: {
-    fontSize: Type.size.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.xs,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.xs,
-  },
-  chip: {
+  // Compact scrollable picker — about five rows tall so it reads as a list
+  // that keeps going, in place of the old full-height transposition groups.
+  instrumentList: {
+    maxHeight: 230,
     borderWidth: Borders.thin,
-    borderRadius: Radii.xl,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 8,
+    borderRadius: Radii.md,
   },
-  chipText: {
+  instrumentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 11,
+  },
+  instrumentRowText: {
     fontSize: Type.size.sm,
     fontWeight: Type.weight.semibold,
   },
