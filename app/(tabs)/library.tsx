@@ -302,10 +302,10 @@ function HeroBanner() {
     <View style={styles.hero}>
       <View style={{ flex: 1 }}>
         <ThemedText style={styles.heroTitle}>
-          Crop the hard spots. Practice them with science-backed strategies.
+          Mark the hard spots. Practice them with science-backed strategies.
         </ThemedText>
         <ThemedText style={styles.heroSub}>
-          Slow, fast, deliberate, interleaved — the way the research says
+          Slow, fast, deliberate, interleaved. The way the research says
           learning actually sticks.
         </ThemedText>
       </View>
