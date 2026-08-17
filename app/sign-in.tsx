@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Image,
   Platform,
@@ -59,6 +59,12 @@ const INSTRUMENT_SCORE_ORDER = [
   'Cello',
 ];
 
+// One-line "wheel" picker: the box shows a single row; flicking (or the
+// chevrons) rolls through the choices. Row 0 is a placeholder so nothing is
+// pre-chosen — submit stays disabled until a real instrument is in the window.
+const WHEEL_ROW_HEIGHT = 44;
+const WHEEL_PLACEHOLDER = 'Choose your instrument…';
+
 function scoreOrderedInstruments() {
   return [...ONBOARDING_INSTRUMENTS].sort((a, b) => {
     const ai = INSTRUMENT_SCORE_ORDER.indexOf(a.name);
@@ -94,6 +100,19 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [instrument, setInstrument] = useState<string | null>(null);
+  const wheelRef = useRef<ScrollView>(null);
+  const wheelItems = [WHEEL_PLACEHOLDER, ...scoreOrderedInstruments().map((i) => i.name)];
+  const selectWheelIndex = (idx: number, scroll: boolean) => {
+    const clamped = Math.max(0, Math.min(idx, wheelItems.length - 1));
+    setInstrument(clamped === 0 ? null : wheelItems[clamped]);
+    if (scroll) {
+      wheelRef.current?.scrollTo({ y: clamped * WHEEL_ROW_HEIGHT, animated: true });
+    }
+  };
+  const stepWheel = (delta: number) => {
+    const current = instrument ? wheelItems.indexOf(instrument) : 0;
+    selectWheelIndex(current + delta, true);
+  };
   // Set (to the signup email) after account creation when Supabase requires
   // the confirmation link before there's a session. Replaces the form with a
   // "check your email" card.
@@ -316,41 +335,58 @@ export default function SignInScreen() {
             <ThemedText style={[styles.body, styles.bodySecondary, styles.instrumentHint]}>
               Exercises and demos will show up in your clef and key.
             </ThemedText>
-            <ScrollView
+            <View
               style={[
-                styles.instrumentList,
+                styles.wheelWrap,
                 { borderColor: Palette.border, backgroundColor: Palette.card },
-              ]}
-              nestedScrollEnabled
-              showsVerticalScrollIndicator>
-              {scoreOrderedInstruments().map((it, idx, arr) => {
-                const selected = instrument === it.name;
-                return (
-                  <Pressable
-                    key={it.name}
-                    onPress={() => setInstrument(it.name)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    style={[
-                      styles.instrumentRow,
-                      idx < arr.length - 1 && {
-                        borderBottomWidth: StyleSheet.hairlineWidth,
-                        borderBottomColor: Palette.border,
-                      },
-                      selected && { backgroundColor: Palette.accent },
-                    ]}>
+              ]}>
+              <ScrollView
+                ref={wheelRef}
+                style={styles.wheelWindow}
+                snapToInterval={WHEEL_ROW_HEIGHT}
+                decelerationRate="fast"
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+                onMomentumScrollEnd={(e) => {
+                  selectWheelIndex(
+                    Math.round(e.nativeEvent.contentOffset.y / WHEEL_ROW_HEIGHT),
+                    false,
+                  );
+                }}>
+                {wheelItems.map((label) => (
+                  <View key={label} style={styles.wheelRow}>
                     <ThemedText
                       style={[
                         styles.instrumentRowText,
-                        { color: selected ? '#fff' : Palette.textSecondary },
+                        {
+                          color:
+                            label === WHEEL_PLACEHOLDER
+                              ? Palette.textMuted
+                              : Palette.textSecondary,
+                        },
                       ]}>
-                      {it.name}
+                      {label}
                     </ThemedText>
-                    {selected && <MaterialIcons name="check" size={18} color="#fff" />}
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+                  </View>
+                ))}
+              </ScrollView>
+              <View style={styles.wheelChevrons}>
+                <Pressable
+                  onPress={() => stepWheel(-1)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous instrument"
+                  hitSlop={6}>
+                  <MaterialIcons name="keyboard-arrow-up" size={22} color={Palette.textMuted} />
+                </Pressable>
+                <Pressable
+                  onPress={() => stepWheel(1)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next instrument"
+                  hitSlop={6}>
+                  <MaterialIcons name="keyboard-arrow-down" size={22} color={Palette.textMuted} />
+                </Pressable>
+              </View>
+            </View>
           </View>
         )}
 
@@ -567,19 +603,26 @@ const styles = StyleSheet.create({
     marginTop: 0,
     marginBottom: Spacing.xs,
   },
-  // Compact scrollable picker — about five rows tall so it reads as a list
-  // that keeps going, in place of the old full-height transposition groups.
-  instrumentList: {
-    maxHeight: 230,
-    borderWidth: Borders.thin,
-    borderRadius: Radii.md,
-  },
-  instrumentRow: {
+  // One-line wheel picker: single-row window plus chevrons on the right.
+  wheelWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    borderWidth: Borders.thin,
+    borderRadius: Radii.md,
+    paddingRight: Spacing.xs,
+  },
+  wheelWindow: {
+    height: WHEEL_ROW_HEIGHT,
+    flex: 1,
+  },
+  wheelRow: {
+    height: WHEEL_ROW_HEIGHT,
+    justifyContent: 'center',
     paddingHorizontal: Spacing.md,
-    paddingVertical: 11,
+  },
+  wheelChevrons: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   instrumentRowText: {
     fontSize: Type.size.sm,
