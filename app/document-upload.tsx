@@ -168,12 +168,16 @@ export default function DocumentUploadScreen() {
         )}
 
         <View style={styles.btnRow}>
-          <Pressable
-            style={[styles.pickBtn, { backgroundColor: C.tint, flex: 1 }]}
-            disabled={busy}
-            onPress={pickPdf}>
-            <ThemedText style={styles.pickText}>Choose PDF</ThemedText>
-          </Pressable>
+          {/* Once pages are scanned this is a scan session — mixing in a PDF
+              would replace them, so the only paths are scan more or Add. */}
+          {scanned.length === 0 && (
+            <Pressable
+              style={[styles.pickBtn, { backgroundColor: C.tint, flex: 1 }]}
+              disabled={busy}
+              onPress={pickPdf}>
+              <ThemedText style={styles.pickText}>Choose PDF</ThemedText>
+            </Pressable>
+          )}
           <Pressable
             style={[styles.pickBtn, { backgroundColor: C.tint, flex: 1 }]}
             disabled={busy}
