@@ -1377,13 +1377,6 @@ export default function LibraryScreen() {
                   router.push({ pathname: '/upload', params: { folder: '' } })
                 }
               />
-              <ThemedText style={{ opacity: Opacity.muted }}>or</ThemedText>
-              <Button
-                label="🛠 Try the practice tools first"
-                variant="outline"
-                size="sm"
-                onPress={() => router.push('/tools' as never)}
-              />
             </>
           )}
           </ThemedView>
