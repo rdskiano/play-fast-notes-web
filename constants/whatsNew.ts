@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-18-remark-restarts-clickup',
+    date: 'August 18, 2026',
+    title: 'Re-marking a passage now restarts Interleaved Click-Up cleanly',
+    body:
+      'If you went back mid-session to change your unit marks, the session could resume against the old marks: wrong step counts, and units lighting up in a baffling order. Changing your marks now starts the session fresh from Step 1, as it should. Going back just to look, without changing anything, still resumes where you left off.',
+  },
+  {
     id: '2026-08-18-video-help-library',
     date: 'August 18, 2026',
     title: 'Video walkthroughs in the library help',

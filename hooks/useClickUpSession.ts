@@ -142,9 +142,32 @@ export function useClickUpSession(
     setMarkers([]);
   }
 
+  // Canonical fingerprint of a mark set — position-order comparison that
+  // ignores JSON key ordering, so equality means "the same marks".
+  function markerSignature(ms: Marker[]): string {
+    return ms.map((m) => `${m.index}:${m.x}:${m.y}`).join('|');
+  }
+
   async function commitMarkersAndConfigure() {
     if (!id) return;
     if (markers.length < MIN_MARKERS) return;
+    // Changed marks invalidate any mid-session progress. The step sequence
+    // is generated FROM the marks, so resuming an old session against a new
+    // mark set played a ghost sequence with wrong totals (hit live
+    // 2026-08-18: re-marked mid-session, resumed at "2 of 56", units lit up
+    // in an order that matched neither mark set). Reset to Step 1 and drop
+    // the stored sequence; the config screen then offers a clean
+    // "Start practicing" instead of Resume. Returning from the marking
+    // screen with the marks untouched keeps Resume available — that path
+    // is really "I just went back to look".
+    const changed =
+      markerSignature(markers) !==
+      markerSignature(parseMarkers(passage?.units_json ?? null));
+    if (changed) {
+      setStoredConfig(null);
+      setCurrentIndex(0);
+      if (exerciseId) await upsertClickUpProgress(exerciseId, 0);
+    }
     await updatePassageUnits(id, markers);
     if (passage) setPassage({ ...passage, units_json: JSON.stringify(markers) });
     setPhase('config');
