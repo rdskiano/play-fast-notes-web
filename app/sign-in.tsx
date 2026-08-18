@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   Image,
   Platform,
@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import { ActionSheet } from '@/components/ActionSheet';
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -59,11 +60,7 @@ const INSTRUMENT_SCORE_ORDER = [
   'Cello',
 ];
 
-// One-line "wheel" picker: the box shows a single row; flicking (or the
-// chevrons) rolls through the choices. Row 0 is a placeholder so nothing is
-// pre-chosen — submit stays disabled until a real instrument is in the window.
-const WHEEL_ROW_HEIGHT = 44;
-const WHEEL_PLACEHOLDER = 'Choose your instrument…';
+const INSTRUMENT_PLACEHOLDER = 'Choose your instrument…';
 
 function scoreOrderedInstruments() {
   return [...ONBOARDING_INSTRUMENTS].sort((a, b) => {
@@ -100,19 +97,7 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [instrument, setInstrument] = useState<string | null>(null);
-  const wheelRef = useRef<ScrollView>(null);
-  const wheelItems = [WHEEL_PLACEHOLDER, ...scoreOrderedInstruments().map((i) => i.name)];
-  const selectWheelIndex = (idx: number, scroll: boolean) => {
-    const clamped = Math.max(0, Math.min(idx, wheelItems.length - 1));
-    setInstrument(clamped === 0 ? null : wheelItems[clamped]);
-    if (scroll) {
-      wheelRef.current?.scrollTo({ y: clamped * WHEEL_ROW_HEIGHT, animated: true });
-    }
-  };
-  const stepWheel = (delta: number) => {
-    const current = instrument ? wheelItems.indexOf(instrument) : 0;
-    selectWheelIndex(current + delta, true);
-  };
+  const [instrumentPickerOpen, setInstrumentPickerOpen] = useState(false);
   // Set (to the signup email) after account creation when Supabase requires
   // the confirmation link before there's a session. Replaces the form with a
   // "check your email" card.
@@ -335,58 +320,38 @@ export default function SignInScreen() {
             <ThemedText style={[styles.body, styles.bodySecondary, styles.instrumentHint]}>
               Exercises and demos will show up in your clef and key.
             </ThemedText>
-            <View
+            <Pressable
+              onPress={() => setInstrumentPickerOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Choose your instrument"
               style={[
-                styles.wheelWrap,
+                styles.instrumentField,
                 { borderColor: Palette.border, backgroundColor: Palette.card },
               ]}>
-              <ScrollView
-                ref={wheelRef}
-                style={styles.wheelWindow}
-                snapToInterval={WHEEL_ROW_HEIGHT}
-                decelerationRate="fast"
-                showsVerticalScrollIndicator={false}
-                nestedScrollEnabled
-                onMomentumScrollEnd={(e) => {
-                  selectWheelIndex(
-                    Math.round(e.nativeEvent.contentOffset.y / WHEEL_ROW_HEIGHT),
-                    false,
-                  );
-                }}>
-                {wheelItems.map((label) => (
-                  <View key={label} style={styles.wheelRow}>
-                    <ThemedText
-                      style={[
-                        styles.instrumentRowText,
-                        {
-                          color:
-                            label === WHEEL_PLACEHOLDER
-                              ? Palette.textMuted
-                              : Palette.textSecondary,
-                        },
-                      ]}>
-                      {label}
-                    </ThemedText>
-                  </View>
-                ))}
-              </ScrollView>
-              <View style={styles.wheelChevrons}>
-                <Pressable
-                  onPress={() => stepWheel(-1)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Previous instrument"
-                  hitSlop={6}>
-                  <MaterialIcons name="keyboard-arrow-up" size={22} color={Palette.textMuted} />
-                </Pressable>
-                <Pressable
-                  onPress={() => stepWheel(1)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Next instrument"
-                  hitSlop={6}>
-                  <MaterialIcons name="keyboard-arrow-down" size={22} color={Palette.textMuted} />
-                </Pressable>
-              </View>
-            </View>
+              <MaterialIcons name="music-note" size={20} color={Palette.textMuted} />
+              <ThemedText
+                style={[
+                  styles.instrumentRowText,
+                  styles.instrumentFieldText,
+                  { color: instrument ? Palette.textSecondary : Palette.textMuted },
+                ]}>
+                {instrument ?? INSTRUMENT_PLACEHOLDER}
+              </ThemedText>
+              <MaterialIcons name="arrow-drop-down" size={24} color={Palette.textMuted} />
+            </Pressable>
+            <ActionSheet
+              visible={instrumentPickerOpen}
+              title="What do you play?"
+              items={scoreOrderedInstruments().map((it) => ({
+                label: it.name,
+                primary: it.name === instrument,
+                onPress: () => {
+                  setInstrument(it.name);
+                  setInstrumentPickerOpen(false);
+                },
+              }))}
+              onCancel={() => setInstrumentPickerOpen(false)}
+            />
           </View>
         )}
 
@@ -603,26 +568,18 @@ const styles = StyleSheet.create({
     marginTop: 0,
     marginBottom: Spacing.xs,
   },
-  // One-line wheel picker: single-row window plus chevrons on the right.
-  wheelWrap: {
+  // One-line field that opens the instrument ActionSheet.
+  instrumentField: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.sm,
     borderWidth: Borders.thin,
     borderRadius: Radii.md,
-    paddingRight: Spacing.xs,
-  },
-  wheelWindow: {
-    height: WHEEL_ROW_HEIGHT,
-    flex: 1,
-  },
-  wheelRow: {
-    height: WHEEL_ROW_HEIGHT,
-    justifyContent: 'center',
     paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
   },
-  wheelChevrons: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  instrumentFieldText: {
+    flex: 1,
   },
   instrumentRowText: {
     fontSize: Type.size.sm,
