@@ -14,6 +14,8 @@ The user is **not a developer**. Always give them one-word terminal shortcuts (e
 >
 > **Current workstream**: await Apple review, then **Stripe / paid tier (Phase 4.4.2)**. Recently shipped (2026-06-06/07, all pushed+OTA'd): EXIT-button consistency; Supabase import skips deleted rows; **delete now frees Storage** while the practice log keeps deleted-rep history (memory `project_supabase_soft_delete_storage`); one-time 867 MB storage purge. See ROADMAP.md for the full log.
 
+> **📌 READ `PROJECT-STATE.md` FIRST, AND UPDATE IT BEFORE YOU FINISH.** It is the one-screen summary of price, platform status, live numbers, and current workstream. This file (CLAUDE.md) is 75 KB, so nothing outside a terminal session reads it — Cowork sessions doing marketing, strategy, or planning read `PROJECT-STATE.md` instead. If a session changes product state and only updates CLAUDE.md, the rest of Ralph's tooling stays wrong. That already happened once: from 2026-06-26 to 2026-08-16 the Cowork side still believed the price was a $39/yr subscription and a full marketing plan was built on it. Overwrite the stale lines in `PROJECT-STATE.md`, do not append a log, keep it under one screen.
+
 ## Where this lives
 
 - Working directory: `~/Desktop/COWORK/PROJECTS/APPS/PlayFastNotes/play-fast-notes/`
