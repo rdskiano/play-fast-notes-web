@@ -19,6 +19,13 @@ import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-nat
 
 import { ThemedText } from '@/components/themed-text';
 import { useHelpContext, type HelpContent } from '@/components/HelpContext';
+import {
+  DEFAULT_HELP_VIDEO_ASPECT,
+  formatClipLength,
+  helpVideosFor,
+  helpVideoWebPath,
+  type HelpVideo,
+} from '@/constants/helpVideos';
 import { Radii, Spacing, Type } from '@/constants/tokens';
 
 // Match the guided-tour card so the help modal reads as the same coaching
@@ -34,9 +41,47 @@ const PLACEHOLDER: HelpContent = {
   body: "We're still writing the guide for this screen. Try clicking around — or check back later.",
 };
 
+// The player box. Portrait phone/iPad recordings would tower over the card
+// at full width, so they get a narrower, centered frame; landscape clips
+// keep the full card width.
+function VideoPlayer({ video }: { video: HelpVideo }) {
+  const ratio = video.aspectRatio ?? DEFAULT_HELP_VIDEO_ASPECT;
+  const portrait = ratio < 1;
+  return (
+    <View
+      style={[
+        styles.videoFrame,
+        { aspectRatio: ratio },
+        portrait && styles.videoFramePortrait,
+      ]}>
+      <video
+        src={helpVideoWebPath(video)}
+        controls
+        autoPlay
+        playsInline
+        preload="metadata"
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          backgroundColor: '#000',
+        }}
+      />
+    </View>
+  );
+}
+
 export function HelpModal() {
   const { active, isOpen, close } = useHelpContext();
   const content = active ?? PLACEHOLDER;
+  const videos = helpVideosFor(content.id);
+  // Which clip is playing. A single clip opens immediately (it IS the
+  // help); a menu of clips starts closed so the user picks their question.
+  const [openClip, setOpenClip] = useState<number | null>(null);
+  useEffect(() => {
+    setOpenClip(videos.length === 1 ? 0 : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, content.id]);
   // The in-card example image is small; tapping it opens a full-screen
   // lightbox so the detail is actually readable.
   const [zoomed, setZoomed] = useState(false);
@@ -53,7 +98,9 @@ export function HelpModal() {
         animationType="fade"
         onRequestClose={close}>
         <View style={styles.backdrop}>
-          <View style={styles.card}>
+          {/* Videos need more width than text to be watchable, so the
+              card grows when this screen has any. */}
+          <View style={[styles.card, videos.length > 0 ? styles.cardWide : null]}>
             {/* Scrolls when the body is taller than the capped card so the
                 Close button below always stays reachable. */}
             <ScrollView
@@ -62,9 +109,49 @@ export function HelpModal() {
               <ThemedText type="subtitle" style={styles.title}>
                 {content.title}
               </ThemedText>
+
+              {/* Tutorial videos, when this screen has entries in
+                  constants/helpVideos.ts. One clip renders as a player;
+                  several render as a tap-to-play menu so the user jumps to
+                  their question instead of scrubbing one long video. Gated
+                  on isOpen so a hidden modal can never keep audio playing.
+                  The text body below stays as the offline fallback. */}
+              {isOpen && videos.length === 1 && openClip === 0 && (
+                <VideoPlayer key={content.id} video={videos[0]} />
+              )}
+              {isOpen && videos.length > 1 && (
+                <View style={styles.clipList}>
+                  {videos.map((v, i) => {
+                    const playing = openClip === i;
+                    const length = formatClipLength(v.seconds);
+                    return (
+                      <View key={v.file}>
+                        <Pressable
+                          onPress={() => setOpenClip(playing ? null : i)}
+                          accessibilityRole="button"
+                          style={[styles.clipRow, playing && styles.clipRowActive]}>
+                          <ThemedText style={styles.clipRowIcon}>
+                            {playing ? '▾' : '▸'}
+                          </ThemedText>
+                          <ThemedText style={styles.clipRowTitle}>
+                            {v.title}
+                          </ThemedText>
+                          {length && (
+                            <ThemedText style={styles.clipRowLength}>
+                              {length}
+                            </ThemedText>
+                          )}
+                        </Pressable>
+                        {playing && <VideoPlayer video={v} />}
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
               <ThemedText style={styles.body}>{content.body}</ThemedText>
 
-              {content.image && (
+              {content.image && videos.length === 0 && (
                 <View style={styles.imageWrap}>
                   {/* Tap to enlarge. aspectRatio on RN-Web Image is unreliable
                       — it gets overridden by the asset's natural dimensions —
@@ -148,6 +235,53 @@ const styles = StyleSheet.create({
     borderColor: ACCENT + '55',
     padding: Spacing.lg,
     gap: Spacing.md,
+  },
+  cardWide: {
+    maxWidth: 640,
+  },
+  videoFrame: {
+    width: '100%',
+    borderRadius: Radii.md,
+    borderWidth: 1,
+    borderColor: ACCENT + '33',
+    backgroundColor: '#000',
+    overflow: 'hidden',
+  },
+  videoFramePortrait: {
+    width: '100%',
+    maxWidth: 380,
+    alignSelf: 'center',
+  },
+  clipList: {
+    gap: Spacing.xs,
+  },
+  clipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: Radii.md,
+    borderWidth: 1,
+    borderColor: ACCENT + '33',
+    backgroundColor: '#273449',
+  },
+  clipRowActive: {
+    borderColor: ACCENT,
+  },
+  clipRowIcon: {
+    color: ACCENT,
+    fontSize: Type.size.md,
+  },
+  clipRowTitle: {
+    flex: 1,
+    color: CARD_TITLE,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.bold,
+  },
+  clipRowLength: {
+    color: CARD_BODY,
+    fontSize: Type.size.sm,
   },
   scroll: {
     flexShrink: 1,

@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-18-video-help-library',
+    date: 'August 18, 2026',
+    title: 'Video walkthroughs in the library help',
+    body:
+      'Tap the round "i" button on the library screen and you now get short video walkthroughs instead of just text: adding music by photo, camera roll, or PDF, folders, deleting, and the community library. Each one is under two minutes, and you pick exactly the question you have instead of scrubbing through one long tutorial. More screens get their videos soon.',
+  },
+  {
     id: '2026-08-16-smoother-scanning',
     date: 'August 16, 2026',
     title: 'Scanning pages is smoother',
