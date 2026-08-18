@@ -14,13 +14,12 @@
 // is intentional: forcing every screen to either have help OR show
 // "coming soon" makes blank-help screens visible as a to-do list.
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { useHelpContext, type HelpContent } from '@/components/HelpContext';
 import {
-  DEFAULT_HELP_VIDEO_ASPECT,
   formatClipLength,
   helpVideosFor,
   helpVideoWebPath,
@@ -41,47 +40,71 @@ const PLACEHOLDER: HelpContent = {
   body: "We're still writing the guide for this screen. Try clicking around — or check back later.",
 };
 
-// The player box. Portrait phone/iPad recordings would tower over the card
-// at full width, so they get a narrower, centered frame; landscape clips
-// keep the full card width.
-function VideoPlayer({ video }: { video: HelpVideo }) {
-  const ratio = video.aspectRatio ?? DEFAULT_HELP_VIDEO_ASPECT;
-  const portrait = ratio < 1;
-  return (
-    <View
-      style={[
-        styles.videoFrame,
-        { aspectRatio: ratio },
-        portrait && styles.videoFramePortrait,
-      ]}>
-      <video
-        src={helpVideoWebPath(video)}
-        controls
-        autoPlay
-        playsInline
-        preload="metadata"
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'block',
-          backgroundColor: '#000',
-        }}
-      />
-    </View>
-  );
+// Tutorial clips play FULLSCREEN on every device (Ralph's call 2026-08-18:
+// a card-sized video is useless on a phone, and on iPad/laptop fullscreen
+// is simply better for "watch me do it"). One hidden <video> element is
+// reused for all clips; a row tap loads the clip and pushes it into the
+// browser's fullscreen player inside the same tap gesture, which is what
+// the fullscreen APIs require. iOS Safari uses its own video-specific
+// call (webkitEnterFullscreen); everyone else gets requestFullscreen.
+function enterFullscreen(el: HTMLVideoElement) {
+  const anyEl = el as HTMLVideoElement & {
+    webkitEnterFullscreen?: () => void;
+    webkitRequestFullscreen?: () => void;
+  };
+  if (anyEl.webkitEnterFullscreen) {
+    // iOS needs the video's metadata before it can enter fullscreen; if
+    // it isn't loaded yet, enter as soon as it is (still within the tap's
+    // activation window).
+    if (el.readyState >= 1) {
+      anyEl.webkitEnterFullscreen();
+    } else {
+      el.addEventListener(
+        'loadedmetadata',
+        () => anyEl.webkitEnterFullscreen?.(),
+        { once: true },
+      );
+    }
+  } else if (el.requestFullscreen) {
+    el.requestFullscreen().catch(() => {});
+  } else if (anyEl.webkitRequestFullscreen) {
+    anyEl.webkitRequestFullscreen();
+  }
 }
 
 export function HelpModal() {
   const { active, isOpen, close } = useHelpContext();
   const content = active ?? PLACEHOLDER;
   const videos = helpVideosFor(content.id);
-  // Which clip is playing. A single clip opens immediately (it IS the
-  // help); a menu of clips starts closed so the user picks their question.
-  const [openClip, setOpenClip] = useState<number | null>(null);
+  // The shared fullscreen player element (see enterFullscreen above).
+  const playerRef = useRef<HTMLVideoElement | null>(null);
+  const playClip = useCallback((v: HelpVideo) => {
+    const el = playerRef.current;
+    if (!el) return;
+    el.src = helpVideoWebPath(v);
+    el.play().catch(() => {});
+    enterFullscreen(el);
+  }, []);
+  // Leaving fullscreen (or closing the modal) stops playback so audio
+  // can never keep running behind the app.
   useEffect(() => {
-    setOpenClip(videos.length === 1 ? 0 : null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, content.id]);
+    const el = playerRef.current;
+    if (!el) return;
+    const stop = () => {
+      if (!document.fullscreenElement) {
+        el.pause();
+      }
+    };
+    el.addEventListener('webkitendfullscreen', stop);
+    document.addEventListener('fullscreenchange', stop);
+    return () => {
+      el.removeEventListener('webkitendfullscreen', stop);
+      document.removeEventListener('fullscreenchange', stop);
+    };
+  }, []);
+  useEffect(() => {
+    if (!isOpen) playerRef.current?.pause();
+  }, [isOpen]);
   // The in-card example image is small; tapping it opens a full-screen
   // lightbox so the detail is actually readable.
   const [zoomed, setZoomed] = useState(false);
@@ -110,40 +133,31 @@ export function HelpModal() {
                 {content.title}
               </ThemedText>
 
-              {/* Tutorial videos, when this screen has entries in
-                  constants/helpVideos.ts. One clip renders as a player;
-                  several render as a tap-to-play menu so the user jumps to
-                  their question instead of scrubbing one long video. Gated
-                  on isOpen so a hidden modal can never keep audio playing.
-                  The text body below stays as the offline fallback. */}
-              {isOpen && videos.length === 1 && openClip === 0 && (
-                <VideoPlayer key={content.id} video={videos[0]} />
-              )}
-              {isOpen && videos.length > 1 && (
+              {/* Tutorial clips, when this screen has entries in
+                  constants/helpVideos.ts — a tap-to-play menu so the user
+                  jumps to their question instead of scrubbing one long
+                  video. Tapping a row plays that clip fullscreen. The text
+                  body below stays as the offline fallback. */}
+              {isOpen && videos.length > 0 && (
                 <View style={styles.clipList}>
-                  {videos.map((v, i) => {
-                    const playing = openClip === i;
+                  {videos.map((v) => {
                     const length = formatClipLength(v.seconds);
                     return (
-                      <View key={v.file}>
-                        <Pressable
-                          onPress={() => setOpenClip(playing ? null : i)}
-                          accessibilityRole="button"
-                          style={[styles.clipRow, playing && styles.clipRowActive]}>
-                          <ThemedText style={styles.clipRowIcon}>
-                            {playing ? '▾' : '▸'}
+                      <Pressable
+                        key={v.file}
+                        onPress={() => playClip(v)}
+                        accessibilityRole="button"
+                        style={styles.clipRow}>
+                        <ThemedText style={styles.clipRowIcon}>▶</ThemedText>
+                        <ThemedText style={styles.clipRowTitle}>
+                          {v.title}
+                        </ThemedText>
+                        {length && (
+                          <ThemedText style={styles.clipRowLength}>
+                            {length}
                           </ThemedText>
-                          <ThemedText style={styles.clipRowTitle}>
-                            {v.title}
-                          </ThemedText>
-                          {length && (
-                            <ThemedText style={styles.clipRowLength}>
-                              {length}
-                            </ThemedText>
-                          )}
-                        </Pressable>
-                        {playing && <VideoPlayer video={v} />}
-                      </View>
+                        )}
+                      </Pressable>
                     );
                   })}
                 </View>
@@ -213,6 +227,25 @@ export function HelpModal() {
           <ThemedText style={styles.lightboxHint}>Tap anywhere to close</ThemedText>
         </Pressable>
       </Modal>
+
+      {/* The shared fullscreen player. Kept 1px and invisible — playback
+          only ever happens in the browser's fullscreen UI, entered from a
+          clip-row tap. `controls` gives the fullscreen view its scrubber
+          on browsers that don't inject their own. */}
+      <video
+        ref={playerRef}
+        controls
+        preload="none"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          right: 0,
+          width: 1,
+          height: 1,
+          opacity: 0,
+          pointerEvents: 'none',
+        }}
+      />
     </>
   );
 }
@@ -239,19 +272,6 @@ const styles = StyleSheet.create({
   cardWide: {
     maxWidth: 640,
   },
-  videoFrame: {
-    width: '100%',
-    borderRadius: Radii.md,
-    borderWidth: 1,
-    borderColor: ACCENT + '33',
-    backgroundColor: '#000',
-    overflow: 'hidden',
-  },
-  videoFramePortrait: {
-    width: '100%',
-    maxWidth: 380,
-    alignSelf: 'center',
-  },
   clipList: {
     gap: Spacing.xs,
   },
@@ -265,9 +285,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: ACCENT + '33',
     backgroundColor: '#273449',
-  },
-  clipRowActive: {
-    borderColor: ACCENT,
   },
   clipRowIcon: {
     color: ACCENT,

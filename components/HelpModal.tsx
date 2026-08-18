@@ -14,7 +14,6 @@ import { WebView } from 'react-native-webview';
 import { ThemedText } from '@/components/themed-text';
 import { useHelpContext, type HelpContent } from '@/components/HelpContext';
 import {
-  DEFAULT_HELP_VIDEO_ASPECT,
   formatClipLength,
   helpVideoAbsoluteUrl,
   helpVideosFor,
@@ -36,41 +35,51 @@ const PLACEHOLDER: HelpContent = {
 };
 
 // The app has no native video-player module (adding one would force a new
-// App Store build), so tutorial videos play inside a WebView — the same
+// App Store build), so tutorial videos play through a WebView — the same
 // ship-over-the-air trick AbcStaffView uses for notation. The video streams
-// from playfastnotes.com; `playsinline` + allowsInlineMediaPlayback keep it
-// inside the card instead of hijacking the screen into fullscreen.
-function videoPlayerHtml(video: HelpVideo): string {
+// from playfastnotes.com. Clips play FULLSCREEN on every device (Ralph's
+// call 2026-08-18): with inline playback disallowed, iOS pushes the video
+// into the system fullscreen player the moment it starts. The WebView
+// itself stays 1px and invisible — it exists only to host playback — and
+// it tells the RN side when the user is done (video ended, or they closed
+// the fullscreen player) so the row can unmount it and guarantee silence.
+function fullscreenPlayerHtml(video: HelpVideo): string {
   const src = helpVideoAbsoluteUrl(video);
   return `<!doctype html><html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<style>html,body{margin:0;padding:0;background:#000;height:100%;overflow:hidden}
-video{width:100%;height:100%;display:block;object-fit:contain;background:#000}</style>
+<style>html,body{margin:0;padding:0;background:#000}</style>
 </head><body>
-<video src="${src}" controls playsinline preload="metadata"></video>
+<video src="${src}" controls preload="metadata"></video>
+<script>
+var v = document.querySelector('video');
+function done(){ if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('done'); }
+v.addEventListener('ended', done);
+v.addEventListener('webkitendfullscreen', function(){ v.pause(); done(); });
+v.play();
+</script>
 </body></html>`;
 }
 
-// The player box. Portrait iPad recordings would tower over the card at
-// full width, so they get a narrower, centered frame; landscape clips
-// keep the full card width.
-function VideoPlayer({ video }: { video: HelpVideo }) {
-  const ratio = video.aspectRatio ?? DEFAULT_HELP_VIDEO_ASPECT;
-  const portrait = ratio < 1;
+function FullscreenClipPlayer({
+  video,
+  onDone,
+}: {
+  video: HelpVideo;
+  onDone: () => void;
+}) {
   return (
-    <View
-      style={[
-        styles.videoFrame,
-        { aspectRatio: ratio },
-        portrait && styles.videoFramePortrait,
-      ]}>
+    <View style={styles.hiddenPlayer} pointerEvents="none">
       <WebView
-        source={{ html: videoPlayerHtml(video) }}
+        source={{ html: fullscreenPlayerHtml(video) }}
         originWhitelist={['*']}
-        allowsInlineMediaPlayback
+        allowsInlineMediaPlayback={false}
         allowsFullscreenVideo
+        mediaPlaybackRequiresUserAction={false}
         scrollEnabled={false}
-        style={styles.videoFill}
+        style={styles.hiddenPlayerFill}
+        onMessage={(e) => {
+          if (e.nativeEvent.data === 'done') onDone();
+        }}
       />
     </View>
   );
@@ -80,12 +89,11 @@ export function HelpModal() {
   const { active, isOpen, close } = useHelpContext();
   const content = active ?? PLACEHOLDER;
   const videos = helpVideosFor(content.id);
-  // Which clip is playing. A single clip opens immediately (it IS the
-  // help); a menu of clips starts closed so the user picks their question.
-  const [openClip, setOpenClip] = useState<number | null>(null);
+  // Index of the clip currently playing fullscreen; mounts the hidden
+  // player. Reset whenever the modal closes or the screen changes.
+  const [playingClip, setPlayingClip] = useState<number | null>(null);
   useEffect(() => {
-    setOpenClip(videos.length === 1 ? 0 : null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setPlayingClip(null);
   }, [isOpen, content.id]);
   // The in-card example image is small; tapping it opens a full-screen
   // lightbox so the detail is actually readable.
@@ -116,29 +124,24 @@ export function HelpModal() {
                 {content.title}
               </ThemedText>
 
-              {/* Tutorial videos, when this screen has entries in
-                  constants/helpVideos.ts. One clip renders as a player;
-                  several render as a tap-to-play menu so the user jumps to
-                  their question instead of scrubbing one long video. Gated
-                  on isOpen so a closed modal can never keep audio playing.
-                  The text body below stays as the offline fallback. */}
-              {isOpen && videos.length === 1 && openClip === 0 && (
-                <VideoPlayer key={content.id} video={videos[0]} />
-              )}
-              {isOpen && videos.length > 1 && (
+              {/* Tutorial clips, when this screen has entries in
+                  constants/helpVideos.ts — a tap-to-play menu so the user
+                  jumps to their question instead of scrubbing one long
+                  video. Tapping a row plays that clip in the system
+                  fullscreen player. The text body below stays as the
+                  offline fallback. */}
+              {isOpen && videos.length > 0 && (
                 <View style={styles.clipList}>
                   {videos.map((v, i) => {
-                    const playing = openClip === i;
+                    const playing = playingClip === i;
                     const length = formatClipLength(v.seconds);
                     return (
                       <View key={v.file}>
                         <Pressable
-                          onPress={() => setOpenClip(playing ? null : i)}
+                          onPress={() => setPlayingClip(playing ? null : i)}
                           accessibilityRole="button"
                           style={[styles.clipRow, playing && styles.clipRowActive]}>
-                          <ThemedText style={styles.clipRowIcon}>
-                            {playing ? '▾' : '▸'}
-                          </ThemedText>
+                          <ThemedText style={styles.clipRowIcon}>▶</ThemedText>
                           <ThemedText style={styles.clipRowTitle}>
                             {v.title}
                           </ThemedText>
@@ -148,7 +151,12 @@ export function HelpModal() {
                             </ThemedText>
                           )}
                         </Pressable>
-                        {playing && <VideoPlayer video={v} />}
+                        {playing && (
+                          <FullscreenClipPlayer
+                            video={v}
+                            onDone={() => setPlayingClip(null)}
+                          />
+                        )}
                       </View>
                     );
                   })}
@@ -244,22 +252,16 @@ const styles = StyleSheet.create({
   cardWide: {
     maxWidth: 640,
   },
-  videoFrame: {
-    width: '100%',
-    borderRadius: Radii.md,
-    borderWidth: 1,
-    borderColor: ACCENT + '33',
-    backgroundColor: '#000',
+  hiddenPlayer: {
+    width: 1,
+    height: 1,
+    opacity: 0,
     overflow: 'hidden',
   },
-  videoFill: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  videoFramePortrait: {
-    width: '100%',
-    maxWidth: 380,
-    alignSelf: 'center',
+  hiddenPlayerFill: {
+    width: 1,
+    height: 1,
+    backgroundColor: 'transparent',
   },
   clipList: {
     gap: Spacing.xs,
