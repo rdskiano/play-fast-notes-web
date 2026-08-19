@@ -24,7 +24,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     date: 'August 18, 2026',
     title: 'The first-practice measurement screen got a real metronome',
     body:
-      'When you practice a passage for the first time, the app measures where you are: goal tempo, one try at full speed, then your comfortable starting tempo. That screen now shows your music at the same size as the passage page, with a metronome right on it, so you can hear any tempo before you commit to it. When a number sounds right, one button locks it in.',
+      'When you practice a passage for the first time, the app measures where you are: goal tempo, one try at full speed, then your comfortable starting tempo. That screen now shows your music at the same size as the passage page, with a metronome right on it, so you can hear any tempo before you commit to it. When a number sounds right, one button locks it in. On a phone it works sideways, like every practice screen: the music fills the screen and the metronome sits in one strip along the bottom.',
   },
   {
     id: '2026-08-18-remark-restarts-clickup',

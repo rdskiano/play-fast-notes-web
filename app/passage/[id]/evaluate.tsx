@@ -31,6 +31,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { RotateForPractice } from '@/components/RotateForPractice';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ZoomableImage } from '@/components/ZoomableImage';
@@ -206,6 +207,9 @@ export default function EvaluateScreen() {
   const overlayStep = step === 'due' || step === 'handoff' || step === 'done';
   const { height: winH, width: winW } = useWindowDimensions();
   const phone = Math.min(winH, winW) < 600;
+  // Phones measure in landscape, like every practice screen: the score needs
+  // the width. Portrait shows the same rotate gate the Tempo Ladder uses.
+  const phoneLandscape = phone && winW > winH;
   // Overlay steps keep the previous screen visible (dimmed) behind the card.
   const bgStep: Step = !overlayStep ? step : step === 'done' ? 'probe' : 'find';
 
@@ -308,7 +312,108 @@ export default function EvaluateScreen() {
           <ThemedText style={{ padding: Spacing.lg }}>Passage not found.</ThemedText>
         ) : (
           <>
-            {bgStep === 'goal' ? (
+            {phoneLandscape ? (
+              <>
+                {passage.source_uri ? (
+                  <ZoomableImage
+                    uri={passage.source_uri}
+                    style={StyleSheet.absoluteFill}
+                    persistKey={passage.id}
+                  />
+                ) : null}
+                <Pressable
+                  onPress={() => (step === 'unsure' ? setStep('goal') : router.back())}
+                  hitSlop={8}
+                  style={[styles.phoneBack, { top: insets.top + 6, left: insets.left + 10 }]}>
+                  <ThemedText style={styles.phoneBackText}>‹ Back</ThemedText>
+                </Pressable>
+                <View
+                  pointerEvents="none"
+                  style={[styles.phoneTitleWrap, { top: insets.top + 8 }]}>
+                  <View style={styles.phoneTitlePill}>
+                    <ThemedText style={styles.phoneTitleText}>
+                      {bgStep === 'probe' && goal
+                        ? `Try it once at ${goal}. Clean = nothing to practice.`
+                        : bgStep === 'find'
+                          ? 'Nudge up until it stops feeling easy, back off one notch'
+                          : 'Set the goal tempo. This is full speed.'}
+                    </ThemedText>
+                  </View>
+                </View>
+                <View
+                  style={[
+                    styles.phoneBottomRow,
+                    {
+                      bottom: insets.bottom + 6,
+                      left: insets.left + 12,
+                      right: insets.right + 12,
+                    },
+                  ]}>
+                  {bgStep === 'goal' || bgStep === 'unsure' ? (
+                    <Pressable
+                      onPress={() => setStep('unsure')}
+                      style={[styles.phonePill, styles.phonePillGhost]}>
+                      <ThemedText style={styles.phonePillText}>Not sure?</ThemedText>
+                    </Pressable>
+                  ) : bgStep === 'probe' && goal ? (
+                    <Pressable
+                      onPress={probeMissed}
+                      style={[styles.phonePill, styles.phonePillMiss]}>
+                      <ThemedText style={styles.phonePillMissText}>✗ Not yet</ThemedText>
+                    </Pressable>
+                  ) : null}
+                  <View style={{ flex: 1 }}>{metroCard}</View>
+                  {bgStep === 'goal' || bgStep === 'unsure' ? (
+                    <Pressable
+                      onPress={lockGoal}
+                      style={[styles.phonePill, styles.phonePillAccent]}>
+                      <ThemedText style={styles.phonePillText}>Lock in ♩ = {bpm}</ThemedText>
+                    </Pressable>
+                  ) : bgStep === 'probe' && goal ? (
+                    <Pressable
+                      onPress={finishProbeClean}
+                      disabled={saving}
+                      style={[styles.phonePill, styles.phonePillGreen]}>
+                      <ThemedText style={styles.phonePillText}>✓ It was clean</ThemedText>
+                    </Pressable>
+                  ) : bgStep === 'find' && goal ? (
+                    <Pressable
+                      onPress={lockStart}
+                      style={[styles.phonePill, styles.phonePillGreen]}>
+                      <ThemedText style={styles.phonePillText}>Lock in ♩ = {bpm}</ThemedText>
+                    </Pressable>
+                  ) : null}
+                </View>
+                {step === 'unsure' ? (
+                  <View style={styles.overlay}>
+                    <View style={styles.ovCard}>
+                      <ScrollView contentContainerStyle={{ gap: Spacing.sm }}>
+                        <ThemedText style={styles.ovTitle}>Help me pick a tempo</ThemedText>
+                        <ThemedText style={styles.wayBody}>
+                          📖 Many parts print ♩ = a number right at the tempo change.
+                        </ThemedText>
+                        <ThemedText style={styles.wayBody}>
+                          🎧 Play a recording and move the slider until the click keeps pace.
+                        </ThemedText>
+                        <ThemedText style={styles.wayBody}>
+                          🎼 Largo 40–60 · Andante 76–108 · Allegro 120–156 · Vivace 156–176 ·
+                          Presto 168–200.
+                        </ThemedText>
+                        <Pressable onPress={lockGoal} style={styles.cta}>
+                          <ThemedText style={styles.ctaText}>Lock in ♩ = {bpm}</ThemedText>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => setStep('goal')}
+                          hitSlop={8}
+                          style={styles.ghost}>
+                          <ThemedText style={styles.ghostText}>‹ back to the metronome</ThemedText>
+                        </Pressable>
+                      </ScrollView>
+                    </View>
+                  </View>
+                ) : null}
+              </>
+            ) : bgStep === 'goal' ? (
               <>
                 {header(
                   'Set the goal tempo',
@@ -508,6 +613,8 @@ export default function EvaluateScreen() {
                 </View>
               </View>
             ) : null}
+
+            <RotateForPractice />
           </>
         )}
       </View>
@@ -731,6 +838,57 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
+  phoneBack: { position: 'absolute', zIndex: 6, padding: 6 },
+  phoneBackText: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.semibold,
+    color: Palette.accent,
+  },
+  phoneTitleWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 5 },
+  phoneTitlePill: {
+    backgroundColor: '#000000aa',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    maxWidth: '76%',
+  },
+  phoneTitleText: {
+    color: '#fff',
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.bold,
+    textAlign: 'center',
+  },
+  // One bottom row on phone landscape: [left action] [metronome] [commit].
+  phoneBottomRow: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    zIndex: 6,
+  },
+  phonePill: {
+    height: 46,
+    borderRadius: 23,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 6,
+    ...Lift,
+  },
+  phonePillAccent: { backgroundColor: Palette.accent },
+  phonePillGreen: { backgroundColor: Palette.success },
+  phonePillGhost: { backgroundColor: '#000000aa' },
+  phonePillMiss: {
+    backgroundColor: Palette.card,
+    borderWidth: 1.5,
+    borderColor: Palette.dangerGhostBorder,
+  },
+  phonePillText: { color: '#fff', fontSize: Type.size.md, fontWeight: Type.weight.heavy },
+  phonePillMissText: {
+    color: Palette.danger,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(21,25,26,0.35)',
@@ -745,6 +903,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     width: '100%',
     maxWidth: 440,
+    maxHeight: '94%',
     gap: Spacing.sm,
     ...Lift,
   },
