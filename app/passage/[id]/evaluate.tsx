@@ -252,23 +252,37 @@ export default function EvaluateScreen() {
 
   // One-row metronome: every pixel it doesn't use goes to the score above.
   const metroCard = (
-    <View style={styles.metroCard}>
+    <View style={[styles.metroCard, phoneLandscape && styles.metroCardShort]}>
       <Pressable
         onPress={() => (running ? metronome.stop() : metronome.start())}
         hitSlop={6}
         accessibilityLabel={running ? 'Stop the click' : 'Start the click'}
-        style={[styles.playBtn, running && styles.playBtnRunning]}>
+        style={[
+          styles.playBtn,
+          phoneLandscape && styles.playBtnShort,
+          running && styles.playBtnRunning,
+        ]}>
         <ThemedText style={styles.playGlyph}>{running ? '◼' : '▶'}</ThemedText>
       </Pressable>
       <View style={styles.readout}>
         <View style={styles.readoutRow}>
           <ThemedText style={styles.readoutPre}>♩ = </ThemedText>
-          <ThemedText style={styles.readoutBpm}>{bpm}</ThemedText>
+          <ThemedText style={[styles.readoutBpm, phoneLandscape && styles.readoutBpmShort]}>
+            {bpm}
+          </ThemedText>
         </View>
-        <ThemedText style={styles.readoutWord}>BPM · {tempoWord(bpm)}</ThemedText>
+        {/* The tempo word costs a text row — on the phone strip that vertical
+            space belongs to the music instead. */}
+        {!phoneLandscape && (
+          <ThemedText style={styles.readoutWord}>BPM · {tempoWord(bpm)}</ThemedText>
+        )}
       </View>
       <View style={styles.sliderGroup}>
-      <Pressable onPress={() => nudge(-1)} onLongPress={() => nudge(-5)} hitSlop={6} style={styles.nudgeBtn}>
+      <Pressable
+        onPress={() => nudge(-1)}
+        onLongPress={() => nudge(-5)}
+        hitSlop={6}
+        style={[styles.nudgeBtn, phoneLandscape && styles.nudgeBtnShort]}>
         <ThemedText style={styles.nudgeGlyph}>−</ThemedText>
       </Pressable>
       <View style={styles.sliderWrap}>
@@ -295,7 +309,11 @@ export default function EvaluateScreen() {
           />
         )}
       </View>
-      <Pressable onPress={() => nudge(1)} onLongPress={() => nudge(5)} hitSlop={6} style={styles.nudgeBtn}>
+      <Pressable
+        onPress={() => nudge(1)}
+        onLongPress={() => nudge(5)}
+        hitSlop={6}
+        style={[styles.nudgeBtn, phoneLandscape && styles.nudgeBtnShort]}>
         <ThemedText style={styles.nudgeGlyph}>+</ThemedText>
       </Pressable>
       </View>
@@ -344,7 +362,7 @@ export default function EvaluateScreen() {
                   style={[
                     styles.phoneBottomRow,
                     {
-                      bottom: insets.bottom + 6,
+                      bottom: insets.bottom + 4,
                       left: insets.left + 12,
                       right: insets.right + 12,
                     },
@@ -552,16 +570,22 @@ export default function EvaluateScreen() {
 
             {step === 'due' ? (
               <View style={styles.overlay}>
-                <View style={styles.ovCard}>
+                <View style={[styles.ovCard, phoneLandscape && styles.ovCardWide]}>
                   <ThemedText style={styles.ovTitle}>When does it need to be ready?</ThemedText>
-                  {DUE_OPTIONS.map((o) => (
-                    <Pressable
-                      key={o.label}
-                      onPress={() => pickDue(o.weeks)}
-                      style={({ pressed }) => [styles.option, pressed && styles.pressed]}>
-                      <ThemedText style={styles.optionText}>{o.label}</ThemedText>
-                    </Pressable>
-                  ))}
+                  <View style={phoneLandscape ? styles.dueGrid : styles.dueStack}>
+                    {DUE_OPTIONS.map((o) => (
+                      <Pressable
+                        key={o.label}
+                        onPress={() => pickDue(o.weeks)}
+                        style={({ pressed }) => [
+                          styles.option,
+                          phoneLandscape && styles.optionChip,
+                          pressed && styles.pressed,
+                        ]}>
+                        <ThemedText style={styles.optionText}>{o.label}</ThemedText>
+                      </Pressable>
+                    ))}
+                  </View>
                   <Pressable onPress={() => setStep('handoff')} hitSlop={8} style={styles.ghost}>
                     <ThemedText style={styles.ghostText}>skip</ThemedText>
                   </Pressable>
@@ -789,6 +813,12 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   sliderWrap: { flex: 1, minWidth: 120, justifyContent: 'center' },
+  // Vertical-only compaction for the phone-landscape strip: same widths and
+  // slider, shorter everything, so the score above keeps more height.
+  metroCardShort: { paddingVertical: 4 },
+  playBtnShort: { width: 40, height: 40, borderRadius: 20 },
+  readoutBpmShort: { fontSize: 26, lineHeight: 30 },
+  nudgeBtnShort: { height: 32 },
 
   wayCard: {
     backgroundColor: Palette.card,
@@ -867,8 +897,8 @@ const styles = StyleSheet.create({
     zIndex: 6,
   },
   phonePill: {
-    height: 46,
-    borderRadius: 23,
+    height: 40,
+    borderRadius: 20,
     paddingHorizontal: 18,
     alignItems: 'center',
     justifyContent: 'center',
@@ -913,6 +943,12 @@ const styles = StyleSheet.create({
     fontWeight: Type.weight.heavy,
     color: Palette.text,
   },
+  // Landscape phone: the five deadline options can't stack (taller than the
+  // sideways screen), so they flow as a two-column grid on a wider card.
+  ovCardWide: { maxWidth: 700 },
+  dueStack: { gap: Spacing.sm },
+  dueGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  optionChip: { flexGrow: 1, flexBasis: '45%', paddingVertical: 10, minHeight: 40 },
   option: {
     backgroundColor: Palette.card,
     borderWidth: Borders.thin,
