@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-18-measurement-screen-redesign',
+    date: 'August 18, 2026',
+    title: 'The first-practice measurement screen got a real metronome',
+    body:
+      'When you practice a passage for the first time, the app measures where you are: goal tempo, one try at full speed, then your comfortable starting tempo. That screen now shows your music at the same size as the passage page, with a metronome right on it, so you can hear any tempo before you commit to it. When a number sounds right, one button locks it in.',
+  },
+  {
     id: '2026-08-18-remark-restarts-clickup',
     date: 'August 18, 2026',
     title: 'Re-marking a passage now restarts Interleaved Click-Up cleanly',

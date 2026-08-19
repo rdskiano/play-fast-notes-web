@@ -1,21 +1,36 @@
 // First-practice evaluation — measurements, no judgments.
 //
 // Fires the first time a passage is practiced (never at marking time): goal
-// tempo → one probe at goal → find your clean tempo → deadline → hand off to a
-// fully pre-filled Tempo Ladder. If the probe is clean, the passage needs no
-// plan at all — it's marked performance-ready and the flow ends there (D6:
+// tempo → one probe at goal → find your starting tempo → deadline → hand off
+// to a fully pre-filled Tempo Ladder. If the probe is clean, the passage needs
+// no plan at all — it's marked performance-ready and the flow ends there (D6:
 // the expert's first question is "how far is this from possible?").
 //
+// 2026-08-18 redesign (Ralph's mock-up, approved): the score and a real
+// metronome live on every step. One metronome card (play/stop, slider, ±1
+// nudges, live tempo word) is the single tempo surface; every commit button
+// shows the number it commits ("Lock in ♩ = N"). The old typed-BPM field and
+// the find-step miss button are gone — nudging IS the process. Deadline and
+// handoff render as cards over the dimmed screen since no playing happens
+// there.
+//
 // Everything measured here is remembered: goal → pieces.performance_tempo
-// (every tool prefills from it), deadline → pieces.due_date, clean tempo +
+// (every tool prefills from it), deadline → pieces.due_date, starting tempo +
 // probe result → the 'evaluation' practice-log entry's data_json.
 
+import Slider from '@react-native-community/slider';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ZoomableImage } from '@/components/ZoomableImage';
@@ -40,6 +55,9 @@ import { logPractice } from '@/lib/db/repos/practiceLog';
 type Step = 'goal' | 'unsure' | 'probe' | 'find' | 'due' | 'handoff' | 'done';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const BPM_MIN = 40;
+const BPM_MAX = 208;
+const DEFAULT_GOAL = 120;
 
 const DUE_OPTIONS: { label: string; weeks: number | null }[] = [
   { label: 'This week', weeks: 1 },
@@ -49,13 +67,21 @@ const DUE_OPTIONS: { label: string; weeks: number | null }[] = [
   { label: 'No deadline', weeks: null },
 ];
 
-const TEMPO_WORDS = 'Largo 40–60 · Andante 76–108 · Moderato 108–120 · Allegro 120–156 · Vivace 156–176 · Presto 168–200';
+function tempoWord(bpm: number): string {
+  if (bpm < 60) return 'LARGO';
+  if (bpm < 76) return 'ADAGIO';
+  if (bpm < 108) return 'ANDANTE';
+  if (bpm < 120) return 'MODERATO';
+  if (bpm < 156) return 'ALLEGRO';
+  if (bpm < 176) return 'VIVACE';
+  return 'PRESTO';
+}
 
 export default function EvaluateScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const metronome = useMetronome(100);
+  const metronome = useMetronome(DEFAULT_GOAL);
   // The unmount cleanup must see the latest metronome without re-running.
   const metronomeRef = useRef(metronome);
   metronomeRef.current = metronome;
@@ -64,12 +90,7 @@ export default function EvaluateScreen() {
   const [inherited, setInherited] = useState<InheritedGoal | null>(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<Step>('goal');
-  const [goalInput, setGoalInput] = useState('');
   const [goal, setGoal] = useState<number | null>(null);
-  const [goalInherited, setGoalInherited] = useState(false);
-  const [cleanBpm, setCleanBpm] = useState<number | null>(null);
-  const [misses, setMisses] = useState(0);
-  const [missFlash, setMissFlash] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -82,7 +103,11 @@ export default function EvaluateScreen() {
         setPassage(p);
         if (p) {
           const g = await inheritedGoalForPassage(p);
-          if (!cancelled) setInherited(g);
+          if (!cancelled) {
+            setInherited(g);
+            // Pre-load the suggestion into the metronome so ▶ plays it as-is.
+            if (g) metronomeRef.current.setBpm(clampBpm(g.bpm));
+          }
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -94,14 +119,19 @@ export default function EvaluateScreen() {
     };
   }, [id]);
 
-  const typedGoal = parseInt(goalInput, 10);
-  const typedGoalValid = Number.isFinite(typedGoal) && typedGoal >= 30 && typedGoal <= 400;
+  function clampBpm(v: number) {
+    return Math.max(BPM_MIN, Math.min(BPM_MAX, Math.round(v)));
+  }
+  function nudge(delta: number) {
+    metronome.setBpm(clampBpm(metronome.bpm + delta));
+  }
 
-  // Called from a tap so the web AudioContext can resume inside the gesture.
-  function beginProbe(bpm: number, fromInherited: boolean) {
-    setGoal(bpm);
-    setGoalInherited(fromInherited);
-    metronome.setBpm(bpm);
+  // Every start()/stop() below runs inside a tap so the web AudioContext can
+  // resume within the gesture.
+  function lockGoal() {
+    const g = metronome.bpm;
+    setGoal(g);
+    metronome.setBpm(g);
     metronome.start();
     setStep('probe');
   }
@@ -114,7 +144,7 @@ export default function EvaluateScreen() {
       await updatePassagePerformanceTempo(passage.id, goal);
       await logPractice(passage.id, 'evaluation', {
         goal,
-        goalInherited,
+        goalInherited: inherited != null && goal === inherited.bpm,
         probeClean: true,
         tempo: goal,
       });
@@ -127,26 +157,14 @@ export default function EvaluateScreen() {
 
   function probeMissed() {
     if (!goal) return;
-    metronome.setBpm(findHuntStart(goal));
+    metronome.setBpm(clampBpm(findHuntStart(goal)));
+    metronome.start();
     setStep('find');
   }
 
-  function nudge(delta: number) {
-    if (!goal) return;
-    const next = Math.min(goal, Math.max(30, metronome.bpm + delta));
-    metronome.setBpm(next);
-  }
-
-  function findClean() {
+  function lockStart() {
     metronome.stop();
-    setCleanBpm(metronome.bpm);
     setStep('due');
-  }
-
-  function findMiss() {
-    setMisses((m) => m + 1);
-    setMissFlash(true);
-    setTimeout(() => setMissFlash(false), 900);
   }
 
   function pickDue(weeks: number | null) {
@@ -158,17 +176,17 @@ export default function EvaluateScreen() {
   }
 
   async function finishHandoff() {
-    if (!passage || !goal || !cleanBpm || saving) return;
+    if (!passage || !goal || saving) return;
     setSaving(true);
-    const start = suggestedLadderStart(cleanBpm);
+    const clean = metronome.bpm;
+    const start = suggestedLadderStart(clean);
     try {
       await updatePassagePerformanceTempo(passage.id, goal);
       await logPractice(passage.id, 'evaluation', {
         goal,
-        goalInherited,
+        goalInherited: inherited != null && goal === inherited.bpm,
         probeClean: false,
-        clean: cleanBpm,
-        misses,
+        clean,
         start,
       });
     } catch (e) {
@@ -181,396 +199,560 @@ export default function EvaluateScreen() {
     });
   }
 
-  const ladderStart = cleanBpm ? suggestedLadderStart(cleanBpm) : null;
+  const bpm = metronome.bpm;
+  const running = metronome.running;
+  const onSuggestion = inherited != null && bpm === inherited.bpm;
+  const ladderStart = suggestedLadderStart(bpm);
+  const overlayStep = step === 'due' || step === 'handoff' || step === 'done';
+  const { height: winH, width: winW } = useWindowDimensions();
+  const phone = Math.min(winH, winW) < 600;
+  // Overlay steps keep the previous screen visible (dimmed) behind the card.
+  const bgStep: Step = !overlayStep ? step : step === 'done' ? 'probe' : 'find';
 
-  // A plain render function, NOT a nested component — a component type
-  // recreated on each render would remount (and drop keyboard focus) on
-  // every keystroke into the TextInput.
-  function goalInputRow(primary: boolean) {
-    // The box must read as "type here", not as a button — Ralph froze on a
-    // pill-shaped input with a bold BPM placeholder (looked like a disabled
-    // control). So: an explicit instruction, a ♩ = prefix, and an example
-    // number as the placeholder.
+  const stepIndex = step === 'goal' || step === 'unsure' ? 0 : step === 'probe' ? 1 : 2;
+
+  function header(title: string, subtitle: string) {
     return (
-      <View style={{ gap: 6 }}>
-        <ThemedText style={styles.inputLabel}>
-          {primary ? 'Enter the tempo here:' : 'Or enter a different tempo:'}
-        </ThemedText>
-        <View style={styles.inputRow}>
-          <ThemedText style={styles.inputPrefix}>♩ =</ThemedText>
-          <TextInput
-            value={goalInput}
-            onChangeText={setGoalInput}
-            keyboardType="number-pad"
-            inputMode="numeric"
-            placeholder="120"
-            placeholderTextColor={Palette.textMuted}
-            style={styles.bpmInput}
-          />
-          <View style={{ flex: 1 }}>
-            <Button
-              label={primary ? 'Use this tempo' : 'Use it'}
-              onPress={() => typedGoalValid && beginProbe(typedGoal, false)}
-              disabled={!typedGoalValid}
-              fullWidth
-            />
+      <View style={styles.hdr}>
+        <View style={styles.hdrRow}>
+          <Pressable onPress={() => router.back()} hitSlop={8}>
+            <ThemedText style={styles.backLink}>‹ Back</ThemedText>
+          </Pressable>
+          <View style={styles.prog}>
+            {[0, 1, 2].map((i) => (
+              <View key={i} style={[styles.seg, i === stepIndex && styles.segOn]} />
+            ))}
           </View>
+          <ThemedText style={styles.passageName} numberOfLines={1}>
+            {passage?.title ?? ''}
+          </ThemedText>
         </View>
+        <ThemedText style={styles.title}>{title}</ThemedText>
+        <ThemedText style={styles.subtitle}>{subtitle}</ThemedText>
       </View>
     );
   }
 
+  // The score window is a clone of the passage view's hero card: same column,
+  // same card material, same height rule — Ralph wants the two screens to
+  // read as the same music window.
+  const heroH = phone ? Math.round(winH * 0.32) : Math.min(620, Math.round(winH * 0.52));
+  const scoreCard = passage?.source_uri ? (
+    <View style={[styles.scoreCard, { height: heroH }]}>
+      <ZoomableImage uri={passage.source_uri} style={styles.scoreImage} persistKey={passage.id} />
+      <View style={styles.scoreFoot} pointerEvents="none">
+        <ThemedText style={styles.pinchHint}>pinch to zoom</ThemedText>
+      </View>
+    </View>
+  ) : null;
+
+  // One-row metronome: every pixel it doesn't use goes to the score above.
+  const metroCard = (
+    <View style={styles.metroCard}>
+      <Pressable
+        onPress={() => (running ? metronome.stop() : metronome.start())}
+        hitSlop={6}
+        accessibilityLabel={running ? 'Stop the click' : 'Start the click'}
+        style={[styles.playBtn, running && styles.playBtnRunning]}>
+        <ThemedText style={styles.playGlyph}>{running ? '◼' : '▶'}</ThemedText>
+      </Pressable>
+      <View style={styles.readout}>
+        <View style={styles.readoutRow}>
+          <ThemedText style={styles.readoutPre}>♩ = </ThemedText>
+          <ThemedText style={styles.readoutBpm}>{bpm}</ThemedText>
+        </View>
+        <ThemedText style={styles.readoutWord}>BPM · {tempoWord(bpm)}</ThemedText>
+      </View>
+      <View style={styles.sliderGroup}>
+      <Pressable onPress={() => nudge(-1)} onLongPress={() => nudge(-5)} hitSlop={6} style={styles.nudgeBtn}>
+        <ThemedText style={styles.nudgeGlyph}>−</ThemedText>
+      </Pressable>
+      <View style={styles.sliderWrap}>
+        {Platform.OS === 'web' ? (
+          <input
+            type="range"
+            min={BPM_MIN}
+            max={BPM_MAX}
+            step={1}
+            value={Math.max(BPM_MIN, Math.min(BPM_MAX, bpm))}
+            onChange={(e) => metronome.setBpm(clampBpm(parseInt(e.target.value, 10)))}
+            style={{ width: '100%', accentColor: Palette.accent }}
+          />
+        ) : (
+          <Slider
+            minimumValue={BPM_MIN}
+            maximumValue={BPM_MAX}
+            step={1}
+            value={Math.max(BPM_MIN, Math.min(BPM_MAX, bpm))}
+            onValueChange={(v) => metronome.setBpm(clampBpm(v))}
+            minimumTrackTintColor={Palette.accent}
+            maximumTrackTintColor={Palette.border}
+            style={{ width: '100%' }}
+          />
+        )}
+      </View>
+      <Pressable onPress={() => nudge(1)} onLongPress={() => nudge(5)} hitSlop={6} style={styles.nudgeBtn}>
+        <ThemedText style={styles.nudgeGlyph}>+</ThemedText>
+      </Pressable>
+      </View>
+    </View>
+  );
+
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <ThemedText style={styles.backLink}>‹ Back</ThemedText>
-        </Pressable>
-        <ThemedText type="title" numberOfLines={2}>
-          {passage?.title ?? 'First practice'}
-        </ThemedText>
-        <ThemedText style={styles.subtle}>
-          First time on this passage — let’s take its measurements. Under a minute.
-        </ThemedText>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <View style={{ flex: 1, paddingTop: insets.top }}>
         {loading ? (
-          <ThemedText style={styles.muted}>Loading…</ThemedText>
+          <ThemedText style={[styles.muted, { padding: Spacing.lg }]}>Loading…</ThemedText>
         ) : !passage ? (
-          <ThemedText>Passage not found.</ThemedText>
-        ) : step === 'goal' ? (
-          <View style={styles.section}>
-            <StepDots step={0} />
-            <ThemedText style={styles.question}>How fast does it need to go?</ThemedText>
-            {inherited ? (
+          <ThemedText style={{ padding: Spacing.lg }}>Passage not found.</ThemedText>
+        ) : (
+          <>
+            {bgStep === 'goal' ? (
               <>
-                <View style={styles.card}>
-                  <View style={styles.stampTag}>
-                    <ThemedText style={styles.stampTagText}>♩ = {inherited.bpm}</ThemedText>
+                {header(
+                  'Set the goal tempo',
+                  "This is full speed. You'll ladder up to it, not start here."
+                )}
+                <ScrollView contentContainerStyle={styles.body}>
+                  <View style={styles.col}>
+                  {scoreCard}
+                  {inherited ? (
+                    <>
+                      <ThemedText style={styles.hintLabel}>ⓘ Suggested goal tempo</ThemedText>
+                      <Pressable
+                        onPress={() => metronome.setBpm(clampBpm(inherited.bpm))}
+                        style={[styles.suggestCard, !onSuggestion && styles.suggestCardOff]}>
+                        <ThemedText style={styles.suggestNum}>{inherited.bpm}</ThemedText>
+                        <View style={{ flex: 1 }}>
+                          <ThemedText style={styles.suggestWhy}>
+                            The tempo you set for “{inherited.fromTitle}”
+                          </ThemedText>
+                          <ThemedText style={styles.suggestFrom}>in this same section</ThemedText>
+                        </View>
+                        <View style={[styles.checkDot, !onSuggestion && styles.checkDotOff]}>
+                          <ThemedText
+                            style={[styles.checkGlyph, !onSuggestion && styles.checkGlyphOff]}>
+                            ✓
+                          </ThemedText>
+                        </View>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <ThemedText style={styles.hintLabel}>
+                      ⓘ Check your part. The tempo is often printed right on it.
+                    </ThemedText>
+                  )}
+                  {metroCard}
                   </View>
-                  <ThemedText style={styles.subtle}>
-                    the tempo you set for “{inherited.fromTitle}” in this same section — you can
-                    always change it later
+                </ScrollView>
+                <View style={styles.footer}>
+                  <Pressable onPress={lockGoal} style={styles.cta}>
+                    <ThemedText style={styles.ctaText}>Lock in ♩ = {bpm}</ThemedText>
+                  </Pressable>
+                  <Pressable onPress={() => setStep('unsure')} hitSlop={8} style={styles.ghost}>
+                    <ThemedText style={styles.ghostText}>Not sure? Help me pick a tempo</ThemedText>
+                  </Pressable>
+                </View>
+              </>
+            ) : bgStep === 'unsure' ? (
+              <>
+                {header(
+                  'Help me pick a tempo',
+                  'Three ways, easiest first. The metronome is live for all of them.'
+                )}
+                <ScrollView contentContainerStyle={styles.body}>
+                  <View style={styles.col}>
+                  <View style={styles.wayCard}>
+                    <ThemedText style={styles.wayTitle}>📖 Check the printed marking</ThemedText>
+                    <ThemedText style={styles.wayBody}>
+                      Many parts print ♩ = a number right at the tempo change.
+                    </ThemedText>
+                  </View>
+                  <View style={styles.wayCard}>
+                    <ThemedText style={styles.wayTitle}>🎧 Match a recording</ThemedText>
+                    <ThemedText style={styles.wayBody}>
+                      Play a recording, then move the slider until the click keeps pace with it.
+                    </ThemedText>
+                  </View>
+                  <View style={styles.wayCard}>
+                    <ThemedText style={styles.wayTitle}>🎼 Guess from the tempo word</ThemedText>
+                    <ThemedText style={styles.wayBody}>
+                      Largo 40–60 · Andante 76–108 · Moderato 108–120 · Allegro 120–156 · Vivace
+                      156–176 · Presto 168–200. Set the slider and listen.
+                    </ThemedText>
+                  </View>
+                  {metroCard}
+                  </View>
+                </ScrollView>
+                <View style={styles.footer}>
+                  <Pressable onPress={lockGoal} style={styles.cta}>
+                    <ThemedText style={styles.ctaText}>Lock in ♩ = {bpm}</ThemedText>
+                  </Pressable>
+                  <Pressable onPress={() => setStep('goal')} hitSlop={8} style={styles.ghost}>
+                    <ThemedText style={styles.ghostText}>‹ back</ThemedText>
+                  </Pressable>
+                </View>
+              </>
+            ) : bgStep === 'probe' && goal ? (
+              <>
+                {header(
+                  `Try it once at ${goal}`,
+                  'The click is running. If that run is clean, there is nothing to practice.'
+                )}
+                <ScrollView contentContainerStyle={styles.body}>
+                  <View style={styles.col}>
+                    {scoreCard}
+                    {metroCard}
+                  </View>
+                </ScrollView>
+                <View style={styles.footer}>
+                  <View style={styles.ctaPair}>
+                    <Pressable
+                      onPress={finishProbeClean}
+                      disabled={saving}
+                      style={[styles.cta, styles.ctaGreen, styles.ctaHalf]}>
+                      <ThemedText style={styles.ctaText}>✓ It was clean</ThemedText>
+                    </Pressable>
+                    <Pressable onPress={probeMissed} style={[styles.cta, styles.ctaMiss, styles.ctaHalf]}>
+                      <ThemedText style={[styles.ctaText, styles.ctaMissText]}>✗ Not yet</ThemedText>
+                    </Pressable>
+                  </View>
+                </View>
+              </>
+            ) : bgStep === 'find' && goal ? (
+              <>
+                {header(
+                  'Find your starting tempo',
+                  'Nudge the click up until it stops feeling easy, then back off one notch.'
+                )}
+                <ScrollView contentContainerStyle={styles.body}>
+                  <View style={styles.col}>
+                    {scoreCard}
+                    {metroCard}
+                  </View>
+                </ScrollView>
+                <View style={styles.footer}>
+                  <Pressable onPress={lockStart} style={[styles.cta, styles.ctaGreen]}>
+                    <ThemedText style={styles.ctaText}>
+                      Lock in ♩ = {bpm}. This is where I'll start
+                    </ThemedText>
+                  </Pressable>
+                  <ThemedText style={styles.footnote}>
+                    Locking it in counts as your first logged rep on this passage.
                   </ThemedText>
                 </View>
-                <Button
-                  label={`Use ${inherited.bpm}`}
-                  onPress={() => beginProbe(inherited.bpm, true)}
-                  fullWidth
-                />
-                {goalInputRow(false)}
               </>
-            ) : (
-              <>
-                <ThemedText style={styles.subtle}>
-                  Check the score — modern parts often print an exact ♩ = number.
-                </ThemedText>
-                {goalInputRow(true)}
-              </>
-            )}
-            <Pressable onPress={() => setStep('unsure')} hitSlop={8} style={styles.ghost}>
-              <ThemedText style={styles.ghostText}>I’m not sure</ThemedText>
-            </Pressable>
-          </View>
-        ) : step === 'unsure' ? (
-          <View style={styles.section}>
-            <StepDots step={0} />
-            <ThemedText style={styles.question}>Three ways to find it</ThemedText>
-            <ThemedText style={styles.subtle}>Cheapest and most authoritative first.</ThemedText>
-            <View style={styles.card}>
-              <ThemedText style={styles.wayTitle}>📖 Check the score’s printed marking</ThemedText>
-              <ThemedText style={styles.wayBody}>
-                Many parts print ♩ = an exact number at the tempo change.
-              </ThemedText>
-            </View>
-            <View style={styles.card}>
-              <ThemedText style={styles.wayTitle}>🎧 Listen to a recording and tap along</ThemedText>
-              <ThemedText style={styles.wayBody}>
-                Open the metronome tool and use TAP TEMPO while the recording plays.
-              </ThemedText>
-            </View>
-            <View style={styles.card}>
-              <ThemedText style={styles.wayTitle}>🎼 Best guess from the tempo word</ThemedText>
-              <ThemedText style={styles.wayBody}>{TEMPO_WORDS}</ThemedText>
-            </View>
-            {goalInputRow(true)}
-            <Pressable onPress={() => setStep('goal')} hitSlop={8} style={styles.ghost}>
-              <ThemedText style={styles.ghostText}>‹ back</ThemedText>
-            </Pressable>
-          </View>
-        ) : step === 'probe' && goal ? (
-          <View style={styles.section}>
-            <StepDots step={1} />
-            <ThemedText style={styles.question}>
-              Let’s just make sure you can’t already play it at tempo.
-            </ThemedText>
-            <ThemedText style={styles.subtle}>
-              Try it once at {goal} — if it’s clean, there’s nothing to practice. The click is
-              running.
-            </ThemedText>
-            <ThemedText style={styles.bigBpm}>{goal}</ThemedText>
-            <ThemedText style={[styles.subtle, { textAlign: 'center' }]}>Clean?</ThemedText>
-            <View style={styles.pair}>
-              <Pressable onPress={finishProbeClean} style={[styles.bigBtn, styles.cleanBtn]}>
-                <ThemedText style={styles.cleanBtnText}>✓ Clean</ThemedText>
-              </Pressable>
-              <Pressable onPress={probeMissed} style={[styles.bigBtn, styles.missBtn]}>
-                <ThemedText style={styles.missBtnText}>✗ Not yet</ThemedText>
-              </Pressable>
-            </View>
-          </View>
-        ) : step === 'find' && goal ? (
-          <View style={styles.section}>
-            <StepDots step={2} />
-            <ThemedText style={styles.question}>Find your clean tempo</ThemedText>
-            <ThemedText style={styles.subtle}>
-              Nudge the tempo up until it stops feeling easy, then back off one notch — that’s
-              your clean tempo. Prove it with one rep.
-            </ThemedText>
-            <View style={styles.bpmRow}>
-              <Pressable onPress={() => nudge(-5)} style={styles.nudgeBtn} hitSlop={6}>
-                <ThemedText style={styles.nudgeGlyph}>−</ThemedText>
-              </Pressable>
-              <ThemedText style={styles.bigBpm}>{metronome.bpm}</ThemedText>
-              <Pressable onPress={() => nudge(5)} style={styles.nudgeBtn} hitSlop={6}>
-                <ThemedText style={styles.nudgeGlyph}>+</ThemedText>
-              </Pressable>
-            </View>
-            <ThemedText style={[styles.subtle, { textAlign: 'center' }]}>
-              Play it once here. Clean?
-            </ThemedText>
-            <View style={styles.pair}>
-              <Pressable onPress={findClean} style={[styles.bigBtn, styles.cleanBtn]}>
-                <ThemedText style={styles.cleanBtnText}>✓ Clean</ThemedText>
-              </Pressable>
-              <Pressable onPress={findMiss} style={[styles.bigBtn, styles.missBtn]}>
-                <ThemedText style={styles.missBtnText}>
-                  {missFlash ? 'noted — keep hunting' : '✗ Not yet'}
-                </ThemedText>
-              </Pressable>
-            </View>
-            <ThemedText style={styles.footnote}>
-              Your ✓ is the confirmation — it counts as your first logged rep.
-            </ThemedText>
-          </View>
-        ) : step === 'due' ? (
-          <View style={styles.section}>
-            <StepDots step={3} />
-            <ThemedText style={styles.question}>When does it need to be ready?</ThemedText>
-            {DUE_OPTIONS.map((o) => (
-              <Pressable
-                key={o.label}
-                onPress={() => pickDue(o.weeks)}
-                style={({ pressed }) => [styles.option, pressed && styles.pressed]}>
-                <ThemedText style={styles.optionText}>{o.label}</ThemedText>
-              </Pressable>
-            ))}
-            <Pressable onPress={() => setStep('handoff')} hitSlop={8} style={styles.ghost}>
-              <ThemedText style={styles.ghostText}>skip</ThemedText>
-            </Pressable>
-          </View>
-        ) : step === 'handoff' && goal && cleanBpm && ladderStart ? (
-          <View style={styles.section}>
-            <View style={[styles.card, styles.handoffCard]}>
-              <ThemedText style={styles.handoffTitle}>Tempo Ladder, set up for you</ThemedText>
-              <ThemedText style={styles.handoffLine}>
-                Start <ThemedText style={styles.handoffStrong}>{ladderStart}</ThemedText> — a notch
-                below your clean {cleanBpm}, so the first rungs feel easy
-              </ThemedText>
-              <ThemedText style={styles.handoffLine}>
-                Goal <ThemedText style={styles.handoffStrong}>{goal}</ThemedText>
-                {goalInherited ? ' — shared with its section' : ' — your goal tempo'}
-              </ThemedText>
-            </View>
-            <Button
-              label={saving ? 'Saving…' : 'Set up my ladder'}
-              onPress={finishHandoff}
-              disabled={saving}
-              fullWidth
-            />
-            <Pressable onPress={() => router.back()} hitSlop={8} style={styles.ghost}>
-              <ThemedText style={styles.ghostText}>or pick a tool yourself</ThemedText>
-            </Pressable>
-            <ThemedText style={styles.footnote}>
-              From now on, every tool on this passage comes pre-filled with these numbers.
-            </ThemedText>
-          </View>
-        ) : step === 'done' && goal ? (
-          <View style={styles.section}>
-            <View style={[styles.card, styles.doneCard]}>
-              <ThemedText style={styles.handoffTitle}>
-                That’s it — nothing to practice here.
-              </ThemedText>
-              <ThemedText style={styles.handoffLine}>
-                Marked performance-ready at {goal}. That rep is in your practice log.
-              </ThemedText>
-            </View>
-            <Button label="Back to the page" onPress={() => router.back()} fullWidth />
-          </View>
-        ) : (
-          <ThemedText style={styles.muted}>Loading…</ThemedText>
+            ) : null}
+
+            {step === 'due' ? (
+              <View style={styles.overlay}>
+                <View style={styles.ovCard}>
+                  <ThemedText style={styles.ovTitle}>When does it need to be ready?</ThemedText>
+                  {DUE_OPTIONS.map((o) => (
+                    <Pressable
+                      key={o.label}
+                      onPress={() => pickDue(o.weeks)}
+                      style={({ pressed }) => [styles.option, pressed && styles.pressed]}>
+                      <ThemedText style={styles.optionText}>{o.label}</ThemedText>
+                    </Pressable>
+                  ))}
+                  <Pressable onPress={() => setStep('handoff')} hitSlop={8} style={styles.ghost}>
+                    <ThemedText style={styles.ghostText}>skip</ThemedText>
+                  </Pressable>
+                </View>
+              </View>
+            ) : step === 'handoff' && goal ? (
+              <View style={styles.overlay}>
+                <View style={styles.ovCard}>
+                  <View style={styles.handoffCard}>
+                    <ThemedText style={styles.ovTitle}>Tempo Ladder, set up for you</ThemedText>
+                    <ThemedText style={styles.handoffLine}>
+                      Start <ThemedText style={styles.handoffStrong}>{ladderStart}</ThemedText>, a
+                      notch below the tempo you locked in, so the first rungs feel easy
+                    </ThemedText>
+                    <ThemedText style={styles.handoffLine}>
+                      Goal <ThemedText style={styles.handoffStrong}>{goal}</ThemedText>
+                      {inherited != null && goal === inherited.bpm
+                        ? ', shared with its section'
+                        : ', your goal tempo'}
+                    </ThemedText>
+                  </View>
+                  <Pressable onPress={finishHandoff} disabled={saving} style={styles.cta}>
+                    <ThemedText style={styles.ctaText}>
+                      {saving ? 'Saving…' : 'Set up my ladder'}
+                    </ThemedText>
+                  </Pressable>
+                  <Pressable onPress={() => router.back()} hitSlop={8} style={styles.ghost}>
+                    <ThemedText style={styles.ghostText}>or pick a tool yourself</ThemedText>
+                  </Pressable>
+                  <ThemedText style={styles.footnote}>
+                    From now on, every tool on this passage comes pre-filled with these numbers.
+                  </ThemedText>
+                </View>
+              </View>
+            ) : step === 'done' && goal ? (
+              <View style={styles.overlay}>
+                <View style={styles.ovCard}>
+                  <View style={styles.doneCard}>
+                    <ThemedText style={styles.ovTitle}>
+                      That's it. Nothing to practice here.
+                    </ThemedText>
+                    <ThemedText style={styles.handoffLine}>
+                      Marked performance-ready at {goal}. That rep is in your practice log.
+                    </ThemedText>
+                  </View>
+                  <Pressable onPress={() => router.back()} style={styles.cta}>
+                    <ThemedText style={styles.ctaText}>Back to the page</ThemedText>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+          </>
         )}
-        {/* F19: every step here asks the user to PLAY something, so the music
-            must be on screen. Same zoomable score the practice tools show,
-            docked under the step content. */}
-        {!loading && passage?.source_uri ? (
-          <View style={styles.scoreWrap}>
-            <ZoomableImage
-              uri={passage.source_uri}
-              style={styles.scoreImage}
-              persistKey={passage.id}
-            />
-          </View>
-        ) : null}
-      </ScrollView>
+      </View>
     </ThemedView>
   );
 }
 
-// Four dots — goal · probe · clean tempo · deadline.
-function StepDots({ step }: { step: number }) {
-  return (
-    <View style={styles.dots}>
-      {[0, 1, 2, 3].map((i) => (
-        <View key={i} style={[styles.dot, i === step && styles.dotOn]} />
-      ))}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  header: {
+  hdr: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.sm,
-    gap: Spacing.xs,
+    paddingTop: Spacing.sm,
+    paddingBottom: 2,
+    gap: 2,
+    maxWidth: 1100,
+    width: '100%',
+    alignSelf: 'center',
   },
+  hdrRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   backLink: {
     fontSize: Type.size.md,
     fontWeight: Type.weight.semibold,
     color: Palette.accent,
   },
-  body: { padding: Spacing.lg, gap: Spacing.md, maxWidth: 560, width: '100%', alignSelf: 'center' },
-  section: { gap: Spacing.sm },
-  // F19: the passage image shown under every step (pinch to zoom).
-  scoreWrap: {
+  prog: { flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center', alignItems: 'center' },
+  seg: { width: 8, height: 8, borderRadius: 4, backgroundColor: Palette.borderStrong },
+  segOn: { width: 34, backgroundColor: Palette.accent },
+  passageName: {
+    fontSize: Type.size.sm,
+    color: Palette.textSecondary,
+    fontWeight: Type.weight.semibold,
+    maxWidth: 140,
+  },
+  title: {
+    fontFamily: Fonts.rounded,
+    fontSize: 21,
+    lineHeight: 25,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.3,
+    marginTop: 2,
+  },
+  subtitle: { fontSize: Type.size.sm, color: Palette.textSecondary, lineHeight: 18 },
+  body: {
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.lg,
+    gap: Spacing.md,
+  },
+  col: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.sm,
+    maxWidth: 1100,
     width: '100%',
-    height: 300,
-    borderRadius: Radii.md,
-    overflow: 'hidden',
+    alignSelf: 'center',
+  },
+  muted: { color: Palette.textMuted },
+
+  // Full-bleed: the score spans the device edge to edge, same as the
+  // practice screens (Ralph's call — the column look shrank his music).
+  // Mirrors index.tsx's heroScore card (same material, radius, border).
+  scoreCard: {
+    width: '100%',
+    backgroundColor: Palette.inset,
+    borderRadius: Radii.xl,
     borderWidth: Borders.thin,
     borderColor: Palette.border,
+    overflow: 'hidden',
+    position: 'relative',
   },
   scoreImage: { width: '100%', height: '100%' },
-  muted: { color: Palette.textMuted },
-  subtle: { fontSize: Type.size.sm, color: Palette.textSecondary, lineHeight: 19 },
-  question: {
-    fontFamily: Fonts.rounded,
-    fontSize: Type.size.lg,
-    fontWeight: Type.weight.heavy,
-    color: Palette.text,
-    letterSpacing: -0.2,
-  },
-  dots: { flexDirection: 'row', gap: 5, justifyContent: 'center', marginBottom: Spacing.xs },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: Palette.border },
-  dotOn: { backgroundColor: Palette.accent },
-  card: {
-    backgroundColor: Palette.card,
-    borderWidth: Borders.thin,
-    borderColor: Palette.border,
-    borderRadius: Radii['2xl'],
-    padding: Spacing.md,
-    gap: 6,
-    ...Lift,
-  },
-  stampTag: {
-    alignSelf: 'flex-start',
-    backgroundColor: Palette.accentSoft,
-    borderRadius: Radii.md,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  stampTagText: {
-    fontSize: Type.size.md,
-    fontWeight: Type.weight.bold,
-    color: Palette.accent,
-  },
-  inputRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
-  inputLabel: {
+  scoreFoot: { position: 'absolute', bottom: 6, right: 12 },
+  pinchHint: { fontSize: Type.size.xs, color: Palette.textMuted },
+
+  hintLabel: {
     fontSize: Type.size.sm,
+    color: Palette.textMuted,
     fontWeight: Type.weight.semibold,
-    color: Palette.text,
+    paddingHorizontal: 2,
   },
-  inputPrefix: {
-    fontSize: Type.size.lg,
-    fontWeight: Type.weight.bold,
-    color: Palette.textSecondary,
-  },
-  bpmInput: {
-    width: 92,
+  suggestCard: {
     backgroundColor: Palette.card,
-    borderWidth: Borders.thin,
-    borderColor: Palette.border,
-    borderRadius: Radii.md,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    fontSize: Type.size.lg,
-    fontWeight: Type.weight.bold,
-    color: Palette.text,
-    textAlign: 'center',
-  },
-  ghost: { alignSelf: 'center', paddingVertical: 8 },
-  ghostText: { fontSize: Type.size.sm, fontWeight: Type.weight.semibold, color: Palette.accent },
-  wayTitle: { fontSize: Type.size.md, fontWeight: Type.weight.bold, color: Palette.text },
-  wayBody: { fontSize: Type.size.sm, color: Palette.textSecondary, lineHeight: 19 },
-  bigBpm: {
-    fontSize: 48,
-    lineHeight: 56,
-    fontWeight: Type.weight.heavy,
-    color: Palette.text,
-    textAlign: 'center',
-    fontVariant: ['tabular-nums'],
-  },
-  bpmRow: {
+    borderWidth: 2,
+    borderColor: Palette.accent,
+    borderRadius: Radii.xl,
+    padding: Spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  suggestCardOff: { borderColor: Palette.border, borderWidth: Borders.thin },
+  suggestNum: {
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    fontVariant: ['tabular-nums'],
+  },
+  suggestWhy: { fontSize: Type.size.sm, fontWeight: Type.weight.bold, color: Palette.text },
+  suggestFrom: { fontSize: Type.size.xs, color: Palette.textMuted },
+  checkDot: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: Palette.accent,
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.lg,
+  },
+  checkDotOff: { backgroundColor: Palette.surfaceSunk },
+  checkGlyph: { fontSize: 14, fontWeight: Type.weight.heavy, color: '#fff', lineHeight: 17 },
+  checkGlyphOff: { color: Palette.textMuted },
+
+  metroCard: {
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.xl,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    flexDirection: 'row',
+    // On phone widths the slider wraps to its own full-width second row
+    // instead of squeezing the play button and readout off the screen.
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    ...Lift,
+  },
+  playBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Palette.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playBtnRunning: { backgroundColor: Palette.danger },
+  playGlyph: { fontSize: 20, lineHeight: 24, color: '#fff' },
+  readout: { alignItems: 'center', minWidth: 108 },
+  readoutRow: { flexDirection: 'row', alignItems: 'baseline' },
+  readoutPre: { fontSize: 17, fontWeight: Type.weight.bold, color: Palette.textSecondary },
+  readoutBpm: {
+    fontSize: 32,
+    lineHeight: 36,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  readoutWord: {
+    fontSize: 9,
+    letterSpacing: 1.5,
+    color: Palette.textMuted,
+    fontWeight: Type.weight.bold,
   },
   nudgeBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Palette.card,
+    width: 44,
+    height: 40,
+    borderRadius: Radii.md,
+    backgroundColor: Palette.surfaceSunk,
     borderWidth: Borders.thin,
     borderColor: Palette.border,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  nudgeGlyph: { fontSize: 20, lineHeight: 24, fontWeight: Type.weight.bold, color: Palette.text },
+  // −/slider/+ travel as one unit: on phone widths the whole group wraps to
+  // its own full-width row under the play button and readout.
+  sliderGroup: {
+    flexGrow: 1,
+    flexBasis: 220,
+    minWidth: 220,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  sliderWrap: { flex: 1, minWidth: 120, justifyContent: 'center' },
+
+  wayCard: {
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.xl,
+    padding: Spacing.md,
+    gap: 4,
     ...Lift,
   },
-  nudgeGlyph: { fontSize: 26, lineHeight: 30, fontWeight: Type.weight.bold, color: Palette.text },
-  pair: { flexDirection: 'row', gap: Spacing.sm },
-  bigBtn: {
-    flex: 1,
-    borderRadius: Radii['2xl'],
-    paddingVertical: 16,
+  wayTitle: { fontSize: Type.size.md, fontWeight: Type.weight.bold, color: Palette.text },
+  wayBody: { fontSize: Type.size.sm, color: Palette.textSecondary, lineHeight: 19 },
+
+  footer: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.sm,
+    gap: 2,
+    maxWidth: 1100,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  cta: {
+    backgroundColor: Palette.accent,
+    borderRadius: Radii.xl,
+    paddingVertical: 13,
+    paddingHorizontal: Spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cleanBtn: { backgroundColor: '#2E9C66' },
-  cleanBtnText: { fontSize: Type.size.lg, fontWeight: Type.weight.heavy, color: '#fff' },
-  missBtn: {
+  ctaGreen: { backgroundColor: Palette.success },
+  ctaPair: { flexDirection: 'row', gap: Spacing.sm },
+  ctaHalf: { flex: 1 },
+  ctaMiss: {
     backgroundColor: Palette.card,
     borderWidth: 1.5,
-    borderColor: '#E2A99B',
+    borderColor: Palette.dangerGhostBorder,
   },
-  missBtnText: { fontSize: Type.size.md, fontWeight: Type.weight.bold, color: '#D9523E' },
+  ctaText: { fontSize: Type.size.lg, fontWeight: Type.weight.heavy, color: '#fff' },
+  ctaMissText: { color: Palette.danger },
+  ghost: { alignSelf: 'center', paddingVertical: 6 },
+  ghostText: { fontSize: Type.size.sm, fontWeight: Type.weight.semibold, color: Palette.accent },
   footnote: {
     fontSize: Type.size.xs,
     color: Palette.textMuted,
     textAlign: 'center',
     marginTop: 2,
+  },
+
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(21,25,26,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+    zIndex: 10,
+  },
+  ovCard: {
+    backgroundColor: Palette.card,
+    borderRadius: Radii['2xl'],
+    padding: Spacing.lg,
+    width: '100%',
+    maxWidth: 440,
+    gap: Spacing.sm,
+    ...Lift,
+  },
+  ovTitle: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
   },
   option: {
     backgroundColor: Palette.card,
@@ -587,15 +769,20 @@ const styles = StyleSheet.create({
   optionText: { fontSize: Type.size.md, color: Palette.text },
   handoffCard: {
     backgroundColor: Palette.accentSoft,
+    borderWidth: Borders.thin,
     borderColor: Palette.accent,
-  },
-  handoffTitle: {
-    fontFamily: Fonts.rounded,
-    fontSize: Type.size.lg,
-    fontWeight: Type.weight.heavy,
-    color: Palette.text,
+    borderRadius: Radii.xl,
+    padding: Spacing.md,
+    gap: 6,
   },
   handoffLine: { fontSize: Type.size.md, color: Palette.textSecondary, lineHeight: 22 },
   handoffStrong: { fontWeight: Type.weight.heavy, color: Palette.text },
-  doneCard: { backgroundColor: '#E4F2EA', borderColor: '#2E9C66' },
+  doneCard: {
+    backgroundColor: Palette.successSoft,
+    borderWidth: Borders.thin,
+    borderColor: Palette.success,
+    borderRadius: Radii.xl,
+    padding: Spacing.md,
+    gap: 6,
+  },
 });
