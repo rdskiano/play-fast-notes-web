@@ -50,6 +50,36 @@ export const DEFAULT_HELP_VIDEO_ASPECT = 16 / 9;
 // Ralph's iPad screen recordings (1440x1920 → compressed 810x1080).
 const IPAD_PORTRAIT = 3 / 4;
 
+// The four practice-tool clips (recorded 2026-08-19 on the passage screen).
+// The tool bar shows on every practice screen, so these can be appended to
+// any screen's list — same files, no re-encode.
+export const TOOLBAR_CLIPS: HelpVideo[] = [
+  {
+    file: 'toolbar-metronome.mp4',
+    title: 'The metronome',
+    seconds: 66,
+    aspectRatio: IPAD_PORTRAIT,
+  },
+  {
+    file: 'toolbar-practice-timers.mp4',
+    title: 'The practice timers',
+    seconds: 112,
+    aspectRatio: IPAD_PORTRAIT,
+  },
+  {
+    file: 'toolbar-pencil-tool.mp4',
+    title: 'The pencil tool',
+    seconds: 21,
+    aspectRatio: IPAD_PORTRAIT,
+  },
+  {
+    file: 'toolbar-recording-tool.mp4',
+    title: 'The recording tool',
+    seconds: 35,
+    aspectRatio: IPAD_PORTRAIT,
+  },
+];
+
 export const HELP_VIDEOS: Record<string, HelpVideo[]> = {
   // Library screen — recorded 2026-08-18.
   'library-add': [
@@ -99,6 +129,29 @@ export const HELP_VIDEOS: Record<string, HelpVideo[]> = {
       file: 'library-community-library.mp4',
       title: 'The community library',
       seconds: 66,
+      aspectRatio: IPAD_PORTRAIT,
+    },
+  ],
+
+  // Passage viewing screen — recorded 2026-08-19.
+  'first-strategy': [
+    {
+      file: 'passage-practice-strategies.mp4',
+      title: 'The practice strategies',
+      seconds: 67,
+      aspectRatio: IPAD_PORTRAIT,
+    },
+    {
+      file: 'passage-how-should-i-practice.mp4',
+      title: 'The "How should I practice?" button',
+      seconds: 50,
+      aspectRatio: IPAD_PORTRAIT,
+    },
+    ...TOOLBAR_CLIPS,
+    {
+      file: 'passage-practice-log.mp4',
+      title: 'The practice log',
+      seconds: 35,
       aspectRatio: IPAD_PORTRAIT,
     },
   ],

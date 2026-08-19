@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-19-video-help-passage-page',
+    date: 'August 19, 2026',
+    title: 'Video walkthroughs on the passage page',
+    body:
+      'The ? button on the passage page now opens a menu of seven short videos: the practice strategies, the How should I practice button, the metronome, the practice timers, the pencil tool, the recording tool, and the practice log. Tap a title to watch just the part you need.',
+  },
+  {
     id: '2026-08-18-measurement-screen-redesign',
     date: 'August 18, 2026',
     title: 'The first-practice measurement screen got a real metronome',
