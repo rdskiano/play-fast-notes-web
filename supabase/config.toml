@@ -33,3 +33,6 @@ verify_jwt = true
 # authenticates with the shared CRON_SECRET header instead.
 [functions.expiry-reminder]
 verify_jwt = false
+
+[functions.verify-apple-purchase]
+verify_jwt = true

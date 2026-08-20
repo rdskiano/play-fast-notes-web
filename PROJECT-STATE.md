@@ -1,6 +1,6 @@
 # Play Fast Notes — current state
 
-**As of 2026-08-16.** One screen, deliberately. Anything longer belongs in `CLAUDE.md` or `ROADMAP.md`.
+**As of 2026-08-20.** One screen, deliberately. Anything longer belongs in `CLAUDE.md` or `ROADMAP.md`.
 
 **Why this file exists.** `CLAUDE.md` is thorough but 75 KB, so nothing outside a terminal session reads it. Cowork sessions (marketing, strategy, planning) read *this* file plus live database numbers. Between 2026-06-26 and 2026-08-16 the Cowork side had no idea the price had changed from a $39/yr subscription to a $19.99 one-time unlock, and a full marketing plan got built on the wrong number. This file is the join.
 
@@ -11,7 +11,7 @@
 ## Product
 
 - **Web** — live at playfastnotes.com, ships from this repo. Where all paid conversion happens today.
-- **iPad / iPhone** — build 12 REJECTED by Apple 2026-08-17 (copyright flag on the old pre-loaded demo sheet music, which was already removed from current code, plus routine business-model questions). Fix = new build from current code + resubmit with written answers; in progress. No Apple IAP yet, so iPad users buy on the web; one purchase unlocks both — nothing is paid inside the iOS app itself.
+- **iPad / iPhone** — build 13 REJECTED by Apple 2026-08-20 (guideline 3.1.1: Pro surfaces visible with no In-App Purchase). Apple IAP built same day (expo-iap + server-side receipt verification, same $19.99 lifetime unlock, cross-platform with web); awaiting Ralph's App Store Connect product setup + a new build (v1.1.0) + resubmit. Buying on either platform unlocks both.
 - **Cross-device sync** — web to iPad, including pencil marks, shipped 2026-08-15/16. "Snap the part on your phone, practice from the iPad on the stand" is now true.
 
 ## Price
@@ -37,7 +37,7 @@ Noa Kageyama (The Bulletproof Musician) signed up personally on 2026-06-07 and r
 
 ## Current workstream
 
-- App Store: build 13 RESUBMITTED, Waiting for Review since 2026-08-17 evening — new copyright-safe screenshots, empty-library build, written answers to Apple's copyright and business-model questions all in. A scheduled task watches for the verdict.
+- App Store: build 13 rejected 2026-08-20 on 3.1.1 (no IAP). Apple In-App Purchase implemented in code that day; next = create the non-consumable in App Store Connect, run the DB migration, deploy the verify edge function, EAS build v1.1.0, resubmit. Small Business Program enrollment submitted 2026-08-12, still pending (does not block).
 - Scan-a-part flow polished 2026-08-16 (per-page fixing lives in the system scanner, naming now required, scans labeled as full parts). Wishlist logged: web photo crop + B&W, PDF export with/without annotations, forScore share-sheet import (needs next native build).
 - **Tutorial videos started 2026-08-18**: the in-app "?" help popups now play short video walkthroughs Ralph records himself; library screen shipped first with 8 clips (tap-to-play menu, both platforms, no App Store build needed). He records more screens as he practices; this is the "aha channel" bet that replaced the onboarding funnel.
 - **First-practice measurement screen redesigned + SHIPPED 2026-08-18** (web + iPad OTA): music window matches the passage page, real metronome on every step, "Lock in ♩ = N" commits.

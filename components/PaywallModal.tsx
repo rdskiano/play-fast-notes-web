@@ -2,22 +2,23 @@
 // (4th passage, PDF upload) or taps an Unlock affordance. Same modal shell
 // as ConfirmModal/PromptModal so it fits the app visually.
 //
-// One-time purchase: a single $19.99 payment unlocks everything forever.
-// Checkout is web-only for now: on native the button explains where to buy
-// instead of calling Stripe.
+// One-time purchase: a single payment unlocks everything forever. The
+// platform decides HOW: web hands off to Stripe checkout, iOS runs Apple's
+// in-app purchase sheet (plus the App Store-required "Restore purchase").
+// Both live behind usePurchase (lib/billing/usePurchase.{ts,web.ts}); this
+// file stays shared. The buy section only mounts while the modal is visible,
+// so StoreKit connects on demand rather than on every screen.
 
-import { useEffect, useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
 import {
-  PRICE_LIFETIME_LABEL,
   PRICE_LIFETIME_SUBLABEL,
   PRO_FEATURES,
   TRIAL_DAYS,
 } from '@/constants/billing';
-import { startCheckout } from '@/lib/billing/checkout';
+import { usePurchase } from '@/lib/billing/usePurchase';
 import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Overlays, Radii, Spacing, Type } from '@/constants/tokens';
@@ -31,51 +32,69 @@ type Props = {
   onClose: () => void;
 };
 
+/** The platform-aware purchase area. Mounted only while the modal is open —
+ *  on iOS that's what scopes the StoreKit connection. */
+function BuySection({
+  onClose,
+  mutedColor,
+}: {
+  onClose: () => void;
+  mutedColor: string;
+}) {
+  const purchase = usePurchase();
+
+  if (purchase.unlocked) {
+    return (
+      <>
+        <ThemedText style={styles.unlockedLine}>
+          ✓ Practice Pro is unlocked. Everything is open, forever.
+        </ThemedText>
+        <Button label="Done" onPress={onClose} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Button
+        label={
+          purchase.busy
+            ? 'One moment…'
+            : `Unlock forever — ${purchase.priceLabel}`
+        }
+        onPress={purchase.buy}
+        disabled={purchase.busy}
+      />
+      <ThemedText style={[styles.subLabel, { color: mutedColor }]}>
+        {PRICE_LIFETIME_SUBLABEL}
+      </ThemedText>
+
+      <ThemedText style={[styles.finePrint, { color: mutedColor }]}>
+        No subscription, nothing recurring. New accounts start with{' '}
+        {TRIAL_DAYS} days of full Pro, free — and if you never buy, your
+        music stays; extra passages just lock until you unlock.
+      </ThemedText>
+
+      {purchase.error && (
+        <ThemedText style={styles.error}>{purchase.error}</ThemedText>
+      )}
+
+      {purchase.canRestore && (
+        <Pressable onPress={purchase.restore} disabled={purchase.busy}>
+          <ThemedText style={[styles.restoreLink, { color: mutedColor }]}>
+            Already bought it? Restore purchase
+          </ThemedText>
+        </Pressable>
+      )}
+
+      <Button label="Not now" variant="outline" size="sm" onPress={onClose} />
+    </>
+  );
+}
+
 export function PaywallModal({ visible, contextLine, onClose }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // `busy` locks the buy button while we hand off to Stripe, and the success
-  // path never unlocks it ("the browser navigates away"). Two ways the user
-  // comes BACK with the old state still mounted, both of which must unlock:
-  //   • they reopen the modal after "Not now" (component stays mounted), and
-  //   • the browser's back/forward cache restores the page mid-`busy` when
-  //     they back out of the Stripe page without paying.
-  useEffect(() => {
-    if (visible) {
-      setBusy(false);
-      setError(null);
-    }
-  }, [visible]);
-  useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-    const onPageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) {
-        setBusy(false);
-        setError(null);
-      }
-    };
-    window.addEventListener('pageshow', onPageShow);
-    return () => window.removeEventListener('pageshow', onPageShow);
-  }, []);
-
-  async function buy() {
-    if (Platform.OS !== 'web') {
-      setError('Upgrading is not available on this device yet.');
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      await startCheckout();
-      // The browser navigates away on success; nothing more to do here.
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not start checkout.');
-      setBusy(false);
-    }
-  }
 
   return (
     <Modal
@@ -105,26 +124,7 @@ export function PaywallModal({ visible, contextLine, onClose }: Props) {
             ))}
           </View>
 
-          <Button
-            label={`Unlock forever — ${PRICE_LIFETIME_LABEL}`}
-            onPress={buy}
-            disabled={busy}
-          />
-          <ThemedText style={[styles.subLabel, { color: C.icon }]}>
-            {PRICE_LIFETIME_SUBLABEL}
-          </ThemedText>
-
-          <ThemedText style={[styles.finePrint, { color: C.icon }]}>
-            No subscription, nothing recurring. New accounts start with{' '}
-            {TRIAL_DAYS} days of full Pro, free — and if you never buy, your
-            music stays; extra passages just lock until you unlock.
-          </ThemedText>
-
-          {error && (
-            <ThemedText style={styles.error}>{error}</ThemedText>
-          )}
-
-          <Button label="Not now" variant="outline" size="sm" onPress={onClose} />
+          {visible && <BuySection onClose={onClose} mutedColor={C.icon} />}
         </Pressable>
       </Pressable>
     </Modal>
@@ -165,6 +165,15 @@ const styles = StyleSheet.create({
   finePrint: {
     textAlign: 'center',
     fontSize: Type.size.xs,
+  },
+  restoreLink: {
+    textAlign: 'center',
+    fontSize: Type.size.sm,
+    textDecorationLine: 'underline',
+  },
+  unlockedLine: {
+    textAlign: 'center',
+    fontSize: Type.size.sm,
   },
   error: {
     textAlign: 'center',

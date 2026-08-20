@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-20-ipad-purchase',
+    date: 'August 20, 2026',
+    title: 'You can now unlock Practice Pro right on your iPad',
+    body:
+      'The one-time Practice Pro unlock is now available as a regular App Store purchase, right inside the iPad app. One payment, yours forever, and it unlocks your account everywhere, web included. If you already bought it on the website, nothing changes: your iPad stays unlocked. Bought it on the iPad but signed in somewhere new? Tap "Restore purchase" on the unlock screen.',
+  },
+  {
     id: '2026-08-19-video-help-passage-page',
     date: 'August 19, 2026',
     title: 'Video walkthroughs on the passage page',

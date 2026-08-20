@@ -55,6 +55,13 @@ export const FREE_PASSAGE_LIMIT = 3;
 export const PRICE_LIFETIME_LABEL = '$19.99';
 export const PRICE_LIFETIME_SUBLABEL = 'one payment — yours forever';
 
+// Apple In-App Purchase product id for the same one-time unlock (a
+// non-consumable created in App Store Connect at the same $19.99). The iOS
+// paywall shows the store's own localized price at runtime; the label above
+// is only the loading fallback. Keep this id in lockstep with App Store
+// Connect — it can never be reused once a product ships.
+export const IAP_PRODUCT_ID_LIFETIME = 'pfn_pro_lifetime';
+
 // What Pro includes — shown on the paywall and the account screen. The free
 // tier keeps every practice strategy on its 3 passages (a crippled free tier
 // converts nobody); Pro removes the limits.
