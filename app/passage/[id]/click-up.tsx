@@ -20,6 +20,7 @@ import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { RotateForPractice } from '@/components/RotateForPractice';
+import { ScorePeekModal } from '@/components/ScorePeekModal';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import {
   SCORE_MARK_LIFT,
@@ -138,6 +139,8 @@ export default function ClickUpScreen() {
   const isTouch = useIsTouchDevice();
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
+  // Momentary look at the source page while setting tempos (config phase).
+  const [peekOpen, setPeekOpen] = useState(false);
   const session = useClickUpSession(id, isGuided, {
     startScale: startScale ? parseFloat(startScale) : undefined,
   });
@@ -652,6 +655,19 @@ export default function ClickUpScreen() {
           <ThemedText style={{ opacity: 0.7 }}>
             {derivedN} units defined from your {markers.length} marks.
           </ThemedText>
+          {/* Momentary look at the source page — check the printed tempo
+              marking before committing to a performance tempo. */}
+          {passage != null && (
+            <View style={{ flexDirection: 'row' }}>
+              <Button
+                label="View score"
+                icon="eye"
+                variant="outline"
+                size="xs"
+                onPress={() => setPeekOpen(true)}
+              />
+            </View>
+          )}
           <View {...tourTag('cu-tempo')}>
             <TempoConfigFields
               startLabel="Start Tempo"
@@ -767,6 +783,12 @@ export default function ClickUpScreen() {
             "When you start, the app walks you through every tempo in between, interleaving individual units with growing combinations.\n\n" +
             "Buttons: Resume picks up a prior session where you left off, at the same step and tempo. Start over (or Start practicing the first time) begins fresh from Step 1. ← Back to marking returns to editing your unit marks."
           }
+        />
+
+        <ScorePeekModal
+          visible={peekOpen}
+          passage={passage}
+          onClose={() => setPeekOpen(false)}
         />
       </ThemedView>
     );

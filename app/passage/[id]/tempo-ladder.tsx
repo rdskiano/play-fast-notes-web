@@ -14,6 +14,7 @@ import { CustomPatternEditor } from '@/components/CustomPatternEditor';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { RotateForPractice } from '@/components/RotateForPractice';
+import { ScorePeekModal } from '@/components/ScorePeekModal';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -135,6 +136,8 @@ export default function TempoLadderScreen() {
   // Saved custom pattern queued for deletion — drives the confirm dialog.
   const [pendingDelete, setPendingDelete] = useState<CustomPattern | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Momentary look at the source page while setting tempos (config phase).
+  const [peekOpen, setPeekOpen] = useState(false);
   // Phone density check — hoisted ABOVE all early returns so the hook
   // count stays stable across renders (config → loading → play phases).
   const { width: vpW, height: vpH } = useWindowDimensions();
@@ -456,6 +459,20 @@ export default function TempoLadderScreen() {
               } BPM`}
             </ThemedText>
           </View>
+          {/* Momentary look at the source page — check the printed tempo
+              marking before committing to a goal. Hidden in Tools mode
+              (no passage to show). */}
+          {!toolsOnly && passage != null && (
+            <View style={{ flexDirection: 'row' }}>
+              <Button
+                label="View score"
+                icon="eye"
+                variant="outline"
+                size="xs"
+                onPress={() => setPeekOpen(true)}
+              />
+            </View>
+          )}
           {/* Cluster mode shows three BPM cards — they never fit across the
               capped column, so always stack. Step/Custom have two and go
               2-across when the column is wide enough (e.g. landscape). */}
@@ -627,6 +644,12 @@ export default function TempoLadderScreen() {
             <ThemedText style={styles.startBtnText}>Start practicing →</ThemedText>
           </Pressable>
         </View>
+
+        <ScorePeekModal
+          visible={peekOpen}
+          passage={passage}
+          onClose={() => setPeekOpen(false)}
+        />
 
         <CustomPatternEditor
           visible={editorOpen}

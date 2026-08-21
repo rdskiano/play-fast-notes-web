@@ -18,6 +18,7 @@ import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { RotateForPractice } from '@/components/RotateForPractice';
+import { ScorePeekModal } from '@/components/ScorePeekModal';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import {
   SCORE_MARK_LIFT,
@@ -114,6 +115,8 @@ export default function MicroChainingScreen() {
   const isTouch = useIsTouchDevice();
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
+  // Momentary look at the source page while setting the tempo (config phase).
+  const [peekOpen, setPeekOpen] = useState(false);
   const session = useMicroChainSession(id, isGuided, {
     mode:
       modeParam === 'forward' || modeParam === 'backward' || modeParam === 'problem'
@@ -454,9 +457,18 @@ export default function MicroChainingScreen() {
             </ThemedText>
           )}
 
-          <ThemedText style={[styles.label, { marginTop: Spacing.sm }]}>
-            Performance Tempo
-          </ThemedText>
+          <View style={[styles.peekLabelRow, { marginTop: Spacing.sm }]}>
+            <ThemedText style={styles.label}>Performance Tempo</ThemedText>
+            {passage != null && (
+              <Button
+                label="View score"
+                icon="eye"
+                variant="outline"
+                size="xs"
+                onPress={() => setPeekOpen(true)}
+              />
+            )}
+          </View>
           <ThemedText style={styles.subLabel}>
             Micro-Chaining stays at one tempo — your performance tempo. This sets the
             metronome; you can still adjust it during practice.
@@ -511,6 +523,12 @@ export default function MicroChainingScreen() {
             style={actionButtonStyle}
           />
         </View>
+
+        <ScorePeekModal
+          visible={peekOpen}
+          passage={passage}
+          onClose={() => setPeekOpen(false)}
+        />
       </ThemedView>
     );
   }
@@ -1150,6 +1168,12 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   label: { opacity: 0.7, fontWeight: Type.weight.bold },
+  peekLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
   subLabel: { opacity: Opacity.muted, fontSize: Type.size.sm, lineHeight: 18 },
   doneBtn: { backgroundColor: Status.danger },
   bottomBar: {

@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-21-setup-view-score',
+    date: 'August 21, 2026',
+    title: 'Check your music while setting tempos',
+    body:
+      'Setup screens now have a "View score" button next to the tempo controls, in Tempo Ladder, Click-Up, both Chaining modes, and Interleaved Click-Up 2. It opens the full page of your part with your passage outlined, and you can flip through pages and pinch to zoom, so you can find the printed tempo marking before you commit to a goal. One tap brings you straight back to setup with nothing changed.',
+  },
+  {
     id: '2026-08-21-icu-backward',
     date: 'August 21, 2026',
     title: 'Interleaved Click-Up can now build backward (beta)',

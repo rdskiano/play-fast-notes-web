@@ -19,6 +19,7 @@ import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { RotateForPractice } from '@/components/RotateForPractice';
+import { ScorePeekModal } from '@/components/ScorePeekModal';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -103,6 +104,8 @@ function Icu2ScreenInner() {
   const [passages, setPassages] = useState<Passage[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [items, setItems] = useState<Icu2Item[]>([]);
+  // Momentary look at one passage's source page while setting its tempos.
+  const [peekPassage, setPeekPassage] = useState<Passage | null>(null);
 
   // Session position.
   const [roundIdx, setRoundIdx] = useState(0);
@@ -420,6 +423,13 @@ function Icu2ScreenInner() {
                   ]}>
                   {it.source ? `from ${it.source}` : it.goal == null ? 'set a goal tempo' : 'manual'}
                 </ThemedText>
+                <Button
+                  label="View score"
+                  icon="eye"
+                  variant="outline"
+                  size="xs"
+                  onPress={() => setPeekPassage(it.passage)}
+                />
               </View>
               <View style={styles.tempoRowSteppers}>
                 <TempoStepper
@@ -459,6 +469,12 @@ function Icu2ScreenInner() {
             style={actionButtonStyle}
           />
         </View>
+
+        <ScorePeekModal
+          visible={peekPassage != null}
+          passage={peekPassage}
+          onClose={() => setPeekPassage(null)}
+        />
       </ThemedView>
     );
   }
