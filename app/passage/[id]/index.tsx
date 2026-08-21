@@ -67,9 +67,9 @@ type StrategyKey =
   | 'tempo_ladder'
   | 'click_up'
   | 'rhythmic'
-  | 'micro_chaining'
-  | 'macro_chaining'
-  | 'rep_rotator';
+  | 'chaining'
+  | 'rep_rotator'
+  | 'icu2';
 
 type StrategyDef = {
   key: StrategyKey;
@@ -79,17 +79,22 @@ type StrategyDef = {
   // strategy cards (hero layout).
   mono: string;
   blurb: string;
+  // Renders the small BETA chip (same treatment as the coach card).
+  beta?: boolean;
 };
 
 // Blurbs answer "when would I reach for this?", not "what does it do?" —
-// all six are Ralph's dictated wording (2026-08-12).
+// the four original ones are Ralph's dictated wording (2026-08-12).
+// 2026-08-21: Micro- + Macro-Chaining collapsed into one "Chaining" entry
+// (a chooser sheet picks which) to make room for Interleaved Click-Up 2
+// without growing the strategy menu.
 const STRATEGIES: StrategyDef[] = [
   { key: 'tempo_ladder', label: 'Tempo Ladder', enabled: true, mono: 'TL', blurb: 'Works on everything — climb step by step, track your progress, and train with some performance anxiety.' },
   { key: 'click_up', label: 'Interleaved Click-Up', enabled: true, mono: 'IC', blurb: 'Works on everything — maybe the most effective way to make a passage solid.' },
   { key: 'rhythmic', label: 'Rhythmic Variation', enabled: true, mono: 'RV', blurb: 'Solidify technique in running passages — sixteenths, sextuplets.' },
-  { key: 'micro_chaining', label: 'Micro-Chaining', enabled: true, mono: 'Mi', blurb: 'For your first meetings with a passage, or one specific hard spot.' },
-  { key: 'macro_chaining', label: 'Macro-Chaining', enabled: true, mono: 'Ma', blurb: 'Break the music into chunks and join them together. Can work for anything.' },
+  { key: 'chaining', label: 'Chaining', enabled: true, mono: 'Ch', blurb: 'Build a passage note by note, or join bigger chunks together. Micro for first meetings and hard spots, Macro for anything.' },
   { key: 'rep_rotator', label: 'Rep Rotator', enabled: true, mono: 'RR', blurb: 'Interleaved practicing — think mock audition: one shot at each passage. Most effective close to performance date.' },
+  { key: 'icu2', label: 'Interleaved Click-Up 2', enabled: true, mono: 'C2', blurb: 'Rotate several fast passages up to tempo together. Trains playing them clean at tempo on the first try.', beta: true },
 ];
 
 // Reading order across a document: page first, then top-to-bottom, then
@@ -158,6 +163,8 @@ export default function PassageDetailScreen() {
   const [hasPracticed, setHasPracticed] = useState<boolean | null>(null);
   const [demoId, setDemoId] = useState<StrategyDemoId | null>(null);
   const [rhythmicSheetOpen, setRhythmicSheetOpen] = useState(false);
+  // "Chaining" chooser — the one strategy button fans out to Micro / Macro.
+  const [chainingSheetOpen, setChainingSheetOpen] = useState(false);
   const [rhythmicStep, setRhythmicStep] = useState<'mode' | 'grouping'>('mode');
   const [selfLedOpen, setSelfLedOpen] = useState(false);
   const [siblings, setSiblings] = useState<Passage[]>([]);
@@ -385,10 +392,8 @@ export default function PassageDetailScreen() {
       guardedNav(() => router.push(`/passage/${passage.id}/tempo-ladder`));
     } else if (key === 'click_up') {
       guardedNav(() => router.push(`/passage/${passage.id}/click-up`));
-    } else if (key === 'micro_chaining') {
-      guardedNav(() => router.push(`/passage/${passage.id}/micro-chaining`));
-    } else if (key === 'macro_chaining') {
-      guardedNav(() => router.push(`/passage/${passage.id}/macro-chaining`));
+    } else if (key === 'chaining') {
+      setChainingSheetOpen(true);
     } else if (key === 'rhythmic') {
       setRhythmicStep('mode');
       setRhythmicSheetOpen(true);
@@ -396,6 +401,13 @@ export default function PassageDetailScreen() {
       guardedNav(() =>
         router.push({
           pathname: '/interleaved',
+          params: { seedPassageId: passage.id },
+        }),
+      );
+    } else if (key === 'icu2') {
+      guardedNav(() =>
+        router.push({
+          pathname: '/icu2',
           params: { seedPassageId: passage.id },
         }),
       );
@@ -481,9 +493,16 @@ export default function PassageDetailScreen() {
             )}
           </View>
         </View>
-        <ThemedText style={styles.stratCardName} numberOfLines={1}>
-          {s.label}
-        </ThemedText>
+        <View style={styles.stratNameRow}>
+          <ThemedText style={styles.stratCardName} numberOfLines={1}>
+            {s.label}
+          </ThemedText>
+          {s.beta && (
+            <View style={styles.heroBeta}>
+              <ThemedText style={styles.heroBetaText}>BETA</ThemedText>
+            </View>
+          )}
+        </View>
         {/* No line clamp: Ralph's when-to-use blurbs must never truncate —
             two of them run long and clipped on iPhone (2026-08-12). Cards in
             a grid row stretch to the tallest sibling, so uneven text is fine. */}
@@ -513,9 +532,16 @@ export default function PassageDetailScreen() {
           <ThemedText style={[styles.stratMonoText, { color }]}>{s.mono}</ThemedText>
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <ThemedText style={styles.stratRowName} numberOfLines={1}>
-            {s.label}
-          </ThemedText>
+          <View style={styles.stratNameRow}>
+            <ThemedText style={styles.stratRowName} numberOfLines={1}>
+              {s.label}
+            </ThemedText>
+            {s.beta && (
+              <View style={styles.heroBeta}>
+                <ThemedText style={styles.heroBetaText}>BETA</ThemedText>
+              </View>
+            )}
+          </View>
           {/* No line clamp: Ralph's when-to-use blurbs must never truncate —
               they clipped at 2 lines in the narrow landscape panel (2026-08-12). */}
           <ThemedText style={styles.stratCardBlurb}>{s.blurb}</ThemedText>
@@ -548,6 +574,27 @@ export default function PassageDetailScreen() {
   const overlays = (
     <>
       <StrategyDemoModal demoId={demoId} onClose={() => setDemoId(null)} />
+      <ActionSheet
+        visible={chainingSheetOpen}
+        title="Which kind of chaining?"
+        items={[
+          {
+            label: 'Micro-Chaining (note by note)',
+            onPress: () => {
+              setChainingSheetOpen(false);
+              if (passage) guardedNav(() => router.push(`/passage/${passage.id}/micro-chaining`));
+            },
+          },
+          {
+            label: 'Macro-Chaining (join bigger chunks)',
+            onPress: () => {
+              setChainingSheetOpen(false);
+              if (passage) guardedNav(() => router.push(`/passage/${passage.id}/macro-chaining`));
+            },
+          },
+        ]}
+        onCancel={() => setChainingSheetOpen(false)}
+      />
       <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
         visible={rhythmicSheetOpen}
         transparent
@@ -681,9 +728,9 @@ export default function PassageDetailScreen() {
           "Tempo Ladder — clicking up the metronome slowly over time.\n\n" +
           "Interleaved Click-Up — practice each measure or beat in isolation and in ever-changing contexts and tempos. A favorite!\n\n" +
           "Rhythmic Variation — play the passage with different rhythm patterns to expose weak spots and even out your technique.\n\n" +
-          "Micro-Chaining — build a tricky spot back one note at a time (forward, backward, or out from the problem note).\n\n" +
-          "Macro-Chaining — play it in chunks at goal tempo with beats of rest between, then remove the rests as it locks in.\n\n" +
+          "Chaining — two tools in one: Micro builds a tricky spot back one note at a time; Macro plays chunks at goal tempo with rests between, then removes the rests.\n\n" +
           "Rep Rotator — drill this passage shuffled together with its siblings.\n\n" +
+          "Interleaved Click-Up 2 — rotate several fast passages up to tempo together, training first-try-at-tempo.\n\n" +
           "Practice Log — the open-book button at the top-right: every session you've logged on this passage.\n\n" +
           "Move between passages with the ‹ › arrows, by swiping, or with the ← / → keys.\n\n" +
           "Notes for next time — a reminders banner near the top; tap to expand, or dismiss when done.\n\n" +
@@ -1417,6 +1464,13 @@ const styles = StyleSheet.create({
     fontSize: Type.size.md,
     fontWeight: Type.weight.heavy,
     color: Palette.text,
+  },
+  // Label + BETA chip side by side (strategy card + landscape row).
+  stratNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 0,
   },
   stratCardBlurb: { fontSize: Type.size.sm, color: Palette.textSecondary, lineHeight: 18 },
 

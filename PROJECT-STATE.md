@@ -37,6 +37,7 @@ Noa Kageyama (The Bulletproof Musician) signed up personally on 2026-06-07 and r
 
 ## Current workstream
 
+- **Interleaved Click-Up 2 (beta) BUILT 2026-08-21, not committed/shipped**: new multi-passage strategy from Molly Gebrian's book (rotate 3-10 fast passages through 7 fixed rounds of climbing tempos; trains first-try-at-tempo). Micro+Macro chaining merged into one "Chaining" button to make room. Full flow verified on the iPad simulator (Clarinet Guy). Awaiting Ralph's real-instrument test, then web push + OTA.
 - App Store: build 13 rejected 2026-08-20 morning on 3.1.1 (no IAP); Apple IAP built, deployed (DB migration + verify edge function live), and v1.1.0 build 14 RESUBMITTED with the pfn_pro_lifetime purchase the same day, ~3 PM. Waiting for Review. Open: Ralph's TestFlight sandbox purchase test on build 14. Small Business Program enrollment submitted 2026-08-12, still pending (does not block).
 - Scan-a-part flow polished 2026-08-16 (per-page fixing lives in the system scanner, naming now required, scans labeled as full parts). Wishlist logged: web photo crop + B&W, PDF export with/without annotations, forScore share-sheet import (needs next native build).
 - **Tutorial videos started 2026-08-18**: the in-app "?" help popups now play short video walkthroughs Ralph records himself; library screen shipped first with 8 clips (tap-to-play menu, both platforms, no App Store build needed). He records more screens as he practices; this is the "aha channel" bet that replaced the onboarding funnel.

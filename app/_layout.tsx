@@ -221,6 +221,10 @@ export default function RootLayout() {
                   name="interleaved"
                   options={{ headerShown: false, title: 'Serial Practice' }}
                 />
+                <Stack.Screen
+                  name="icu2"
+                  options={{ headerShown: false, title: 'Interleaved Click-Up 2' }}
+                />
                 <Stack.Screen name="tools/index" options={{ headerShown: false }} />
                 <Stack.Screen name="tools/metronome" options={{ headerShown: false }} />
                 <Stack.Screen name="import-seed" options={{ headerShown: false }} />

@@ -20,6 +20,20 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-21-stale-crop-fix',
+    date: 'August 21, 2026',
+    title: 'Fixed: a resized passage could keep showing its old crop on iPad',
+    body:
+      'After you resized a passage box on the iPad, some screens could keep drawing the old crop from the image cache, which also threw off where Click-Up spot markers landed. Passage images are now saved in a way the cache cannot get wrong. If a passage of yours still looks stale, open its box and resize it once more; from then on it stays correct.',
+  },
+  {
+    id: '2026-08-21-icu2-beta',
+    date: 'August 21, 2026',
+    title: 'New strategy in beta: Interleaved Click-Up 2',
+    body:
+      'Interleaved Click-Up teaches you a passage. This one trains something different: playing it clean at tempo on the first try. Pick 3 to 5 fast passages (7 to 10 if they are short), and the app rotates you through them in seven rounds of climbing tempos, with bigger jumps each round. If you miss, you choose: restart the climb, start slower, or save that tempo as today\'s ceiling and watch it rise across sessions. Find it on the passage page next to Rep Rotator. Micro- and Macro-Chaining now live together behind one Chaining button to make room.',
+  },
+  {
     id: '2026-08-20-ipad-purchase',
     date: 'August 20, 2026',
     title: 'You can now unlock Practice Pro right on your iPad',

@@ -24,6 +24,7 @@ export const STRATEGY_LABELS: Record<string, string> = {
   click_up: 'Interleaved Click-Up',
   rhythmic: 'Rhythmic Variation',
   interleaved: 'Serial',
+  icu2: 'Interleaved Click-Up 2',
   chunking: 'Chunking',
   micro_chaining: 'Micro-Chaining',
   macro_chaining: 'Macro-Chaining',
@@ -145,6 +146,30 @@ export function formatPracticeDetail(
         parts.push(`${data.streak}/${data.targetReps} reps`);
       }
       return parts.join(' · ');
+    }
+
+    if (entry.strategy === 'icu2') {
+      // {goal, start, reached, atTempo, sessionPassages?}
+      if (compact) {
+        if (typeof data.reached !== 'number') return null;
+        return data.atTempo ? `${data.reached} BPM ✓` : `saved at ${data.reached}`;
+      }
+      const parts: string[] = [];
+      if (Array.isArray(data.sessionPassages) && data.sessionPassages.length > 0) {
+        const names = data.sessionPassages.filter(
+          (n: unknown): n is string => typeof n === 'string' && n.length > 0,
+        );
+        if (names.length > 0) {
+          const shown = names.slice(0, 3).join(', ');
+          const more = names.length > 3 ? ` +${names.length - 3} more` : '';
+          parts.push(`with ${shown}${more}`);
+        }
+      }
+      if (typeof data.goal === 'number') parts.push(`goal ${data.goal}`);
+      if (typeof data.reached === 'number') {
+        parts.push(data.atTempo ? `reached ${data.reached} ✓` : `saved at ${data.reached}`);
+      }
+      return parts.length ? parts.join(' · ') : null;
     }
 
     if (entry.strategy === 'recording' && typeof data.duration_seconds === 'number') {

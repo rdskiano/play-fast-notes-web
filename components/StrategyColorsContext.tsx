@@ -15,8 +15,10 @@ export type StrategyKey =
   | 'rhythmic'
   | 'micro_chaining'
   | 'macro_chaining'
+  | 'chaining'
   | 'interleaved'
   | 'rep_rotator'
+  | 'icu2'
   | 'chunking'
   | 'recording'
   | 'evaluation';
@@ -45,8 +47,14 @@ export const DEFAULT_STRATEGY_COLORS: Record<StrategyKey, string> = {
   rhythmic: '#7657C8', // violet
   micro_chaining: '#3F5BD9', // indigo
   macro_chaining: '#9B4F86', // plum
+  // The merged "Chaining" button (2026-08-21) — micro's indigo; the two
+  // chaining keys above stay for old log rows and the chooser's children.
+  chaining: '#3F5BD9', // indigo
   interleaved: '#C9772E', // Rep Rotator — orange (same strategy as rep_rotator)
   rep_rotator: '#C9772E', // Rep Rotator — orange
+  // Interleaved Click-Up 2 — a deeper shade of click_up's petrol: same
+  // family (both are Gebrian clicking-up methods), clearly darker.
+  icu2: '#085D79',
   chunking: '#6f8e2a', // olive
   recording: '#5b6b7a', // slate — a capture, not a drill, so near-neutral
   evaluation: '#8a7d5c', // warm stone — a measurement, not a drill, so near-neutral
