@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { returnToScoreAfterSession } from '@/lib/sessions/lastPassageInDoc';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   getOrCreateExercise,
@@ -11,10 +11,16 @@ import {
   setClickUpIndex,
   upsertClickUpProgress,
 } from '@/lib/db/repos/clickUp';
-import { getPassage, type Marker, type Passage } from '@/lib/db/repos/passages';
+import {
+  getPassage,
+  updatePassagePerformanceTempo,
+  type Marker,
+  type Passage,
+} from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
+import { inheritedGoalForPassage } from '@/lib/coach/evaluation';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import { generateMacroSteps, type MacroStep } from '@/lib/strategies/macroChain';
 
@@ -45,6 +51,14 @@ export function useMacroChainSession(id: string | undefined) {
 
   const [marks, setMarks] = useState<Marker[]>([]);
   const [goalTempo, setGoalTempo] = useState('120');
+  // A tempo counts as "real" once it came from a saved config, the piece's
+  // shared performance tempo, a section prefill, or the user's own hand. The
+  // untouched '120' default is never persisted as a decision.
+  const tempoSourcedRef = useRef(false);
+  // Set when the saved config's tempo disagrees with a NEWER shared
+  // performance tempo on the piece — the config screen offers a one-tap
+  // update instead of silently keeping the stale number.
+  const [tempoNudge, setTempoNudge] = useState<number | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -63,7 +77,35 @@ export function useMacroChainSession(id: string | undefined) {
             ? (JSON.parse(ex.config_json) as Partial<MacroStoredConfig>)
             : null;
           if (parsed?.marks?.length) setMarks(parsed.marks);
-          if (parsed?.goalTempo) setGoalTempo(String(parsed.goalTempo));
+          const savedTempo =
+            typeof parsed?.goalTempo === 'number' && parsed.goalTempo > 0
+              ? parsed.goalTempo
+              : null;
+          if (savedTempo) {
+            tempoSourcedRef.current = true;
+            setGoalTempo(String(savedTempo));
+          }
+          // Tempo prefill + stale-goal nudge (B-013, extended to Chaining):
+          // the config's own tempo wins; a fresh config takes the piece's
+          // shared performance tempo, else the most recent decided tempo in
+          // the SAME SECTION. All best-effort.
+          const p = await getPassage(id);
+          if (!cancelled && p) {
+            if (savedTempo) {
+              if (p.performance_tempo && p.performance_tempo !== savedTempo) {
+                setTempoNudge(p.performance_tempo);
+              }
+            } else if (p.performance_tempo) {
+              tempoSourcedRef.current = true;
+              setGoalTempo(String(p.performance_tempo));
+            } else {
+              const inherited = await inheritedGoalForPassage(p);
+              if (!cancelled && inherited) {
+                tempoSourcedRef.current = true;
+                setGoalTempo(String(inherited.bpm));
+              }
+            }
+          }
         } catch {
           // ignore malformed config
         }
@@ -104,13 +146,29 @@ export function useMacroChainSession(id: string | undefined) {
     if (marks.length < MIN_MACRO_MARKS) return;
     if (exerciseId) {
       const partial: MacroStoredConfig = {
-        goalTempo: parseInt(goalTempo, 10) || 120,
+        // 0 = no tempo decided yet; the untouched default must not come
+        // back on the next load looking like a real decision.
+        goalTempo: tempoSourcedRef.current ? parseInt(goalTempo, 10) || 120 : 0,
         marks,
         steps: [],
       };
       await updateExerciseConfig(exerciseId, JSON.stringify(partial));
     }
     setPhase('config');
+  }
+
+  // A hand edit makes the tempo a real decision — see tempoSourcedRef.
+  function setGoalTempoByHand(v: string) {
+    tempoSourcedRef.current = true;
+    setGoalTempo(v);
+  }
+
+  // One-tap accept for the stale-goal nudge.
+  function acceptTempoNudge() {
+    if (tempoNudge == null) return;
+    tempoSourcedRef.current = true;
+    setGoalTempo(String(tempoNudge));
+    setTempoNudge(null);
   }
 
   async function startPlaying() {
@@ -131,6 +189,14 @@ export function useMacroChainSession(id: string | undefined) {
       console.warn('Macro-Chaining: failed to save session', e);
       setLoadError('Could not save your session. Check your connection and try again.');
       return;
+    }
+    // B-013: share the decided tempo on the piece so other strategies
+    // prefill it. Best-effort; skipped while the tempo is the untouched
+    // default (an unexamined 120 is not a decision).
+    if (id && tempoSourcedRef.current) {
+      updatePassagePerformanceTempo(id, tempo).catch((e) =>
+        console.warn('[macroChain] performance-tempo share failed:', e),
+      );
     }
     setLoadError(null);
     setStoredConfig(config);
@@ -227,7 +293,9 @@ export function useMacroChainSession(id: string | undefined) {
     celebrating,
     loadError,
     metronome,
-    setGoalTempo,
+    setGoalTempo: setGoalTempoByHand,
+    tempoNudge,
+    acceptTempoNudge,
     placeMark,
     removeMark,
     undoMark,

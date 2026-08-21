@@ -38,23 +38,35 @@ function sectionKeyOf(
   return s ? `${s.start_page}:${s.start_y}` : null;
 }
 
+// All OTHER passages that live in the same section as this one (two nulls =
+// both in the unsectioned part of the document). Shared by the evaluate
+// screen's inherited-goal offer and the strategy setup screens' section-scoped
+// tempo prefill. Throws are the caller's problem — wrap in try/catch.
+export async function listSameSectionSiblings(passage: Passage): Promise<Passage[]> {
+  if (!passage.document_id) return [];
+  const siblings = await listPassagesInDocument(passage.document_id);
+  const doc = await getDocument(passage.document_id);
+  const sections = doc ? parseSections(doc.sections_json) : [];
+  const myKey = sectionKeyOf(passage, sections);
+  return siblings.filter((s) => s.id !== passage.id && sectionKeyOf(s, sections) === myKey);
+}
+
+// The most recently updated same-section sibling that has a performance tempo
+// set — pure selection, no I/O, for callers that already hold the sibling list.
+export function latestSectionTempo(sameSection: Passage[]): InheritedGoal | null {
+  const withTempo = sameSection.filter(
+    (s) => typeof s.performance_tempo === 'number' && s.performance_tempo > 0,
+  );
+  if (withTempo.length === 0) return null;
+  const best = [...withTempo].sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))[0];
+  return { bpm: best.performance_tempo as number, fromTitle: best.title };
+}
+
 // The goal tempo this passage inherits: the most recently updated sibling in
 // the SAME SECTION that already has a performance tempo set.
 export async function inheritedGoalForPassage(passage: Passage): Promise<InheritedGoal | null> {
-  if (!passage.document_id) return null;
   try {
-    const siblings = await listPassagesInDocument(passage.document_id);
-    const candidates = siblings.filter(
-      (s) => s.id !== passage.id && typeof s.performance_tempo === 'number' && s.performance_tempo > 0,
-    );
-    if (candidates.length === 0) return null;
-    const doc = await getDocument(passage.document_id);
-    const sections = doc ? parseSections(doc.sections_json) : [];
-    const myKey = sectionKeyOf(passage, sections);
-    const sameSection = candidates.filter((c) => sectionKeyOf(c, sections) === myKey);
-    if (sameSection.length === 0) return null;
-    const best = [...sameSection].sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))[0];
-    return { bpm: best.performance_tempo as number, fromTitle: best.title };
+    return latestSectionTempo(await listSameSectionSiblings(passage));
   } catch {
     // The inherited offer is a convenience — never block the evaluation on it.
     return null;

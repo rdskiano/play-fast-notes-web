@@ -19,6 +19,7 @@ import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { RotateForPractice } from '@/components/RotateForPractice';
 import { ScorePeekModal } from '@/components/ScorePeekModal';
+import { TempoNudgeChip } from '@/components/TempoNudgeChip';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import {
   SCORE_MARK_LIFT,
@@ -124,6 +125,8 @@ export default function MacroChainingScreen() {
     loadError,
     metronome,
     setGoalTempo,
+    tempoNudge,
+    acceptTempoNudge,
     placeMark,
     removeMark,
     undoMark,
@@ -325,6 +328,9 @@ export default function MacroChainingScreen() {
             are what make that sustainable. This sets the metronome; you stay in control of
             it during practice.
           </ThemedText>
+          {tempoNudge != null && (
+            <TempoNudgeChip bpm={tempoNudge} onAccept={acceptTempoNudge} accent={ACCENT} />
+          )}
           <BpmStepper value={goalTempo} onChange={setGoalTempo} metronome={metronome} accent={ACCENT} />
         </ScrollView>
 

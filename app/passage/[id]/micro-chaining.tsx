@@ -19,6 +19,7 @@ import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { RotateForPractice } from '@/components/RotateForPractice';
 import { ScorePeekModal } from '@/components/ScorePeekModal';
+import { TempoNudgeChip } from '@/components/TempoNudgeChip';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import {
   SCORE_MARK_LIFT,
@@ -151,6 +152,8 @@ export default function MicroChainingScreen() {
     metronome,
     setMode,
     setPerformanceTempo,
+    tempoNudge,
+    acceptTempoNudge,
     selectProblemNote,
     undoProblemNote,
     goToProblemSelect,
@@ -473,6 +476,9 @@ export default function MicroChainingScreen() {
             Micro-Chaining stays at one tempo — your performance tempo. This sets the
             metronome; you can still adjust it during practice.
           </ThemedText>
+          {tempoNudge != null && (
+            <TempoNudgeChip bpm={tempoNudge} onAccept={acceptTempoNudge} accent={ACCENT} />
+          )}
           <BpmStepper
             value={performanceTempo}
             onChange={setPerformanceTempo}

@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-21-tempo-prefill',
+    date: 'August 21, 2026',
+    title: 'Fixed: your goal tempos now follow you into every tool',
+    body:
+      'Setting a goal tempo on one passage was supposed to pre-fill the tools on its neighbors in the same section, but several tools ignored it, including both Chaining modes and Interleaved Click-Up 2. Now every setup screen pre-fills from the same place: the passage\'s own saved tempo first, then the most recent tempo you decided in that section. And if a saved session is showing an older goal, a small "Tap to use it" chip offers the newer one instead of silently keeping the stale number.',
+  },
+  {
     id: '2026-08-21-setup-view-score',
     date: 'August 21, 2026',
     title: 'Check your music while setting tempos',

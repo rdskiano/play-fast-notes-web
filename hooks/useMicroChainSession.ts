@@ -13,12 +13,14 @@ import {
 } from '@/lib/db/repos/clickUp';
 import {
   getPassage,
+  updatePassagePerformanceTempo,
   type Marker,
   type Passage,
 } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
+import { inheritedGoalForPassage } from '@/lib/coach/evaluation';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import {
   generateMicroSteps,
@@ -70,6 +72,14 @@ export function useMicroChainSession(
   const [problemA, setProblemA] = useState<number | null>(null);
   const [problemB, setProblemB] = useState<number | null>(null);
   const [performanceTempo, setPerformanceTempo] = useState('120');
+  // A tempo counts as "real" once it came from a saved config, the piece's
+  // shared performance tempo, a section prefill, or the user's own hand. The
+  // untouched '120' default is never persisted as a decision.
+  const tempoSourcedRef = useRef(false);
+  // Set when the saved config's tempo disagrees with a NEWER shared
+  // performance tempo on the piece — the config screen offers a one-tap
+  // update instead of silently keeping the stale number.
+  const [tempoNudge, setTempoNudge] = useState<number | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   // Surfaced on the config screen so a failed exercise load / start isn't a
   // dead button — e.g. if the network drops or the DB rejects the write.
@@ -97,7 +107,35 @@ export function useMicroChainSession(
         if (parsed?.mode) setMode(parsed.mode);
         if (parsed?.problemA != null) setProblemA(parsed.problemA);
         if (parsed?.problemB != null) setProblemB(parsed.problemB);
-        if (parsed?.performanceTempo) setPerformanceTempo(String(parsed.performanceTempo));
+        const savedTempo =
+          typeof parsed?.performanceTempo === 'number' && parsed.performanceTempo > 0
+            ? parsed.performanceTempo
+            : null;
+        if (savedTempo) {
+          tempoSourcedRef.current = true;
+          setPerformanceTempo(String(savedTempo));
+        }
+        // Tempo prefill + stale-goal nudge (B-013, extended to Chaining):
+        // the config's own tempo wins; a fresh config takes the piece's
+        // shared performance tempo, else the most recent decided tempo in
+        // the SAME SECTION. All best-effort.
+        const p = await getPassage(id);
+        if (!cancelled && p) {
+          if (savedTempo) {
+            if (p.performance_tempo && p.performance_tempo !== savedTempo) {
+              setTempoNudge(p.performance_tempo);
+            }
+          } else if (p.performance_tempo) {
+            tempoSourcedRef.current = true;
+            setPerformanceTempo(String(p.performance_tempo));
+          } else {
+            const inherited = await inheritedGoalForPassage(p);
+            if (!cancelled && inherited) {
+              tempoSourcedRef.current = true;
+              setPerformanceTempo(String(inherited.bpm));
+            }
+          }
+        }
       } catch {
         // ignore malformed config
       }
@@ -159,7 +197,11 @@ export function useMicroChainSession(
         mode,
         problemA,
         problemB,
-        performanceTempo: parseInt(performanceTempo, 10) || 120,
+        // 0 = no tempo decided yet; the untouched default must not come
+        // back on the next load looking like a real decision.
+        performanceTempo: tempoSourcedRef.current
+          ? parseInt(performanceTempo, 10) || 120
+          : 0,
         marks,
         steps: [],
       };
@@ -192,6 +234,20 @@ export function useMicroChainSession(
 
   // From config: Problem mode routes through the full-screen pick-two-notes
   // step before playing; Forward/Backward start directly.
+  // A hand edit makes the tempo a real decision — see tempoSourcedRef.
+  function setPerformanceTempoByHand(v: string) {
+    tempoSourcedRef.current = true;
+    setPerformanceTempo(v);
+  }
+
+  // One-tap accept for the stale-goal nudge.
+  function acceptTempoNudge() {
+    if (tempoNudge == null) return;
+    tempoSourcedRef.current = true;
+    setPerformanceTempo(String(tempoNudge));
+    setTempoNudge(null);
+  }
+
   function goToProblemSelect() {
     if (marks.length < 3) return;
     setPhase('problem');
@@ -228,6 +284,14 @@ export function useMicroChainSession(
       console.warn('Micro-Chaining: failed to save session', e);
       setLoadError('Could not save your session. Check your connection and try again.');
       return;
+    }
+    // B-013: share the decided tempo on the piece so other strategies
+    // prefill it. Best-effort; skipped while the tempo is the untouched
+    // default (an unexamined 120 is not a decision).
+    if (id && tempoSourcedRef.current) {
+      updatePassagePerformanceTempo(id, tempo).catch((e) =>
+        console.warn('[microChain] performance-tempo share failed:', e),
+      );
     }
     setLoadError(null);
     setStoredConfig(config);
@@ -364,7 +428,9 @@ export function useMicroChainSession(
     loadError,
     metronome,
     setMode,
-    setPerformanceTempo,
+    setPerformanceTempo: setPerformanceTempoByHand,
+    tempoNudge,
+    acceptTempoNudge,
     selectProblemNote,
     undoProblemNote,
     goToProblemSelect,

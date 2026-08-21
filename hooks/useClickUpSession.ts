@@ -3,6 +3,7 @@ import { returnToScoreAfterSession } from '@/lib/sessions/lastPassageInDoc';
 import { useEffect, useRef, useState } from 'react';
 
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
+import { inheritedGoalForPassage } from '@/lib/coach/evaluation';
 import type { Increment } from '@/components/TempoConfigFields';
 import {
   getClickUpProgress,
@@ -65,6 +66,17 @@ export function useClickUpSession(
   const [increment, setIncrement] = useState<Increment>(5);
   const [direction, setDirection] = useState<ClickUpDirection>('forward');
 
+  // A goal counts as "real" once it came from a saved config, the piece's
+  // shared performance tempo, a section prefill, or the user's own hand.
+  // Starting with the untouched '120' default must NOT stamp 120 onto the
+  // piece as its performance tempo — that fake value then spreads to section
+  // neighbors as an inherited suggestion.
+  const goalSourcedRef = useRef(false);
+  // Set when the saved config's goal disagrees with a NEWER shared
+  // performance tempo on the piece — the config screen offers it as a
+  // one-tap update instead of silently keeping the stale goal.
+  const [tempoNudge, setTempoNudge] = useState<number | null>(null);
+
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [celebrating, setCelebrating] = useState(false);
   // Completion choice: "try it in the other direction, or finish & log?"
@@ -112,14 +124,31 @@ export function useClickUpSession(
           setGoalTempo(String(parsed.goalTempo));
           setIncrement(parsed.increment as Increment);
           setDirection(parsed.direction ?? 'forward');
+          goalSourcedRef.current = true;
+          // Stale-goal nudge: the piece's shared performance tempo may have
+          // moved since this config was saved. Offer the newer number; never
+          // silently overwrite the saved goal.
+          const p = await getPassage(id);
+          if (!cancelled && p?.performance_tempo && p.performance_tempo !== parsed.goalTempo) {
+            setTempoNudge(p.performance_tempo);
+          }
         } else {
           // First Click-Up on this piece — prefill the goal from the piece's
-          // shared performance tempo (B-013) if another strategy set one.
+          // shared performance tempo (B-013) if another strategy set one,
+          // else from the most recent decided tempo in the SAME SECTION.
           // Fill-in only: a saved Click-Up config (above) always wins.
           const p = await getPassage(id);
           if (!cancelled && p?.performance_tempo) {
+            goalSourcedRef.current = true;
             setGoalTempo(String(p.performance_tempo));
             setStartTempo(String(Math.max(30, Math.round(p.performance_tempo / 2))));
+          } else if (!cancelled && p) {
+            const inherited = await inheritedGoalForPassage(p);
+            if (!cancelled && inherited) {
+              goalSourcedRef.current = true;
+              setGoalTempo(String(inherited.bpm));
+              setStartTempo(String(Math.max(30, Math.round(inherited.bpm / 2))));
+            }
           }
         }
       } catch {
@@ -189,16 +218,37 @@ export function useClickUpSession(
     setPhase('config');
   }
 
+  // A hand edit of the goal makes it a real decision — see goalSourcedRef.
+  // This wrapper is what the setup screen receives as setGoalTempo.
+  function setGoalTempoByHand(v: string) {
+    goalSourcedRef.current = true;
+    setGoalTempo(v);
+  }
+
+  // One-tap accept for the stale-goal nudge: adopt the piece's newer shared
+  // performance tempo as this climb's goal. Persisted on the next Start,
+  // like any hand edit.
+  function acceptTempoNudge() {
+    if (tempoNudge == null) return;
+    goalSourcedRef.current = true;
+    setGoalTempo(String(tempoNudge));
+    setTempoNudge(null);
+  }
+
   async function startPlaying() {
     if (!exerciseId || !id) return;
     const start = parseInt(startTempo, 10);
     const goal = parseInt(goalTempo, 10);
     if (!start || !goal || goal <= start) return;
     // B-013: remember the goal on the piece so other strategies prefill it.
-    // Best-effort — a failed write never blocks starting the session.
-    updatePassagePerformanceTempo(id, goal).catch((e) =>
-      console.warn('[clickUp] performance-tempo share failed:', e),
-    );
+    // Best-effort — a failed write never blocks starting the session. Skipped
+    // when the goal is still the untouched default: an unexamined 120 is not
+    // a decision, and stamping it would poison the section-inheritance offers.
+    if (goalSourcedRef.current) {
+      updatePassagePerformanceTempo(id, goal).catch((e) =>
+        console.warn('[clickUp] performance-tempo share failed:', e),
+      );
+    }
     const N = markers.length - 1;
     if (N < 2) return;
     const steps = generateSteps(N, start, goal, increment);
@@ -444,9 +494,11 @@ export function useClickUpSession(
     reverseOffer,
     metronome,
     setStartTempo,
-    setGoalTempo,
+    setGoalTempo: setGoalTempoByHand,
     setIncrement,
     setDirection,
+    tempoNudge,
+    acceptTempoNudge,
     acceptReversePass,
     declineReverseAndLog,
     dismissReverseOffer,

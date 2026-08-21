@@ -12,11 +12,12 @@ import {
 } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
+import { latestSectionTempo, listSameSectionSiblings } from '@/lib/coach/evaluation';
 import {
   advanceClusterWindow,
   deleteTempoLadderProgress,
-  getLatestSiblingLadderConfig,
   getTempoLadder,
+  listSiblingLadderConfigs,
   updateCustomPosition,
   updateTempoLadderConfigBounds,
   updateTempoLadderState,
@@ -191,6 +192,18 @@ export function useTempoLadderSession(
   const [increment, setIncrement] = useState<Increment>(5);
   const [targetReps, setTargetReps] = useState<RepTarget>(5);
 
+  // A goal counts as "real" once it came from a saved ladder row, the piece's
+  // shared performance tempo, a section prefill, or the user's own hand.
+  // Starting a session with the untouched '120' default must NOT stamp 120
+  // onto the piece as its performance tempo — that fake value then spreads to
+  // section neighbors as an inherited suggestion.
+  const goalSourcedRef = useRef(false);
+  // Set when a saved ladder row's goal disagrees with a NEWER shared
+  // performance tempo on the piece (set later via evaluate or another
+  // strategy). The config screen offers it as a one-tap update instead of
+  // silently keeping the stale goal.
+  const [tempoNudge, setTempoNudge] = useState<number | null>(null);
+
   // Custom-mode state. customPatterns is the per-user library fetched on
   // mount; customPatternId is which pattern is selected for THIS exercise;
   // customPattern is the resolved object. Block/rep position lives both
@@ -270,16 +283,20 @@ export function useTempoLadderSession(
         // First ladder on this piece — prefill, in priority order:
         //   1. The piece's shared performance tempo (B-013), if another
         //      strategy set one. Start follows the half-the-goal convention.
-        //   2. The most recent SIBLING ladder config (another passage in the
-        //      same document). A player working measure-by-measure through a
-        //      page uses the same goal + nearly the same config on every
-        //      neighbor — falling back to 60/120 made them re-type it each
-        //      time. Full config carries over from a step-mode sibling;
+        //   2. The most recent SAME-SECTION sibling ladder config. A player
+        //      working measure-by-measure through a section uses the same
+        //      goal + nearly the same config on every neighbor — falling back
+        //      to 60/120 made them re-type it each time. Section-scoped so a
+        //      different movement on the same PDF can't donate its tempo.
+        //      Full config carries over from a step-mode sibling;
         //      cluster/custom siblings lend only their goal.
-        // Fill-in only: a saved ladder row (below) always wins over both.
+        //   3. The section's most recent shared performance tempo (a
+        //      neighbor's decided goal, even if it never ran a ladder).
+        // Fill-in only: a saved ladder row (below) always wins over all.
         const p = await getPassage(id);
         if (cancelled) return;
         if (p?.performance_tempo) {
+          goalSourcedRef.current = true;
           setGoalTempo(String(p.performance_tempo));
           setFinalTempo(String(p.performance_tempo));
           setStartTempo(String(Math.max(30, Math.round(p.performance_tempo / 2))));
@@ -287,18 +304,33 @@ export function useTempoLadderSession(
         }
         if (p?.document_id) {
           try {
-            const sib = await getLatestSiblingLadderConfig(p.document_id, id);
-            if (cancelled || !sib) return;
-            setGoalTempo(String(sib.goal_tempo));
-            setFinalTempo(String(sib.goal_tempo));
-            if (sib.mode === 'step') {
-              setStartTempo(String(sib.start_tempo));
-              if (sib.increment === 2 || sib.increment === 5 || sib.increment === 10) {
-                setIncrement(sib.increment);
+            const mates = await listSameSectionSiblings(p);
+            if (cancelled) return;
+            const mateIds = new Set(mates.map((m) => m.id));
+            const sibs = await listSiblingLadderConfigs(p.document_id, id);
+            if (cancelled) return;
+            const sib = sibs.find((s) => mateIds.has(s.piece_id));
+            if (sib) {
+              goalSourcedRef.current = true;
+              setGoalTempo(String(sib.goal_tempo));
+              setFinalTempo(String(sib.goal_tempo));
+              if (sib.mode === 'step') {
+                setStartTempo(String(sib.start_tempo));
+                if (sib.increment === 2 || sib.increment === 5 || sib.increment === 10) {
+                  setIncrement(sib.increment);
+                }
+                if (REP_TARGETS.includes(sib.target_reps as RepTarget)) {
+                  setTargetReps(sib.target_reps as RepTarget);
+                }
               }
-              if (REP_TARGETS.includes(sib.target_reps as RepTarget)) {
-                setTargetReps(sib.target_reps as RepTarget);
-              }
+              return;
+            }
+            const inherited = latestSectionTempo(mates);
+            if (inherited) {
+              goalSourcedRef.current = true;
+              setGoalTempo(String(inherited.bpm));
+              setFinalTempo(String(inherited.bpm));
+              setStartTempo(String(Math.max(30, Math.round(inherited.bpm / 2))));
             }
           } catch (e) {
             // Prefill is a convenience — never block the setup screen on it.
@@ -363,6 +395,19 @@ export function useTempoLadderSession(
       }
       setIncrement((existing.increment ?? 5) as Increment);
       setTargetReps(existing.target_reps as RepTarget);
+      // A saved row is a real goal decision.
+      goalSourcedRef.current = true;
+      // Stale-goal nudge: the piece's shared performance tempo may have moved
+      // since this ladder was configured (evaluate, Click-Up, a neighbor's
+      // handoff). Offer the newer number; never silently overwrite the row.
+      try {
+        const p = await getPassage(id);
+        if (!cancelled && p?.performance_tempo && p.performance_tempo !== existing.goal_tempo) {
+          setTempoNudge(p.performance_tempo);
+        }
+      } catch {
+        // The nudge is a convenience — skip it quietly.
+      }
     }).then(() => {
       // After the prefill settles (whichever branch ran), let a reminder
       // button's overrides nudge the setup — same as a hand adjustment.
@@ -477,9 +522,12 @@ export function useTempoLadderSession(
   }
 
   // B-013: remember the target on the piece so other strategies prefill it.
-  // Best-effort — a failed write never blocks starting the session.
+  // Best-effort — a failed write never blocks starting the session. Skipped
+  // when the goal is still the untouched default: an unexamined 120 is not a
+  // decision, and stamping it would poison the section-inheritance offers.
   function sharePerformanceTempo(bpm: number) {
     if (toolsOnly || !id || !bpm) return;
+    if (!goalSourcedRef.current) return;
     updatePassagePerformanceTempo(id, bpm).catch((e) =>
       console.warn('[tempoLadder] performance-tempo share failed:', e),
     );
@@ -959,6 +1007,28 @@ export function useTempoLadderSession(
     setPhase('tempo');
   }
 
+  // A hand edit of the goal (or final) makes it a real decision — see
+  // goalSourcedRef. These wrappers are what the setup screen receives.
+  function setGoalTempoByHand(v: string) {
+    goalSourcedRef.current = true;
+    setGoalTempo(v);
+  }
+  function setFinalTempoByHand(v: string) {
+    goalSourcedRef.current = true;
+    setFinalTempo(v);
+  }
+
+  // One-tap accept for the stale-goal nudge: adopt the piece's newer shared
+  // performance tempo as this ladder's goal (both fields, so every mode is
+  // covered). Persisted on the next Start, like any hand edit.
+  function acceptTempoNudge() {
+    if (tempoNudge == null) return;
+    goalSourcedRef.current = true;
+    setGoalTempo(String(tempoNudge));
+    setFinalTempo(String(tempoNudge));
+    setTempoNudge(null);
+  }
+
   // Start the guided session and begin the click immediately — same rationale
   // as ICU: a first-timer on a small phone shouldn't have to hunt for the
   // metronome's play button. The "Start practicing" tap is the user gesture
@@ -1019,11 +1089,13 @@ export function useTempoLadderSession(
     customBase,
     setMode: setModeAndSyncCluster,
     setStartTempo: setStartWithClusterSync,
-    setGoalTempo,
+    setGoalTempo: setGoalTempoByHand,
     setClusterHigh,
-    setFinalTempo,
+    setFinalTempo: setFinalTempoByHand,
     setIncrement,
     setTargetReps,
+    tempoNudge,
+    acceptTempoNudge,
     selectCustomPattern,
     reloadCustomPatterns,
     startSession,

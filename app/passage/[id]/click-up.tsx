@@ -21,6 +21,7 @@ import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { RotateForPractice } from '@/components/RotateForPractice';
 import { ScorePeekModal } from '@/components/ScorePeekModal';
+import { TempoNudgeChip } from '@/components/TempoNudgeChip';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import {
   SCORE_MARK_LIFT,
@@ -172,6 +173,8 @@ export default function ClickUpScreen() {
     metronome,
     setStartTempo,
     setGoalTempo,
+    tempoNudge,
+    acceptTempoNudge,
     setIncrement,
     setDirection,
     acceptReversePass,
@@ -667,6 +670,9 @@ export default function ClickUpScreen() {
                 onPress={() => setPeekOpen(true)}
               />
             </View>
+          )}
+          {tempoNudge != null && (
+            <TempoNudgeChip bpm={tempoNudge} onAccept={acceptTempoNudge} accent={ACCENT} />
           )}
           <View {...tourTag('cu-tempo')}>
             <TempoConfigFields

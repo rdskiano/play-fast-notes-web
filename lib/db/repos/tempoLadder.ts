@@ -182,13 +182,16 @@ export async function getTempoLadderProgressForPassages(
   );
 }
 
-// The most recent ladder config among SIBLING passages (other passages in the
-// same document). Powers the setup-screen prefill: a musician marking a page
+// Ladder configs of SIBLING passages (other passages in the same document),
+// newest first. Powers the setup-screen prefill: a musician marking a page
 // measure-by-measure practices the siblings with the same goal tempo and
 // nearly the same config, so a fresh ladder should not fall back to 60/120
-// when its neighbor was just configured. Returns null when the passage is
-// standalone (no document) or no sibling has a ladder yet.
+// when its neighbor was just configured. The caller narrows the list to the
+// passage's own SECTION (that mapping lives in JS, not SQL) and takes the
+// first match. Returns [] when the passage is standalone (no document) or no
+// sibling has a ladder yet.
 export type SiblingLadderConfig = {
+  piece_id: string;
   mode: TempoLadderMode;
   start_tempo: number;
   goal_tempo: number;
@@ -196,13 +199,13 @@ export type SiblingLadderConfig = {
   target_reps: number;
 };
 
-export async function getLatestSiblingLadderConfig(
+export async function listSiblingLadderConfigs(
   documentId: string,
   excludePieceId: string,
-): Promise<SiblingLadderConfig | null> {
+): Promise<SiblingLadderConfig[]> {
   const db = getDb();
-  const row = await db.getFirstAsync<SiblingLadderConfig>(
-    `SELECT tp.mode AS mode, tp.start_tempo AS start_tempo,
+  const rows = await db.getAllAsync<SiblingLadderConfig>(
+    `SELECT sib.id AS piece_id, tp.mode AS mode, tp.start_tempo AS start_tempo,
             tp.goal_tempo AS goal_tempo, tp.increment AS increment,
             tp.target_reps AS target_reps
      FROM pieces sib
@@ -212,12 +215,11 @@ export async function getLatestSiblingLadderConfig(
      WHERE sib.document_id = ?
        AND sib.id != ?
        AND sib.deleted_at IS NULL
-     ORDER BY tp.updated_at DESC
-     LIMIT 1;`,
+     ORDER BY tp.updated_at DESC;`,
     documentId,
     excludePieceId,
   );
-  return row ?? null;
+  return rows ?? [];
 }
 
 export async function advanceClusterWindow(

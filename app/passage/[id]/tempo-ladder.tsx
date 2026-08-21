@@ -15,6 +15,7 @@ import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { RotateForPractice } from '@/components/RotateForPractice';
 import { ScorePeekModal } from '@/components/ScorePeekModal';
+import { TempoNudgeChip } from '@/components/TempoNudgeChip';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -183,6 +184,8 @@ export default function TempoLadderScreen() {
     setMode,
     setStartTempo,
     setGoalTempo,
+    tempoNudge,
+    acceptTempoNudge,
     setClusterHigh,
     setFinalTempo,
     setIncrement,
@@ -472,6 +475,9 @@ export default function TempoLadderScreen() {
                 onPress={() => setPeekOpen(true)}
               />
             </View>
+          )}
+          {tempoNudge != null && (
+            <TempoNudgeChip bpm={tempoNudge} onAccept={acceptTempoNudge} accent={ACCENT} />
           )}
           {/* Cluster mode shows three BPM cards — they never fit across the
               capped column, so always stack. Step/Custom have two and go

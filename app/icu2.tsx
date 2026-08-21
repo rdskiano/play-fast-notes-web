@@ -26,6 +26,7 @@ import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { PRACTICE_TOOLS_HELP, SHORTCUT_HINT_LINE } from '@/constants/helpCopy';
+import { inheritedGoalForPassage } from '@/lib/coach/evaluation';
 import { Colors, Fonts } from '@/constants/theme';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { Palette, Lift } from '@/constants/palette';
@@ -72,7 +73,7 @@ type Icu2Item = {
   start: number;
   // null = no goal known yet; the user must set one before starting.
   goal: number | null;
-  source: 'Tempo Ladder' | 'Click-Up' | null;
+  source: 'Tempo Ladder' | 'Click-Up' | 'saved goal' | 'this section' | null;
   // A mid-session "Save this tempo" caps the passage for the day: later
   // rounds climb to the ceiling instead of the goal.
   ceiling: number | null;
@@ -191,8 +192,10 @@ function Icu2ScreenInner() {
     setItems(nextItems);
     setPhase('tempos');
 
-    // Prefill goals for fresh rows: Tempo Ladder's goal tempo first, then a
-    // saved Click-Up config's goal. Never overwrites a goal already set.
+    // Prefill goals for fresh rows, in priority order: Tempo Ladder's goal,
+    // a saved Click-Up config's goal, the piece's own shared performance
+    // tempo, then the most recent decided tempo in the passage's section.
+    // Never overwrites a goal already set.
     const needIds = nextItems.filter((it) => it.goal == null).map((it) => it.passage.id);
     if (needIds.length === 0) return;
     const found = new Map<string, { goal: number; source: Icu2Item['source'] }>();
@@ -216,6 +219,28 @@ function Icu2ScreenInner() {
           if (typeof cfg.goalTempo === 'number' && cfg.goalTempo > 0) {
             found.set(id, { goal: cfg.goalTempo, source: 'Click-Up' });
           }
+        }
+      } catch {
+        // prefill is best-effort
+      }
+    }
+    // 3. The piece's own shared performance tempo — set by evaluate's
+    //    "Lock in" or any strategy start — for passages that never ran a
+    //    ladder or click-up.
+    for (const it of nextItems) {
+      if (it.goal != null || found.has(it.passage.id)) continue;
+      const pt = it.passage.performance_tempo;
+      if (typeof pt === 'number' && pt > 0) {
+        found.set(it.passage.id, { goal: pt, source: 'saved goal' });
+      }
+    }
+    // 4. The most recent decided tempo among same-section neighbors.
+    for (const it of nextItems) {
+      if (it.goal != null || found.has(it.passage.id)) continue;
+      try {
+        const inherited = await inheritedGoalForPassage(it.passage);
+        if (inherited) {
+          found.set(it.passage.id, { goal: inherited.bpm, source: 'this section' });
         }
       } catch {
         // prefill is best-effort
@@ -407,8 +432,8 @@ function Icu2ScreenInner() {
         <ScrollView contentContainerStyle={styles.temposContent}>
           <ThemedText style={[styles.helper, { color: C.icon }]}>
             Each passage climbs from its start tempo to its goal. Goals are
-            pre-filled from your Tempo Ladder or Click-Up work when we have
-            them. Adjust anything before you start.
+            pre-filled from your saved goal tempos and past practice when we
+            have them. Adjust anything before you start.
           </ThemedText>
           {items.map((it) => (
             <View key={it.passage.id} style={styles.tempoRow}>
