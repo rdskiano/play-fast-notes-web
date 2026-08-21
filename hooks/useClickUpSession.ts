@@ -21,7 +21,11 @@ import {
 import { logPractice } from '@/lib/db/repos/practiceLog';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import { useMetronome } from '@/lib/audio/useMetronome';
-import { generateSteps, type ClickUpStep } from '@/lib/strategies/clickUp';
+import {
+  generateSteps,
+  type ClickUpDirection,
+  type ClickUpStep,
+} from '@/lib/strategies/clickUp';
 
 export const MIN_MARKERS = 3;
 
@@ -33,6 +37,9 @@ export type StoredConfig = {
   goalTempo: number;
   increment: number;
   steps: ClickUpStep[];
+  // Build direction (beta). Absent on configs saved before 2026-08-21 —
+  // treat missing as 'forward'.
+  direction?: ClickUpDirection;
 };
 
 export function useClickUpSession(
@@ -56,9 +63,17 @@ export function useClickUpSession(
   const [startTempo, setStartTempo] = useState('60');
   const [goalTempo, setGoalTempo] = useState('120');
   const [increment, setIncrement] = useState<Increment>(5);
+  const [direction, setDirection] = useState<ClickUpDirection>('forward');
 
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [celebrating, setCelebrating] = useState(false);
+  // Completion choice: "try it in the other direction, or finish & log?"
+  // Shown when the last step is reached (non-guided sessions only).
+  const [reverseOffer, setReverseOffer] = useState(false);
+  // Full climbs completed this sitting, with the direction of each — a
+  // forward pass followed by a reverse pass logs as one session, passes: 2.
+  const completedPassesRef = useRef(0);
+  const passDirectionsRef = useRef<ClickUpDirection[]>([]);
 
   // Applied once after the config prefill; the ref keeps the load effect
   // from re-running (and re-shrinking) when the caller re-renders.
@@ -96,6 +111,7 @@ export function useClickUpSession(
           setStartTempo(String(parsed.startTempo));
           setGoalTempo(String(parsed.goalTempo));
           setIncrement(parsed.increment as Increment);
+          setDirection(parsed.direction ?? 'forward');
         } else {
           // First Click-Up on this piece — prefill the goal from the piece's
           // shared performance tempo (B-013) if another strategy set one.
@@ -192,11 +208,14 @@ export function useClickUpSession(
       goalTempo: goal,
       increment,
       steps,
+      direction,
     };
     await updateExerciseConfig(exerciseId, JSON.stringify(config));
     await upsertClickUpProgress(exerciseId, 0);
     setStoredConfig(config);
     setCurrentIndex(0);
+    completedPassesRef.current = 0;
+    passDirectionsRef.current = [];
     const first = steps[0];
     if (first) metronome.setBpm(first.tempo);
     setPhase('playing');
@@ -212,7 +231,13 @@ export function useClickUpSession(
     const nextIdx = currentIndex + 1;
     if (nextIdx >= storedConfig.steps.length) {
       metronome.stop();
-      setCelebrating(true);
+      // Guided onboarding keeps its simple celebration; everyone else gets
+      // the choice: run the same climb in the other direction, or log.
+      // (The pass itself is counted when the user resolves the choice —
+      // counting here would double-count if they dismiss and re-reach the
+      // last step.)
+      if (guided) setCelebrating(true);
+      else setReverseOffer(true);
       return;
     }
     // Phase boundary = the next step belongs to a different phase than the
@@ -253,6 +278,43 @@ export function useClickUpSession(
     setCelebrating(false);
   }
 
+  // Completion offer: run the SAME climb again built from the other end.
+  // The step sequence is direction-agnostic (units are build-order numbers);
+  // only the unit→score mapping flips, so the stored steps are reused as-is.
+  async function acceptReversePass() {
+    if (!storedConfig || !exerciseId) return;
+    completedPassesRef.current += 1;
+    passDirectionsRef.current.push(storedConfig.direction ?? 'forward');
+    const flipped: ClickUpDirection =
+      (storedConfig.direction ?? 'forward') === 'forward' ? 'backward' : 'forward';
+    const config: StoredConfig = { ...storedConfig, direction: flipped };
+    setReverseOffer(false);
+    setStoredConfig(config);
+    setDirection(flipped);
+    setCurrentIndex(0);
+    await updateExerciseConfig(exerciseId, JSON.stringify(config));
+    await upsertClickUpProgress(exerciseId, 0);
+    const first = config.steps[0];
+    if (first) metronome.setBpm(first.tempo);
+    metronome.start();
+  }
+
+  function declineReverseAndLog() {
+    if (storedConfig) {
+      completedPassesRef.current += 1;
+      passDirectionsRef.current.push(storedConfig.direction ?? 'forward');
+    }
+    setReverseOffer(false);
+    setCelebrating(true);
+  }
+
+  // "Not yet": close the offer and stay on the final step — the user can
+  // ← BACK to retake tempos, or tap NEXT to see the offer again. Counts
+  // nothing, so re-reaching the last step can't double-count the pass.
+  function dismissReverseOffer() {
+    setReverseOffer(false);
+  }
+
   async function doneSession(annotation?: {
     mood: string | null;
     note: string | null;
@@ -269,6 +331,11 @@ export function useClickUpSession(
       totalSteps: storedConfig?.steps.length,
       tempo: metronome.bpm,
     };
+    if ((storedConfig?.direction ?? 'forward') === 'backward') data.direction = 'backward';
+    if (completedPassesRef.current > 0) data.passes = completedPassesRef.current;
+    if (passDirectionsRef.current.length > 1) {
+      data.directions = [...passDirectionsRef.current];
+    }
     if (annotation?.mood) data.mood = annotation.mood;
     if (annotation?.note) data.note = annotation.note;
     if (annotation?.remindNext) data.remindNext = true;
@@ -372,11 +439,17 @@ export function useClickUpSession(
     startTempo,
     goalTempo,
     increment,
+    direction,
     celebrating,
+    reverseOffer,
     metronome,
     setStartTempo,
     setGoalTempo,
     setIncrement,
+    setDirection,
+    acceptReversePass,
+    declineReverseAndLog,
+    dismissReverseOffer,
     placeMarker,
     removeMarker,
     undoMarker,

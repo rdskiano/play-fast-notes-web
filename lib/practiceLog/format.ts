@@ -115,6 +115,13 @@ export function formatPracticeDetail(
       if (data.step != null && data.totalSteps)
         parts.push(`step ${data.step + 1}/${data.totalSteps}`);
       if (data.tempo) parts.push(`${data.tempo} BPM`);
+      // Direction (beta): a forward-then-reverse sitting logs passes: 2;
+      // a single backward climb logs direction: 'backward'.
+      if (typeof data.passes === 'number' && data.passes > 1) {
+        parts.push(`${data.passes} passes`);
+      } else if (data.direction === 'backward') {
+        parts.push('backward');
+      }
       return parts.join(' · ');
     }
 

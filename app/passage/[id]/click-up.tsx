@@ -43,7 +43,8 @@ import { MIN_MARKERS, useClickUpSession } from '@/hooks/useClickUpSession';
 import { TutorialStep } from '@/components/TutorialStep';
 import { useScreenTour } from '@/components/tour/TourContext';
 import { tourTag, type TourStep } from '@/components/tour/types';
-import { activePairMarkers } from '@/lib/strategies/clickUp';
+import { ActionSheet } from '@/components/ActionSheet';
+import { activePairMarkers, mapUnitsToScore } from '@/lib/strategies/clickUp';
 import {
   actionButtonStyle,
   configColumnStyle,
@@ -162,11 +163,17 @@ export default function ClickUpScreen() {
     startTempo,
     goalTempo,
     increment,
+    direction,
     celebrating,
+    reverseOffer,
     metronome,
     setStartTempo,
     setGoalTempo,
     setIncrement,
+    setDirection,
+    acceptReversePass,
+    declineReverseAndLog,
+    dismissReverseOffer,
     placeMarker,
     removeMarker,
     undoMarker,
@@ -661,6 +668,53 @@ export default function ClickUpScreen() {
           {/* The inline tempo explainer used to live here. It's now owned
               by the guided tour (web) + the ? help modal (native), so it
               was removed to avoid a second, diverging copy. */}
+
+          {/* Build direction (beta). Gebrian: works equally well forward or
+              backward — start from whichever end of the passage is harder. */}
+          <View style={styles.directionBlock}>
+            <View style={styles.directionLabelRow}>
+              <ThemedText style={styles.directionLabel}>Build direction</ThemedText>
+              <View style={styles.directionBeta}>
+                <ThemedText style={styles.directionBetaText}>BETA</ThemedText>
+              </View>
+            </View>
+            <View style={styles.directionRow}>
+              <Pressable
+                onPress={() => setDirection('forward')}
+                accessibilityLabel="Build from the start"
+                style={[
+                  styles.directionChip,
+                  direction === 'forward' && styles.directionChipOn,
+                ]}>
+                <ThemedText
+                  style={[
+                    styles.directionChipText,
+                    direction === 'forward' && styles.directionChipTextOn,
+                  ]}>
+                  From the start
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => setDirection('backward')}
+                accessibilityLabel="Build from the end"
+                style={[
+                  styles.directionChip,
+                  direction === 'backward' && styles.directionChipOn,
+                ]}>
+                <ThemedText
+                  style={[
+                    styles.directionChipText,
+                    direction === 'backward' && styles.directionChipTextOn,
+                  ]}>
+                  From the end
+                </ThemedText>
+              </Pressable>
+            </View>
+            <ThemedText style={styles.directionHint}>
+              Start from whichever end is harder. The units you begin with are
+              the ones you revisit most.
+            </ThemedText>
+          </View>
         </ScrollView>
 
         <View style={{ padding: 20, gap: 10 }}>
@@ -709,6 +763,7 @@ export default function ClickUpScreen() {
             "Start Tempo — well below your target. A good rule of thumb is half your performance tempo.\n\n" +
             "Performance Tempo — the speed you ultimately need to perform at.\n\n" +
             "Increment — how big each tempo bump is between stages.\n\n" +
+            "Build direction (beta) — the method works equally well built from the first unit forward or from the last unit backward. Start from whichever end of the passage is harder: the units you begin with are the ones you revisit most. When you finish a full climb, the app also offers to run the same climb again in the other direction.\n\n" +
             "When you start, the app walks you through every tempo in between, interleaving individual units with growing combinations.\n\n" +
             "Buttons: Resume picks up a prior session where you left off, at the same step and tempo. Start over (or Start practicing the first time) begins fresh from Step 1. ← Back to marking returns to editing your unit marks."
           }
@@ -720,12 +775,17 @@ export default function ClickUpScreen() {
   // ── PLAYING ────────────────────────────────────────────────────────────
   if (!storedConfig || !passage) return <ThemedView style={{ flex: 1 }} />;
   const step = storedConfig.steps[currentIndex];
-  const activePair = step ? activePairMarkers(step.activeUnits) : null;
+  // Steps number units in BUILD order; map to score-order unit numbers so a
+  // backward build highlights the right marks (build-unit 1 = last unit).
+  const scoreUnits = step
+    ? mapUnitsToScore(step.activeUnits, storedConfig.N, storedConfig.direction)
+    : null;
+  const activePair = scoreUnits ? activePairMarkers(scoreUnits) : null;
   const activeMarkers =
     activePair != null
       ? markers.filter((m) => m.index === activePair[0] || m.index === activePair[1])
       : [];
-  const unitLabel = step ? formatActiveUnits(step.activeUnits) : '';
+  const unitLabel = scoreUnits ? formatActiveUnits(scoreUnits) : '';
 
   return (
     <ThemedView style={{ flex: 1 }}>
@@ -863,7 +923,7 @@ export default function ClickUpScreen() {
         </Pressable>
       )}
       <PedalCatcher
-        active={!notePromptVisible && !celebrating}
+        active={!notePromptVisible && !celebrating && !reverseOffer}
         onAdvance={handleNext}
         onBack={onPrev}
       />
@@ -1087,6 +1147,30 @@ export default function ClickUpScreen() {
         </View>
       )}
 
+      {/* Completion choice (beta): rerun the same climb built from the other
+          end, or finish and log. Gebrian does both directions on the same
+          passage — the units you start with are the ones you revisit most. */}
+      <ActionSheet
+        visible={!isGuided && reverseOffer}
+        title={`All ${storedConfig.steps.length} steps complete!`}
+        items={[
+          {
+            label:
+              (storedConfig.direction ?? 'forward') === 'forward'
+                ? 'Try it in reverse (beta)'
+                : 'Try it forward again (beta)',
+            onPress: acceptReversePass,
+          },
+          {
+            label: 'Finish & log the session',
+            primary: true,
+            onPress: declineReverseAndLog,
+          },
+        ]}
+        cancelLabel="Not yet"
+        onCancel={dismissReverseOffer}
+      />
+
       <PracticeLogNotePrompt
         metronome={metronome}
         sessionOutcome={{}}
@@ -1141,6 +1225,53 @@ const styles = StyleSheet.create({
   // paddingBottom lifts the last CTA above the global help button's corner
   // when the form is scrolled all the way down.
   configContainer: { flexGrow: 1, padding: 20, gap: 14, paddingBottom: HELP_CLEARANCE + 20 },
+  // Build-direction selector (beta) on the config screen.
+  directionBlock: { gap: 8, marginTop: Spacing.sm },
+  directionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  directionLabel: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    opacity: Opacity.muted,
+  },
+  directionBeta: {
+    borderRadius: Radii.pill,
+    borderWidth: Borders.thin,
+    borderColor: Palette.accent,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+  },
+  directionBetaText: {
+    fontSize: 10,
+    fontWeight: Type.weight.bold,
+    letterSpacing: 0.6,
+    color: Palette.accent,
+  },
+  directionRow: { flexDirection: 'row', gap: Spacing.sm },
+  directionChip: {
+    flex: 1,
+    maxWidth: 200,
+    paddingVertical: 10,
+    borderRadius: Radii.md,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    backgroundColor: Palette.card,
+    alignItems: 'center',
+  },
+  directionChipOn: {
+    borderColor: Palette.accent,
+    backgroundColor: Palette.accent,
+  },
+  directionChipText: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.bold,
+    color: Palette.text,
+  },
+  directionChipTextOn: { color: '#fff' },
+  directionHint: {
+    fontSize: Type.size.xs,
+    color: Palette.textMuted,
+    lineHeight: 17,
+  },
   configHeader: {
     paddingTop: Spacing.md,
     paddingHorizontal: 10,

@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-21-icu-backward',
+    date: 'August 21, 2026',
+    title: 'Interleaved Click-Up can now build backward (beta)',
+    body:
+      'Molly Gebrian teaches that clicking up works equally well built from the last unit toward the first, and she starts backward when the end of a passage is the hard part, since the units you begin with are the ones you revisit most. You can now choose "From the end" on the tempo screen, using the same unit marks. And when you finish a full climb, the app offers a choice: run the same climb again in the other direction, or finish and log the session.',
+  },
+  {
     id: '2026-08-21-stale-crop-fix',
     date: 'August 21, 2026',
     title: 'Fixed: a resized passage could keep showing its old crop on iPad',

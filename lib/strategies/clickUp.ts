@@ -57,3 +57,22 @@ export function activePairMarkers(activeUnits: number[]): [number, number] {
   const hi = activeUnits[activeUnits.length - 1];
   return [lo, hi + 1];
 }
+
+// Direction of the build (beta). Gebrian: the method works equally well
+// forward or backward — start from whichever end of the passage is harder,
+// since the units you start with are the ones you revisit most.
+export type ClickUpDirection = 'forward' | 'backward';
+
+// The step engine numbers units in BUILD order (unit 1 = built first). On the
+// score, forward build order matches the marked order; a backward build means
+// build-unit 1 is the LAST marked unit. This maps build-order units to
+// score-order unit numbers (ascending), so marker highlighting and the
+// "UNITS a–b" label work unchanged in both directions.
+export function mapUnitsToScore(
+  activeUnits: number[],
+  N: number,
+  direction: ClickUpDirection | undefined,
+): number[] {
+  if (direction !== 'backward') return activeUnits;
+  return activeUnits.map((u) => N + 1 - u).reverse();
+}
