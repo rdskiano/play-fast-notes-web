@@ -1,6 +1,6 @@
 # Play Fast Notes — current state
 
-**As of 2026-08-20.** One screen, deliberately. Anything longer belongs in `CLAUDE.md` or `ROADMAP.md`.
+**As of 2026-08-21.** One screen, deliberately. Anything longer belongs in `CLAUDE.md` or `ROADMAP.md`.
 
 **Why this file exists.** `CLAUDE.md` is thorough but 75 KB, so nothing outside a terminal session reads it. Cowork sessions (marketing, strategy, planning) read *this* file plus live database numbers. Between 2026-06-26 and 2026-08-16 the Cowork side had no idea the price had changed from a $39/yr subscription to a $19.99 one-time unlock, and a full marketing plan got built on the wrong number. This file is the join.
 
@@ -37,6 +37,7 @@ Noa Kageyama (The Bulletproof Musician) signed up personally on 2026-06-07 and r
 
 ## Current workstream
 
+- **"View score" peek on tempo-setup screens SHIPPED to web 2026-08-21 PM**: while setting tempos (Tempo Ladder, Click-Up, both Chaining modes, ICU2), a button opens the full source page with the passage box outlined — page turns + pinch zoom — then straight back to setup. Ralph's signed-in click-through owed; iPad OTA not yet published.
 - **ICU backward build + completion choice (beta) SHIPPED to web 2026-08-21 PM**: Interleaved Click-Up gains a build-direction selector (from the start / from the end, per Gebrian) and a finish-line choice: rerun the climb in the other direction or log the session. Sim-verified both directions + the two-pass log. OTA publish = Ralph's command.
 - **Interleaved Click-Up 2 (beta) SHIPPED to web 2026-08-21**: new multi-passage strategy from Molly Gebrian's book (rotate 3-10 fast passages through 7 fixed rounds of climbing tempos; trains first-try-at-tempo). Micro+Macro chaining merged into one "Chaining" button. Same push carried the passage-resize stale-crop fix (native, needs OTA) and the previously-unpushed IAP web-side code. OTA to production = Ralph's command; his iPad receives it only on TestFlight build 14 (v1.1.0 runtime wall). Ralph's real-instrument test still owed.
 - App Store: build 13 rejected 2026-08-20 morning on 3.1.1 (no IAP); Apple IAP built, deployed (DB migration + verify edge function live), and v1.1.0 build 14 RESUBMITTED with the pfn_pro_lifetime purchase the same day, ~3 PM. Waiting for Review. Open: Ralph's TestFlight sandbox purchase test on build 14. Small Business Program enrollment submitted 2026-08-12, still pending (does not block).
