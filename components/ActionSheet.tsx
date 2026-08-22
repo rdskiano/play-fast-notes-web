@@ -20,7 +20,10 @@ type Props = {
   visible: boolean;
   title?: string;
   items: ActionSheetItem[];
-  cancelLabel?: string;
+  // Pass null to hide the cancel button entirely — the listed items are the
+  // only choices. Backdrop tap / hardware back still fire onCancel so the
+  // user is never trapped.
+  cancelLabel?: string | null;
   onCancel: () => void;
 };
 
@@ -98,19 +101,21 @@ export function ActionSheet({
             );
           })}
           </ScrollView>
-          <Pressable
-            onPress={onCancel}
-            style={({ pressed }) => [
-              styles.cancel,
-              {
-                borderTopColor: C.icon + '33',
-                backgroundColor: pressed ? C.icon + '11' : 'transparent',
-              },
-            ]}>
-            <ThemedText style={[styles.cancelText, { color: C.tint }]}>
-              {cancelLabel}
-            </ThemedText>
-          </Pressable>
+          {cancelLabel !== null && (
+            <Pressable
+              onPress={onCancel}
+              style={({ pressed }) => [
+                styles.cancel,
+                {
+                  borderTopColor: C.icon + '33',
+                  backgroundColor: pressed ? C.icon + '11' : 'transparent',
+                },
+              ]}>
+              <ThemedText style={[styles.cancelText, { color: C.tint }]}>
+                {cancelLabel}
+              </ThemedText>
+            </Pressable>
+          )}
         </Pressable>
       </Pressable>
     </Modal>

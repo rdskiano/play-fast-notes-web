@@ -49,6 +49,12 @@ type Props = {
   onPractice: (passage: Passage) => void;
   onEdit: (passage: Passage) => void;
   onHistory: (passage: Passage) => void;
+  // Keep pills and the action bar at least this many px away from the
+  // slot's left/right edges. On phones the slot is the full screen width,
+  // and both mobile Safari and the native stack claim touches that start
+  // in a ~25px strip along the screen edge as a back-navigation swipe —
+  // a pill sitting flush left gets its taps eaten by that gesture.
+  edgeGuard?: number;
 };
 
 // Estimated pill metrics for collision stacking — RN can't measure text
@@ -79,6 +85,7 @@ export function PageBoxOverlay({
   onPractice,
   onEdit,
   onHistory,
+  edgeGuard = 0,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -87,6 +94,11 @@ export function PageBoxOverlay({
   if (sourceWidth <= 0 || sourceHeight <= 0 || slotWidth <= 0 || slotHeight <= 0) return null;
 
   const imageRect = fitContain(slotWidth, slotHeight, sourceWidth, sourceHeight);
+
+  // Overlay coordinates are relative to the image, which sits imageRect.x
+  // from either slot edge (letterboxing is centered) — so the guard only
+  // needs to make up whatever the letterbox margin doesn't already cover.
+  const guard = Math.max(0, edgeGuard - imageRect.x);
 
   // Collect every (passage, region) pair that lands on this page.
   type Hit = { passage: Passage; region: PassageRegion };
@@ -127,7 +139,7 @@ export function PageBoxOverlay({
     const badge = formatStatusBadge(statusByPassage?.get(h.passage.id) ?? null);
     const label = badge ? `${h.passage.title}  ·  ${badge}` : h.passage.title;
     const w = estimatePillWidth(label);
-    const x = Math.max(0, Math.min(r.left + 2, imageRect.w - w));
+    const x = Math.max(guard, Math.min(r.left + 2, imageRect.w - w - guard));
     let y = Math.max(0, r.top - PILL_H / 2);
     // Push down until clear of every already-placed pill.
     for (let guard = 0; guard < placed.length + 1; guard++) {
@@ -162,8 +174,8 @@ export function PageBoxOverlay({
     if (barTop < minTop) barTop = first.top + first.height + 8;
     if (barTop > maxTop) barTop = minTop;
     const barLeft = Math.max(
-      4,
-      Math.min(first.left + first.width / 2 - BAR_W / 2, imageRect.w - BAR_W - 4),
+      Math.max(4, guard),
+      Math.min(first.left + first.width / 2 - BAR_W / 2, imageRect.w - BAR_W - Math.max(4, guard)),
     );
     bar = { left: barLeft, top: barTop, passage: selectedHits[0].passage };
   }

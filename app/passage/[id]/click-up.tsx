@@ -1195,7 +1195,7 @@ export default function ClickUpScreen() {
             onPress: declineReverseAndLog,
           },
         ]}
-        cancelLabel="Not yet"
+        cancelLabel={null}
         onCancel={dismissReverseOffer}
       />
 

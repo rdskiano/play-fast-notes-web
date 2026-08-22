@@ -760,7 +760,7 @@ function Icu2ScreenInner() {
         visible={missOpen}
         title={`Missed at ♩ = ${tempos[tempoIdx] ?? ''} · start too fast?`}
         items={[
-          { label: 'Start this climb over', onPress: missStartOver },
+          { label: 'Start this climb over', primary: true, onPress: missStartOver },
           {
             label: 'Start slower…',
             onPress: () => {
@@ -770,7 +770,6 @@ function Icu2ScreenInner() {
           },
           {
             label: lastClean != null ? `Save ${lastClean} & move on` : 'Save start tempo & move on',
-            primary: true,
             onPress: missSaveTempo,
           },
         ]}

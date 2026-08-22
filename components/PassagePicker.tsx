@@ -224,11 +224,14 @@ export function PassagePicker({
       if (!g.thumbnailUri) g.thumbnailUri = p.thumbnail_uri ?? p.source_uri ?? null;
     }
     const list = [...byKey.values()];
-    // Alphabetical by title, loose bucket always last.
+    // Newest work first: a piece sorts by its most recently added passage,
+    // so whatever the user just set up is at the top. Loose bucket last.
+    const newest = (g: PieceGroup) =>
+      Math.max(...g.passages.map((p) => p.created_at ?? 0));
     list.sort((a, b) => {
       if (a.key === LOOSE_KEY) return 1;
       if (b.key === LOOSE_KEY) return -1;
-      return a.title.localeCompare(b.title);
+      return newest(b) - newest(a);
     });
     return list;
   }, [passages, docs]);
@@ -244,6 +247,16 @@ export function PassagePicker({
   }, [groups]);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  // Display order: any piece with a picked passage floats to the top (the
+  // piece you're working from stays in reach — including the seed passage's
+  // piece when the picker opens pre-selected), everything else keeps the
+  // chronological order. Tints stay keyed to the stable `groups` order so
+  // chips don't change color when a piece jumps to the top.
+  const displayGroups = useMemo(() => {
+    const isPicked = (g: PieceGroup) => g.passages.some((p) => selectedSet.has(p.id));
+    return [...groups].sort((a, b) => Number(isPicked(b)) - Number(isPicked(a)));
+  }, [groups, selectedSet]);
 
   // ── Search ────────────────────────────────────────────────────────────────
   const [query, setQuery] = useState('');
@@ -524,7 +537,7 @@ export function PassagePicker({
         ) : !anyVisible ? (
           <ThemedText style={styles.empty}>No pieces match “{query}”.</ThemedText>
         ) : (
-          groups.map(renderGroup)
+          displayGroups.map(renderGroup)
         )}
       </ScrollView>
 

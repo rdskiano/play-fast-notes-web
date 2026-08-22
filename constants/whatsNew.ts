@@ -20,6 +20,20 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-22-pill-edge-fix',
+    date: 'August 22, 2026',
+    title: 'Fixed: passage pills near the screen edge were hard to tap on phones',
+    body:
+      'On a phone, tapping a passage pill sitting against the left edge of the screen could kick you back to the previous page instead. That strip of the screen belongs to your phone\'s "swipe back" gesture, and it was stealing the tap. Pills and the Practice bar now keep a safe distance from the edge, so the tap goes where you meant it.',
+  },
+  {
+    id: '2026-08-22-picker-order',
+    date: 'August 22, 2026',
+    title: 'Picking passages is faster, and a missed climb defaults to a redo',
+    body:
+      'The passage picker in Interleaved Click-Up 2 and Rep Rotator now lists your newest pieces first instead of alphabetically, and the piece you are picking from jumps to the top of the list. In an ICU 2 session, the highlighted choice after a miss is now "Start this climb over" rather than saving the tempo and moving on. And the confusing "Not yet" button on Interleaved Click-Up\'s finish screen is gone: just pick a direction or finish and log.',
+  },
+  {
     id: '2026-08-21-tempo-prefill',
     date: 'August 21, 2026',
     title: 'Fixed: your goal tempos now follow you into every tool',

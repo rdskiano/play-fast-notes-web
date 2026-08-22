@@ -1181,6 +1181,9 @@ export default function DocumentScreen() {
                             slotWidth={slotW}
                             slotHeight={pagerSize.height}
                             visible={boxesOn && mode !== 'draw'}
+                            // Phones claim edge touches for the browser /
+                            // navigator back-swipe; keep pills clear of it.
+                            edgeGuard={isPhone ? 28 : 0}
                             selectedId={selectedPassageId}
                             onSelect={setSelectedPassageId}
                             onDeselect={() => setSelectedPassageId(null)}
