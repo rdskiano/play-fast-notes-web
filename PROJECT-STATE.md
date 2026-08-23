@@ -1,6 +1,6 @@
 # Play Fast Notes — current state
 
-**As of 2026-08-22.** One screen, deliberately. Anything longer belongs in `CLAUDE.md` or `ROADMAP.md`.
+**As of 2026-08-23.** One screen, deliberately. Anything longer belongs in `CLAUDE.md` or `ROADMAP.md`.
 
 **Why this file exists.** `CLAUDE.md` is thorough but 75 KB, so nothing outside a terminal session reads it. Cowork sessions (marketing, strategy, planning) read *this* file plus live database numbers. Between 2026-06-26 and 2026-08-16 the Cowork side had no idea the price had changed from a $39/yr subscription to a $19.99 one-time unlock, and a full marketing plan got built on the wrong number. This file is the join.
 
@@ -37,6 +37,7 @@ Noa Kageyama (The Bulletproof Musician) signed up personally on 2026-06-07 and r
 
 ## Current workstream
 
+- **ICU workflow batch SHIPPED 2026-08-23 (web + OTA, channel production)**: every ICU phase now caps with a FULL RUN of everything built so far at the goal tempo before the next unit is added (Ralph's long-standing ask); direction resets to forward on every launch (reverse no longer sticks from a prior session) and the finish sheet only offers a direction not yet run this sitting; direction selector out of beta; mark-units screen music now fills the screen instead of a strip; web recorder explains how to un-block a denied microphone (from user Ray's feedback email, Windows/Edge). Ralph tested pre-push on web; iPad relaunch-twice check owed.
 - **First-session polish batch SHIPPED 2026-08-22 (web + OTA, channel production)**: phone taps on passage pills near the screen edge no longer trigger the back-swipe (pills/Practice bar keep 28px clear of edges); passage picker (ICU2 + Rep Rotator) sorts newest-first and floats the in-use piece to the top; ICU2 miss sheet defaults to "Start this climb over"; ICU finish sheet's "Not yet" button removed. From Ralph's first real ICU2 + backward-ICU sessions. His on-phone check owed.
 - **Unified tempo prefill SHIPPED 2026-08-21 PM (web + iPad OTA)**: every tempo setup screen (Tempo Ladder, Click-Up, both Chainings, ICU2) now pre-fills from the passage's saved tempo, then the most recent decided tempo in the SAME section; stale saved sessions get a one-tap "use the newer goal" chip; starting with the untouched 120 default no longer stamps a fake tempo on the piece. Ralph's signed-in check owed (prefill values, chip, section scoping).
 - **"View score" peek on tempo-setup screens SHIPPED 2026-08-21 PM (web + iPad OTA)**: while setting tempos (Tempo Ladder, Click-Up, both Chaining modes, ICU2), a button opens the full source page with the passage box outlined — page turns + pinch zoom — then straight back to setup. Ralph verified it on web. The same OTA publish (channel production, runtime 1.1.0 = build 14) carried the pending ICU2 / ICU-backward / stale-crop batch to the iPad.
