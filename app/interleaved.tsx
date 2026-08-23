@@ -615,6 +615,7 @@ function InterleavedScreenInner() {
           onStart={() => setPhase('config')}
           onExit={exit}
           minToStart={minSel}
+          pinnedPassageId={seedPassageId}
         />
 
         <TutorialStep

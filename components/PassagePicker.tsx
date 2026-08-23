@@ -92,6 +92,7 @@ export function PassagePicker({
   onExit,
   minToStart = 2,
   startLabel = 'Start interleaving',
+  pinnedPassageId,
 }: {
   /** Currently-selected passage ids, in selection order (parent-owned). */
   selectedIds: string[];
@@ -107,6 +108,13 @@ export function PassagePicker({
   onExit: () => void;
   minToStart?: number;
   startLabel?: string;
+  /**
+   * The passage the user launched the picker from (if any). Its piece is
+   * pinned to the top of the list; everything else stays newest-first. The
+   * order never changes while picking — Ralph found the earlier live
+   * "picked piece jumps to the top" reordering unnecessary (2026-08-23).
+   */
+  pinnedPassageId?: string;
 }) {
   const insets = useSafeAreaInsets();
 
@@ -248,15 +256,15 @@ export function PassagePicker({
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
-  // Display order: any piece with a picked passage floats to the top (the
-  // piece you're working from stays in reach — including the seed passage's
-  // piece when the picker opens pre-selected), everything else keeps the
-  // chronological order. Tints stay keyed to the stable `groups` order so
-  // chips don't change color when a piece jumps to the top.
+  // Display order: the piece the user launched from (via pinnedPassageId) is
+  // pinned to the top; everything else keeps the newest-first order. Fixed
+  // for the whole visit — nothing moves while the user is tapping.
   const displayGroups = useMemo(() => {
-    const isPicked = (g: PieceGroup) => g.passages.some((p) => selectedSet.has(p.id));
-    return [...groups].sort((a, b) => Number(isPicked(b)) - Number(isPicked(a)));
-  }, [groups, selectedSet]);
+    if (!pinnedPassageId) return groups;
+    const isPinned = (g: PieceGroup) =>
+      g.passages.some((p) => p.id === pinnedPassageId);
+    return [...groups].sort((a, b) => Number(isPinned(b)) - Number(isPinned(a)));
+  }, [groups, pinnedPassageId]);
 
   // ── Search ────────────────────────────────────────────────────────────────
   const [query, setQuery] = useState('');

@@ -398,6 +398,7 @@ function Icu2ScreenInner() {
           onExit={() => router.back()}
           minToStart={2}
           startLabel="Set tempos →"
+          pinnedPassageId={seedPassageId}
         />
         <TutorialStep
           id="icu2-first-run"

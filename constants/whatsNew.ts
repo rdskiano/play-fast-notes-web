@@ -31,7 +31,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     date: 'August 22, 2026',
     title: 'Picking passages is faster, and a missed climb defaults to a redo',
     body:
-      'The passage picker in Interleaved Click-Up 2 and Rep Rotator now lists your newest pieces first instead of alphabetically, and the piece you are picking from jumps to the top of the list. In an ICU 2 session, the highlighted choice after a miss is now "Start this climb over" rather than saving the tempo and moving on. And the confusing "Not yet" button on Interleaved Click-Up\'s finish screen is gone: just pick a direction or finish and log.',
+      'The passage picker in Interleaved Click-Up 2 and Rep Rotator now lists your newest pieces first instead of alphabetically, and the piece you opened the picker from starts at the top. In an ICU 2 session, the highlighted choice after a miss is now "Start this climb over" rather than saving the tempo and moving on. And the confusing "Not yet" button on Interleaved Click-Up\'s finish screen is gone: just pick a direction or finish and log.',
   },
   {
     id: '2026-08-21-tempo-prefill',
