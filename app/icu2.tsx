@@ -32,6 +32,7 @@ import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { Palette, Lift } from '@/constants/palette';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
+import { usePracticeClock } from '@/hooks/usePracticeClock';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import {
   actionButtonStyle,
@@ -83,6 +84,7 @@ type Icu2Item = {
 };
 
 export default function Icu2Screen() {
+  usePracticeClock();
   return (
     <ErrorBoundary label="Interleaved Click-Up 2">
       <Icu2ScreenInner />

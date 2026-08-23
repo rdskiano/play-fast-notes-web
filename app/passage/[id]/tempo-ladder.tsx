@@ -29,6 +29,7 @@ import { Colors, Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP, SHORTCUT_HINT_LINE } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { usePracticeClock } from '@/hooks/usePracticeClock';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { isToolsOnly } from '@/lib/strategies/toolsMode';
 import { TOOLS_TEMPO_LADDER_HELP } from '@/constants/toolsHelp';
@@ -109,6 +110,7 @@ const TL_SETUP_STEPS: TourStep[] = [
 ];
 
 export default function TempoLadderScreen() {
+  usePracticeClock();
   // mode / startScale / increment arrive from a resurfaced reminder's action
   // buttons ("Tempo Ladder — randomized cluster", "— slower start",
   // "— N BPM steps") and nudge the loaded setup once, after prefill.

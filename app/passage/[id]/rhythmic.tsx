@@ -26,6 +26,7 @@ import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
+import { usePracticeClock } from '@/hooks/usePracticeClock';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import { logPractice } from '@/lib/db/repos/practiceLog';
@@ -65,6 +66,7 @@ function groupingCounts(): Record<Grouping, number> {
 }
 
 export default function RhythmicScreen() {
+  usePracticeClock();
   const params = useLocalSearchParams<{ id: string; grouping?: string; guided?: string }>();
   const id = params.id;
   // Guided onboarding: the quiz routes "even & running" passages here with

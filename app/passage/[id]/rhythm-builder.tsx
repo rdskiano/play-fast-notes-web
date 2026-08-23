@@ -36,6 +36,7 @@ import { Colors } from '@/constants/theme';
 import { Palette } from '@/constants/palette';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { usePracticeClock } from '@/hooks/usePracticeClock';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import {
   getExerciseById,
@@ -180,6 +181,7 @@ const RB_ENTRY_STEPS: TourStep[] = [
 ];
 
 export default function RhythmBuilderScreen() {
+  usePracticeClock();
   const params = useLocalSearchParams<{
     id: string;
     exerciseId?: string;

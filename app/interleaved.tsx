@@ -31,6 +31,7 @@ import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { Palette, Lift } from '@/constants/palette';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
+import { usePracticeClock } from '@/hooks/usePracticeClock';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import {
@@ -179,6 +180,7 @@ function advanceForMode(
 }
 
 export default function InterleavedScreen() {
+  usePracticeClock();
   // Wrap the screen so a render crash shows a readable message (and stack)
   // instead of the app blanking/closing — Rep Rotator was crashing on device
   // and we need the actual error to fix it.

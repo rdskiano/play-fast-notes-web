@@ -39,6 +39,7 @@ import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/toke
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
+import { usePracticeClock } from '@/hooks/usePracticeClock';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { MIN_MACRO_MARKS, useMacroChainSession } from '@/hooks/useMacroChainSession';
 import { useScreenTour } from '@/components/tour/TourContext';
@@ -83,6 +84,7 @@ const MC_MARKING_STEPS: TourStep[] = [
 ];
 
 export default function MacroChainingScreen() {
+  usePracticeClock();
   const { id } = useLocalSearchParams<{ id: string }>();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];

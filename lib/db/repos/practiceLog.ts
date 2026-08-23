@@ -1,3 +1,4 @@
+import { peekPracticeDurationMs } from '@/lib/practiceLog/sessionClock';
 import { getAllRecordingEntries } from '@/lib/supabase/recordingLog';
 import { newPracticeSyncId } from '@/lib/sync/ids';
 
@@ -35,6 +36,13 @@ export async function logPractice(
 ): Promise<number> {
   const db = getDb();
   const now = Date.now();
+  // Session-level elapsed time since the practice screen mounted (see
+  // sessionClock.ts — peeked, so every row of a multi-passage burst carries
+  // the same value; never sum durationMs across rows).
+  const durationMs = peekPracticeDurationMs();
+  if (durationMs != null && (data == null || data.durationMs === undefined)) {
+    data = { ...data, durationMs };
+  }
   // sync_id is the row's cross-device identity (cloud client_id); updated_at
   // is what newest-wins sync compares. The local INTEGER id stays the UI key.
   const result = await db.runAsync(

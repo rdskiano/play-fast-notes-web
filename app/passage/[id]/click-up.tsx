@@ -40,6 +40,7 @@ import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP, SHORTCUT_HINT_NEXT_BACK } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
+import { usePracticeClock } from '@/hooks/usePracticeClock';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { MIN_MARKERS, useClickUpSession } from '@/hooks/useClickUpSession';
 import { TutorialStep } from '@/components/TutorialStep';
@@ -121,6 +122,7 @@ const CU_CONFIG_STEPS: TourStep[] = [
 ];
 
 export default function ClickUpScreen() {
+  usePracticeClock();
   // startScale arrives from a resurfaced reminder's "Interleaved Click-Up —
   // slower start" button and nudges the loaded start tempo once.
   const { id, guided, startScale } = useLocalSearchParams<{

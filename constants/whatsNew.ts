@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-23-evaluate-view-part',
+    date: 'August 23, 2026',
+    title: 'First-practice evaluation: check your part before you set a goal',
+    body:
+      'The "Ready to practice?" evaluation flow now has a View full part button on the music window, the same peek the other setup screens have. It opens your whole part with the passage outlined, so you can flip to the printed tempo marking before locking in a goal, and one tap brings you straight back.',
+  },
+  {
     id: '2026-08-23-icu-full-run',
     date: 'August 23, 2026',
     title: 'Interleaved Click-Up: a full run at your goal tempo caps every phase',

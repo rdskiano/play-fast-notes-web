@@ -1,5 +1,6 @@
 import { parseSections, sectionForPosition } from '@/lib/db/repos/documents';
 import { parseRegions } from '@/lib/db/repos/passages';
+import { peekPracticeDurationMs } from '@/lib/practiceLog/sessionClock';
 import { supabase } from '@/lib/supabase/client';
 
 export type PracticeLogEntry = {
@@ -189,6 +190,13 @@ export async function logPractice(
   // Opportunistic sync of anything parked by an earlier failure.
   flushPendingPracticeLogs().catch(() => {});
   const now = Date.now();
+  // Session-level elapsed time since the practice screen mounted (see
+  // sessionClock.ts — peeked, so every row of a multi-passage burst carries
+  // the same value; never sum durationMs across rows).
+  const durationMs = peekPracticeDurationMs();
+  if (durationMs != null && (data == null || data.durationMs === undefined)) {
+    data = { ...data, durationMs };
+  }
   const row: InsertRow = {
     piece_id,
     strategy,

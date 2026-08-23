@@ -31,13 +31,16 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/Button';
 import { RotateForPractice } from '@/components/RotateForPractice';
+import { ScorePeekModal } from '@/components/ScorePeekModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Lift, Palette } from '@/constants/palette';
 import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { usePracticeClock } from '@/hooks/usePracticeClock';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import {
   findHuntStart,
@@ -79,6 +82,7 @@ function tempoWord(bpm: number): string {
 }
 
 export default function EvaluateScreen() {
+  usePracticeClock();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -93,6 +97,10 @@ export default function EvaluateScreen() {
   const [step, setStep] = useState<Step>('goal');
   const [goal, setGoal] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  // Momentary look at the full source page (same peek as the strategy setup
+  // screens) — the goal-step hint says the tempo is often printed on the
+  // part, so the part must be one tap away (Ralph, 2026-08-23).
+  const [peekOpen, setPeekOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -246,6 +254,17 @@ export default function EvaluateScreen() {
       <ZoomableImage uri={passage.source_uri} style={styles.scoreImage} persistKey={passage.id} />
       <View style={styles.scoreFoot} pointerEvents="none">
         <ThemedText style={styles.pinchHint}>pinch to zoom</ThemedText>
+      </View>
+      {/* Same full-page peek the strategy setup screens have — find the
+          printed tempo marking before committing to a goal. */}
+      <View style={styles.peekBtn}>
+        <Button
+          label="View full part"
+          icon="eye"
+          variant="outline"
+          size="xs"
+          onPress={() => setPeekOpen(true)}
+        />
       </View>
     </View>
   ) : null;
@@ -442,7 +461,9 @@ export default function EvaluateScreen() {
                   {scoreCard}
                   {inherited ? (
                     <>
-                      <ThemedText style={styles.hintLabel}>ⓘ Suggested goal tempo</ThemedText>
+                      {/* No ⓘ prefix: Ralph read the glyph as a clickable eye
+                          button (2026-08-23). Plain words only. */}
+                      <ThemedText style={styles.hintLabel}>Suggested goal tempo</ThemedText>
                       <Pressable
                         onPress={() => metronome.setBpm(clampBpm(inherited.bpm))}
                         style={[styles.suggestCard, !onSuggestion && styles.suggestCardOff]}>
@@ -463,7 +484,7 @@ export default function EvaluateScreen() {
                     </>
                   ) : (
                     <ThemedText style={styles.hintLabel}>
-                      ⓘ Check your part. The tempo is often printed right on it.
+                      Check your part. The tempo is often printed right on it.
                     </ThemedText>
                   )}
                   {metroCard}
@@ -642,6 +663,11 @@ export default function EvaluateScreen() {
           </>
         )}
       </View>
+      <ScorePeekModal
+        visible={peekOpen}
+        passage={passage}
+        onClose={() => setPeekOpen(false)}
+      />
     </ThemedView>
   );
 }
@@ -710,6 +736,9 @@ const styles = StyleSheet.create({
   scoreImage: { width: '100%', height: '100%' },
   scoreFoot: { position: 'absolute', bottom: 6, right: 12 },
   pinchHint: { fontSize: Type.size.xs, color: Palette.textMuted },
+  // Overlaid on the score card's top-right corner: costs no vertical space
+  // on a screen where every spare pixel belongs to the music.
+  peekBtn: { position: 'absolute', top: 8, right: 8 },
 
   hintLabel: {
     fontSize: Type.size.sm,

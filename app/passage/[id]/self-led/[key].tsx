@@ -31,6 +31,7 @@ import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
+import { usePracticeClock } from '@/hooks/usePracticeClock';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import { getPassage, type Passage } from '@/lib/db/repos/passages';
@@ -45,6 +46,7 @@ import {
 import { getSelfLedStrategy } from '@/lib/strategies/selfLed';
 
 export default function SelfLedSessionScreen() {
+  usePracticeClock();
   const { id, key } = useLocalSearchParams<{ id: string; key: string }>();
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
