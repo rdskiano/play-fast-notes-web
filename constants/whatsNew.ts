@@ -20,6 +20,27 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-23-icu-full-run',
+    date: 'August 23, 2026',
+    title: 'Interleaved Click-Up: a full run at your goal tempo caps every phase',
+    body:
+      'Reaching your goal tempo used to jump straight to the next unit, wherever you were in the pattern. Now each phase ends with a payoff: play everything you have built so far, from the first unit through the newest one, in one run at your goal tempo. The tracker pill says FULL RUN when it is that moment, and the final phase ends with the whole passage at performance tempo.',
+  },
+  {
+    id: '2026-08-23-icu-forward-default',
+    date: 'August 23, 2026',
+    title: 'Fixed: Interleaved Click-Up no longer stays stuck in reverse',
+    body:
+      'If you accepted the "try it in reverse" offer at the end of a climb, the next session on that passage quietly started backward too. Every session now starts forward, and reverse only happens when you choose it. The mark-your-units screen also got much roomier: your music now fills the screen instead of a narrow strip.',
+  },
+  {
+    id: '2026-08-23-mic-blocked-help',
+    date: 'August 23, 2026',
+    title: 'The recorder now tells you how to un-block your microphone',
+    body:
+      'If your browser was blocking the microphone, the recorder showed an unhelpful "Permission denied." It now explains exactly what to do: click the padlock next to the web address, set Microphone to Allow, and reload. It also says so plainly when no microphone is plugged in or another app is using it.',
+  },
+  {
     id: '2026-08-22-pill-edge-fix',
     date: 'August 22, 2026',
     title: 'Fixed: passage pills near the screen edge were hard to tap on phones',

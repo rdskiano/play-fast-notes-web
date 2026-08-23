@@ -2,6 +2,10 @@ export type ClickUpStep = {
   phase: number;
   tempo: number;
   activeUnits: number[];
+  // Phase capstone: everything built so far (units 1..k) played in one run
+  // at the goal tempo before the next unit is added. The UI labels these
+  // steps "FULL RUN" instead of the unit range.
+  runThrough?: boolean;
 };
 
 function tempoRange(start: number, goal: number, increment: number): number[] {
@@ -46,6 +50,29 @@ export function generateSteps(
         steps.push({ phase: k, tempo: t, activeUnits: [k] });
       }
     });
+
+    // Capstone (Ralph, 2026-08-23): reaching the goal tempo used to jump
+    // straight into the next phase from wherever the alternating pattern
+    // happened to land. Now each phase ends with everything built so far
+    // (units 1..k) played in one run at the goal tempo. Phase 1 is exempt —
+    // its "everything so far" is unit 1 alone, which IS its last step. If
+    // the pattern's own final step already covers 1..k at the goal, tag it
+    // rather than duplicating it.
+    const last = steps[steps.length - 1];
+    if (
+      last.tempo === goalTempo &&
+      last.activeUnits.length === k &&
+      last.activeUnits[0] === 1
+    ) {
+      last.runThrough = true;
+    } else {
+      steps.push({
+        phase: k,
+        tempo: goalTempo,
+        activeUnits: rangeInclusive(1, k),
+        runThrough: true,
+      });
+    }
   }
 
   return steps;

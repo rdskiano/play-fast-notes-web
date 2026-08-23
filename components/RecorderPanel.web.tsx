@@ -201,6 +201,33 @@ export function RecorderPanel({
     meterRafRef.current = requestAnimationFrame(tick);
   }
 
+  // getUserMedia failures surface as terse DOMException messages
+  // ("Permission denied") that give a non-technical user nothing to act
+  // on. Map the common failure names to plain instructions. Real case:
+  // an older user on Windows/Edge read "my system is not allowing it"
+  // and had no idea the padlock icon existed (2026-08-23).
+  function micErrorMessage(e: unknown): string {
+    const name = e instanceof DOMException ? e.name : '';
+    if (
+      name === 'NotAllowedError' ||
+      name === 'PermissionDeniedError' ||
+      name === 'SecurityError'
+    ) {
+      return 'Your browser is blocking the microphone. Click the padlock or mic icon next to the web address, set Microphone to Allow, then reload this page.';
+    }
+    if (
+      name === 'NotFoundError' ||
+      name === 'DevicesNotFoundError' ||
+      name === 'OverconstrainedError'
+    ) {
+      return 'No microphone found. If this is a desktop computer, plug in a microphone or a webcam, then reload this page.';
+    }
+    if (name === 'NotReadableError' || name === 'TrackStartError') {
+      return 'Another app is using the microphone. Close video call apps like Zoom or Skype, then try again.';
+    }
+    return e instanceof Error ? e.message : 'Could not start recording.';
+  }
+
   const startRecording = useCallback(async () => {
     setError(null);
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
@@ -245,7 +272,7 @@ export function RecorderPanel({
       rec.start();
       setRecording(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not start recording.');
+      setError(micErrorMessage(e));
       stopStream();
       stopMeter();
     }
@@ -419,7 +446,9 @@ export function RecorderPanel({
       {(hot || error) && (
         <ThemedText
           style={[styles.note, { color: Palette.danger }]}
-          numberOfLines={2}>
+          // The mic-help messages are full sentences with instructions;
+          // 2 lines clipped them on the narrow card.
+          numberOfLines={5}>
           {error ?? 'Too loud — move back or play softer'}
         </ThemedText>
       )}

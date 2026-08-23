@@ -123,7 +123,12 @@ export function useClickUpSession(
           setStartTempo(String(parsed.startTempo));
           setGoalTempo(String(parsed.goalTempo));
           setIncrement(parsed.increment as Increment);
-          setDirection(parsed.direction ?? 'forward');
+          // Deliberately NOT restoring parsed.direction. Accepting the
+          // end-of-climb reverse offer used to stick in the saved config, so
+          // the next launch silently started backward and Ralph couldn't
+          // tell whether reverse was a choice or a leftover. Direction is a
+          // per-session choice: every launch starts forward; the setup
+          // chips or the reverse offer opt into backward (2026-08-23).
           goalSourcedRef.current = true;
           // Stale-goal nudge: the piece's shared performance tempo may have
           // moved since this config was saved. Offer the newer number; never
@@ -286,7 +291,14 @@ export function useClickUpSession(
       // (The pass itself is counted when the user resolves the choice —
       // counting here would double-count if they dismiss and re-reach the
       // last step.)
+      // Only offer a direction they haven't run this sitting: finishing
+      // forward→reverse used to circle back to "try it forward?", which
+      // read as nonsense right after they'd done exactly that (Ralph,
+      // 2026-08-23). Straight to finish-and-log instead.
+      const other: ClickUpDirection =
+        (storedConfig.direction ?? 'forward') === 'forward' ? 'backward' : 'forward';
       if (guided) setCelebrating(true);
+      else if (passDirectionsRef.current.includes(other)) declineReverseAndLog();
       else setReverseOffer(true);
       return;
     }

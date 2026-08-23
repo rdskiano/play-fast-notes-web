@@ -558,50 +558,57 @@ export default function ClickUpScreen() {
             </>
           }
         />
-        <ScrollView contentContainerStyle={styles.markingContent}>
-          {/* The full strategy explainer now lives behind the ? button
-              (auto-opens for first-timers); no inline panel here. */}
+        {/* The full strategy explainer now lives behind the ? button
+            (auto-opens for first-timers); no inline panel here. */}
 
-          <ThemedText style={styles.helper}>
-            Tap where each unit begins — the number lands right where you tap.
-            Finish with one extra mark AFTER the last note so the final unit has
-            an end. Pinch to zoom in for accuracy. You need at least{' '}
-            {MIN_MARKERS} marks. Tap an existing mark to remove it.
-          </ThemedText>
-          {/* Pinch-zoomable marking surface. ZoomableImage owns the tap gesture
-              and reports a normalized image point (inverting its zoom + the
-              contain letterbox); ScoreWithMarkers just renders the numbered
-              marks (captureTaps=false so it doesn't fight the gesture). The
-              per-passage zoom persists and carries into the playing phase. */}
-          <View
-            {...tourTag('cu-score')}
-            style={{
-              height: imageAspect ? (winWidth - 32) / imageAspect : 500,
-              borderRadius: 8,
+        <ThemedText style={styles.helper}>
+          Tap where each unit begins — the number lands right where you tap.
+          Finish with one extra mark AFTER the last note so the final unit has
+          an end. Pinch to zoom in for accuracy. You need at least{' '}
+          {MIN_MARKERS} marks. Tap an existing mark to remove it.
+        </ThemedText>
+        {/* Pinch-zoomable marking surface. ZoomableImage owns the tap gesture
+            and reports a normalized image point (inverting its zoom + the
+            contain letterbox); ScoreWithMarkers just renders the numbered
+            marks (captureTaps=false so it doesn't fight the gesture). The
+            per-passage zoom persists and carries into the playing phase.
+            The score fills ALL remaining vertical space (same layout as the
+            guided branch above) instead of a width-fit strip inside a
+            ScrollView — Ralph wanted the marking window as roomy as the
+            passage view, and contain-fit + pinch handles tall crops without
+            a page scroll fighting the pan gesture. */}
+        <View
+          {...tourTag('cu-score')}
+          style={{
+            flex: 1,
+            marginTop: Spacing.xs,
+            marginHorizontal: Spacing.lg,
+            marginBottom: Spacing.lg,
+            borderRadius: 8,
+            overflow: 'hidden',
+          }}>
+          <ZoomableImage
+            style={StyleSheet.absoluteFill}
+            persistKey={passage.id}
+            tapAspectRatio={imageAspect ?? undefined}
+            onTapPoint={(point, scale) => {
+              const hit = nearestMarkerNormalized(
+                markers,
+                point,
+                markerTapRadius(winWidth - 32, scale),
+              );
+              if (hit != null) removeMarker(hit);
+              else placeMarker(point);
             }}>
-            <ZoomableImage
-              style={StyleSheet.absoluteFill}
-              persistKey={passage.id}
-              tapAspectRatio={imageAspect ?? undefined}
-              onTapPoint={(point, scale) => {
-                const hit = nearestMarkerNormalized(
-                  markers,
-                  point,
-                  markerTapRadius(winWidth - 32, scale),
-                );
-                if (hit != null) removeMarker(hit);
-                else placeMarker(point);
-              }}>
-              <ScoreWithMarkers
-                uri={passage.source_uri}
-                markers={markers}
-                mode="place"
-                captureTaps={false}
-                placeLiftPx={ICU_MARK_LIFT}
-              />
-            </ZoomableImage>
-          </View>
-        </ScrollView>
+            <ScoreWithMarkers
+              uri={passage.source_uri}
+              markers={markers}
+              mode="place"
+              captureTaps={false}
+              placeLiftPx={ICU_MARK_LIFT}
+            />
+          </ZoomableImage>
+        </View>
 
         {/* Step 4 of the guided first-session flow. Fires on the
             Interleaved Click-Up marking screen while the user has
@@ -691,14 +698,12 @@ export default function ClickUpScreen() {
               by the guided tour (web) + the ? help modal (native), so it
               was removed to avoid a second, diverging copy. */}
 
-          {/* Build direction (beta). Gebrian: works equally well forward or
-              backward — start from whichever end of the passage is harder. */}
+          {/* Build direction. Gebrian: works equally well forward or
+              backward — start from whichever end of the passage is harder.
+              BETA badge dropped 2026-08-23 (Ralph: it's a real feature now). */}
           <View style={styles.directionBlock}>
             <View style={styles.directionLabelRow}>
               <ThemedText style={styles.directionLabel}>Build direction</ThemedText>
-              <View style={styles.directionBeta}>
-                <ThemedText style={styles.directionBetaText}>BETA</ThemedText>
-              </View>
             </View>
             <View style={styles.directionRow}>
               <Pressable
@@ -785,7 +790,7 @@ export default function ClickUpScreen() {
             "Start Tempo — well below your target. A good rule of thumb is half your performance tempo.\n\n" +
             "Performance Tempo — the speed you ultimately need to perform at.\n\n" +
             "Increment — how big each tempo bump is between stages.\n\n" +
-            "Build direction (beta) — the method works equally well built from the first unit forward or from the last unit backward. Start from whichever end of the passage is harder: the units you begin with are the ones you revisit most. When you finish a full climb, the app also offers to run the same climb again in the other direction.\n\n" +
+            "Build direction — the method works equally well built from the first unit forward or from the last unit backward. Start from whichever end of the passage is harder: the units you begin with are the ones you revisit most. When you finish a full climb, the app also offers to run the same climb again in the other direction.\n\n" +
             "When you start, the app walks you through every tempo in between, interleaving individual units with growing combinations.\n\n" +
             "Buttons: Resume picks up a prior session where you left off, at the same step and tempo. Start over (or Start practicing the first time) begins fresh from Step 1. ← Back to marking returns to editing your unit marks."
           }
@@ -813,7 +818,12 @@ export default function ClickUpScreen() {
     activePair != null
       ? markers.filter((m) => m.index === activePair[0] || m.index === activePair[1])
       : [];
-  const unitLabel = scoreUnits ? formatActiveUnits(scoreUnits) : '';
+  // Capstone steps get their own label: "UNITS 1–4" undersells the moment.
+  const unitLabel = step?.runThrough
+    ? 'FULL RUN'
+    : scoreUnits
+      ? formatActiveUnits(scoreUnits)
+      : '';
 
   return (
     <ThemedView style={{ flex: 1 }}>
@@ -918,7 +928,9 @@ export default function ClickUpScreen() {
               screens keep it. */}
           {!isPhoneLandscape && (
             <ThemedText style={styles.playHelper}>
-              Play from one green arrow ▼ to the next.
+              {step?.runThrough
+                ? 'Goal tempo! Play everything between the green arrows ▼ in one run, then add the next unit.'
+                : 'Play from one green arrow ▼ to the next.'}
             </ThemedText>
           )}
         </>
@@ -1175,9 +1187,12 @@ export default function ClickUpScreen() {
         </View>
       )}
 
-      {/* Completion choice (beta): rerun the same climb built from the other
-          end, or finish and log. Gebrian does both directions on the same
-          passage — the units you start with are the ones you revisit most. */}
+      {/* Completion choice: rerun the same climb built from the other end,
+          or finish and log. Gebrian does both directions on the same
+          passage — the units you start with are the ones you revisit most.
+          Only shown for a direction not yet run this sitting (the hook
+          skips it otherwise), so "Try it forward" implies they started
+          backward and no "again" applies. */}
       <ActionSheet
         visible={!isGuided && reverseOffer}
         title={`All ${storedConfig.steps.length} steps complete!`}
@@ -1185,8 +1200,8 @@ export default function ClickUpScreen() {
           {
             label:
               (storedConfig.direction ?? 'forward') === 'forward'
-                ? 'Try it in reverse (beta)'
-                : 'Try it forward again (beta)',
+                ? 'Try it in reverse'
+                : 'Try it forward',
             onPress: acceptReversePass,
           },
           {
@@ -1253,26 +1268,13 @@ const styles = StyleSheet.create({
   // paddingBottom lifts the last CTA above the global help button's corner
   // when the form is scrolled all the way down.
   configContainer: { flexGrow: 1, padding: 20, gap: 14, paddingBottom: HELP_CLEARANCE + 20 },
-  // Build-direction selector (beta) on the config screen.
+  // Build-direction selector on the config screen.
   directionBlock: { gap: 8, marginTop: Spacing.sm },
   directionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   directionLabel: {
     fontSize: Type.size.sm,
     fontWeight: Type.weight.semibold,
     opacity: Opacity.muted,
-  },
-  directionBeta: {
-    borderRadius: Radii.pill,
-    borderWidth: Borders.thin,
-    borderColor: Palette.accent,
-    paddingHorizontal: 7,
-    paddingVertical: 1,
-  },
-  directionBetaText: {
-    fontSize: 10,
-    fontWeight: Type.weight.bold,
-    letterSpacing: 0.6,
-    color: Palette.accent,
   },
   directionRow: { flexDirection: 'row', gap: Spacing.sm },
   directionChip: {
