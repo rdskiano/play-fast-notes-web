@@ -171,14 +171,19 @@ Deno.serve(async (req) => {
   }
 
   // Who is asking? verify_jwt already gated the request; resolve the user id.
+  // The token MUST be passed to getUser() explicitly: with no stored session
+  // (persistSession: false — always true in an edge function), a bare
+  // getUser() reports "no session" without ever reading the Authorization
+  // header. This exact bug 401'd every purchase in App Review (2026-08-24).
   const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!token) return json(401, { ok: false, reason: "auth" });
   const asCaller = createClient(url, anonKey, {
-    global: { headers: { Authorization: authHeader } },
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const {
     data: { user },
-  } = await asCaller.auth.getUser();
+  } = await asCaller.auth.getUser(token);
   if (!user) return json(401, { ok: false, reason: "auth" });
 
   let body: { jws?: unknown };
