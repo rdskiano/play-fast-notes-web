@@ -44,6 +44,9 @@ export type PencilCanvasProps = {
   penWidth?: number;
   /** Fires after each user edit — not the initial restore of `initialData`. */
   onChange?: () => void;
+  /** Starting pen ink for the session; null/undefined = PencilKit's default.
+   *  Changing it mid-session recolors the pen (a swatch tap). */
+  inkColor?: string | null;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -56,11 +59,16 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
       drawingPolicy = 'anyinput',
       penWidth = 3,
       onChange,
+      inkColor,
       style,
     },
     ref,
   ) {
     const pk = useRef<PencilKitRef>(null);
+    // Read via ref inside the once-per-session tool init so a late-loading
+    // saved ink doesn't re-trigger that effect.
+    const inkRef = useRef(inkColor);
+    inkRef.current = inkColor;
     // False until the initial restore has settled, so the restore's own
     // drawing-change events aren't reported as user edits. The settle deadline
     // is ADAPTIVE: restoring a large drawing can emit change events well past
@@ -150,11 +158,25 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
       }
       if (toolInit.current) return;
       const t = setTimeout(() => {
-        pk.current?.setTool({ toolType: 'pen', width: penWidth });
+        pk.current?.setTool({
+          toolType: 'pen',
+          width: penWidth,
+          ...(inkRef.current ? { color: inkRef.current } : null),
+        });
         toolInit.current = true;
       }, 0);
       return () => clearTimeout(t);
     }, [editable, penWidth]);
+
+    // Recolor the pen when the remembered ink arrives or a swatch is tapped.
+    // Deliberately keyed on inkColor alone — re-running on penWidth would
+    // reintroduce the eraser-flips-back-to-pen bug the once-guard fixed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => {
+      if (!editable || !toolInit.current || !inkColor) return;
+      pk.current?.setTool({ toolType: 'pen', width: penWidth, color: inkColor });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [inkColor]);
 
     const handleDrawingChange = useCallback(() => {
       if (!settled.current) {

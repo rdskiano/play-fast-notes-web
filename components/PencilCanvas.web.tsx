@@ -59,6 +59,8 @@ export type PencilCanvasProps = {
    *  as draw-capable (the stylus gate happens at the tab level, not here). */
   drawingPolicy?: 'default' | 'anyinput' | 'pencilonly';
   onChange?: () => void;
+  /** Ink for NEW strokes; null/undefined = the default #1a1a1a. */
+  inkColor?: string | null;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -84,11 +86,15 @@ type Stroke = {
 
 export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
   function PencilCanvas(
-    { imageUri, editable, onChange, style },
+    { imageUri, editable, onChange, inkColor, style },
     ref,
   ) {
     // Keep the undo button clear of a landscape phone's side notch.
     const insets = useSafeAreaInsets();
+    // The pointer handlers live in a long-lived effect — read the ink through
+    // a ref so a swatch tap recolors the NEXT stroke without re-binding them.
+    const inkRef = useRef(inkColor);
+    inkRef.current = inkColor;
     const containerRef = useRef<View | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const bgImgRef = useRef<HTMLImageElement | null>(null);
@@ -237,7 +243,7 @@ export const PencilCanvas = forwardRef<PencilCanvasHandle, PencilCanvasProps>(
         }
         currentRef.current = {
           points: [pointFromEvent(e)],
-          color: STROKE_COLOR,
+          color: inkRef.current ?? STROKE_COLOR,
         };
         redraw();
         e.preventDefault();

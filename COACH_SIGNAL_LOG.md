@@ -34,6 +34,236 @@ sure about the logic behind the scenes."
 
 ---
 
+# SESSION 5 (2026-08-25, at the stand) — Frenzy again: the whole-piece
+# "what do I do today?" moment. Narrated live mid-practice.
+
+## SESSION 5 SUMMARY (closed — Ralph off to eat and teach)
+
+New D-entries: D49 (piece-level "what do I do today" — scope declaration +
+document coach surface missing), D50 (book-icon → piece coach button; pill
+aging colors, no red, + opacity addendum), D51 (visual difficulty read routes
+tool choice; fast-first-session = post-hoc "easy" signal), D52 (running 16ths
+→ RV family + boredom validates the anti-rut rule). Friction: F22 (orange ink
+resets every session; remembered-ink-color is the small fix), F23 (Exercise
+Builder score peek — BUILT same sitting, unshipped), F24 (re-barred
+accidentals — PARKED at Ralph's request, resurface as a possibility), F25
+(playback BPM unit mismatch in /8 meters — most designed item of the day:
+guided "set up the metronome for playback," natural pulse per meter with
+subdivisions for eighths, meter-aware ▶, re-prompt on meter change; pulse
+mapping table is Ralph's to author). Positive signals: Micro timer loved,
+especially paired with ICU's full-run-at-tempo; section tempo prefill
+LIVE-VERIFIED on passage "95" ("I don't think I would have even caught that
+without the app" — the memory-of-your-own-decisions superpower). Also this
+morning, pre-session: the Daily Routine folder workaround (anchor passages +
+one-rep custom ladders) that reshapes the daily-exercises feature.
+
+### D49 — Piece-level session planning: the coach's missing altitude
+
+- **What Ralph did:** Opened Frenzy (~10 pages, passages across pages 1–2 practiced;
+  page-1 pills all "3 days ago", page-2 pills all "1 day ago", all same color, each
+  with a ladder-completion %). Felt "what do I do today? how do I start?" Decided:
+  play through the well-practiced page-1/2 passages once as a refresher, then dig
+  into the first passage with little data. His own confidence in the call: "I don't
+  know if that was the right thing to do or not."
+- **What the app would have known:** per-passage last-practiced dates + ladder %.
+  Enough raw signal to RANK (stalest first / least-progressed first), but the info
+  sat in small pill text — "helped me decide, but it wasn't visually clear."
+- **What the app could NOT have known:** the SCOPE — which passages constitute the
+  goal. A 10-page symphony may have 30 candidate regions; the app has no idea which
+  subset Ralph is responsible for, so it can't say how far along "the piece" is.
+- **Verdict: PARTLY.** Refresh-then-frontier could be a deterministic document-level
+  rule over (recency × progress) — but only once the user declares scope. Two gaps:
+  (1) no scope declaration step ("mark all the passages you'll need to practice" —
+  Ralph's proposed step one, which also = the tabled teacher's-clipboard /
+  audition-mode denominator), (2) no document-level coach surface at all (the coach
+  is per-passage). Whether refresh-then-frontier is actually RIGHT pedagogy is
+  explicitly unvalidated — Ralph himself is unsure; do not encode it as a rule
+  without his sign-off.
+
+### D50 — Design ideas from the same sitting (Ralph's, verbatim intent)
+
+1. **Practice-log button → a small book icon next to the tools** (as elsewhere),
+   freeing document-header space for a **piece-level Practice Coach button** —
+   "help us navigate our way through practicing this whole piece."
+2. **Pill color = practice recency (aging).** Practiced today → green, then a
+   gradual drift (through blue/orange) toward a light pink as days pass untouched.
+   Explicitly NOT red — "red provokes anxiety." This is the transparent-history /
+   gentle spacing-layer direction (July decision: transparent history FIRST)
+   rendered as ambient color instead of a report. Open questions: what the pills'
+   current color semantics lose, colorblind legibility, and keeping aging from
+   reading as guilt.
+   **Addendum (same sitting):** pair the hue shift with an OPACITY change so the
+   aging signal doesn't ride on color alone — Ralph's own accessibility call for
+   visually-impaired players. Build-time caveat to test: fading a whole pill fades
+   its text too; the opacity may belong on an accent element (border/dot/fill
+   band) rather than the entire pill.
+
+Both are ideas captured mid-practice, not commitments. Ralph: "I don't know
+whether they are good thoughts."
+
+**Positive signal (same sitting):** Ralph toggled on the **Micro timer**
+(micro-break reminder) by choice and "loves it." Worth remembering when the
+coach's repertoire expands: recommending the Micro timer during grinding /
+long sittings is a suggestion he'd stand behind from his own use. He
+"especially loves it in combination with" ICU's phase-capping FULL RUN at
+performance tempo (shipped 2026-08-23) — that pairing is validated by real use.
+
+**✅ Live verification (same sitting):** passage "95" (also visually easy →
+straight to Tempo Ladder, consistent with D51): the fresh setup PULLED THE
+TEMPO FROM THE PASSAGE'S SECTION — the 2026-08-21 unified-prefill ship's
+section-inherit path, working in the wild. His words: "It pulled in a new
+tempo based on the section that this is in, and I don't think I would have
+even caught that without the app." Note what that sentence means for the
+coach thesis: the app SURFACED a decision he'd already made and forgotten —
+memory-of-your-own-decisions is a coach superpower the trail already has.
+
+### F22 — Pencil ink visibility — OPTION 1 BUILT (2026-08-25 PM, unshipped)
+
+Remembered ink color built: `lib/annotation/inkColor.ts` (settings-backed,
+5 swatches: black/orange/blue/green/purple, no red), a centered swatch pill
+below the top bar while annotating in the document viewer (tap = recolor the
+live pen + persist), pen starts in the saved ink every session on BOTH
+platforms (native: toolInit + mid-session retool via setTool color; web: new
+strokes use the saved ink instead of the #1a1a1a constant). Default stays
+black until the user picks. tsc + web export clean. NOT device-verified (sim
+auth wall) — Ralph's iPad eyeball owed; rides the next ship with the F23
+score peek. Original analysis below.
+
+### F22 (original) — Pencil ink visibility (Ralph marks in ORANGE for rehearsal transfer)
+
+Ralph's habit: he transfers app markings to the paper part in rehearsal, so
+in-app marks must be HIGHLY visible → he picks orange ink. Facts verified in
+code this sitting: the app re-initializes the pen once per edit session with
+NO color (PencilCanvas toolInit → setTool without color), so his orange
+RESETS every session; the react-native-pencil-kit setTool API DOES accept an
+optional color. Build candidates, in order:
+1. **Remembered ink color** (small): an app-kept ink preference passed into
+   setTool each session. Limitation: picks made inside Apple's color wheel
+   can't be read back, so the preference is set via our own swatch UI.
+   JS-only → OTA-able.
+2. **Default-to-visible-color for everyone + one-line why**: Ralph's open
+   question, HIS call; deferred until he's lived with orange a while.
+3. **"Recolor all annotations" button on the PDF page** (his follow-up idea):
+   web is feasible (strokes are app-owned JSON with per-stroke color); iPad
+   is real native work (PKDrawing stroke inks must be rewritten in the
+   module) → needs a NATIVE BUILD, not OTA — mind the EAS quota. Park until
+   1 proves insufficient.
+
+### F24 — Exercise Builder: re-barring silently drops accidentals (NOT built)
+
+On "104" (running 16ths, key C major): an altered B earlier in the entered
+line made a later B show a printed natural on the ENTRY staff (one long
+measure). The generated exercise re-barred into 3/8 put that B in its own
+measure — barline cancels the alteration, so no natural printed. Engraving-
+correct, sight-reading-hostile; Ralph would have forced the accidental had
+the entry view warned him. He verified the manual force/courtesy toggle works.
+ROOT CAUSE: entry is measure-less but every generated exercise re-bars the
+same pitches differently → barline-dependent accidental logic diverges
+between views. PROPOSED FIX (deterministic, standard engraving, NOT yet
+ratified by Ralph): the generator emits a COURTESY accidental whenever a
+pitch letter altered in one measure recurs un-altered in the next — applied
+per exercise at its own barlines. Open for Ralph: confirm the reconstruction,
+confirm the rule, bare vs parenthesized courtesy sign. Touches the ABC
+generation path — build carefully post-session, not mid-practice.
+**STATUS (same sitting): PARKED.** Ralph on the courtesy-accidental proposal:
+"I'm not sure that's a great solution, but it's hard for me to think through
+it. When the time comes, let's just resurface it as a possibility." Do NOT
+build; resurface as one option when Exercise Builder notation work next opens.
+
+### F25 — Exercise playback tempo: BPM unit mismatch in /8 meters (NOT built)
+
+- **What happened:** On the generated 3/8 exercise for "104", Ralph's instinct
+  was "about 60" — he set the metronome to 60 and played several times,
+  feeling the pulse BY THE MEASURE. Then he tapped ▶ on the exercise and "the
+  metronome went to like 200-something" — playback treats BPM as clicks per
+  EIGHTH note in an /8 meter (the May "conventional BPM math": denominator
+  unit = the beat). 60-per-measure vs 60-per-eighth are wildly different
+  speeds; "those two settings are so far apart from each other."
+- **His idea:** the app could notice he was thinking by the measure and play
+  back at the sounding speed he was already practicing at. Honest limit: the
+  app cannot know what UNIT he meant by "60" — but it does know the meter and
+  his running metronome BPM, so it could ask or offer the conversion.
+- **Design options logged (none chosen):** (a) a beat-unit choice next to
+  tempo in /8-meter exercises (♪ = / ♩. = / bar =), (b) smart default for
+  compound + /8 meters = dotted-quarter or per-measure pulse instead of
+  per-eighth, (c) show the equivalence inline ("♪ = 180 · ♩. = 60") so the
+  number is never ambiguous.
+- **Ancestry:** the May metronome↔exercise sync work explicitly deferred
+  "pushing the exercise's time signature onto the metronome" with the note
+  "natural next step if this divergence ever feels confusing." It just did —
+  this is that divergence, felt at the stand. Related: grooves note that 6/8
+  tempo reads as quarter-note BPM.
+- **Ralph's proposed direction (same sitting, his design):** make ▶ a GUIDED
+  moment — "Set up the metronome for playback": walk the user through choosing
+  the meter (he'd have tapped 3/8) and then the tempo, choosing it BY THE
+  MEASURE, with a line of direction on how to think about it. Rationale: "I
+  very rarely see a tempo above 180" — per-eighth readings of 200+ are alien
+  to how musicians read tempo, so guide toward measure/compound-pulse framing
+  in /8 meters. Open details: one-time coach modal vs. every-play mini-sheet;
+  whether a by-the-measure tempo is converted under the hood so the engine
+  still gets its per-eighth number. Fits the app's existing first-run coach-
+  modal pattern.
+- **Refinement (same sitting):** clicking the EIGHTH note in 3/8 is almost
+  never what anyone wants — "that's what the subdivisions are for": the click
+  should carry the natural pulse, subdivisions fill in the eighths. And the
+  generated list mixes meters (his sheet: exercise 8 = 3/8, exercise 9 = 2/4),
+  so each ▶ must be aware of ITS exercise's meter — technically available,
+  every generated exercise already carries its time signature to render. When
+  the meter changes between exercises, prompt for a fresh tempo in the new
+  meter's natural unit (3/8 → by the measure; 2/4 → per QUARTER, his call).
+  The pulse-unit-per-meter mapping table is Ralph's to author (compound vs
+  simple pulse framing is musical judgment).
+
+### F23 — Exercise Builder setup lacked the "View score" peek — BUILT same sitting
+
+Ralph, at the Exercise Builder setup for "104": the cropped passage is small
+and hides the key signature — "I can't remember what key this passage is in."
+The 2026-08-21 score-peek ship covered six screens but not rhythm-builder.
+Built immediately (same pattern: ScorePeekModal + an eye "View score" button
+in the top bar, visible during Setup and Enter-pitches phases, replaced by
+the PDF/Share/EDIT/DONE cluster in Generate). tsc + web export clean; NOT
+shipped yet — rides the next deploy. Sibling gap deliberately left alone:
+the plain Rhythm Variations screen wasn't checked/requested.
+
+### D52 — Passage "104": character-matched tool + BOREDOM as a real router
+
+- **What Ralph did:** "104" is running 16th notes. He chose the **Exercise
+  Builder** (built-exercise flavor of Rhythmic Variation), naming two reasons
+  out loud: (1) "I haven't done it in a while" / "if I do the same strategy
+  over and over again, I get a little bit bored", (2) deliberately testing the
+  app's functionality.
+- **What the app would have known:** his strategy_last_used trail (heavy recent
+  ICU/ladder on this piece) — enough to see the rut. It canNOT see "running
+  16ths" (score-reading), though the June framework already maps running
+  subdivisions → the Rhythm-Variation family, which is exactly where he went.
+- **Verdict: YES, validating two encoded principles at once.** The June
+  character mapping (running 16ths → RV-family) matches his instinct, and the
+  existing rut rule ("don't re-recommend yesterday's exact strategy as #1")
+  gets its first from-his-own-mouth motivation: variety isn't a UX nicety, it's
+  something HE practices by. Novelty/boredom-relief is a legitimate
+  recommendation criterion the coach can own confidently.
+
+### D51 — Visual difficulty read routes the tool choice (invisible signal)
+
+- **What Ralph did:** Page 3, passages "71" and "78". "Just glancing at it, I can
+  tell it's nowhere near as difficult" as the previous page's — so instead of
+  starting with ICU "like I did in almost every other situation here," he went
+  straight to Tempo Ladder. First click-through: already 91%, "super easy."
+- **What the app would have known beforehand:** nothing. The difficulty
+  assessment came from reading the score — a signal the trail cannot see. The
+  app can't distinguish an easy passage from a hard one until reps exist.
+- **What the app knows AFTER one sitting:** climb velocity — reaching ~91% of
+  goal in the first session with ease is a loud "this one is easy" signal.
+- **Verdict: NO a-priori / PARTLY post-hoc.** A rule candidate (NOT ratified):
+  very fast first-session progress (high % of goal, low misses) → classify the
+  passage light → don't prescribe the full ladder→ICU→RR arc; suggest finishing
+  the climb + maintenance instead. The a-priori version would need either a user
+  question ("how hard does this look?") or acceptance that the first session IS
+  the probe. Also feeds D49's piece-level picture: within one work, passages
+  fall into difficulty tiers the coach should treat differently.
+
+---
+
 **Date:** 2026-07-27
 **Piece/excerpt:** *Frenzy: A Short Symphony for Orchestra* — John Adams (clarinet part)
 **Device:** iOS app on iPad ("if I even get that far" — iPad add-music friction is itself a known sore spot; log it)

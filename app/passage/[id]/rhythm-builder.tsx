@@ -23,6 +23,7 @@ import { PitchStaff } from '@/components/PitchStaff';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
 import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
+import { ScorePeekModal } from '@/components/ScorePeekModal';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { ThemedText } from '@/components/themed-text';
 import { TutorialStep } from '@/components/TutorialStep';
@@ -202,6 +203,10 @@ export default function RhythmBuilderScreen() {
 
   const [phase, setPhase] = useState<Phase>('setup');
   const [passage, setPassage] = useState<Passage | null>(null);
+  // Momentary look at the full source page — the cropped passage can hide
+  // the key signature, so setup/entry offer the same "View score" peek the
+  // tempo-setup screens have.
+  const [peekOpen, setPeekOpen] = useState(false);
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
@@ -718,7 +723,15 @@ export default function RhythmBuilderScreen() {
                 />
                 <Button label="DONE" variant="danger" size="sm" onPress={doneSession} />
               </View>
-            ) : null
+            ) : (
+              <Button
+                label="View score"
+                icon="eye"
+                variant="outline"
+                size="xs"
+                onPress={() => setPeekOpen(true)}
+              />
+            )
           }
         />
       </View>
@@ -1237,6 +1250,12 @@ export default function RhythmBuilderScreen() {
           }
         }}
         onCancel={() => setShareOpen(false)}
+      />
+
+      <ScorePeekModal
+        visible={peekOpen}
+        passage={passage}
+        onClose={() => setPeekOpen(false)}
       />
 
     </ThemedView>

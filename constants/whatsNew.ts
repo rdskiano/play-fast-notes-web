@@ -20,6 +20,20 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-25-pencil-ink-color',
+    date: 'August 25, 2026',
+    title: 'Your pencil remembers its ink color',
+    body:
+      'If you mark your parts in a color, the pencil used to forget it every time you closed it. Now, while the pencil is open, a small row of ink dots sits under the header. Pick one and every future pencil session starts in that color. Many players use a bright ink so markings are easy to spot and easy to copy onto a paper part later.',
+  },
+  {
+    id: '2026-08-25-builder-view-score',
+    date: 'August 25, 2026',
+    title: 'Exercise Builder: peek at your part while setting up',
+    body:
+      'A cropped passage can hide things like the key signature at the start of the line. The Exercise Builder now has the same View score button as the practice setup screens, in the top bar during setup and note entry. One tap shows your full part with the passage outlined, and one tap brings you back.',
+  },
+  {
     id: '2026-08-25-library-log-sections',
     date: 'August 25, 2026',
     title: 'The library practice log now groups by section, like the document log',
