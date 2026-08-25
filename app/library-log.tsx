@@ -98,21 +98,20 @@ type PassageGroup = {
   entries: LibraryPracticeLogEntry[];
 };
 
-// Card label inside by-date view. The PDF title is now a header above the
-// cards, so we omit document_title here to avoid the same name repeating on
-// every card. Section name (movement) stays inline: "IV. Adagio · bars 281-291".
-function dateCardLabel(e: LibraryPracticeLogEntry): string {
-  const title = e.piece_title || 'Untitled';
-  const parts: string[] = [];
-  if (e.section_name) parts.push(e.section_name);
-  parts.push(title);
-  return parts.join(' · ');
-}
+// Section (movement) sub-group inside a document, mirroring document-log.tsx:
+// the section renders as a labeled header row above its passage cards, and
+// card titles are just the passage title. The old inline mashing
+// ("IV. Adagio · bars 281-291") read as one confusing name (Ralph,
+// 2026-08-25) — the two logs now share the same shape.
+type DateSectionGroup = {
+  sectionName: string | null;
+  passages: PassageGroup[];
+};
 
 type DateDocGroup = {
   documentId: string;
   documentTitle: string;
-  passages: PassageGroup[];
+  sections: DateSectionGroup[];
 };
 
 type DayFolderGroup = {
@@ -259,9 +258,13 @@ export default function LibraryLogScreen() {
 
   const dayGroups: DayGroup[] = [];
   {
+    type DateSectionBuilder = {
+      sectionName: string | null;
+      passageMap: Map<string, PassageGroup>;
+    };
     type DateFolderBuilder = {
       folderName: string;
-      docMap: Map<string, { documentTitle: string; passageMap: Map<string, PassageGroup> }>;
+      docMap: Map<string, { documentTitle: string; sectionMap: Map<string, DateSectionBuilder> }>;
       standaloneMap: Map<string, PassageGroup>;
     };
     const dayMap = new Map<
@@ -296,18 +299,26 @@ export default function LibraryLogScreen() {
         if (!folder.docMap.has(e.document_id)) {
           folder.docMap.set(e.document_id, {
             documentTitle: e.document_title,
-            passageMap: new Map(),
+            sectionMap: new Map(),
           });
         }
         const doc = folder.docMap.get(e.document_id)!;
-        if (!doc.passageMap.has(e.piece_id)) {
-          doc.passageMap.set(e.piece_id, {
-            passageTitle: dateCardLabel(e),
+        const sectionKey = e.section_name ?? '__nosection__';
+        if (!doc.sectionMap.has(sectionKey)) {
+          doc.sectionMap.set(sectionKey, {
+            sectionName: e.section_name,
+            passageMap: new Map(),
+          });
+        }
+        const section = doc.sectionMap.get(sectionKey)!;
+        if (!section.passageMap.has(e.piece_id)) {
+          section.passageMap.set(e.piece_id, {
+            passageTitle: e.piece_title || 'Untitled',
             folderName: e.folder_name,
             entries: [],
           });
         }
-        doc.passageMap.get(e.piece_id)!.entries.push(e);
+        section.passageMap.get(e.piece_id)!.entries.push(e);
       } else {
         if (!folder.standaloneMap.has(e.piece_id)) {
           folder.standaloneMap.set(e.piece_id, {
@@ -332,7 +343,10 @@ export default function LibraryLogScreen() {
           documentGroups: Array.from(f.docMap.entries()).map(([docId, doc]) => ({
             documentId: docId,
             documentTitle: doc.documentTitle,
-            passages: Array.from(doc.passageMap.values()),
+            sections: Array.from(doc.sectionMap.values()).map((s) => ({
+              sectionName: s.sectionName,
+              passages: Array.from(s.passageMap.values()),
+            })),
           })),
           standalonePassages: Array.from(f.standaloneMap.values()),
         };
@@ -389,11 +403,26 @@ export default function LibraryLogScreen() {
                       <ThemedText style={styles.documentTitle} numberOfLines={1}>
                         {docGroup.documentTitle}
                       </ThemedText>
-                      <View style={styles.grid}>
-                        {docGroup.passages.map((pg, j) =>
-                          renderDateCard(pg, j, STRATEGY_COLORS, setEditing, isPhone),
-                        )}
-                      </View>
+                      {/* Same Section → passage-cards shape as document-log.tsx
+                          (accent bar + section name), so the two logs read
+                          identically. */}
+                      {docGroup.sections.map((sg, si) => (
+                        <View key={si} style={styles.sectionGroup}>
+                          {sg.sectionName && (
+                            <View style={styles.sectionLabelRow}>
+                              <View style={styles.sectionBar} />
+                              <ThemedText style={styles.sectionName} numberOfLines={1}>
+                                {sg.sectionName}
+                              </ThemedText>
+                            </View>
+                          )}
+                          <View style={styles.grid}>
+                            {sg.passages.map((pg, j) =>
+                              renderDateCard(pg, j, STRATEGY_COLORS, setEditing, isPhone),
+                            )}
+                          </View>
+                        </View>
+                      ))}
                     </View>
                   ))}
                   {folder.standalonePassages.length > 0 && (
@@ -545,6 +574,30 @@ const styles = StyleSheet.create({
   documentGroup: {
     gap: Spacing.xs,
     marginTop: Spacing.xs,
+  },
+  // Section (movement) header inside a document group — copied verbatim from
+  // document-log.tsx so the two logs read identically.
+  sectionGroup: {
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  sectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  sectionBar: {
+    width: Spacing.xs,
+    height: 18,
+    borderRadius: 2,
+    backgroundColor: Palette.accent,
+  },
+  sectionName: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    flex: 1,
   },
   documentTitle: {
     fontFamily: Fonts.rounded,

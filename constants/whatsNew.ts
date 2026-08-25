@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-25-library-log-sections',
+    date: 'August 25, 2026',
+    title: 'The library practice log now groups by section, like the document log',
+    body:
+      'In the full-library practice log, passages from a PDF used to show the movement name squeezed into each card title, which read as one long confusing name. Now the library log uses the same layout as the log inside a document: the piece, then each movement as its own header, with the passage cards underneath.',
+  },
+  {
     id: '2026-08-24-type-your-own-numbers',
     date: 'August 24, 2026',
     title: 'Type your own numbers on the setup screens',
