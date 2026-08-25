@@ -43,9 +43,22 @@ import {
 const SUCCESS_BUMP_BPM = 5;
 
 export type Mode = 'step' | 'cluster' | 'custom';
-export type Increment = 2 | 5 | 10;
-export type RepTarget = 5 | 10 | 20;
+// Any whole BPM step ≥ 1. The setup screen offers 2/5/10 as preset pills
+// plus a type-your-own pill; saved rows and reminder links can carry any
+// valid value.
+export type Increment = number;
+
+export function isValidIncrement(n: unknown): n is Increment {
+  return typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= 99;
+}
+// Clean-reps-to-advance: any whole count ≥ 1. The setup screen offers
+// 5/10/20 as preset pills plus a type-your-own pill.
+export type RepTarget = number;
 export const REP_TARGETS: RepTarget[] = [5, 10, 20];
+
+export function isValidRepTarget(n: unknown): n is RepTarget {
+  return typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= 99;
+}
 
 export type Celebration = { reached: boolean } | null;
 
@@ -227,7 +240,7 @@ export function useTempoLadderSession(
     if (!o || overridesAppliedRef.current) return;
     overridesAppliedRef.current = true;
     if (o.mode === 'cluster') setMode('cluster');
-    if (o.increment === 2 || o.increment === 5 || o.increment === 10) {
+    if (isValidIncrement(o.increment)) {
       setIncrement(o.increment);
     }
     if (o.startBpm && Number.isFinite(o.startBpm) && o.startBpm >= 30 && o.startBpm <= 400) {
@@ -316,11 +329,11 @@ export function useTempoLadderSession(
               setFinalTempo(String(sib.goal_tempo));
               if (sib.mode === 'step') {
                 setStartTempo(String(sib.start_tempo));
-                if (sib.increment === 2 || sib.increment === 5 || sib.increment === 10) {
+                if (isValidIncrement(sib.increment)) {
                   setIncrement(sib.increment);
                 }
-                if (REP_TARGETS.includes(sib.target_reps as RepTarget)) {
-                  setTargetReps(sib.target_reps as RepTarget);
+                if (isValidRepTarget(sib.target_reps)) {
+                  setTargetReps(sib.target_reps);
                 }
               }
               return;
@@ -393,8 +406,8 @@ export function useTempoLadderSession(
         setStartTempo(String(effectiveStart));
         setGoalTempo(String(existing.goal_tempo));
       }
-      setIncrement((existing.increment ?? 5) as Increment);
-      setTargetReps(existing.target_reps as RepTarget);
+      setIncrement(isValidIncrement(existing.increment) ? existing.increment : 5);
+      setTargetReps(isValidRepTarget(existing.target_reps) ? existing.target_reps : 5);
       // A saved row is a real goal decision.
       goalSourcedRef.current = true;
       // Stale-goal nudge: the piece's shared performance tempo may have moved
@@ -935,7 +948,8 @@ export function useTempoLadderSession(
         misses,
         targetReps: progress?.target_reps,
         // The increment used this session — a resurfaced "use a larger /
-        // smaller increment" note reads it to offer the next 2·5·10 step.
+        // smaller increment" note reads it to offer the nearest 2·5·10
+        // preset in the asked direction (custom values snap to a preset).
         increment: progress?.increment ?? inc,
       };
       // Capture which Custom pattern was practiced so the practice log can

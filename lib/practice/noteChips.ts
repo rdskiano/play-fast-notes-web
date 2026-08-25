@@ -293,24 +293,33 @@ export function actionsForReminder(
   if (has(CHIP.incLarger) || has(CHIP.incSmaller)) {
     // Needs the increment the session used (logged since this feature
     // shipped). Old rows without it fall back to a plain Tempo Ladder button.
+    // Type-your-own increments (e.g. +4) snap to the nearest preset in the
+    // asked direction; no preset that way → the plain button again.
     const inc = typeof data?.increment === 'number' ? data.increment : null;
-    const i = inc == null ? -1 : INCREMENT_STEPS.indexOf(inc as 2 | 5 | 10);
-    if (i === -1) {
+    if (inc == null) {
       push(TL);
     } else {
-      if (has(CHIP.incLarger) && i < INCREMENT_STEPS.length - 1) {
-        const next = INCREMENT_STEPS[i + 1];
-        push({
-          label: `Tempo Ladder — ${next} BPM steps`,
-          path: `tempo-ladder?increment=${next}`,
-        });
+      if (has(CHIP.incLarger)) {
+        const next = INCREMENT_STEPS.find((s) => s > inc);
+        if (next != null) {
+          push({
+            label: `Tempo Ladder — ${next} BPM steps`,
+            path: `tempo-ladder?increment=${next}`,
+          });
+        } else {
+          push(TL);
+        }
       }
-      if (has(CHIP.incSmaller) && i > 0) {
-        const prev = INCREMENT_STEPS[i - 1];
-        push({
-          label: `Tempo Ladder — ${prev} BPM steps`,
-          path: `tempo-ladder?increment=${prev}`,
-        });
+      if (has(CHIP.incSmaller)) {
+        const prev = [...INCREMENT_STEPS].reverse().find((s) => s < inc);
+        if (prev != null) {
+          push({
+            label: `Tempo Ladder — ${prev} BPM steps`,
+            path: `tempo-ladder?increment=${prev}`,
+          });
+        } else {
+          push(TL);
+        }
       }
     }
   }

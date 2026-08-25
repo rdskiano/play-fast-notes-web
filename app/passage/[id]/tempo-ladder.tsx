@@ -1,8 +1,8 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BpmStepper } from '@/components/BpmStepper';
@@ -35,6 +35,8 @@ import { isToolsOnly } from '@/lib/strategies/toolsMode';
 import { TOOLS_TEMPO_LADDER_HELP } from '@/constants/toolsHelp';
 import { ToolsMetronome } from '@/components/ToolsMetronome';
 import {
+  isValidIncrement,
+  isValidRepTarget,
   REP_TARGETS,
   useTempoLadderSession,
   type Increment,
@@ -92,13 +94,13 @@ const TL_SETUP_STEPS: TourStep[] = [
     target: 'tl-increment',
     title: 'Choose your step size',
     body:
-      'How much should the tempo increase after each set? Enough to feel the difference, not so much that the passage suddenly becomes hard.',
+      'How much should the tempo increase after each set? Enough to feel the difference, not so much that the passage suddenly becomes hard. Tap a preset, or type your own step size.',
   },
   {
     target: 'tl-reps',
     title: 'Reps to advance',
     body:
-      'How many clean reps in a row before you climb. Pick a number that adds a little pressure — nailing 9 in a row makes the 10th feel like a performance. Imagine the pressure at 19!!',
+      'How many clean reps in a row before you climb. Pick a number that adds a little pressure — nailing 9 in a row makes the 10th feel like a performance. Imagine the pressure at 19!! Tap a preset, or type your own.',
   },
   {
     target: 'tl-start',
@@ -141,6 +143,13 @@ export default function TempoLadderScreen() {
   const [deleting, setDeleting] = useState(false);
   // Momentary look at the source page while setting tempos (config phase).
   const [peekOpen, setPeekOpen] = useState(false);
+  // The type-your-own increment pill's text. Lives separately from the
+  // committed increment so a half-typed or cleared field never breaks the
+  // session config; synced below when a saved row / sibling / reminder link
+  // loads a non-preset value.
+  const [customIncText, setCustomIncText] = useState('');
+  // Same pattern for the Clean-reps row's type-your-own pill.
+  const [customRepText, setCustomRepText] = useState('');
   // Phone density check — hoisted ABOVE all early returns so the hook
   // count stays stable across renders (config → loading → play phases).
   const { width: vpW, height: vpH } = useWindowDimensions();
@@ -156,10 +165,9 @@ export default function TempoLadderScreen() {
   const session = useTempoLadderSession(id, toolsOnly, isGuided, {
     mode: modeParam === 'cluster' ? 'cluster' : undefined,
     startScale: startScale ? parseFloat(startScale) : undefined,
-    increment:
-      incrementParam === '2' || incrementParam === '5' || incrementParam === '10'
-        ? (parseInt(incrementParam, 10) as Increment)
-        : undefined,
+    increment: isValidIncrement(parseInt(incrementParam ?? '', 10))
+      ? parseInt(incrementParam!, 10)
+      : undefined,
     startBpm: startParam ? parseInt(startParam, 10) : undefined,
   });
   const {
@@ -210,6 +218,19 @@ export default function TempoLadderScreen() {
   } = session;
 
   const ann = useScoreAnnotation(passage);
+
+  // Custom-increment pill: highlighted whenever the committed increment
+  // isn't one of the presets. When a non-preset value arrives from outside
+  // the field (saved row, section sibling, reminder link), mirror it into
+  // the field so the pill shows the number it's using.
+  const incIsPreset = (INCREMENTS as number[]).includes(increment);
+  useEffect(() => {
+    if (!incIsPreset) setCustomIncText(String(increment));
+  }, [increment, incIsPreset]);
+  const repIsPreset = (REP_TARGETS as number[]).includes(targetReps);
+  useEffect(() => {
+    if (!repIsPreset) setCustomRepText(String(targetReps));
+  }, [targetReps, repIsPreset]);
 
   // Web-only guided tour of the setup screen (the 'config' phase — its
   // tagged controls only exist there). No-op on native, where the help
@@ -534,7 +555,10 @@ export default function TempoLadderScreen() {
                   return (
                     <Pressable
                       key={n}
-                      onPress={() => setIncrement(n)}
+                      onPress={() => {
+                        setIncrement(n);
+                        setCustomIncText('');
+                      }}
                       style={[
                         styles.pill,
                         { backgroundColor: on ? ACCENT : Palette.surfaceSunk },
@@ -546,6 +570,46 @@ export default function TempoLadderScreen() {
                     </Pressable>
                   );
                 })}
+                {/* Type-your-own step. Commits the moment the digits parse
+                    to a whole 1–99; a preset tap clears the field. */}
+                <View
+                  style={[
+                    styles.pill,
+                    styles.pillInputWrap,
+                    // Reads as an empty box awaiting a number (outline only),
+                    // then fills with the accent green once a typed step is
+                    // the active increment.
+                    !incIsPreset
+                      ? { backgroundColor: ACCENT, borderColor: ACCENT }
+                      : { backgroundColor: 'transparent', borderColor: Palette.text },
+                  ]}>
+                  <ThemedText
+                    style={[
+                      styles.pillText,
+                      { color: !incIsPreset ? '#fff' : Palette.text },
+                    ]}>
+                    +
+                  </ThemedText>
+                  <TextInput
+                    value={customIncText}
+                    onChangeText={(t) => {
+                      const digits = t.replace(/[^0-9]/g, '').slice(0, 2);
+                      setCustomIncText(digits);
+                      const n = parseInt(digits, 10);
+                      if (isValidIncrement(n)) setIncrement(n);
+                    }}
+                    keyboardType="number-pad"
+                    inputMode="numeric"
+                    placeholder="other"
+                    placeholderTextColor={
+                      !incIsPreset ? 'rgba(255,255,255,0.7)' : Palette.textMuted
+                    }
+                    style={[
+                      styles.pillInput,
+                      { color: !incIsPreset ? '#fff' : Palette.text },
+                    ]}
+                  />
+                </View>
               </View>
             </View>
 
@@ -558,7 +622,10 @@ export default function TempoLadderScreen() {
                     return (
                       <Pressable
                         key={n}
-                        onPress={() => setTargetReps(n)}
+                        onPress={() => {
+                          setTargetReps(n);
+                          setCustomRepText('');
+                        }}
                         style={[
                           styles.pill,
                           { backgroundColor: on ? ACCENT : Palette.surfaceSunk },
@@ -570,6 +637,36 @@ export default function TempoLadderScreen() {
                       </Pressable>
                     );
                   })}
+                  {/* Type-your-own rep target — same empty-outline-then-
+                      green-fill treatment as the increment pill. */}
+                  <View
+                    style={[
+                      styles.pill,
+                      styles.pillInputWrap,
+                      !repIsPreset
+                        ? { backgroundColor: ACCENT, borderColor: ACCENT }
+                        : { backgroundColor: 'transparent', borderColor: Palette.text },
+                    ]}>
+                    <TextInput
+                      value={customRepText}
+                      onChangeText={(t) => {
+                        const digits = t.replace(/[^0-9]/g, '').slice(0, 2);
+                        setCustomRepText(digits);
+                        const n = parseInt(digits, 10);
+                        if (isValidRepTarget(n)) setTargetReps(n);
+                      }}
+                      keyboardType="number-pad"
+                      inputMode="numeric"
+                      placeholder="other"
+                      placeholderTextColor={
+                        !repIsPreset ? 'rgba(255,255,255,0.7)' : Palette.textMuted
+                      }
+                      style={[
+                        styles.pillInput,
+                        { color: !repIsPreset ? '#fff' : Palette.text },
+                      ]}
+                    />
+                  </View>
                 </View>
               </View>
             )}
@@ -1412,6 +1509,26 @@ const styles = StyleSheet.create({
     minWidth: 56,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // The type-your-own increment pill: same silhouette as its preset
+  // siblings, with the "+" prefix and a small inline number field.
+  pillInputWrap: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.md,
+    gap: 2,
+    // Border is always drawn (color swaps with state) so the pill keeps the
+    // same footprint as its preset siblings; padding gives back its width.
+    borderWidth: 1.5,
+    paddingVertical: Spacing.sm - 1.5,
+  },
+  pillInput: {
+    fontWeight: Type.weight.bold,
+    fontSize: Type.size.md,
+    fontVariant: ['tabular-nums'],
+    minWidth: 40,
+    textAlign: 'center',
+    padding: 0,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null),
   },
   pillText: {
     fontWeight: Type.weight.bold,

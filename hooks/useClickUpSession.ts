@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import { inheritedGoalForPassage } from '@/lib/coach/evaluation';
-import type { Increment } from '@/components/TempoConfigFields';
+import { isValidIncrementStep, type Increment } from '@/components/TempoConfigFields';
 import {
   getClickUpProgress,
   setClickUpIndex,
@@ -122,7 +122,7 @@ export function useClickUpSession(
         if (parsed && parsed.steps && parsed.steps.length > 0) {
           setStartTempo(String(parsed.startTempo));
           setGoalTempo(String(parsed.goalTempo));
-          setIncrement(parsed.increment as Increment);
+          if (isValidIncrementStep(parsed.increment)) setIncrement(parsed.increment);
           // Deliberately NOT restoring parsed.direction. Accepting the
           // end-of-climb reverse offer used to stick in the saved config, so
           // the next launch silently started backward and Ralph couldn't

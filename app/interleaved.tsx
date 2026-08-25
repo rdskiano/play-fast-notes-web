@@ -4,8 +4,10 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Pressable,
+  Platform,
   ScrollView,
   StyleSheet,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -58,10 +60,16 @@ import {
 
 export type SessionMode = 'consistency' | 'timer';
 export type SessionOrder = 'serial' | 'random';
-export type RepTarget = 3 | 5 | 10;
+// Any whole streak length ≥ 1; 3/5/10 are the preset chips and a
+// type-your-own chip takes the rest.
+export type RepTarget = number;
 export type TimerMinutes = 3 | 5 | 10 | 15;
 
 const REP_TARGETS: RepTarget[] = [3, 5, 10];
+
+function isValidRepTarget(n: unknown): n is RepTarget {
+  return typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= 99;
+}
 const TIMER_OPTIONS: TimerMinutes[] = [3, 5, 10, 15];
 
 // Timer mode is disabled in the Serial Practice config UI to avoid overlap
@@ -214,6 +222,13 @@ function InterleavedScreenInner() {
   // entries still read `order`.
   const [order, setOrder] = useState<SessionOrder>('random');
   const [targetReps, setTargetReps] = useState<RepTarget>(3);
+  // Type-your-own rep-target chip (outline until its number is active,
+  // then filled) — same treatment as the Tempo Ladder setup pills.
+  const [customRepText, setCustomRepText] = useState('');
+  const repIsPreset = REP_TARGETS.includes(targetReps);
+  useEffect(() => {
+    if (!repIsPreset) setCustomRepText(String(targetReps));
+  }, [targetReps, repIsPreset]);
   const [timerMinutes, setTimerMinutes] = useState<TimerMinutes>(5);
 
   const [passages, setPassages] = useState<Passage[]>([]);
@@ -429,6 +444,15 @@ function InterleavedScreenInner() {
       router.back();
       return;
     }
+    // Nothing marked Clean or Miss on any passage → nothing happened worth
+    // recording. Leave silently instead of writing an empty session row for
+    // every passage in the rotation (Tempo Ladder has the same guard: zero
+    // completed sets never log).
+    if (spots.every((s) => (s.totalAttempts ?? 0) === 0)) {
+      metronome.stop();
+      router.back();
+      return;
+    }
     setNotePromptVisible(true);
   }
 
@@ -439,7 +463,11 @@ function InterleavedScreenInner() {
   ) {
     setNotePromptVisible(false);
     setCelebrating(false);
-    for (const spot of spots) {
+    // Only passages that were actually worked (at least one Clean/Miss mark)
+    // get a log row — untouched passages in a partial session leave no trace,
+    // and the "with ..." context lists only the worked session-mates.
+    const worked = spots.filter((s) => (s.totalAttempts ?? 0) > 0);
+    for (const spot of worked) {
       try {
         await stampLastUsed(spot.passage.id, 'interleaved');
         const data: Record<string, unknown> = {
@@ -458,7 +486,7 @@ function InterleavedScreenInner() {
         // List the OTHER passages in this rotation so the per-passage log can
         // show "with Mozart, Brahms" on a session entry. Filter on passage ID
         // (not title) so two passages sharing a title aren't both dropped.
-        const others = spots
+        const others = worked
           .filter((s) => s.passage.id !== spot.passage.id)
           .map((s) => s.passage.title);
         if (others.length > 0) data.sessionPassages = others;
@@ -531,7 +559,10 @@ function InterleavedScreenInner() {
                 {REP_TARGETS.map((n) => (
                   <Pressable
                     key={n}
-                    onPress={() => setTargetReps(n)}
+                    onPress={() => {
+                      setTargetReps(n);
+                      setCustomRepText('');
+                    }}
                     style={[
                       styles.numericChip,
                       {
@@ -548,6 +579,32 @@ function InterleavedScreenInner() {
                     </ThemedText>
                   </Pressable>
                 ))}
+                <View
+                  style={[
+                    styles.numericChip,
+                    styles.numericChipInputWrap,
+                    !repIsPreset
+                      ? { backgroundColor: C.tint, borderColor: C.tint }
+                      : { backgroundColor: 'transparent', borderColor: C.text },
+                  ]}>
+                  <TextInput
+                    value={customRepText}
+                    onChangeText={(t) => {
+                      const digits = t.replace(/[^0-9]/g, '').slice(0, 2);
+                      setCustomRepText(digits);
+                      const n = parseInt(digits, 10);
+                      if (isValidRepTarget(n)) setTargetReps(n);
+                    }}
+                    keyboardType="number-pad"
+                    inputMode="numeric"
+                    placeholder="other"
+                    placeholderTextColor={!repIsPreset ? 'rgba(255,255,255,0.7)' : C.icon}
+                    style={[
+                      styles.numericChipInput,
+                      { color: !repIsPreset ? '#fff' : C.text },
+                    ]}
+                  />
+                </View>
               </View>
             </>
           ) : (
@@ -702,17 +759,26 @@ function InterleavedScreenInner() {
             <ThemedText style={styles.runStatUnit}>BPM</ThemedText>
             <View style={styles.runStatDivider} />
             <View style={styles.runStatDots}>
-              {Array.from({ length: targetReps }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.runStatDot,
-                    i < (currentSpot?.streak ?? 0)
-                      ? styles.runStatDotFilled
-                      : styles.runStatDotEmpty,
-                  ]}
-                />
-              ))}
+              {/* A dot per rep only fits for the preset-sized targets; a
+                  typed target above 10 collapses to a streak/target count
+                  so the stat pill can't overflow. */}
+              {targetReps <= 10 ? (
+                Array.from({ length: targetReps }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.runStatDot,
+                      i < (currentSpot?.streak ?? 0)
+                        ? styles.runStatDotFilled
+                        : styles.runStatDotEmpty,
+                    ]}
+                  />
+                ))
+              ) : (
+                <ThemedText style={styles.runStatCount}>
+                  {currentSpot?.streak ?? 0}/{targetReps}
+                </ThemedText>
+              )}
             </View>
             <ThemedText style={styles.runStatCount}>
               {completedCount}/{spots.length}
@@ -846,6 +912,12 @@ function InterleavedScreenInner() {
         cancelLabel="Skip"
         onSubmit={({ mood, note, remindNext }) => finishLog(mood, note, remindNext)}
         onSkip={() => finishLog(null, null)}
+        onKeepPracticing={() => setNotePromptVisible(false)}
+        onDiscard={() => {
+          setNotePromptVisible(false);
+          metronome.stop();
+          router.back();
+        }}
       />
 
       <TutorialStep
@@ -1100,6 +1172,11 @@ function TimerActive({
         cancelLabel="Skip"
         onSubmit={({ mood, note, remindNext }) => finishLog(mood, note, remindNext)}
         onSkip={() => finishLog(null, null)}
+        onDiscard={() => {
+          setNotePromptVisible(false);
+          clearTimerSession();
+          router.back();
+        }}
       />
     </ThemedView>
   );
@@ -1189,6 +1266,20 @@ const styles = StyleSheet.create({
   },
   runStatDivider: { width: 1, height: 14, backgroundColor: Palette.border },
   runStatDots: { flexDirection: 'row', gap: 5, alignItems: 'center' },
+  numericChipInputWrap: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.md,
+  },
+  numericChipInput: {
+    minWidth: 44,
+    textAlign: 'center',
+    padding: 0,
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.bold,
+    fontVariant: ['tabular-nums'],
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null),
+  },
   runStatDot: { width: 11, height: 11, borderRadius: 6, borderWidth: 2 },
   runStatDotEmpty: { borderColor: Palette.textMuted, backgroundColor: 'transparent' },
   runStatDotFilled: { borderColor: Palette.success, backgroundColor: Palette.success },
@@ -1365,6 +1456,9 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     justifyContent: 'center',
     marginTop: Spacing.xs,
+    // Four chips (three presets + type-your-own) can outgrow a phone
+    // portrait width; wrap instead of overflowing.
+    flexWrap: 'wrap',
   },
   numericChip: {
     width: 64,

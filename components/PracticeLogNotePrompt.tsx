@@ -55,6 +55,11 @@ type Props = {
   }) => void;
   onSkip: () => void;
   onDelete?: () => void;
+  // When provided, shows a quiet "Exit without logging" action: leave the
+  // session and write NOTHING to the practice log. For tools whose Skip
+  // still logs (skip = skip the note, not the session) — a tester or an
+  // accidental session needs a way out that leaves no row behind.
+  onDiscard?: () => void;
   // When provided, shows a "keep practicing" escape (an ✕ + tapping the
   // backdrop/back) that closes WITHOUT logging — for an accidental "Done" tap so
   // the user can return to the session instead of being forced to finish.
@@ -92,6 +97,7 @@ export function PracticeLogNotePrompt({
   onSubmit,
   onSkip,
   onDelete,
+  onDiscard,
   onKeepPracticing,
   metronome,
 }: Props) {
@@ -308,6 +314,13 @@ export function PracticeLogNotePrompt({
             {onDelete && (
               <Pressable onPress={onDelete} style={styles.delete}>
                 <ThemedText style={styles.deleteText}>Delete</ThemedText>
+              </Pressable>
+            )}
+            {onDiscard && (
+              <Pressable onPress={onDiscard} style={styles.skip}>
+                <ThemedText style={[styles.skipText, { color: C.icon }]}>
+                  Exit without logging
+                </ThemedText>
               </Pressable>
             )}
             <View style={{ flex: 1 }} />

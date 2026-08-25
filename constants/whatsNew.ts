@@ -20,6 +20,20 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-24-type-your-own-numbers',
+    date: 'August 24, 2026',
+    title: 'Type your own numbers on the setup screens',
+    body:
+      'The preset buttons for tempo increment and clean-reps targets were the only choices you had. Now Tempo Ladder (Climb by and Clean reps), Interleaved Click-Up (Increment), and Rep Rotator (clean reps) each have an extra box next to the presets where you can type any number you like, from 1 to 99. Want to climb by 4s, or make the 10th rep the pressure rep by requiring 9 clean? Now you can.',
+  },
+  {
+    id: '2026-08-24-rep-rotator-exit',
+    date: 'August 24, 2026',
+    title: 'Rep Rotator: leave without logging, and cleaner session records',
+    body:
+      'Ending a Rep Rotator session used to record a practice entry for every passage in the rotation no matter what, even if you never played a rep. Now a session where nothing was marked simply closes without writing anything, the end-of-session sheet has an "Exit without logging" option, and a partial session records only the passages you actually worked.',
+  },
+  {
     id: '2026-08-23-evaluate-view-part',
     date: 'August 23, 2026',
     title: 'First-practice evaluation: check your part before you set a goal',
