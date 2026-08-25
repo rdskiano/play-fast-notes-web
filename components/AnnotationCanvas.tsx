@@ -19,6 +19,7 @@ export function AnnotationCanvas({
   aspect: aspectProp,
   drawingPolicy,
   onChange,
+  inkColor,
 }: {
   scoreUri: string;
   editable: boolean;
@@ -30,6 +31,8 @@ export function AnnotationCanvas({
   drawingPolicy?: 'default' | 'anyinput' | 'pencilonly';
   /** Fires after each user edit. */
   onChange?: () => void;
+  /** Remembered pen ink — threaded through to the canvas. */
+  inkColor?: string | null;
 }) {
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [probedAspect, setProbedAspect] = useState(0);
@@ -93,6 +96,7 @@ export function AnnotationCanvas({
           imageUri={imageUri}
           drawingPolicy={drawingPolicy}
           onChange={onChange}
+          inkColor={inkColor}
           style={{
             position: 'absolute',
             left: drawn.ox,

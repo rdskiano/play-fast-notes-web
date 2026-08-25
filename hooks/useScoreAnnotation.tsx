@@ -19,10 +19,12 @@ import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
 import { AnnotationCanvas } from '@/components/AnnotationCanvas';
 import { CroppedAnnotation } from '@/components/CroppedAnnotation';
+import { InkSwatchRow } from '@/components/InkSwatchRow';
 import { type PencilCanvasHandle } from '@/components/PencilCanvas';
 import { RegionAnnotationCanvas } from '@/components/RegionAnnotationCanvas';
 import { SignInModal } from '@/components/SignInModal';
 import { ThemedText } from '@/components/themed-text';
+import { useInkColor } from '@/lib/annotation/inkColor';
 import { setPencilAnnotating } from '@/lib/annotation/pencilMode';
 import {
   getAnnotation,
@@ -59,6 +61,9 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
   const navigation = useNavigation();
   const scoreUri = passage?.source_uri;
   const [annotating, setAnnotating] = useState(false);
+  // Remembered pen ink — the pen starts in it each session; the swatch row
+  // below recolors it live and persists the pick.
+  const [inkColor, pickInk] = useInkColor();
   const [saving, setSaving] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
   const canvasRef = useRef<PencilCanvasHandle>(null);
@@ -307,6 +312,7 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
           pageH={docPage.pageH}
           canvasRef={canvasRef}
           onChange={onDraw}
+          inkColor={inkColor}
         />
       );
     } else if (docPage?.imageUri) {
@@ -328,6 +334,7 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
         imageUri={annotation?.imageUri}
         canvasRef={canvasRef}
         onChange={onDraw}
+        inkColor={inkColor}
       />
     );
   }
@@ -335,6 +342,7 @@ export function useScoreAnnotation(passage: Passage | null | undefined) {
   const canvas = scoreUri ? (
     <>
       {layer}
+      {annotating && <InkSwatchRow value={inkColor} onPick={pickInk} />}
       {saving && (
         <View style={styles.savingOverlay}>
           <View style={styles.savingPill}>

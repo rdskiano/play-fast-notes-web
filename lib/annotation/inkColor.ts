@@ -6,6 +6,8 @@
 // can't be read back, so the in-app swatch row is the durable choice.
 // null = no saved choice = each platform's historic default ink.
 
+import { useCallback, useEffect, useState } from 'react';
+
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 
 export const INK_COLOR_KEY = 'pencil:inkColor';
@@ -36,4 +38,24 @@ export async function saveInkColor(hex: string): Promise<void> {
     // Best-effort — the live pen is already recolored; worst case the choice
     // doesn't survive to the next session.
   }
+}
+
+/** The saved ink as state plus a picker that persists. One call per screen
+ *  that hosts a pencil — the swatch row and the canvases share it. */
+export function useInkColor(): [string | null, (hex: string) => void] {
+  const [ink, setInk] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getInkColor().then((c) => {
+      if (!cancelled && c) setInk(c);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const pick = useCallback((hex: string) => {
+    setInk(hex);
+    saveInkColor(hex);
+  }, []);
+  return [ink, pick];
 }

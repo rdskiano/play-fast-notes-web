@@ -88,7 +88,8 @@ import { persistPassageImage } from '@/lib/image/persistPassageImage';
 import { resolvePageForCrop } from '@/lib/pdf/pageImage';
 import { consumeLastPassageInDoc } from '@/lib/sessions/lastPassageInDoc';
 import { useDocumentAnnotation } from '@/hooks/useDocumentAnnotation';
-import { getInkColor, INK_SWATCHES, saveInkColor } from '@/lib/annotation/inkColor';
+import { InkSwatchRow } from '@/components/InkSwatchRow';
+import { useInkColor } from '@/lib/annotation/inkColor';
 
 function newPassageId(): string {
   return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -271,18 +272,9 @@ export default function DocumentScreen() {
   // DocumentPage.index (so `p.index === currentPage` picks the visible page).
   const currentPage = currentIndex * (viewMode === 'spread' ? 2 : 1) + 1;
   const docAnn = useDocumentAnnotation(id, currentPage);
-  // Remembered pen ink (null = default). Loaded once; a swatch tap updates
-  // both the live pen (via the canvas prop) and the saved preference.
-  const [inkColor, setInkColorState] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    getInkColor().then((c) => {
-      if (!cancelled && c) setInkColorState(c);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Remembered pen ink (null = default). A swatch tap updates both the live
+  // pen (via the canvas prop) and the saved preference.
+  const [inkColor, pickInk] = useInkColor();
   // Pinch-zoom the page is NATIVE-only (iPhone + iPad), in idle mode —
   // INCLUDING while annotating (two-finger zoom, one-finger draws on the pencil
   // canvas). Excluded during draw/resize/section-marking, where the box math
@@ -1438,33 +1430,10 @@ export default function DocumentScreen() {
 
       {/* Ink swatches — visible while the pencil is active. A tap recolors
           the live pen AND persists the choice, so every future annotate
-          session starts in this ink. Left edge: the tool tabs own the right,
-          and PencilKit's palette floats wherever the user parked it. */}
+          session starts in this ink (shared with the passage + practice
+          screens via useScoreAnnotation). */}
       {docAnn.annotating && (
-        <View
-          pointerEvents="box-none"
-          style={[styles.inkRowWrap, { top: insets.top + 56 }]}>
-          <View style={styles.inkRow}>
-          {INK_SWATCHES.map((c) => {
-            const on = (inkColor ?? INK_SWATCHES[0]) === c;
-            return (
-              <Pressable
-                key={c}
-                onPress={() => {
-                  setInkColorState(c);
-                  saveInkColor(c);
-                }}
-                hitSlop={6}
-                style={[
-                  styles.inkSwatch,
-                  { backgroundColor: c },
-                  on && styles.inkSwatchOn,
-                ]}
-              />
-            );
-          })}
-          </View>
-        </View>
+        <InkSwatchRow value={inkColor} onPick={pickInk} top={insets.top + 56} />
       )}
 
       {markingSection && (
@@ -1891,43 +1860,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: Spacing.sm,
     zIndex: 50,
-  },
-  // Ink swatch pill (annotate mode). Same below-the-top-bar placement idiom
-  // as coachToast; centered so it clears the web Undo button (top-left of
-  // the score) and the right-edge tool tabs.
-  inkRowWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    zIndex: 60,
-    alignItems: 'center',
-  },
-  inkRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    backgroundColor: Palette.card,
-    borderRadius: Radii.pill,
-    borderWidth: Borders.thin,
-    borderColor: Palette.border,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    alignItems: 'center',
-  },
-  inkSwatch: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-  },
-  inkSwatchOn: {
-    borderWidth: 3,
-    borderColor: '#fff',
-    // A hairline of shadow so the white selection ring reads on the light
-    // surface behind it.
-    shadowColor: '#000',
-    shadowOpacity: 0.35,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
   },
   headerRight: {
     flexDirection: 'row',
