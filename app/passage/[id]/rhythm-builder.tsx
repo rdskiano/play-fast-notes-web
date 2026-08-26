@@ -1303,6 +1303,26 @@ function ExercisesPhase({
   // passage goal × the meter's factor; later ▶s rescale by the factor ratio
   // so a manual nudge carries over.
   const tempoAnchorRef = useRef<number | null>(null);
+  // Guided playback tempo (F25, Ralph's design 2026-08-25): the dial counts
+  // the meter's denominator, so an /8 exercise at a musical speed reads as an
+  // alien 200+ ("I very rarely see a tempo above 180"). Instead of silently
+  // setting that number, ▶ asks for the tempo in the meter's NATURAL pulse —
+  // ♩ for quarter-meters, ♩. for eighth-meters (his dotted-quarter rule,
+  // confirmed 2026-08-25; for 3/8 that's once per bar) — and converts under
+  // the hood. The July calibration holds the eighth speed CONSTANT across
+  // 3/8·5/8·7/8, so the prompt fires only when the meter FAMILY changes:
+  // at most twice a sitting. Prefill = the calibrated seed (goal × factor)
+  // or the carried felt speed, so one tap accepts it.
+  const promptedFamilyRef = useRef<'quarter' | 'eighth' | null>(null);
+  const [tempoPrompt, setTempoPrompt] = useState<{
+    pattern: RhythmPattern;
+    family: 'quarter' | 'eighth';
+  } | null>(null);
+  const [tempoText, setTempoText] = useState('');
+
+  function meterFamily(timeSig: string): 'quarter' | 'eighth' {
+    return meterTempoFactor(timeSig) === 1 ? 'quarter' : 'eighth';
+  }
 
   // Clear the active card when playback finishes naturally.
   useEffect(() => {
@@ -1311,18 +1331,12 @@ function ExercisesPhase({
     }
   }, [metronome.playingSequence, playingId]);
 
-  function playPattern(pattern: RhythmPattern) {
-    if (playingId === pattern.id) {
-      metronome.stopPitchSequence();
-      setPlayingId(null);
-      return;
-    }
-    metronome.stopPitchSequence();
-    // Build a parallel list of pitch frequencies and rhythm tokens, then
-    // hand them to the metronome's lookahead scheduler. The engine reads
-    // BPM each tick and uses the pattern's time-signature denominator,
-    // so playback is conventional (BPM = denominator units per minute)
-    // and changing BPM mid-playback retempos the remaining notes live.
+  // The actual playback launch — build freqs + tokens and hand them to the
+  // lookahead scheduler. The engine reads BPM each tick and uses the
+  // pattern's time-signature denominator, so playback is conventional
+  // (BPM = denominator units per minute) and changing BPM mid-playback
+  // retempos the remaining notes live.
+  function startPattern(pattern: RhythmPattern) {
     const freqs: number[] = [];
     const tokens: RhythmToken[] = [];
     const G = pattern.grouping;
@@ -1340,19 +1354,56 @@ function ExercisesPhase({
       idx = chunkEnd;
     }
     if (freqs.length === 0) return;
-    if (grouping === 4) {
-      const f = meterTempoFactor(pattern.timeSig);
-      const prevF = tempoAnchorRef.current;
-      if (prevF == null) {
-        if (goalTempo) metronome.setBpm(goalTempo * f);
-      } else if (f !== prevF) {
-        metronome.setBpm(metronome.bpm * (f / prevF));
-      }
-      tempoAnchorRef.current = f;
-    }
     const beatDenom = parseBeatDenominator(pattern.timeSig);
     metronome.playPitchRhythm(freqs, tokens, beatDenom);
     setPlayingId(pattern.id);
+  }
+
+  function playPattern(pattern: RhythmPattern) {
+    if (playingId === pattern.id) {
+      metronome.stopPitchSequence();
+      setPlayingId(null);
+      return;
+    }
+    metronome.stopPitchSequence();
+    if (grouping === 4) {
+      const f = meterTempoFactor(pattern.timeSig);
+      const fam = meterFamily(pattern.timeSig);
+      if (promptedFamilyRef.current !== fam) {
+        // New meter family this sitting → ask, prefilled with the number the
+        // old silent path would have set (converted to the natural pulse).
+        const prevF = tempoAnchorRef.current;
+        const dialSeed =
+          prevF != null
+            ? metronome.bpm * (f / prevF)
+            : goalTempo
+              ? goalTempo * f
+              : metronome.bpm * f;
+        const natural = Math.max(
+          20,
+          Math.round(fam === 'eighth' ? dialSeed / 3 : dialSeed),
+        );
+        setTempoText(String(natural));
+        setTempoPrompt({ pattern, family: fam });
+        return;
+      }
+      // Same family → same factor; the dial already means the right thing.
+      tempoAnchorRef.current = f;
+    }
+    startPattern(pattern);
+  }
+
+  function confirmTempoPrompt() {
+    if (!tempoPrompt) return;
+    const v = parseInt(tempoText, 10);
+    if (!Number.isFinite(v) || v < 20 || v > 300) return;
+    const dial = tempoPrompt.family === 'eighth' ? v * 3 : v;
+    metronome.setBpm(dial);
+    tempoAnchorRef.current = meterTempoFactor(tempoPrompt.pattern.timeSig);
+    promptedFamilyRef.current = tempoPrompt.family;
+    const pattern = tempoPrompt.pattern;
+    setTempoPrompt(null);
+    startPattern(pattern);
   }
 
   return (
@@ -1386,6 +1437,60 @@ function ExercisesPhase({
           ← Back to pitch entry
         </ThemedText>
       </Pressable>
+
+      {/* Playback tempo prompt (F25). Copy has no em dashes on purpose. */}
+      <Modal
+        visible={tempoPrompt !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTempoPrompt(null)}>
+        <View style={exerciseStyles.tempoOverlay}>
+          <View
+            style={[
+              exerciseStyles.tempoCard,
+              { backgroundColor: C.background, borderColor: C.tint },
+            ]}>
+            <ThemedText style={exerciseStyles.tempoTitle}>
+              Set your playback tempo
+            </ThemedText>
+            <ThemedText style={[exerciseStyles.tempoBody, { color: C.icon }]}>
+              {tempoPrompt?.family === 'eighth'
+                ? `This exercise is in ${tempoPrompt.pattern.timeSig}. Choose the tempo of the dotted quarter, which in 3/8 is one beat per bar. The same eighth-note speed carries across all the /8 exercises.`
+                : `This exercise is in ${tempoPrompt?.pattern.timeSig ?? '2/4'}. Choose the tempo of the quarter note.`}
+            </ThemedText>
+            <View style={exerciseStyles.tempoRow}>
+              <ThemedText style={exerciseStyles.tempoUnit}>
+                {tempoPrompt?.family === 'eighth' ? '♩. =' : '♩ ='}
+              </ThemedText>
+              <TextInput
+                value={tempoText}
+                onChangeText={(t) => setTempoText(t.replace(/[^0-9]/g, '').slice(0, 3))}
+                keyboardType="number-pad"
+                inputMode="numeric"
+                autoFocus
+                style={[
+                  exerciseStyles.tempoInput,
+                  { color: C.text, borderColor: C.icon + '55' },
+                ]}
+              />
+            </View>
+            {tempoPrompt?.family === 'eighth' && Number.isFinite(parseInt(tempoText, 10)) && (
+              <ThemedText style={[exerciseStyles.tempoHint, { color: C.icon }]}>
+                The metronome dial will read ♪ = {parseInt(tempoText, 10) * 3}.
+              </ThemedText>
+            )}
+            <View style={exerciseStyles.tempoBtnRow}>
+              <Button
+                label="Cancel"
+                variant="ghost"
+                size="sm"
+                onPress={() => setTempoPrompt(null)}
+              />
+              <Button label="Play" size="sm" onPress={confirmTempoPrompt} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -1495,6 +1600,49 @@ const exerciseStyles = StyleSheet.create({
     borderRadius: Radii.md,
     paddingVertical: Spacing.md,
     alignItems: 'center',
+  },
+  // Playback tempo prompt (F25)
+  tempoOverlay: {
+    flex: 1,
+    backgroundColor: '#0008',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  tempoCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderWidth: Borders.thin,
+    borderRadius: Radii.lg,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  tempoTitle: { fontSize: Type.size.md, fontWeight: Type.weight.bold },
+  tempoBody: { fontSize: Type.size.sm, lineHeight: 19 },
+  tempoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  tempoUnit: { fontSize: Type.size.lg, fontWeight: Type.weight.bold },
+  tempoInput: {
+    borderWidth: Borders.thin,
+    borderRadius: Radii.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    minWidth: 88,
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.bold,
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+  },
+  tempoHint: { fontSize: Type.size.sm },
+  tempoBtnRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
   },
 });
 

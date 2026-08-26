@@ -36,7 +36,9 @@ import { getTempoLadder } from '@/lib/db/repos/tempoLadder';
 // visit can ask "did it help?". helpful: undefined = unrated; true/false =
 // thumbs; null = skipped. Read by analytics off `coach:lastRec:*` rows.
 type PendingRec = {
-  tool: ToolKey;
+  // 'icu2' sits outside ToolKey (multi-passage tool) but rates like any other
+  // suggestion — analytics reads the string as-is.
+  tool: ToolKey | 'icu2';
   challenge: string;
   at: number;
   helpful?: boolean | null;
@@ -127,10 +129,15 @@ export default function CoachScreen() {
   );
 
   const openTool = useCallback(
-    (tool: ToolKey) => {
+    (tool: ToolKey | 'icu2') => {
       if (!passage) return;
       if (tool === 'rep') {
         router.push({ pathname: '/interleaved', params: { seedPassageId: passage.id } });
+        return;
+      }
+      if (tool === 'icu2') {
+        // Multi-passage tool — lives at /icu2, seeded like Rep Rotator.
+        router.push({ pathname: '/icu2', params: { seedPassageId: passage.id } });
         return;
       }
       if (tool === 'rv') {
@@ -151,11 +158,12 @@ export default function CoachScreen() {
   // asks "did that help?". Self-picks from the list below launch unstamped:
   // the coach only gets rated on advice that was actually followed.
   const followSuggestion = useCallback(() => {
-    if (!passage || !card || card.kind !== 'tool') return;
-    const rec: PendingRec = { tool: card.tool, challenge: 'trail', at: Date.now() };
+    if (!passage || !card || card.kind === 'evaluate') return;
+    const tool = card.kind === 'icu2' ? 'icu2' : card.tool;
+    const rec: PendingRec = { tool, challenge: 'trail', at: Date.now() };
     launchedRecRef.current = rec;
     setSetting(recKey(passage.id), JSON.stringify(rec)).catch(() => {});
-    openTool(card.tool);
+    openTool(tool);
   }, [passage, card, openTool]);
 
   const rateFeedback = useCallback(
@@ -196,7 +204,9 @@ export default function CoachScreen() {
             <ThemedText style={styles.lead}>
               How did that go? You just worked on this with{' '}
               <ThemedText style={styles.leadStrong}>
-                {CARD_TOOL_NAME[pendingFeedback.tool]}
+                {pendingFeedback.tool === 'icu2'
+                  ? 'Interleaved Click-Up 2'
+                  : CARD_TOOL_NAME[pendingFeedback.tool]}
               </ThemedText>
               . Did it help?
             </ThemedText>
@@ -218,7 +228,7 @@ export default function CoachScreen() {
               <ThemedText style={styles.ghostText}>skip</ThemedText>
             </Pressable>
           </View>
-        ) : card && card.kind === 'tool' ? (
+        ) : card && card.kind !== 'evaluate' ? (
           <View style={styles.section}>
             <View style={styles.card}>
               <ThemedText style={styles.eyebrow}>🎯 Coach’s suggestion</ThemedText>
@@ -234,12 +244,16 @@ export default function CoachScreen() {
                   <ThemedText style={styles.noThanksText}>No thanks</ThemedText>
                 </Pressable>
               </View>
-              <Pressable
-                onPress={() => setDemoId(DEMO_FOR_TOOL[card.tool])}
-                hitSlop={8}
-                style={styles.seeDemo}>
-                <ThemedText style={styles.seeDemoText}>▷ See how it works</ThemedText>
-              </Pressable>
+              {/* ICU2 has no strategy demo yet — the badge only renders for
+                  the six ToolKey tools. */}
+              {card.kind === 'tool' && (
+                <Pressable
+                  onPress={() => setDemoId(DEMO_FOR_TOOL[card.tool])}
+                  hitSlop={8}
+                  style={styles.seeDemo}>
+                  <ThemedText style={styles.seeDemoText}>▷ See how it works</ThemedText>
+                </Pressable>
+              )}
             </View>
 
             <ThemedText style={styles.pickHeading}>

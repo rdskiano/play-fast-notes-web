@@ -125,9 +125,12 @@ below the top bar while annotating in the document viewer (tap = recolor the
 live pen + persist), pen starts in the saved ink every session on BOTH
 platforms (native: toolInit + mid-session retool via setTool color; web: new
 strokes use the saved ink instead of the #1a1a1a constant). Default stays
-black until the user picks. tsc + web export clean. NOT device-verified (sim
-auth wall) — Ralph's iPad eyeball owed; rides the next ship with the F23
-score peek. Original analysis below.
+black until the user picks. SHIPPED 2026-08-25 PM (web + OTA) — first ship
+missed the passage/practice screens (they draw via useScoreAnnotation, a
+host the morning's code search missed); fixed same day by moving the row
+into a shared InkSwatchRow + threading ink through the hook. **Ralph
+VERIFIED on the iPad same day: swatches on all three surfaces, F23 score
+peek, and the type-your-own pills all work.** Original analysis below.
 
 ### F22 (original) — Pencil ink visibility (Ralph marks in ORANGE for rehearsal transfer)
 
@@ -203,6 +206,17 @@ build; resurface as one option when Exercise Builder notation work next opens.
   whether a by-the-measure tempo is converted under the hood so the engine
   still gets its per-eighth number. Fits the app's existing first-run coach-
   modal pattern.
+- **BUILT (same evening, unshipped):** ▶ in the Exercise Builder's generate
+  phase (grouping 4, the calibrated scope) now opens a tempo prompt when the
+  meter FAMILY changes (quarter vs eighth), asking in the natural pulse
+  (♩ for 2/4; ♩. for /8, one per bar in 3/8, confirmed by Ralph same day)
+  with an eighth-dial equivalence line; prefilled from the July B-018
+  calibrated seed or the carried felt speed, converted under the hood. The
+  /8 family shares one eighth speed (per the calibration), so the prompt
+  fires at most twice a sitting. The July silent-seed math is unchanged
+  beneath it. NOT built: pushing meter onto the metronome device's click
+  pattern (the "subdivisions" half) and the rhythmic.tsx screen (its arrow
+  keys hop meters mid-practice; silent ratio-carry stays right there).
 - **Refinement (same sitting):** clicking the EIGHTH note in 3/8 is almost
   never what anyone wants — "that's what the subdivisions are for": the click
   should carry the natural pulse, subdivisions fill in the eighths. And the

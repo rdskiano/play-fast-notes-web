@@ -14,3 +14,5 @@ export async function getSyncStatus(): Promise<SyncStatus> {
 }
 
 export async function syncNow(): Promise<void> {}
+
+export async function fullResync(): Promise<void> {}

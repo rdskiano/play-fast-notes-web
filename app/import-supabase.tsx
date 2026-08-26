@@ -1,10 +1,12 @@
-// Unlinked dev route — type /import-supabase in the URL bar (or reach it via
-// Account → "Download my web library"). Pulls every row from the user's
-// Supabase account into the iPad's local SQLite, including document page
-// renders. See lib/supabase/import.ts for the data flow.
+// Unlinked LEGACY route — type /import-supabase in the URL bar. Superseded by
+// the sync engine (2026-08-15) and the Account Sync card's "Re-download
+// everything"; the Account entry button was removed 2026-08-25 along with the
+// destructive "Replace what's on this iPad" wipe (the option that caused the
+// 2026-08-12 Frenzy data loss). What remains is an additive-only one-shot
+// import, kept solely as an emergency/dev tool.
 import { Stack, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { SessionTopBar } from '@/components/SessionTopBar';
@@ -19,14 +21,7 @@ import {
   runImport,
   type ImportResult,
   type ImportStatus,
-  type LocalOnlySummary,
 } from '@/lib/supabase/import';
-
-const WIPE_CONFIRM_WORD = 'DELETE';
-
-function plural(n: number, singular: string, pluralForm?: string): string {
-  return `${n} ${n === 1 ? singular : (pluralForm ?? singular + 's')}`;
-}
 
 export default function ImportSupabaseScreen() {
   const router = useRouter();
@@ -35,7 +30,6 @@ export default function ImportSupabaseScreen() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [wipeFirst, setWipeFirst] = useState(true);
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<ImportStatus | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -45,21 +39,8 @@ export default function ImportSupabaseScreen() {
   const [done, setDone] = useState(false);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
-  // Wipe-confirmation modal. The import pauses on a Promise until the user
-  // either types DELETE and confirms, or cancels (→ import aborts untouched).
-  const [wipeSummary, setWipeSummary] = useState<LocalOnlySummary | null>(null);
-  const [confirmText, setConfirmText] = useState('');
-  const wipeResolveRef = useRef<((ok: boolean) => void) | null>(null);
-
   function append(line: string) {
     setLog((prev) => [...prev, line]);
-  }
-
-  function answerWipe(ok: boolean) {
-    wipeResolveRef.current?.(ok);
-    wipeResolveRef.current = null;
-    setWipeSummary(null);
-    setConfirmText('');
   }
 
   async function onImport() {
@@ -75,18 +56,13 @@ export default function ImportSupabaseScreen() {
     setStatus(null);
     setRunning(true);
     try {
+      // Additive-only since 2026-08-25: the wipe path is retired for good.
       const res = await runImport({
         email,
         password,
-        wipeFirst,
+        wipeFirst: false,
         onProgress: append,
         onStatus: setStatus,
-        confirmWipe: (summary) =>
-          new Promise<boolean>((resolve) => {
-            wipeResolveRef.current = resolve;
-            setConfirmText('');
-            setWipeSummary(summary);
-          }),
       });
       setResult(res);
       setDone(true);
@@ -102,18 +78,6 @@ export default function ImportSupabaseScreen() {
       setRunning(false);
     }
   }
-
-  const confirmMatches = confirmText.trim().toUpperCase() === WIPE_CONFIRM_WORD;
-
-  const wipeItems = wipeSummary
-    ? [
-        wipeSummary.passages > 0 ? plural(wipeSummary.passages, 'passage') : null,
-        wipeSummary.documents > 0 ? plural(wipeSummary.documents, 'document') : null,
-        wipeSummary.practiceSessions > 0
-          ? plural(wipeSummary.practiceSessions, 'practice session')
-          : null,
-      ].filter((s): s is string => s !== null)
-    : [];
 
   // Friendly one-line summary of what came in.
   const summary = (() => {
@@ -208,7 +172,7 @@ export default function ImportSupabaseScreen() {
             </ThemedText>
 
             <View style={[styles.card, { borderColor: C.icon + '55' }]}>
-              <ThemedText style={styles.label}>1. Sign in</ThemedText>
+              <ThemedText style={styles.label}>Sign in</ThemedText>
               <TextInput
                 value={email}
                 onChangeText={setEmail}
@@ -231,23 +195,11 @@ export default function ImportSupabaseScreen() {
               />
             </View>
 
-            <View style={[styles.card, { borderColor: C.icon + '55' }]}>
-              <View style={styles.rowBetween}>
-                <ThemedText style={styles.label}>2. Replace what&apos;s on this iPad</ThemedText>
-                <Switch value={wipeFirst} onValueChange={setWipeFirst} trackColor={{ true: C.tint }} />
-              </View>
-              <ThemedText style={[styles.hint, { color: C.icon }]}>
-                Clears this iPad&apos;s copy first, then loads a fresh copy from the web. Your
-                web library is never touched.
-              </ThemedText>
-              {wipeFirst && (
-                <ThemedText style={[styles.hint, { color: Palette.danger }]}>
-                  ⚠ Anything you created only on this iPad — pieces, marked passages, practice
-                  history — does NOT exist on the web and would be deleted. If any is found,
-                  you&apos;ll be asked to confirm before anything is removed.
-                </ThemedText>
-              )}
-            </View>
+            <ThemedText style={[styles.hint, { color: C.icon }]}>
+              Adds and updates only — nothing on this device is ever deleted.
+              For everyday use, the app syncs by itself; this screen is a
+              legacy fallback.
+            </ThemedText>
 
             {errorMsg && (
               <ThemedText style={[styles.errorText, { color: Palette.danger }]}>
@@ -261,46 +213,6 @@ export default function ImportSupabaseScreen() {
             <Button label="Download my library" onPress={onImport} disabled={!email || !password} />
           </>
         )}
-
-        {/* ── WIPE CONFIRMATION (blocking, typed) ──────────────── */}
-        <Modal visible={wipeSummary !== null} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { backgroundColor: C.background, borderColor: Palette.danger }]}>
-              <ThemedText style={[styles.modalTitle, { color: Palette.danger }]}>
-                ⚠ This iPad has work that is NOT on the web
-              </ThemedText>
-              <ThemedText style={styles.modalBody}>
-                Replacing will permanently delete{' '}
-                <ThemedText style={styles.modalBodyBold}>{wipeItems.join(', ')}</ThemedText> stored
-                only on this iPad. They are not in your web library and cannot be recovered.
-              </ThemedText>
-              <ThemedText style={[styles.modalBody, { color: C.icon }]}>
-                To keep this iPad&apos;s work, tap Cancel, turn off &ldquo;Replace what&apos;s on
-                this iPad&rdquo;, and download again.
-              </ThemedText>
-              <ThemedText style={styles.modalBody}>
-                To delete it anyway, type {WIPE_CONFIRM_WORD} below:
-              </ThemedText>
-              <TextInput
-                value={confirmText}
-                onChangeText={setConfirmText}
-                placeholder={WIPE_CONFIRM_WORD}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                style={[styles.input, { color: C.text, borderColor: Palette.danger }]}
-                placeholderTextColor={C.icon}
-              />
-              <Button label="Cancel — keep my iPad data" onPress={() => answerWipe(false)} />
-              <Pressable
-                onPress={() => confirmMatches && answerWipe(true)}
-                disabled={!confirmMatches}
-                style={[styles.dangerBtn, { opacity: confirmMatches ? 1 : 0.35 }]}
-              >
-                <ThemedText style={styles.dangerBtnText}>Delete it and replace</ThemedText>
-              </Pressable>
-            </View>
-          </View>
-        </Modal>
 
         {/* ── Technical details (collapsed by default) ─────────── */}
         {log.length > 0 && (

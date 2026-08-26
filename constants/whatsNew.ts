@@ -20,6 +20,27 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-25-exercise-playback-tempo',
+    date: 'August 25, 2026',
+    title: 'Exercise Builder: playback now asks for your tempo in musical terms',
+    body:
+      'Pressing play on a generated exercise used to silently set the metronome to a strange number, because exercises in eighth-note meters count the dial in eighth notes. Now the first play asks for your tempo the way you think it: quarter notes for 2/4, one dotted quarter per bar for 3/8. The app does the conversion, and the same speed carries across all the /8 exercises, so it only asks again when the meter type changes.',
+  },
+  {
+    id: '2026-08-25-coach-sees-icu2',
+    date: 'August 25, 2026',
+    title: 'The practice coach now sees your Interleaved Click-Up 2 sessions',
+    body:
+      'If your last work on a passage was an Interleaved Click-Up 2 rotation, the coach used to overlook it and suggest something older. It now counts those sessions like any other and can point you right back into ICU 2, seeded with that passage.',
+  },
+  {
+    id: '2026-08-25-import-retired',
+    date: 'August 25, 2026',
+    title: 'iPad: the old "Download my web library" screen is retired',
+    body:
+      'Your music now syncs between web and iPad automatically, so the old manual download screen (and its risky "replace everything on this iPad" option) is gone. If your device ever looks out of date, the Sync section in Account has a new "Re-download everything" button. It only adds and updates. It never deletes anything.',
+  },
+  {
     id: '2026-08-25-pencil-ink-color',
     date: 'August 25, 2026',
     title: 'Your pencil remembers its ink color',

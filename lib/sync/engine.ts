@@ -178,6 +178,21 @@ export async function getSyncStatus(): Promise<SyncStatus> {
 
 // ── the entry point ─────────────────────────────────────────────────────────
 
+// User-triggered "re-download everything": clear the pull watermarks (and the
+// practice-log reconcile flag) so the next pull walks the account's FULL cloud
+// history, then run a sync. Strictly additive on the device — a pull only
+// inserts/updates rows (tombstones are the only removals, same as every pull).
+// This is the same reset the account-switch path below performs, so the
+// machinery is already proven. Replaces the retired import screen's job
+// without its wipe.
+export async function fullResync(): Promise<void> {
+  const db = getDb();
+  await db.runAsync(
+    "DELETE FROM sync_state WHERE key LIKE 'wm_%' OR key = 'plog_reconciled';",
+  );
+  await syncNow();
+}
+
 export async function syncNow(): Promise<void> {
   if (running) return;
   running = true;

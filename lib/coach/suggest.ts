@@ -42,7 +42,13 @@ export type LadderSnapshot = { current: number; goal: number } | null;
 
 export type CoachCard =
   | { kind: 'evaluate' }
-  | { kind: 'tool'; tool: ToolKey; title: string; why: string };
+  | { kind: 'tool'; tool: ToolKey; title: string; why: string }
+  // ICU2 lives outside ToolKey on purpose: it's multi-passage with its own
+  // route, and the retired questionnaire's ToolKey-keyed maps should never
+  // have to learn it. The coach only ACKNOWLEDGES icu2 sessions (the
+  // pick-up-where-you-left-off card) — it never proactively routes INTO
+  // icu2; those rules await Ralph's sign-off (D42 standing).
+  | { kind: 'icu2'; title: string; why: string };
 
 const COUNT_WORD = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
 function countWord(n: number): string {
@@ -55,20 +61,38 @@ export function suggestFromTrail(
 ): CoachCard {
   const counts: Record<ToolKey, number> = { ladder: 0, icu: 0, rep: 0, rv: 0, micro: 0, macro: 0 };
   let lastTool: ToolKey | null = null;
+  // icu2 isn't a ToolKey (see CoachCard) but its sessions ARE trail: without
+  // this the coach was blind to them — a passage practiced only in ICU2
+  // looked never-practiced, and "pick up where you left off" named an older
+  // tool the day after an ICU2 rotation.
+  let icu2Count = 0;
+  let lastIsIcu2 = false;
+  let latestSeen = false;
   // Repo returns entries sorted most-recent first.
   for (const e of entries) {
+    if (e.strategy === 'icu2') {
+      icu2Count += 1;
+      if (!latestSeen) {
+        lastIsIcu2 = true;
+        latestSeen = true;
+      }
+      continue;
+    }
     const tool = STRATEGY_TO_TOOL[e.strategy];
     if (!tool) continue;
     counts[tool] += 1;
-    if (lastTool === null) lastTool = tool;
+    if (!latestSeen) {
+      lastTool = tool;
+      latestSeen = true;
+    }
   }
   const total = counts.ladder + counts.icu + counts.rep + counts.rv + counts.micro + counts.macro;
 
   // 1. No trail at all (an 'evaluation' entry alone still counts as a trail —
   //    the measurements exist, so the coach can speak to what they showed).
   const evaluation = entries.find((e) => e.strategy === 'evaluation');
-  if (total === 0 && !evaluation) return { kind: 'evaluate' };
-  if (total === 0 && evaluation) {
+  if (total === 0 && icu2Count === 0 && !evaluation) return { kind: 'evaluate' };
+  if (total === 0 && icu2Count === 0 && evaluation) {
     let evalData: Record<string, unknown> | null = null;
     try {
       evalData = evaluation.data_json ? JSON.parse(evaluation.data_json) : null;
@@ -104,6 +128,16 @@ export function suggestFromTrail(
       tool: 'rep',
       title: CARD_TOOL_NAME.rep,
       why: `You've had this at ${ladder.goal} — the hard part's done. Keep it performance-ready by running it cold, rotated in with your other spots.`,
+    };
+  }
+
+  // 2b. Most recent session was ICU2 → point back at it (same voice as the
+  //     rule-4 else template, no new pedagogy). At-goal (rule 2) still wins.
+  if (lastIsIcu2) {
+    return {
+      kind: 'icu2',
+      title: 'Interleaved Click-Up 2',
+      why: 'You worked this with Interleaved Click-Up 2 last time — picking it back up is a solid plan for today.',
     };
   }
 

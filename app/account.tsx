@@ -28,7 +28,7 @@ import {
 import { deleteAccount, wipeUserData } from '@/lib/supabase/account';
 import { signOut, useSession } from '@/lib/supabase/auth';
 import { useSubscription } from '@/lib/supabase/subscription';
-import { getSyncStatus, syncNow, type SyncStatus } from '@/lib/sync/syncStatus';
+import { fullResync, getSyncStatus, syncNow, type SyncStatus } from '@/lib/sync/syncStatus';
 import { DEMO_TUTORIAL_EMAIL } from '@/lib/tutorials/demoMode';
 
 // What to call the machine in user-facing copy. Platform.isPad is iOS-only;
@@ -95,6 +95,18 @@ export default function AccountScreen() {
     setSyncBusy(true);
     try {
       await syncNow();
+    } finally {
+      setSyncBusy(false);
+      refreshSync();
+    }
+  }
+
+  // The quiet escape hatch that replaced the retired import screen: re-pull
+  // the account's full cloud history. Additive only — never deletes.
+  async function handleFullResync() {
+    setSyncBusy(true);
+    try {
+      await fullResync();
     } finally {
       setSyncBusy(false);
       refreshSync();
@@ -343,36 +355,27 @@ export default function AccountScreen() {
                       onPress={() => router.replace('/sign-in')}
                     />
                   ) : (
-                    <Button
-                      label={syncBusy || sync.state === 'syncing' ? 'Syncing…' : 'Sync now'}
-                      variant="outline"
-                      size="sm"
-                      disabled={syncBusy}
-                      onPress={() => void handleSyncNow()}
-                    />
+                    <>
+                      <Button
+                        label={syncBusy || sync.state === 'syncing' ? 'Syncing…' : 'Sync now'}
+                        variant="outline"
+                        size="sm"
+                        disabled={syncBusy}
+                        onPress={() => void handleSyncNow()}
+                      />
+                      {/* The escape hatch that replaced the old import screen:
+                          if this device ever looks out of date, re-walk the
+                          whole cloud library. Only adds and updates — it never
+                          deletes anything on the device. */}
+                      <Button
+                        label="Re-download everything"
+                        variant="ghost"
+                        size="sm"
+                        disabled={syncBusy}
+                        onPress={() => void handleFullResync()}
+                      />
+                    </>
                   )}
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Native only: friendly entry to the web→device import that used to
-              hide behind the /import-supabase URL. */}
-          {Platform.OS !== 'web' && (
-            <View style={styles.section}>
-              <ThemedText style={styles.sectionTitle}>Web account</ThemedText>
-              <View style={styles.card}>
-                <ThemedText style={styles.hint}>
-                  Signs in to your playfastnotes.com account and copies its music,
-                  practice history, and photos onto this device.
-                </ThemedText>
-                <View style={styles.accountActions}>
-                  <Button
-                    label="Download my web library"
-                    variant="outline"
-                    size="sm"
-                    onPress={() => router.push('/import-supabase' as never)}
-                  />
                 </View>
               </View>
             </View>
