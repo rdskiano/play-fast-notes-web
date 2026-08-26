@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   useMicrobreakTimer,
@@ -882,6 +883,26 @@ export function useMetronome(initialBpm = 60) {
     return () => stopGrooveLoop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, activeGroove]);
+
+  // Only the screen you are LOOKING at should click. expo-router keeps the
+  // previous screen mounted ("warm"), so a metronome left running on the
+  // document viewer kept clicking underneath the practice screen you
+  // navigated into — two engines at two different tempos at once (Ralph,
+  // 2026-08-25: PDF + metronome -> Tempo Ladder). Silence on blur, and do
+  // NOT auto-resume: coming back to a stopped metronome is honest and
+  // quiet, where surprise audio on every back-navigation is not. `running`
+  // false also stops the groove loop via the effect above.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setRunning(false);
+        stopRhythmLoop();
+      };
+      // stopRhythmLoop is a stable closure over refs; re-running this on
+      // every render would tear down the focus subscription each time.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
+  );
 
   // ── Pitch playback (Exercise Builder) ──────────────────────────────
   // One-shot or sequence of sine-wave tones. Used by the entry-phase

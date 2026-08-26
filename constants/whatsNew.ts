@@ -20,6 +20,20 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-25-two-metronomes-fix',
+    date: 'August 25, 2026',
+    title: 'Fixed: two metronomes clicking at once',
+    body:
+      'If you left the metronome running while reading a PDF and then started practicing a passage on that page, you ended up with two clicks going at two different speeds. The app keeps the previous screen alive behind you, and its metronome kept clicking underneath the new one. Now only the screen you are actually looking at can click. When you go back, the metronome is stopped and waiting for you to press play.',
+  },
+  {
+    id: '2026-08-25-custom-ladder-follows-dial',
+    date: 'August 25, 2026',
+    title: 'Tempo Ladder: a Custom pattern now follows the tempo you actually played',
+    body:
+      'In a Custom pattern, turning the tempo down mid session was ignored. If the pattern wanted 92 and you dialed back to 84 and played it clean, the celebration still offered to bump you to 93, and next time you picked up at the old tempo. Now the base moves with you, so a clean run at 84 offers 85 and next session starts where you really are. Step mode already worked this way.',
+  },
+  {
     id: '2026-08-25-icu-metronome-tool',
     date: 'August 25, 2026',
     title: 'New tool: the ICU Metronome, for practicing from the book',

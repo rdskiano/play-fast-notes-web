@@ -462,6 +462,47 @@ export function useTempoLadderSession(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [metronome.bpm, phase, progress, toolsOnly, exerciseId]);
 
+  // Custom mode's "click is the truth". Step mode (above) adopts a mid-session
+  // dial change as the new rung; custom mode used to ignore it entirely, so
+  // dialing 92 down to 84 mid-pattern still celebrated with "bump the base up
+  // to 93" and banked the old base for next time (Ralph, 2026-08-25).
+  //
+  // A custom block may be Base, Base+N, Performance or an absolute BPM, so the
+  // dial is not the base itself — we shift the BASE by the same delta the user
+  // just applied to the sounding tempo. Dial down 8 on a Base+10 block and the
+  // base drops 8 too, which is what "I need this whole pattern slower" means.
+  // Absolute-BPM blocks are skipped: they are pinned on purpose and carry no
+  // relationship to the base.
+  const lastCustomBpmRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (phase !== 'playing' || !progress || progress.mode !== 'custom') return;
+    if (!customPattern) return;
+    const block = customPattern.blocks[customBlockIndex];
+    if (!block || block.tempo.kind === 'absolute') return;
+    const bpm = metronome.bpm;
+    if (!bpm) return;
+    const expected = resolveBlockBpm(block.tempo, customBase, progress.goal_tempo);
+    // Internal setBpm calls (start, block advance, step-up) land exactly on the
+    // expected tempo, so they are not user edits. Only a divergence is.
+    if (bpm === expected) {
+      lastCustomBpmRef.current = bpm;
+      return;
+    }
+    if (lastCustomBpmRef.current === bpm) return; // already adopted this dial
+    lastCustomBpmRef.current = bpm;
+    const nextBase = Math.max(30, Math.min(progress.goal_tempo, customBase + (bpm - expected)));
+    if (nextBase === customBase) return;
+    setCustomBase(nextBase);
+    // Same F20 rule as step mode: only persist once a rep has been played this
+    // session, so dialing around before playing anything moves nothing durable.
+    if (!toolsOnly && exerciseId && touchedRef.current) {
+      updateCustomPosition(exerciseId, nextBase, customBlockIndex, customRepInBlock).catch((e) =>
+        console.warn('[tempoLadder] custom follow-the-dial persist failed:', e),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metronome.bpm, phase, progress, customPattern, customBlockIndex, customBase, toolsOnly, exerciseId]);
+
   function setModeAndSyncCluster(next: Mode) {
     // Keep the tempos the user typed when they switch modes. Start/Low/Base is
     // the shared `startTempo`, so it always survives. The TARGET tempo differs by

@@ -4,7 +4,8 @@
 //
 // Ported from learn-fast-notes/lib/metronome/useMetronome.ts.
 
-import { useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   useMicrobreakTimer,
@@ -76,6 +77,29 @@ export function useMetronome(initialBpm: number = 60) {
       }
     }
   }, [interrupted]);
+
+  // Only the screen you are LOOKING at should click. expo-router keeps the
+  // previous screen mounted ("warm"), so a metronome left running on the
+  // document viewer kept clicking underneath the practice screen you
+  // navigated into — two engines at two different tempos at once (Ralph,
+  // 2026-08-25: PDF + metronome -> Tempo Ladder). Silence on blur, and do
+  // NOT auto-resume: coming back to a stopped metronome is honest and
+  // quiet, where surprise audio on every back-navigation is not.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        const engine = engineRef.current;
+        if (!engine) return;
+        if (engine.isRunning) {
+          engine.stop();
+          setRunning(false);
+        }
+        engine.stopRhythmLoop();
+        setRhythmLooping(false);
+        shouldResumeRef.current = false;
+      };
+    }, []),
+  );
 
   useEffect(() => {
     return () => {
