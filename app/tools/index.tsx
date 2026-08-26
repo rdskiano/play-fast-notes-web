@@ -42,6 +42,14 @@ export default function ToolsHubScreen() {
       route: '/tools/metronome',
     },
     {
+      icon: 'book-music',
+      title: 'ICU Metronome',
+      subtitle:
+        'Doing Interleaved Click-Up from the book? This runs the tempo climbs for you.',
+      color: colors.click_up ?? Palette.accent,
+      route: '/tools/icu-metronome',
+    },
+    {
       icon: 'stairs',
       title: 'Tempo Ladder',
       subtitle: 'Climb the tempo — Step, Cluster, or your Custom patterns.',

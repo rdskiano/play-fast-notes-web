@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-25-icu-metronome-tool',
+    date: 'August 25, 2026',
+    title: 'New tool: the ICU Metronome, for practicing from the book',
+    body:
+      'Doing Interleaved Click-Up from Molly Gebrian\'s book, with paper diagrams on the stand? The Tools room now has a metronome built for exactly that. Enter your performance tempo and increment, flip the device over, and just press NEXT after each step: it climbs for you, drops back to your starting tempo when a phase completes, and celebrates when you reach performance tempo. The spacebar and foot pedals work as NEXT too.',
+  },
+  {
     id: '2026-08-25-exercise-playback-tempo',
     date: 'August 25, 2026',
     title: 'Exercise Builder: playback now asks for your tempo in musical terms',
