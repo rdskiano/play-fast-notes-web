@@ -41,13 +41,6 @@ export const WHATS_NEW: WhatsNewEntry[] = [
       'Doing Interleaved Click-Up from Molly Gebrian\'s book, with paper diagrams on the stand? The Tools room now has a metronome built for exactly that. Enter your performance tempo and increment, flip the device over, and just press NEXT after each step: it climbs for you, drops back to your starting tempo when a phase completes, and celebrates when you reach performance tempo. The spacebar and foot pedals work as NEXT too.',
   },
   {
-    id: '2026-08-25-exercise-playback-tempo',
-    date: 'August 25, 2026',
-    title: 'Exercise Builder: playback now asks for your tempo in musical terms',
-    body:
-      'Pressing play on a generated exercise used to silently set the metronome to a strange number, because exercises in eighth-note meters count the dial in eighth notes. Now the first play asks for your tempo the way you think it: quarter notes for 2/4, one dotted quarter per bar for 3/8. The app does the conversion, and the same speed carries across all the /8 exercises, so it only asks again when the meter type changes.',
-  },
-  {
     id: '2026-08-25-coach-sees-icu2',
     date: 'August 25, 2026',
     title: 'The practice coach now sees your Interleaved Click-Up 2 sessions',

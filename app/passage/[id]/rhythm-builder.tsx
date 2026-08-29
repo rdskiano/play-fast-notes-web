@@ -40,6 +40,10 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePracticeClock } from '@/hooks/usePracticeClock';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import {
+  beatUnitsPerWhole,
+  meterDialFactor,
+} from '@/lib/strategies/rhythmMeterFeel';
+import {
   getExerciseById,
   softDeleteExercise,
   updateExerciseConfig,
@@ -74,7 +78,6 @@ import { buildExerciseHtml } from '@/lib/export/buildExerciseHtml';
 import { exportExercisePdf } from '@/lib/export/exportExercisePdf';
 import { buildExerciseAbc } from '@/lib/notation/buildExerciseAbc';
 import {
-  meterTempoFactor,
   parseBeatDenominator,
   patternsByGrouping,
   type Grouping,
@@ -259,6 +262,9 @@ export default function RhythmBuilderScreen() {
   }, [pdfTitleModalOpen]);
 
   const metronome = useMetronome(80);
+  // The meter the exercise playback pushed onto the metronome panel, so its
+  // beat dots always show the pattern that is sounding.
+  const [toolMeter, setToolMeter] = useState<string | undefined>(undefined);
   const historyRef = useRef<Pitch[][]>([]);
   const [historyVersion, setHistoryVersion] = useState(0);
 
@@ -1066,6 +1072,7 @@ export default function RhythmBuilderScreen() {
             viewportWidth={winWidth}
             onBack={() => setPhase('entry')}
             goalTempo={passage?.performance_tempo ?? null}
+            onMeterChange={setToolMeter}
           />
           {/* Phone keeps the floating tool rail (no header room for extra
               buttons). Tablet/laptop reach the metronome + timer from the
@@ -1075,6 +1082,7 @@ export default function RhythmBuilderScreen() {
           <PracticeToolsLayer
             metronome={metronome}
             tools={{ left: [], right: isPhone ? ['metronome', 'timer'] : [] }}
+            syncMeter={toolMeter}
           />
           {/* Tablet/laptop: the same top-right tools pill the other practice
               screens use — the panel drops below the pill WITHOUT blocking
@@ -1089,6 +1097,7 @@ export default function RhythmBuilderScreen() {
               metronome={metronome}
               tools={['metronome', 'timer']}
               anchorTop={8}
+              syncMeter={toolMeter}
             />
           )}
           <TutorialStep
@@ -1279,6 +1288,7 @@ function ExercisesPhase({
   viewportWidth,
   onBack,
   goalTempo,
+  onMeterChange,
 }: {
   pitches: Pitch[];
   grouping: Grouping;
@@ -1290,19 +1300,40 @@ function ExercisesPhase({
   onBack: () => void;
   /** Passage goal ♩ (pieces.performance_tempo) — seeds meter-aware playback. */
   goalTempo: number | null;
+  /** Push the exercise's time signature onto the metronome panel. */
+  onMeterChange?: (timeSig: string) => void;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const patterns = patternsByGrouping(grouping);
   const [playingId, setPlayingId] = useState<number | null>(null);
-  // Meter-aware tempo (B-018) — GROUPING 4 ONLY (Ralph's calibration covers
-  // sixteenth-run passages; other groupings keep the legacy dial until they
-  // get their own ear-calibration — see RHYTHM_TEMPO_PLAN.md). The dial
-  // counts the meter's denominator unit, so cards in different meters need
-  // different dial numbers for the same felt speed. First ▶ seeds from the
-  // passage goal × the meter's factor; later ▶s rescale by the factor ratio
-  // so a manual nudge carries over.
+  // Meter-aware tempo (B-018, re-anchored to the BEAT 2026-08-28) —
+  // GROUPING 4 ONLY (Ralph's calibration covers sixteenth-run passages;
+  // other groupings keep the legacy dial until they get their own
+  // ear-calibration — see RHYTHM_TEMPO_PLAN.md). The dial counts the
+  // meter's BEAT (his feel table: 3/8 = dotted quarter, 2/4 = quarter,
+  // 5/8 and 7/8 = eighth — lib/strategies/rhythmMeterFeel.ts), and
+  // playback receives beatUnitsPerWhole so the same number drives both the
+  // click and the exercise. The panel meter follows every ▶ (onMeterChange)
+  // so the beat dots always show the pattern that is sounding. Seeding on
+  // entry + rescale-by-ratio on later ▶s so a manual nudge carries over.
   const tempoAnchorRef = useRef<number | null>(null);
+
+  // Prefill: the panel meter (and, when a goal exists, the dial) match the
+  // FIRST exercise before anything plays, so opening the metronome never
+  // shows a stale 4/4 at 80.
+  useEffect(() => {
+    const first = patterns[0];
+    if (!first) return;
+    onMeterChange?.(first.timeSig);
+    if (grouping === 4 && goalTempo && tempoAnchorRef.current == null) {
+      const f = meterDialFactor(first.timeSig);
+      metronome.setBpm(goalTempo * f);
+      tempoAnchorRef.current = f;
+    }
+    // Mount-only: patterns/grouping are fixed for the phase's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Clear the active card when playback finishes naturally.
   useEffect(() => {
@@ -1341,7 +1372,7 @@ function ExercisesPhase({
     }
     if (freqs.length === 0) return;
     if (grouping === 4) {
-      const f = meterTempoFactor(pattern.timeSig);
+      const f = meterDialFactor(pattern.timeSig);
       const prevF = tempoAnchorRef.current;
       if (prevF == null) {
         if (goalTempo) metronome.setBpm(goalTempo * f);
@@ -1350,8 +1381,15 @@ function ExercisesPhase({
       }
       tempoAnchorRef.current = f;
     }
-    const beatDenom = parseBeatDenominator(pattern.timeSig);
-    metronome.playPitchRhythm(freqs, tokens, beatDenom);
+    // The panel's meter (and beat dots) follow whatever is playing.
+    onMeterChange?.(pattern.timeSig);
+    // Managed groupings hand the scheduler the meter's BEAT so the dial
+    // number means one click; unmanaged ones keep the legacy denominator.
+    const beatUnits =
+      grouping === 4
+        ? beatUnitsPerWhole(pattern.timeSig)
+        : parseBeatDenominator(pattern.timeSig);
+    metronome.playPitchRhythm(freqs, tokens, beatUnits);
     setPlayingId(pattern.id);
   }
 

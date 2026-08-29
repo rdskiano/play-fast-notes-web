@@ -12,7 +12,7 @@
 
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   type LayoutChangeEvent,
   Platform,
@@ -110,6 +110,16 @@ const TIMER_DEVICE = {
   text: DEVICE.text, // heading + help "?"
 };
 
+
+// Beat dots for a pushed meter — mirrors MetronomePanel's meterBeats so the
+// dots agree with the panel's own classification.
+function beatsForMeter(label: string): number {
+  const [numStr, denStr] = label.split('/');
+  const num = parseInt(numStr, 10) || 4;
+  if (denStr === '8' && num % 3 === 0) return Math.max(1, num / 3);
+  return Math.max(1, num);
+}
+
 export function PracticeToolsLayer({
   metronome,
   metronomeNote,
@@ -118,6 +128,7 @@ export function PracticeToolsLayer({
   recorderPassageId,
   recorderDocumentId,
   tools,
+  syncMeter,
 }: {
   metronome?: MetronomeApi;
   metronomeNote?: string;
@@ -128,6 +139,8 @@ export function PracticeToolsLayer({
   recorderPassageId?: string;
   /** Current document — used by the RECORDER on the PDF viewer (no passage). */
   recorderDocumentId?: string;
+  /** Meter pushed by the host screen; see the adopt effect below. */
+  syncMeter?: string;
   tools?: { left?: ToolKey[]; right?: ToolKey[] };
 } = {}) {
   const scheme = useColorScheme() ?? 'light';
@@ -176,6 +189,22 @@ export function PracticeToolsLayer({
     'normal',
     'normal',
   ]);
+
+  // Adopt a pushed meter (rhythm exercises set it to the playing pattern's
+  // time signature). Pushes the beat pattern into the engine too — the
+  // panel does that itself while open, but the phone panel unmounts when
+  // collapsed and the engine would otherwise keep the old measure length.
+  useEffect(() => {
+    if (!syncMeter || !metronome) return;
+    const dots = Array.from(
+      { length: beatsForMeter(syncMeter) },
+      () => 'normal' as BeatState,
+    );
+    setMetroMeter(syncMeter);
+    setMetroBeatPattern(dots);
+    metronome.setBeatPattern(dots);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncMeter]);
   // Tool cards collapse when the screen loses focus: bumping this key on blur
   // remounts every dock, so a popped-out tool (e.g. the Recorder) never
   // persists open — or keeps stale takes — across navigation.

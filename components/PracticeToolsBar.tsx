@@ -12,7 +12,7 @@
 // here so they survive opening and closing the panel.
 
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -57,6 +57,17 @@ const TIMER_DEVICE = {
   offText: '#1a1c20',
 };
 
+
+// Beat dots for a pushed meter: compound /8 meters group eighths into
+// dotted-quarter beats (numerator / 3); everything else uses the numerator.
+// Mirrors MetronomePanel's own meterBeats so the dots agree with the panel.
+function beatsForMeter(label: string): number {
+  const [numStr, denStr] = label.split('/');
+  const num = parseInt(numStr, 10) || 4;
+  if (denStr === '8' && num % 3 === 0) return Math.max(1, num / 3);
+  return Math.max(1, num);
+}
+
 export function PracticeToolsBar({
   metronome,
   metronomeNote,
@@ -66,6 +77,7 @@ export function PracticeToolsBar({
   tools,
   anchorTop,
   anchorRight,
+  syncMeter,
 }: {
   metronome?: MetronomeApi;
   metronomeNote?: string;
@@ -81,6 +93,13 @@ export function PracticeToolsBar({
    */
   anchorTop?: number;
   anchorRight?: number;
+  /**
+   * Meter pushed by the host screen (the rhythm exercises set it to the
+   * playing pattern's time signature so the beat dots match what sounds).
+   * Not fully controlled — the user can still change the meter by hand; a
+   * NEW pushed value overrides it.
+   */
+  syncMeter?: string;
 }) {
   const insets = useSafeAreaInsets();
   const { width: vpW, height: vpH } = useWindowDimensions();
@@ -98,6 +117,21 @@ export function PracticeToolsBar({
     'normal',
     'normal',
   ]);
+
+  // Adopt a pushed meter. Also push the beat pattern straight into the
+  // engine: the panel does that itself while open, but when it's closed
+  // (unmounted) the engine would otherwise keep the old measure length.
+  useEffect(() => {
+    if (!syncMeter) return;
+    const dots = Array.from(
+      { length: beatsForMeter(syncMeter) },
+      () => 'normal' as BeatState,
+    );
+    setMeter(syncMeter);
+    setBeat(dots);
+    metro.setBeatPattern(dots);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncMeter]);
 
   const moveOnEnabled = useMoveOnTimer().config.enabled;
   const microbreakEnabled = useMicrobreakTimer().config.enabled;
