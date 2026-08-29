@@ -3,13 +3,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppStoreBadge } from '@/components/AppStoreBadge';
 import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { PaywallModal } from '@/components/PaywallModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { APP_STORE_URL } from '@/constants/appStore';
 import { Lift, Palette } from '@/constants/palette';
 import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
@@ -340,22 +340,18 @@ export default function AccountScreen() {
           {Platform.OS === 'web' && (
             <View style={styles.section}>
               <ThemedText style={styles.sectionTitle}>
-                Play Fast Notes on iPhone and iPad
+                Now on the App Store
               </ThemedText>
               <View style={styles.card}>
                 <ThemedText style={styles.hint}>
-                  Your library syncs automatically. Practice on the web here,
-                  on the couch there.
+                  Play Fast Notes is out for iPhone and iPad. Sign in with the
+                  same account and your whole library syncs automatically.
                 </ThemedText>
-                <View style={styles.accountActions}>
-                  <Button
-                    label="Get the app"
-                    variant="outline"
-                    size="sm"
-                    onPress={() => {
-                      Linking.openURL(APP_STORE_URL).catch(() => {});
-                    }}
-                  />
+                {/* The official badge, not an app-styled button: it reads as
+                    news about a real App Store release instead of blending in
+                    with the settings around it. */}
+                <View style={styles.storeBadgeRow}>
+                  <AppStoreBadge />
                 </View>
               </View>
             </View>
@@ -584,6 +580,10 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   accountActions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  storeBadgeRow: {
+    flexDirection: 'row',
+    marginTop: Spacing.xs,
+  },
   // Reset (ghost) + Delete (filled) share a row; each takes half.
   dangerRow: { flexDirection: 'row', gap: Spacing.sm },
   dangerHalf: { flex: 1 },
