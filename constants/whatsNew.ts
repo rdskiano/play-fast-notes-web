@@ -20,6 +20,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-28-exercise-beat-feel',
+    date: 'August 28, 2026',
+    title: 'Exercise Builder: the metronome now counts the natural beat',
+    body:
+      'Playing a generated exercise used to set the metronome to a confusing number in some meters, because the app counted eighth notes where a musician feels one beat per bar. Now the metronome counts the natural beat of each exercise: the dotted quarter in 3/8, the quarter in 2/4, the eighth in 5/8 and 7/8. It also switches its meter and beat dots to match whichever exercise you play, starting with the first one, so the click and the notation always agree. Nudge the dial any time and the playback follows.',
+  },
+  {
     id: '2026-08-25-two-metronomes-fix',
     date: 'August 25, 2026',
     title: 'Fixed: two metronomes clicking at once',
