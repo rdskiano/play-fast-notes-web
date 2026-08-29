@@ -87,6 +87,18 @@ export function WhatsNewButton() {
                   <ThemedText style={styles.entryDate}>{entry.date}</ThemedText>
                   <ThemedText style={styles.entryTitle}>{entry.title}</ThemedText>
                   <ThemedText style={styles.entryBody}>{entry.body}</ThemedText>
+                  {entry.link && (
+                    <Pressable
+                      onPress={() =>
+                        Linking.openURL(entry.link!.url).catch(() => undefined)
+                      }
+                      accessibilityRole="link"
+                      style={styles.entryLink}>
+                      <ThemedText style={styles.entryLinkText}>
+                        {entry.link.label} →
+                      </ThemedText>
+                    </Pressable>
+                  )}
                 </View>
               ))}
             </ScrollView>
@@ -159,6 +171,15 @@ const styles = StyleSheet.create({
   entryDate: { fontSize: 12, color: Palette.textMuted },
   entryTitle: { fontWeight: '700', color: Palette.text },
   entryBody: { fontSize: 14, lineHeight: 20, color: Palette.textSecondary },
+  entryLink: {
+    marginTop: Spacing.xs,
+    alignSelf: 'flex-start',
+  },
+  entryLinkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Palette.accent,
+  },
   feedbackRow: { paddingVertical: Spacing.xs },
   feedbackText: { color: Palette.accent, fontWeight: '600', textAlign: 'center' },
   closeBtn: {

@@ -16,9 +16,22 @@ export type WhatsNewEntry = {
   date: string;
   title: string;
   body: string;
+  /** Optional tappable link rendered under the body (e.g. an App Store link). */
+  link?: { label: string; url: string };
 };
 
 export const WHATS_NEW: WhatsNewEntry[] = [
+  {
+    id: '2026-08-28-ios-app-store',
+    date: 'August 28, 2026',
+    title: 'Play Fast Notes is on the App Store',
+    body:
+      'The iOS app is out for iPhone and iPad. Sign in with the same account and your whole library syncs automatically, so you can practice from the web here and from the stand there. Searching the App Store may not find it yet because new apps take a few days to show up in search, so use the link below.',
+    link: {
+      label: 'Get it on the App Store',
+      url: 'https://apps.apple.com/us/app/play-fast-notes/id6777245595',
+    },
+  },
   {
     id: '2026-08-28-exercise-beat-feel',
     date: 'August 28, 2026',

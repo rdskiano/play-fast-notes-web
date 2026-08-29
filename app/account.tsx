@@ -9,6 +9,7 @@ import { PaywallModal } from '@/components/PaywallModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
+import { APP_STORE_URL } from '@/constants/appStore';
 import { Lift, Palette } from '@/constants/palette';
 import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
@@ -333,6 +334,32 @@ export default function AccountScreen() {
               </View>
             </View>
           </View>
+
+          {/* Web only: point at the iOS app. Inside the iOS app itself this
+              is noise, so it renders nowhere else. */}
+          {Platform.OS === 'web' && (
+            <View style={styles.section}>
+              <ThemedText style={styles.sectionTitle}>
+                Play Fast Notes on iPhone and iPad
+              </ThemedText>
+              <View style={styles.card}>
+                <ThemedText style={styles.hint}>
+                  Your library syncs automatically. Practice on the web here,
+                  on the couch there.
+                </ThemedText>
+                <View style={styles.accountActions}>
+                  <Button
+                    label="Get the app"
+                    variant="outline"
+                    size="sm"
+                    onPress={() => {
+                      Linking.openURL(APP_STORE_URL).catch(() => {});
+                    }}
+                  />
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* Native only: background sync status + manual kick. */}
           {Platform.OS !== 'web' && sync && (

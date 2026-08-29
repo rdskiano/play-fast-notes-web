@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { ActionSheet } from '@/components/ActionSheet';
+import { AppStoreBadge } from '@/components/AppStoreBadge';
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -527,6 +528,13 @@ export default function SignInScreen() {
                 fullWidth
               />
             )}
+            {/* Store badge: renders on web only (native sibling is null).
+                The sign-in page is the marketing surface — friend links land
+                here — and while Apple's search index lags the new listing,
+                a direct link is the only reliable way to the iOS app. */}
+            <View style={styles.storeBadgeRow}>
+              <AppStoreBadge />
+            </View>
           </>
         )}
       </View>
@@ -555,6 +563,10 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     gap: Spacing.lg,
+  },
+  storeBadgeRow: {
+    alignItems: 'center',
+    marginTop: Spacing.xs,
   },
   instrumentSection: {
     gap: Spacing.xs,
