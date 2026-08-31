@@ -14,6 +14,38 @@ starts from inputting the music.
 
 ---
 
+# 2026-08-30 — D53 (PINNED, HIGH PRIORITY — Ralph's call): daily-routine
+# passages break the coach's ICU rule
+
+Found by comparing the live practice trail against `lib/coach/suggest.ts`
+rule 3, not at the stand. Since ~08-25 Ralph's heaviest usage is the Daily
+Routine folder workaround (Scales, Arpeggios, Slur-and-Articulate variants,
+Examples 1–3, Rhythmic Hairpin): one short one-rep ladder stint per passage
+per day, 4 consecutive days, ZERO ICU — correct fundamentals practice, these
+climb slowly forever and never graduate. But rule 3 (ladder on ≥2 distinct
+days + ladder was last tool → suggest ICU) fires on exactly this trail: the
+coach would tell him to cement his SCALES with ICU, and the day-count copy
+("Nine days of steady ladder work…") reads more absurd the longer the routine
+runs. Meanwhile the rule matched his Frenzy behavior fine (repertoire
+passages got ICU2 on 08-29, on schedule) — the coach simply can't tell a
+daily-exercise passage from a repertoire passage.
+
+- **Candidate fixes (NEITHER ratified):** (a) folder-based exemption — Daily
+  Routine folder passages get a "daily climber, keep at it" card instead of
+  the ICU flip; (b) pattern-based — one short stint/day over many days with
+  steady small climbs = routine, not rut. Deeper fix: build the design-locked
+  daily-exercises feature ([[project_pfn_daily_exercises_design]]), which
+  gives these passages their own home and removes them from the ladder trail
+  entirely, making the coach patch unnecessary.
+- **Also re-pinned in the same review:** D49/D50 piece-level coach remains
+  the biggest observed GAP (vs this, the biggest observed MISFIRE); and the
+  Micro-timer-during-long-sittings suggestion is validated by Ralph's own
+  use and could be encoded with confidence.
+- **Status: Ralph pinned this as high priority for the next app-refinement
+  step (2026-08-30). No rule change built yet — fix shape is his call.**
+
+---
+
 # 2026-08-14 — D42 (STANDING): Ralph does not yet trust the coach's advice
 
 Pinned at the stand after his first real day using the D38 one-modal prompt +
