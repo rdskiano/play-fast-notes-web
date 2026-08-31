@@ -22,6 +22,27 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-30-icu2-micro-timer',
+    date: 'August 30, 2026',
+    title: 'Fixed: the Micro timer now works in Interleaved Click-Up 2',
+    body:
+      'If you had the Micro break timer turned on, ICU 2 ignored it and never offered a rest. Now it fires the break after every 3 clean reps on the same passage (3 taps of ✓ Next), and the count starts over each time you move to a new passage. You can change the number in the Timer tool settings, just like the other strategies. If the metronome was running, it pauses for the break and picks back up when the break ends.',
+  },
+  {
+    id: '2026-08-30-tools-freehand-log',
+    date: 'August 30, 2026',
+    title: 'Tools room: log a session in your own words',
+    body:
+      'The Done button in the Tools room version of Rhythm Variations used to just leave the screen without saving anything. Now it opens a small box where you name what you worked on ("Scales", "Long tones", whatever you like) and add an optional note, and the session lands in your practice log under that name, right alongside your regular sessions. You can still exit without logging.',
+  },
+  {
+    id: '2026-08-30-rhythm-variations-beat-feel',
+    date: 'August 30, 2026',
+    title: 'Rhythm Variations: the metronome counts the natural beat here too',
+    body:
+      'The same fix the Exercise Builder got a few days ago now applies to Rhythm Variations, including in the Tools room. In some meters the tempo dial used to show a confusing number because the app counted eighth notes where a musician feels one beat per bar. Now the dial counts the natural beat of each pattern (the dotted quarter in 3/8, the quarter in 2/4, the eighth in 5/8 and 7/8), and the metronome switches its meter and beat dots to match the pattern on screen, so the click and the notation always agree.',
+  },
+  {
     id: '2026-08-28-ios-app-store',
     date: 'August 28, 2026',
     title: 'Play Fast Notes is on the App Store',
