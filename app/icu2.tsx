@@ -585,6 +585,7 @@ function Icu2ScreenInner() {
           minToStart={2}
           startLabel="Set tempos →"
           pinnedPassageId={seedPassageId}
+          randomize={false}
         />
         <TutorialStep
           id="icu2-first-run"
@@ -673,25 +674,37 @@ function Icu2ScreenInner() {
             have them. Press ▶ to hear a tempo before you commit to it.
           </ThemedText>
           {items.map((it) => (
-            <View key={it.passage.id} style={styles.tempoRow}>
+            <View key={it.passage.id} style={styles.passageSection}>
               <View style={styles.tempoRowHead}>
-                <ThemedText style={styles.tempoRowTitle} numberOfLines={1}>
-                  {it.passage.title}
-                </ThemedText>
-                <ThemedText
-                  style={[
-                    styles.tempoRowTag,
-                    { color: it.source ? Palette.textMuted : Palette.danger },
-                  ]}>
-                  {it.source ? `goal from ${it.source}` : it.goal == null ? 'needs a goal' : ''}
-                </ThemedText>
-                <Button
-                  label="View score"
-                  icon="eye"
-                  variant="outline"
-                  size="xs"
-                  onPress={() => setPeekPassage(it.passage)}
-                />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <ThemedText style={styles.passageTitle} numberOfLines={2}>
+                    {it.passage.title}
+                  </ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.tempoRowTag,
+                      { color: it.source ? Palette.textMuted : Palette.danger },
+                    ]}>
+                    {it.source ? `goal from ${it.source}` : it.goal == null ? 'needs a goal' : ''}
+                  </ThemedText>
+                </View>
+                {isPhone ? (
+                  <Pressable
+                    onPress={() => setPeekPassage(it.passage)}
+                    hitSlop={8}
+                    accessibilityLabel={`View the score for ${it.passage.title}`}
+                    style={styles.eyeBtn}>
+                    <Feather name="eye" size={16} color={Palette.textSecondary} />
+                  </Pressable>
+                ) : (
+                  <Button
+                    label="View score"
+                    icon="eye"
+                    variant="outline"
+                    size="xs"
+                    onPress={() => setPeekPassage(it.passage)}
+                  />
+                )}
               </View>
               {it.goal == null ? (
                 <Button
@@ -708,6 +721,7 @@ function Icu2ScreenInner() {
                       onChange={(v) => setStartTempo(it.passage.id, v)}
                       metronome={metronome}
                       accent={ICU2_COLOR}
+                      compact={isPhone}
                     />
                   </View>
                   <View style={styles.field}>
@@ -717,6 +731,7 @@ function Icu2ScreenInner() {
                       onChange={(v) => setGoalTempo(it.passage.id, v)}
                       metronome={metronome}
                       accent={ICU2_COLOR}
+                      compact={isPhone}
                     />
                   </View>
                 </View>
@@ -798,7 +813,7 @@ function Icu2ScreenInner() {
             const atTempo = it.reached != null && it.goal != null && it.reached >= it.goal;
             return (
               <View key={it.passage.id} style={styles.resultRow}>
-                <ThemedText style={styles.tempoRowTitle} numberOfLines={1}>
+                <ThemedText style={styles.resultTitle} numberOfLines={1}>
                   {it.passage.title}
                 </ThemedText>
                 <ThemedText style={styles.resultGoal}>
@@ -867,14 +882,20 @@ function Icu2ScreenInner() {
       <Stack.Screen options={{ headerShown: false }} />
       <PedalCatcher active={!missBlocked} onAdvance={onNext} secondaryKey="x" onSecondary={onMissPressed} />
 
-      <View style={[styles.runTopBar, { paddingTop: insets.top + 10 }]}>
+      <View
+        style={[
+          styles.runTopBar,
+          { paddingTop: insets.top + 10 },
+          // Phone: every vertical pixel belongs to the score.
+          isPhone && { paddingTop: insets.top + 4, paddingBottom: 2 },
+        ]}>
         <View style={styles.runSide}>
           <Pressable onPress={exitSession} hitSlop={8} style={styles.runExit}>
             <Feather name="log-out" size={15} color={Palette.danger} />
             <ThemedText style={styles.runExitText}>Exit</ThemedText>
           </Pressable>
         </View>
-        <View style={styles.runCenter}>
+        <View style={[styles.runCenter, isPhone && { gap: 3 }]}>
           {!isPhone && (
             <View style={styles.runTitleRow}>
               <View style={styles.runStratDot} />
@@ -927,7 +948,10 @@ function Icu2ScreenInner() {
         style={[
           styles.contentArea,
           isPhone
-            ? { paddingBottom: insets.bottom + (isLandscape ? 8 : 0) }
+            ? // Landscape parks the ✕ Miss / ✓ Next buttons in the bottom
+              // corners — reserve their height so the contain-fit score
+              // doesn't sit underneath them.
+              { paddingBottom: insets.bottom + (isLandscape ? 54 : 0) }
             : {
                 paddingHorizontal: SCORE_SIDE_BUFFER,
                 paddingTop: SCORE_VERT_BUFFER,
@@ -1413,13 +1437,32 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: Spacing.xs,
   },
-  tempoRow: {
+  // Each passage is a divided SECTION (title big, tempo cards under it) —
+  // not a card holding more cards. Hierarchy per Ralph's phone review
+  // 2026-08-31: the spot's name must outrank the tempo numbers.
+  passageSection: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Palette.border,
+    paddingTop: Spacing.md,
+    marginTop: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  passageTitle: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.2,
+  },
+  eyeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: Radii.sm,
     borderWidth: Borders.thin,
     borderColor: Palette.border,
-    borderRadius: Radii.md,
     backgroundColor: Palette.card,
-    padding: Spacing.md,
-    gap: Spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tempoRowHead: {
     flexDirection: 'row',
@@ -1427,14 +1470,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.sm,
   },
-  tempoRowTitle: {
-    fontSize: Type.size.md,
-    fontWeight: Type.weight.bold,
-    flexShrink: 1,
-  },
   tempoRowTag: {
     fontSize: Type.size.xs,
     fontWeight: Type.weight.semibold,
+    marginTop: 1,
   },
   roundsCard: {
     borderWidth: Borders.thin,
@@ -1463,6 +1502,11 @@ const styles = StyleSheet.create({
     fontSize: Type.size.sm,
     color: Palette.textSecondary,
     fontVariant: ['tabular-nums'],
+  },
+  resultTitle: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.bold,
+    flexShrink: 1,
   },
   resultRow: {
     flexDirection: 'row',

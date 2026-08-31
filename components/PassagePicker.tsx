@@ -94,6 +94,7 @@ export function PassagePicker({
   minToStart = 2,
   startLabel = 'Start interleaving',
   pinnedPassageId,
+  randomize = true,
 }: {
   /** Currently-selected passage ids, in selection order (parent-owned). */
   selectedIds: string[];
@@ -116,6 +117,13 @@ export function PassagePicker({
    * "picked piece jumps to the top" reordering unnecessary (2026-08-23).
    */
   pinnedPassageId?: string;
+  /**
+   * Show the Randomize chip + count dropdown. Rep Rotator's audition-style
+   * random pick wants it; ICU2 hides it — there, people come knowing exactly
+   * which passages they're drilling (Ralph's call 2026-08-31). Saved sets
+   * stay available either way.
+   */
+  randomize?: boolean;
 }) {
   const insets = useSafeAreaInsets();
 
@@ -474,20 +482,22 @@ export function PassagePicker({
         {/* Quick-start: Randomize + saved sets · count picker */}
         <View style={styles.quickRow}>
           <View style={styles.quickLeft}>
-            <Chip
-              onPress={() => setRandomOpen((o) => !o)}
-              style={[
-                styles.randomizeChip,
-                randomOpen && { borderColor: Palette.accent, borderWidth: Borders.thick },
-              ]}>
-              <Feather name="shuffle" size={14} color={Palette.accent} />
-              <ThemedText style={styles.randomizeText}>Randomize</ThemedText>
-              <Feather
-                name={randomOpen ? 'chevron-up' : 'chevron-down'}
-                size={14}
-                color={Palette.accent}
-              />
-            </Chip>
+            {randomize && (
+              <Chip
+                onPress={() => setRandomOpen((o) => !o)}
+                style={[
+                  styles.randomizeChip,
+                  randomOpen && { borderColor: Palette.accent, borderWidth: Borders.thick },
+                ]}>
+                <Feather name="shuffle" size={14} color={Palette.accent} />
+                <ThemedText style={styles.randomizeText}>Randomize</ThemedText>
+                <Feather
+                  name={randomOpen ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color={Palette.accent}
+                />
+              </Chip>
+            )}
             {savedSets.map((set) => (
               <Chip key={set.id} onPress={() => applySet(set)} style={styles.setChip}>
                 <ThemedText style={styles.setChipText} numberOfLines={1}>
@@ -502,25 +512,30 @@ export function PassagePicker({
               </Chip>
             ))}
           </View>
-          <View style={styles.countPicker}>
-            <Stepper
-              label="−"
-              onPress={() => setCount((c) => clampCount(c - 1))}
-              disabled={count <= 2}
-            />
-            <ThemedText style={styles.countValue}>{count}</ThemedText>
-            <Stepper
-              label="+"
-              onPress={() => setCount((c) => clampCount(c + 1))}
-              disabled={count >= total}
-            />
-          </View>
         </View>
 
-        {/* Randomize dropdown (inline, no overlay) */}
-        {randomOpen && (
+        {/* Randomize dropdown (inline, no overlay). The how-many stepper
+            lives INSIDE the dropdown, next to the words that explain it — as
+            a bare "− 4 +" on the main row it read as a mystery control. */}
+        {randomize && randomOpen && (
           <View style={styles.dropdown}>
-            <ThemedText style={styles.dropdownHeader}>Randomly pick {count} from</ThemedText>
+            <View style={styles.dropdownHeaderRow}>
+              <ThemedText style={styles.dropdownHeader}>Randomly pick</ThemedText>
+              <View style={styles.countPicker}>
+                <Stepper
+                  label="−"
+                  onPress={() => setCount((c) => clampCount(c - 1))}
+                  disabled={count <= 2}
+                />
+                <ThemedText style={styles.countValue}>{count}</ThemedText>
+                <Stepper
+                  label="+"
+                  onPress={() => setCount((c) => clampCount(c + 1))}
+                  disabled={count >= total}
+                />
+              </View>
+              <ThemedText style={styles.dropdownHeader}>passages from</ThemedText>
+            </View>
             <DropdownOption
               label="Anywhere in my library"
               meta={`${total} passages`}
@@ -830,6 +845,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
+  },
+  dropdownHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 2,
   },
   dropdownOption: {
     flexDirection: 'row',

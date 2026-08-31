@@ -18,6 +18,9 @@ type Props = {
   metronome?: Metronome;
   /** Accent color for the slider + Hear-tempo button. Defaults to the theme tint. */
   accent?: string;
+  /** Tighter card for screens that stack several of these (e.g. ICU2's
+      multi-passage tempo list on phone): smaller number, buttons, paddings. */
+  compact?: boolean;
 };
 
 function clamp(n: number, min: number, max: number) {
@@ -31,6 +34,7 @@ export function BpmStepper({
   max = 300,
   metronome,
   accent,
+  compact = false,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -61,24 +65,26 @@ export function BpmStepper({
   }
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, compact && styles.cardCompact]}>
       <View style={styles.tempoRow}>
         <Pressable
           onPress={() => setBpm(numValue - 1)}
           onLongPress={() => setBpm(numValue - 5)}
           hitSlop={6}
-          style={styles.stepBtn}>
+          style={[styles.stepBtn, compact && styles.stepBtnCompact]}>
           <ThemedText style={styles.stepText}>−</ThemedText>
         </Pressable>
         <View style={styles.tempoDisplay}>
-          <ThemedText style={styles.tempoNum}>{numValue}</ThemedText>
+          <ThemedText style={[styles.tempoNum, compact && styles.tempoNumCompact]}>
+            {numValue}
+          </ThemedText>
           <ThemedText style={styles.tempoUnit}>BPM</ThemedText>
         </View>
         <Pressable
           onPress={() => setBpm(numValue + 1)}
           onLongPress={() => setBpm(numValue + 5)}
           hitSlop={6}
-          style={styles.stepBtn}>
+          style={[styles.stepBtn, compact && styles.stepBtnCompact]}>
           <ThemedText style={styles.stepText}>+</ThemedText>
         </Pressable>
       </View>
@@ -119,7 +125,7 @@ export function BpmStepper({
           onPress={toggle}
           hitSlop={8}
           accessibilityLabel={running ? 'Stop preview' : 'Hear this tempo'}
-          style={styles.playBtn}>
+          style={[styles.playBtn, compact && styles.playBtnCompact]}>
           <ThemedText
             style={[styles.playBtnText, { color: running ? Palette.danger : accentColor }]}>
             {running ? '■  Stop' : '▶  Hear tempo'}
@@ -140,6 +146,14 @@ const styles = StyleSheet.create({
     gap: 10,
     ...Lift,
   },
+  cardCompact: {
+    padding: Spacing.sm,
+    gap: 6,
+    borderRadius: 12,
+  },
+  stepBtnCompact: { width: 32, height: 32, borderRadius: 16 },
+  tempoNumCompact: { fontSize: 24, lineHeight: 28 },
+  playBtnCompact: { height: 34, paddingHorizontal: Spacing.md },
   tempoRow: {
     flexDirection: 'row',
     alignItems: 'center',

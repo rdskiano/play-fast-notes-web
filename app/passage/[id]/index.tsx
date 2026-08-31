@@ -494,7 +494,7 @@ export default function PassageDetailScreen() {
           </View>
         </View>
         <View style={styles.stratNameRow}>
-          <ThemedText style={styles.stratCardName} numberOfLines={1}>
+          <ThemedText style={styles.stratCardName} numberOfLines={2}>
             {s.label}
           </ThemedText>
           {s.beta && (
@@ -1464,6 +1464,9 @@ const styles = StyleSheet.create({
     fontSize: Type.size.md,
     fontWeight: Type.weight.heavy,
     color: Palette.text,
+    // Long names ("Interleaved Click-Up 2" + BETA chip) must wrap on phone
+    // cards, not truncate.
+    flexShrink: 1,
   },
   // Label + BETA chip side by side (strategy card + landscape row).
   stratNameRow: {

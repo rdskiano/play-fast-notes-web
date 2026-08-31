@@ -4,8 +4,10 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -164,9 +166,16 @@ export function PracticeLogNotePrompt({
   // same event flush as the button press, so the focus stays inside the
   // gesture window. (Auto-opens with no gesture — e.g. the goal-reached
   // celebration — still can't raise the keyboard; that's an iOS hard limit.)
+  // Phone LANDSCAPE skips the auto-focus entirely: the keyboard eats half
+  // the short screen and buries the Save row (Ralph, 2026-08-31). With the
+  // keyboard down the whole card fits; tapping the note box still brings the
+  // keyboard, and the scrollable middle keeps Save reachable then.
+  const { width: winW, height: winH } = useWindowDimensions();
+  const phoneLandscape = Math.min(winW, winH) < 600 && winW > winH;
+
   useLayoutEffect(() => {
-    if (visible) inputRef.current?.focus();
-  }, [visible]);
+    if (visible && !phoneLandscape) inputRef.current?.focus();
+  }, [visible, phoneLandscape]);
 
   // Belt-and-suspenders for iPad Safari (web). The synchronous focus above
   // catches the gesture-window case, but RN-Web mounts the modal's content a
@@ -177,14 +186,14 @@ export function PracticeLogNotePrompt({
   // gesture. (iPhone Safari ignores a deferred focus, and native already worked
   // via the layout effect — so no regression on either.)
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || phoneLandscape) return;
     const raf = requestAnimationFrame(() => inputRef.current?.focus());
     const t = setTimeout(() => inputRef.current?.focus(), 150);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(t);
     };
-  }, [visible]);
+  }, [visible, phoneLandscape]);
 
   function submit() {
     const trimmed = note.trim();
@@ -221,7 +230,7 @@ export function PracticeLogNotePrompt({
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.backdrop}>
-        <View style={styles.card}>
+        <View style={[styles.card, { maxHeight: winH - 16 }]}>
           {keepPracticing && (
             <Pressable
               onPress={keepPracticing}
@@ -237,6 +246,13 @@ export function PracticeLogNotePrompt({
             {PROMPT_TITLE}
           </ThemedText>
 
+          {/* The middle scrolls when the card is height-capped (short phone
+              landscape, keyboard up); the title above and the Save row below
+              stay pinned so the way out is always on screen. */}
+          <ScrollView
+            style={{ flexShrink: 1 }}
+            contentContainerStyle={{ gap: 14 }}
+            keyboardShouldPersistTaps="handled">
           {chips.length > 0 && (
           <View style={styles.chipRow}>
             {chips.map((phrase) => {
@@ -309,6 +325,7 @@ export function PracticeLogNotePrompt({
             </ThemedText>
           </Pressable>
           )}
+          </ScrollView>
 
           <View style={styles.row}>
             {onDelete && (
