@@ -26,7 +26,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     date: 'August 31, 2026',
     title: 'ICU 2 on the phone: cleaner and easier to read',
     body:
-      'A round of phone fixes for Interleaved Click-Up 2, hours after this morning\'s release. Passage names now lead the tempo screen (with smaller tempo cards and clearer dividers between passages), the strategy card\'s name no longer gets cut off, the music sits higher and clear of the Miss and Next buttons, and the end-of-session note box no longer hides its Save button behind the keyboard in landscape. The Randomize button is gone from ICU 2\'s passage list, since you come here knowing which spots you\'re working; it still lives in Rep Rotator, now with a clearer "randomly pick N passages" control.',
+      'A round of phone fixes for Interleaved Click-Up 2, hours after this morning\'s release. Passage names now lead the tempo screen (with smaller tempo cards and clearer dividers between passages), the strategy card\'s name no longer gets cut off, the music sits higher and clear of the Miss and Next buttons, and the end-of-session note box no longer hides its Save button behind the keyboard in landscape. The Randomize button is gone from ICU 2\'s passage list, since you come here knowing which spots you\'re working; it still lives in Rep Rotator, now with a clearer "randomly pick N passages" control. One more refinement: the Micro break timer no longer fires during step together, because that mode never repeats one motion (every rep is a different passage). It still works normally in Gebrian\'s rounds.',
   },
   {
     id: '2026-08-31-icu2-step-together',

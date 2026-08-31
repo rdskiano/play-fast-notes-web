@@ -377,11 +377,9 @@ function Icu2ScreenInner() {
 
   async function togetherClean() {
     if (!cur) return;
-    repsRef.current += 1;
-    // In step-together every rep is a passage switch, so the Micro cadence
-    // counts total clean reps across the session instead of per-passage.
-    const everyN = microbreak.config.icu2Reps || 3;
-    if (repsRef.current % everyN === 0) microbreak.trigger();
+    // No Micro break in step-together (Ralph's call 2026-08-31): the break
+    // exists to interrupt repetition of one motion, and this mode never
+    // repeats — every rep is a different passage. Gebrian's rounds keep it.
     await ann.flush();
     const t = tempos[cur.rung];
     const atTop = cur.rung >= tempos.length - 1;
