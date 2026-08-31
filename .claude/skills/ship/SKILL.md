@@ -48,6 +48,10 @@ This push is the live deploy (Vercel auto-deploys master).
 ## 6. Offer the iPad OTA (JS-only changes)
 If the change matters on iPad/iPhone native, offer:
 ```
-npx eas-cli update --channel preview --message "<same summary>"
+npx eas-cli update --channel production --message "<same summary>"
 ```
-Free, no build. Remind Ralph: **close and relaunch the app twice** to pick it up. Only suggest a real EAS build if native code changed (new module, permissions, app.json native config) — his build quota is limited.
+Channel **production**, always — Ralph's devices (and every App Store install) are on
+`production`; a `preview` publish reaches nobody (memory `project_playfastnotes_ota_updates`).
+Commit BEFORE publishing. Free, no build. Remind Ralph: **close and relaunch the app twice**
+to pick it up. Only suggest a real EAS build if native code changed (new module, permissions,
+app.json native config) — his build quota is limited.
