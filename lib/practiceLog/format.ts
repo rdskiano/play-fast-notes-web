@@ -156,12 +156,13 @@ export function formatPracticeDetail(
     }
 
     if (entry.strategy === 'icu2') {
-      // {goal, start, reached, atTempo, sessionPassages?}
+      // {goal, start, reached, atTempo, sessionPassages?, mode?, climbBy?}
       if (compact) {
         if (typeof data.reached !== 'number') return null;
         return data.atTempo ? `${data.reached} BPM ✓` : `saved at ${data.reached}`;
       }
       const parts: string[] = [];
+      if (data.mode === 'together') parts.push('step together');
       if (Array.isArray(data.sessionPassages) && data.sessionPassages.length > 0) {
         const names = data.sessionPassages.filter(
           (n: unknown): n is string => typeof n === 'string' && n.length > 0,

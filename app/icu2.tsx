@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionSheet } from '@/components/ActionSheet';
+import { BpmStepper } from '@/components/BpmStepper';
 import { Button } from '@/components/Button';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PassagePicker } from '@/components/PassagePicker';
@@ -29,7 +30,7 @@ import { ZoomableImage } from '@/components/ZoomableImage';
 import { PRACTICE_TOOLS_HELP, SHORTCUT_HINT_LINE } from '@/constants/helpCopy';
 import { inheritedGoalForPassage } from '@/lib/coach/evaluation';
 import { Colors, Fonts } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { Palette, Lift } from '@/constants/palette';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
@@ -41,6 +42,7 @@ import {
   SCORE_SIDE_BUFFER,
   SCORE_VERT_BUFFER,
   SCORE_FRAME_BG,
+  tempoStacks,
 } from '@/lib/layout/configForm';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import { listExercisesForPassage } from '@/lib/db/repos/exercises';
@@ -53,6 +55,9 @@ import {
   icu2DefaultStart,
   icu2EstimatedMinutes,
   icu2TotalReps,
+  stepTogetherTempos,
+  stepTogetherTotalReps,
+  type Icu2Mode,
 } from '@/lib/strategies/clickUp2';
 
 // The strategy-identity color: a deeper shade of Interleaved Click-Up's
@@ -82,6 +87,23 @@ type Icu2Item = {
   // Top tempo actually reached (set when a climb tops out or a ceiling is
   // saved). Stays null for passages the session never finished.
   reached: number | null;
+  // ── step-together mode only ──
+  // Index into this passage's own ladder (stepTogetherTempos).
+  rung: number;
+  // Highest tempo played clean so far — the miss card's "Save & move on".
+  lastClean: number | null;
+  // Misses per rung index; the second miss at the same rung opens the card.
+  missCount: Record<number, number>;
+  // "Set aside for today" (miss card, no clean tempo yet): out of rotation,
+  // nothing logged.
+  setAside: boolean;
+};
+
+const FRESH_TOGETHER = {
+  rung: 0,
+  lastClean: null as number | null,
+  missCount: {} as Record<number, number>,
+  setAside: false,
 };
 
 export default function Icu2Screen() {
@@ -108,6 +130,22 @@ function Icu2ScreenInner() {
   const [passages, setPassages] = useState<Passage[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [items, setItems] = useState<Icu2Item[]>([]);
+  // Climb style: Gebrian's seven rounds (the original) or step together.
+  const [mode, setMode] = useState<Icu2Mode>('rounds');
+  const [climbBy, setClimbBy] = useState<5 | 10>(5);
+  // Transient line after a silent step-together drop ("Down to 72…").
+  const [flash, setFlash] = useState<string | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function showFlash(msg: string) {
+    setFlash(msg);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlash(null), 2200);
+  }
+  useEffect(() => {
+    return () => {
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+    };
+  }, []);
   // Momentary look at one passage's source page while setting its tempos.
   const [peekPassage, setPeekPassage] = useState<Passage | null>(null);
 
@@ -130,8 +168,12 @@ function Icu2ScreenInner() {
   const round = ICU2_ROUNDS[roundIdx];
   const tempos = useMemo(() => {
     if (!cur || cur.goal == null) return [];
+    if (mode === 'together') return stepTogetherTempos(cur.start, cur.goal, climbBy);
     return icu2ClimbTempos(cur.start, cur.ceiling ?? cur.goal, round);
-  }, [cur, round]);
+  }, [cur, round, mode, climbBy]);
+  // Position in the current climb: step-together tracks it per passage
+  // (the rung), rounds mode tracks it per climb (tempoIdx).
+  const posIdx = mode === 'together' ? (cur?.rung ?? 0) : tempoIdx;
 
   useEffect(() => {
     let cancelled = false;
@@ -162,10 +204,10 @@ function Icu2ScreenInner() {
   // the click stays under the user's control in the tools pill.
   useEffect(() => {
     if (phase !== 'playing') return;
-    const t = tempos[tempoIdx];
+    const t = tempos[posIdx];
     if (t && t !== metronome.bpm) metronome.setBpm(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, tempos, tempoIdx]);
+  }, [phase, tempos, posIdx]);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) =>
@@ -191,6 +233,7 @@ function Icu2ScreenInner() {
           source: null,
           ceiling: null,
           reached: null,
+          ...FRESH_TOGETHER,
         },
     );
     setItems(nextItems);
@@ -261,33 +304,122 @@ function Icu2ScreenInner() {
     );
   }
 
-  function bumpTempo(id: string, key: 'start' | 'goal', delta: number) {
+  // ── tempo edits (tempos phase; values flow through the shared BpmStepper) ─
+  function setStartTempo(id: string, v: string) {
+    const n = parseInt(v, 10);
+    if (!Number.isFinite(n)) return;
+    setItems((prev) =>
+      prev.map((it) => {
+        if (it.passage.id !== id || it.goal == null) return it;
+        return { ...it, start: Math.min(Math.max(30, n), it.goal - 5) };
+      }),
+    );
+  }
+
+  function setGoalTempo(id: string, v: string) {
+    const n = parseInt(v, 10);
+    if (!Number.isFinite(n)) return;
     setItems((prev) =>
       prev.map((it) => {
         if (it.passage.id !== id) return it;
-        if (key === 'goal') {
-          // First tap on an empty goal seeds a sane default to adjust from.
-          const base = it.goal ?? 120;
-          const goal = Math.max(it.start + 5, base + (it.goal == null ? 0 : delta));
-          const start = it.goal == null ? icu2DefaultStart(goal) : it.start;
-          return { ...it, goal, start };
-        }
-        const cap = (it.goal ?? 300) - 5;
-        const start = Math.min(Math.max(30, it.start + delta), cap);
-        return { ...it, start };
+        const goal = Math.max(35, n);
+        return { ...it, goal, start: Math.min(it.start, goal - 5) };
       }),
+    );
+  }
+
+  // "Set a goal tempo" on a passage nothing could prefill: seed a sane pair
+  // for the steppers to adjust from.
+  function seedGoal(id: string) {
+    setItems((prev) =>
+      prev.map((it) =>
+        it.passage.id === id && it.goal == null
+          ? { ...it, goal: 120, start: icu2DefaultStart(120) }
+          : it,
+      ),
     );
   }
 
   function startPlaying() {
     if (items.length < 2 || items.some((it) => it.goal == null)) return;
-    setItems((prev) => prev.map((it) => ({ ...it, ceiling: null, reached: null })));
+    // Silence a still-running Hear-tempo preview from the setup screen.
+    metronome.stop();
+    setItems((prev) =>
+      prev.map((it) => ({ ...it, ceiling: null, reached: null, ...FRESH_TOGETHER })),
+    );
     repsRef.current = 0;
     setRoundIdx(0);
     setItemIdx(0);
     setTempoIdx(0);
     setInterstitial(true);
     setPhase('playing');
+  }
+
+  // ── step-together advance ────────────────────────────────────────────────
+  // A passage leaves the rotation when it tops out (reached) or is set aside.
+  function togetherDone(it: Icu2Item) {
+    return it.reached != null || it.setAside;
+  }
+
+  // Rotate to the next still-climbing passage after `nextItems` is applied.
+  // Ends the session when every passage is done.
+  function advanceTogether(nextItems: Icu2Item[], fromIdx: number) {
+    for (let k = 1; k <= nextItems.length; k++) {
+      const i = (fromIdx + k) % nextItems.length;
+      if (!togetherDone(nextItems[i])) {
+        setItemIdx(i);
+        return;
+      }
+    }
+    metronome.stop();
+    setPhase('done');
+  }
+
+  async function togetherClean() {
+    if (!cur) return;
+    repsRef.current += 1;
+    // In step-together every rep is a passage switch, so the Micro cadence
+    // counts total clean reps across the session instead of per-passage.
+    const everyN = microbreak.config.icu2Reps || 3;
+    if (repsRef.current % everyN === 0) microbreak.trigger();
+    await ann.flush();
+    const t = tempos[cur.rung];
+    const atTop = cur.rung >= tempos.length - 1;
+    const next = items.map((it, i) => {
+      if (i !== itemIdx) return it;
+      const missCount = { ...it.missCount };
+      delete missCount[it.rung];
+      if (atTop) return { ...it, lastClean: t, missCount, reached: t };
+      return { ...it, lastClean: t, missCount, rung: it.rung + 1 };
+    });
+    setItems(next);
+    if (atTop) showFlash(`${cur.passage.title} hit ♩ = ${t}. Done for today.`);
+    advanceTogether(next, itemIdx);
+  }
+
+  function togetherMiss() {
+    if (!cur) return;
+    const r = cur.rung;
+    const n = (cur.missCount[r] ?? 0) + 1;
+    const counted = items.map((it, i) =>
+      i === itemIdx ? { ...it, missCount: { ...it.missCount, [r]: n } } : it,
+    );
+    setItems(counted);
+    if (n >= 2) {
+      // Second miss at the same tempo: the usual miss card decides.
+      setMissOpen(true);
+      return;
+    }
+    const t = tempos[r];
+    if (r > 0) {
+      const dropped = counted.map((it, i) => (i === itemIdx ? { ...it, rung: r - 1 } : it));
+      setItems(dropped);
+      showFlash(`Down to ♩ = ${tempos[r - 1]}. You'll come back around.`);
+      advanceTogether(dropped, itemIdx);
+    } else {
+      showFlash(`Staying at ♩ = ${t}. You'll come back around.`);
+      advanceTogether(counted, itemIdx);
+    }
   }
 
   // ── session advance ──────────────────────────────────────────────────────
@@ -320,6 +452,7 @@ function Icu2ScreenInner() {
 
   async function onNext() {
     if (!cur) return;
+    if (mode === 'together') return togetherClean();
     repsRef.current += 1;
     // Micro break every N clean reps (✓ Next presses) on the current
     // passage — cadence from the Timer tool's Micro settings; nextSlot()
@@ -339,16 +472,38 @@ function Icu2ScreenInner() {
   }
 
   function onMissPressed() {
+    if (mode === 'together') return togetherMiss();
     setMissOpen(true);
   }
 
   function missStartOver() {
     setMissOpen(false);
+    if (mode === 'together') {
+      const next = items.map((it, i) =>
+        i === itemIdx ? { ...it, rung: 0, missCount: {} } : it,
+      );
+      setItems(next);
+      if (cur) showFlash(`Back to ♩ = ${cur.start}. Still in the rotation.`);
+      advanceTogether(next, itemIdx);
+      return;
+    }
     setTempoIdx(0);
   }
 
   function missStartSlower(delta: number) {
     setSlowerOpen(false);
+    if (mode === 'together') {
+      const next = items.map((it, i) =>
+        i === itemIdx
+          ? { ...it, start: Math.max(30, it.start - delta), rung: 0, missCount: {} }
+          : it,
+      );
+      setItems(next);
+      const slowed = next[itemIdx];
+      showFlash(`New start ♩ = ${slowed.start}. Still in the rotation.`);
+      advanceTogether(next, itemIdx);
+      return;
+    }
     setItems((prev) =>
       prev.map((it, i) =>
         i === itemIdx ? { ...it, start: Math.max(30, it.start - delta) } : it,
@@ -359,6 +514,18 @@ function Icu2ScreenInner() {
 
   function missSaveTempo() {
     setMissOpen(false);
+    if (mode === 'together') {
+      // Save the highest clean tempo as today's ceiling; with no clean
+      // tempo yet, set the passage aside (nothing logged for it).
+      const next = items.map((it, i) => {
+        if (i !== itemIdx) return it;
+        if (it.lastClean != null) return { ...it, ceiling: it.lastClean, reached: it.lastClean };
+        return { ...it, setAside: true };
+      });
+      setItems(next);
+      advanceTogether(next, itemIdx);
+      return;
+    }
     const lastClean = tempoIdx > 0 ? tempos[tempoIdx - 1] : (cur?.start ?? 30);
     setItems((prev) =>
       prev.map((it, i) =>
@@ -384,6 +551,10 @@ function Icu2ScreenInner() {
           reached: it.reached,
           atTempo: (it.reached ?? 0) >= (it.goal ?? Infinity),
         };
+        if (mode === 'together') {
+          data.mode = 'together';
+          data.climbBy = climbBy;
+        }
         if (mood) data.mood = mood;
         if (note) data.note = note;
         const others = items
@@ -431,13 +602,17 @@ function Icu2ScreenInner() {
     const pairs = items
       .filter((it): it is Icu2Item & { goal: number } => it.goal != null)
       .map((it) => ({ start: it.start, goal: it.goal }));
-    const total = icu2TotalReps(pairs);
+    const total =
+      mode === 'together' ? stepTogetherTotalReps(pairs, climbBy) : icu2TotalReps(pairs);
     const mins = icu2EstimatedMinutes(total);
     return (
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <SessionTopBar
-          onExit={() => setPhase('select')}
+          onExit={() => {
+            metronome.stop();
+            setPhase('select');
+          }}
           exitLabel="‹ Back"
           center={
             <ThemedText style={styles.topCenter} numberOfLines={1}>
@@ -446,10 +621,56 @@ function Icu2ScreenInner() {
           }
         />
         <ScrollView contentContainerStyle={styles.temposContent}>
+          <ThemedText style={styles.sectionHeader}>Climb style</ThemedText>
+          <View style={styles.modeGrid}>
+            <Icu2ModeCard
+              title="Gebrian's rounds"
+              subtitle="Whole ladder per passage. Seven rounds, bigger jumps each time."
+              selected={mode === 'rounds'}
+              onPress={() => setMode('rounds')}
+            />
+            <Icu2ModeCard
+              title="Step together"
+              subtitle="One step on each passage, then around again."
+              isNew
+              selected={mode === 'together'}
+              onPress={() => setMode('together')}
+            />
+          </View>
+          {mode === 'together' && (
+            <>
+              <ThemedText style={styles.fieldLabel}>Climb by</ThemedText>
+              <View style={styles.chipRow}>
+                {([5, 10] as const).map((inc) => (
+                  <Pressable
+                    key={inc}
+                    onPress={() => setClimbBy(inc)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: climbBy === inc }}
+                    style={[
+                      styles.chip,
+                      {
+                        borderColor: climbBy === inc ? ICU2_COLOR : Palette.border,
+                        backgroundColor: climbBy === inc ? ICU2_COLOR : 'transparent',
+                      },
+                    ]}>
+                    <ThemedText
+                      style={{ color: climbBy === inc ? '#fff' : Palette.text }}>
+                      +{inc}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
+
+          <ThemedText style={[styles.sectionHeader, { marginTop: Spacing.sm }]}>
+            Tempos
+          </ThemedText>
           <ThemedText style={[styles.helper, { color: C.icon }]}>
             Each passage climbs from its start tempo to its goal. Goals are
             pre-filled from your saved goal tempos and past practice when we
-            have them. Adjust anything before you start.
+            have them. Press ▶ to hear a tempo before you commit to it.
           </ThemedText>
           {items.map((it) => (
             <View key={it.passage.id} style={styles.tempoRow}>
@@ -462,7 +683,7 @@ function Icu2ScreenInner() {
                     styles.tempoRowTag,
                     { color: it.source ? Palette.textMuted : Palette.danger },
                   ]}>
-                  {it.source ? `from ${it.source}` : it.goal == null ? 'set a goal tempo' : 'manual'}
+                  {it.source ? `goal from ${it.source}` : it.goal == null ? 'needs a goal' : ''}
                 </ThemedText>
                 <Button
                   label="View score"
@@ -472,33 +693,65 @@ function Icu2ScreenInner() {
                   onPress={() => setPeekPassage(it.passage)}
                 />
               </View>
-              <View style={styles.tempoRowSteppers}>
-                <TempoStepper
-                  label="Start"
-                  value={it.goal == null ? null : it.start}
-                  onBump={(d) => bumpTempo(it.passage.id, 'start', d)}
+              {it.goal == null ? (
+                <Button
+                  label="Set a goal tempo"
+                  variant="outline"
+                  onPress={() => seedGoal(it.passage.id)}
                 />
-                <TempoStepper
-                  label="Goal"
-                  value={it.goal}
-                  onBump={(d) => bumpTempo(it.passage.id, 'goal', d)}
-                />
-              </View>
+              ) : (
+                <View style={tempoStacks(vpW) ? styles.fieldsStacked : styles.fieldsRow}>
+                  <View style={styles.field}>
+                    <ThemedText style={styles.fieldLabel}>Start BPM</ThemedText>
+                    <BpmStepper
+                      value={String(it.start)}
+                      onChange={(v) => setStartTempo(it.passage.id, v)}
+                      metronome={metronome}
+                      accent={ICU2_COLOR}
+                    />
+                  </View>
+                  <View style={styles.field}>
+                    <ThemedText style={styles.fieldLabel}>Goal BPM</ThemedText>
+                    <BpmStepper
+                      value={String(it.goal)}
+                      onChange={(v) => setGoalTempo(it.passage.id, v)}
+                      metronome={metronome}
+                      accent={ICU2_COLOR}
+                    />
+                  </View>
+                </View>
+              )}
             </View>
           ))}
-          <View style={styles.roundsCard}>
-            <ThemedText style={styles.roundsCardTitle}>The seven rounds</ThemedText>
-            {ICU2_ROUNDS.map((r) => (
-              <ThemedText key={r.label} style={styles.roundsCardLine}>
-                {r.label}
+          {mode === 'rounds' ? (
+            <View style={styles.roundsCard}>
+              <ThemedText style={styles.roundsCardTitle}>The seven rounds</ThemedText>
+              {ICU2_ROUNDS.map((r) => (
+                <ThemedText key={r.label} style={styles.roundsCardLine}>
+                  {r.label}
+                </ThemedText>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.roundsCard}>
+              <ThemedText style={styles.roundsCardTitle}>How step together works</ThemedText>
+              <ThemedText style={styles.roundsCardLine}>
+                Passages take turns: one rep on each at its own tempo, then around
+                again with everyone a step higher. Miss one and that passage drops a
+                step while the others keep climbing. Miss twice at the same tempo and
+                you choose: restart its climb, lower its start, or save the tempo as
+                today&rsquo;s ceiling. The session ends when every passage has reached its
+                goal or saved a ceiling.
               </ThemedText>
-            ))}
-          </View>
+            </View>
+          )}
         </ScrollView>
         <View style={styles.bottomBar}>
           <ThemedText style={styles.summaryLine}>
             {ready
-              ? `${items.length} passages · 7 rounds · about ${total} reps · roughly ${mins} min`
+              ? mode === 'together'
+                ? `${items.length} passages · about ${total} reps if every step is clean · roughly ${mins} min`
+                : `${items.length} passages · 7 rounds · about ${total} reps · roughly ${mins} min`
               : items.length < 2
                 ? 'Pick at least two passages.'
                 : 'A passage still needs a goal tempo.'}
@@ -606,7 +859,9 @@ function Icu2ScreenInner() {
 
   // ── Playing phase ────────────────────────────────────────────────────────
   const missBlocked = interstitial || missOpen || slowerOpen;
-  const lastClean = tempoIdx > 0 ? tempos[tempoIdx - 1] : null;
+  const lastClean =
+    mode === 'together' ? cur?.lastClean ?? null : tempoIdx > 0 ? tempos[tempoIdx - 1] : null;
+  const climbingCount = items.filter((it) => !togetherDone(it)).length;
   return (
     <View style={styles.playRoot}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -635,7 +890,7 @@ function Icu2ScreenInner() {
             </View>
           )}
           <View style={styles.runStatPill}>
-            <ThemedText style={styles.runStatBpm}>{tempos[tempoIdx] ?? metronome.bpm}</ThemedText>
+            <ThemedText style={styles.runStatBpm}>{tempos[posIdx] ?? metronome.bpm}</ThemedText>
             <ThemedText style={styles.runStatUnit}>BPM</ThemedText>
             <View style={styles.runStatDivider} />
             <View style={styles.runStatDots}>
@@ -644,9 +899,9 @@ function Icu2ScreenInner() {
                   key={`${t}-${i}`}
                   style={[
                     styles.climbDot,
-                    i < tempoIdx
+                    i < posIdx
                       ? styles.climbDotDone
-                      : i === tempoIdx
+                      : i === posIdx
                         ? styles.climbDotNow
                         : styles.climbDotTodo,
                   ]}
@@ -658,9 +913,11 @@ function Icu2ScreenInner() {
               {itemIdx + 1}/{items.length}
             </ThemedText>
           </View>
-          <ThemedText style={styles.roundLine} numberOfLines={1}>
-            {round.label}
-            {cur?.ceiling != null ? `  ·  ceiling ${cur.ceiling}` : ''}
+          <ThemedText style={[styles.roundLine, flash != null && styles.roundLineFlash]} numberOfLines={1}>
+            {mode === 'together'
+              ? flash ??
+                `Step together · climbing by ${climbBy}s · ${climbingCount} of ${items.length} still climbing`
+              : `${round.label}${cur?.ceiling != null ? `  ·  ceiling ${cur.ceiling}` : ''}`}
           </ThemedText>
         </View>
         <View style={styles.runSide} />
@@ -744,7 +1001,9 @@ function Icu2ScreenInner() {
             </Pressable>
           </View>
           <ThemedText style={styles.runHintAuto}>
-            Play it clean, then tap ✓ Next. The metronome climbs for you and rotates you between passages.
+            {mode === 'together'
+              ? 'Play it clean, then tap ✓ Next. One step on this passage, then the next one gets a turn.'
+              : 'Play it clean, then tap ✓ Next. The metronome climbs for you and rotates you between passages.'}
           </ThemedText>
           {!isPhone && (
             <ThemedText style={styles.runHintShortcut}>{SHORTCUT_HINT_LINE}</ThemedText>
@@ -764,9 +1023,13 @@ function Icu2ScreenInner() {
         <View style={styles.interstitialWrap}>
           <View style={styles.interstitialCard}>
             <ThemedText style={styles.interstitialTitle}>
-              {round.label.split('·')[0].trim()}
+              {mode === 'together' ? 'Step together' : round.label.split('·')[0].trim()}
             </ThemedText>
-            <ThemedText style={styles.interstitialBody}>{round.intro}</ThemedText>
+            <ThemedText style={styles.interstitialBody}>
+              {mode === 'together'
+                ? `One rep on each passage, then around again a step higher. A miss drops that passage ${climbBy} and you pick it up next time around.`
+                : round.intro}
+            </ThemedText>
             <Button label="Continue" onPress={() => setInterstitial(false)} />
           </View>
         </View>
@@ -774,9 +1037,17 @@ function Icu2ScreenInner() {
 
       <ActionSheet
         visible={missOpen}
-        title={`Missed at ♩ = ${tempos[tempoIdx] ?? ''} · start too fast?`}
+        title={
+          mode === 'together'
+            ? `Missed at ♩ = ${tempos[posIdx] ?? ''} again · ceiling for today?`
+            : `Missed at ♩ = ${tempos[tempoIdx] ?? ''} · start too fast?`
+        }
         items={[
-          { label: 'Start this climb over', primary: true, onPress: missStartOver },
+          // In step-together a passage already at its start tempo has no
+          // climb to restart, so that option drops out.
+          ...(mode === 'together' && (cur?.rung ?? 0) === 0
+            ? []
+            : [{ label: 'Start this climb over', primary: true, onPress: missStartOver }]),
           {
             label: 'Start slower…',
             onPress: () => {
@@ -784,10 +1055,19 @@ function Icu2ScreenInner() {
               setSlowerOpen(true);
             },
           },
-          {
-            label: lastClean != null ? `Save ${lastClean} & move on` : 'Save start tempo & move on',
-            onPress: missSaveTempo,
-          },
+          mode === 'together'
+            ? {
+                label:
+                  lastClean != null
+                    ? `Save ${lastClean} & move on`
+                    : 'Set this one aside for today',
+                onPress: missSaveTempo,
+              }
+            : {
+                label:
+                  lastClean != null ? `Save ${lastClean} & move on` : 'Save start tempo & move on',
+                onPress: missSaveTempo,
+              },
         ]}
         cancelLabel="Keep going"
         onCancel={() => setMissOpen(false)}
@@ -812,6 +1092,7 @@ function Icu2ScreenInner() {
           'The metronome is set to the tempo you should play at, and the dots in the pill show where you are in this climb.\n\n' +
           '✓ Next: you played it clean. The tempo climbs, and at the top of a climb you rotate to the next passage.\n\n' +
           '✗ Miss: choose to start the climb over, lower this passage’s start tempo, or save the last clean tempo as today’s ceiling and move on.\n\n' +
+          'Step together mode is different: passages take one tempo step each, in turns. A miss quietly drops that passage one step and moves on; a second miss at the same tempo brings up those choices.\n\n' +
           'Keyboard / pedal: Space = Next ✓, X = Miss ✗.\n\n' +
           PRACTICE_TOOLS_HELP
         }
@@ -821,38 +1102,58 @@ function Icu2ScreenInner() {
   );
 }
 
-function TempoStepper({
-  label,
-  value,
-  onBump,
+// The Tempo Ladder mode-picker card pattern, with an optional NEW chip.
+function Icu2ModeCard({
+  title,
+  subtitle,
+  selected,
+  isNew = false,
+  onPress,
 }: {
-  label: string;
-  value: number | null;
-  onBump: (delta: number) => void;
+  title: string;
+  subtitle: string;
+  selected: boolean;
+  isNew?: boolean;
+  onPress: () => void;
 }) {
   return (
-    <View style={styles.stepperGroup}>
-      <ThemedText style={styles.stepperLabel}>{label}</ThemedText>
-      <View style={styles.stepperRow}>
-        <Pressable
-          onPress={() => onBump(-5)}
-          hitSlop={6}
-          accessibilityLabel={`${label} tempo down`}
-          style={styles.stepperBtn}>
-          <ThemedText style={styles.stepperBtnText}>−</ThemedText>
-        </Pressable>
-        <ThemedText style={[styles.stepperValue, value == null && styles.stepperValueEmpty]}>
-          {value == null ? '—' : String(value)}
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      style={({ pressed }) => [
+        styles.modeCard,
+        {
+          borderWidth: selected ? Borders.thick : Borders.thin,
+          borderColor: selected ? ICU2_COLOR : Palette.border,
+          backgroundColor: selected
+            ? ICU2_COLOR + '14'
+            : pressed
+              ? Palette.surfaceSunk
+              : Palette.card,
+        },
+      ]}>
+      {selected && (
+        <View style={styles.modeCardCheck}>
+          <Feather name="check" size={16} color={ICU2_COLOR} />
+        </View>
+      )}
+      <View style={styles.modeCardTitleRow}>
+        <ThemedText
+          style={[styles.modeCardTitle, { color: selected ? ICU2_COLOR : Palette.text }]}
+          numberOfLines={2}>
+          {title}
         </ThemedText>
-        <Pressable
-          onPress={() => onBump(5)}
-          hitSlop={6}
-          accessibilityLabel={`${label} tempo up`}
-          style={styles.stepperBtn}>
-          <ThemedText style={styles.stepperBtnText}>+</ThemedText>
-        </Pressable>
+        {isNew && (
+          <View style={styles.newChip}>
+            <ThemedText style={styles.newChipText}>NEW</ThemedText>
+          </View>
+        )}
       </View>
-    </View>
+      <ThemedText style={styles.modeCardSubtitle} numberOfLines={3}>
+        {subtitle}
+      </ThemedText>
+    </Pressable>
   );
 }
 
@@ -1022,6 +1323,85 @@ const styles = StyleSheet.create({
     color: Palette.textSecondary,
   },
 
+  roundLineFlash: {
+    color: Palette.text,
+    fontWeight: Type.weight.bold,
+  },
+
+  // ── climb-style picker + tempo fields (tempos phase) — the Tempo Ladder
+  //    setup-screen patterns, in ICU2's accent ─────────────────────────────
+  sectionHeader: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    letterSpacing: -0.2,
+  },
+  modeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  modeCard: {
+    flexGrow: 1,
+    flexBasis: '47%',
+    minWidth: 140,
+    minHeight: 78,
+    borderRadius: Radii.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: 4,
+    position: 'relative',
+    ...Lift,
+  },
+  modeCardCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  modeCardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingRight: 20,
+  },
+  modeCardTitle: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.heavy,
+    letterSpacing: -0.1,
+  },
+  modeCardSubtitle: {
+    fontSize: Type.size.xs,
+    lineHeight: 16,
+    color: Palette.textSecondary,
+  },
+  newChip: {
+    borderRadius: Radii.pill,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    backgroundColor: 'rgba(8, 93, 121, 0.12)',
+  },
+  newChipText: {
+    fontSize: 10,
+    fontWeight: Type.weight.heavy,
+    letterSpacing: 0.6,
+    color: ICU2_COLOR,
+  },
+  fieldLabel: { opacity: 0.7 },
+  chipRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
+  chip: {
+    borderWidth: Borders.thin,
+    borderRadius: 20,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    minWidth: 56,
+    alignItems: 'center',
+  },
+  fieldsRow: { flexDirection: 'row', gap: Spacing.md },
+  fieldsStacked: { flexDirection: 'column', gap: Spacing.md },
+  field: { flex: 1, gap: 6 },
+
   // ── tempos + done phases ─────────────────────────────────────────────────
   temposContent: {
     padding: Spacing.lg,
@@ -1056,35 +1436,6 @@ const styles = StyleSheet.create({
     fontSize: Type.size.xs,
     fontWeight: Type.weight.semibold,
   },
-  tempoRowSteppers: { flexDirection: 'row', gap: Spacing.xl },
-  stepperGroup: { gap: 4, flex: 1 },
-  stepperLabel: {
-    fontSize: Type.size.xs,
-    fontWeight: Type.weight.semibold,
-    opacity: Opacity.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  stepperBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: Radii.sm,
-    borderWidth: Borders.thin,
-    borderColor: Palette.border,
-    backgroundColor: Palette.paper,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperBtnText: { fontSize: 18, fontWeight: Type.weight.bold },
-  stepperValue: {
-    fontSize: Type.size.lg,
-    fontWeight: Type.weight.heavy,
-    minWidth: 48,
-    textAlign: 'center',
-    fontVariant: ['tabular-nums'],
-  },
-  stepperValueEmpty: { color: Palette.danger },
   roundsCard: {
     borderWidth: Borders.thin,
     borderColor: Palette.border,

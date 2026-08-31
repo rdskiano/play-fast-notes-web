@@ -52,6 +52,7 @@ const PRACTICE_FRAGMENTS = [
   'rhythm-builder',
   'self-led',
   'interleaved',
+  'icu2',
   'metronome',
   'onboarding',
 ];

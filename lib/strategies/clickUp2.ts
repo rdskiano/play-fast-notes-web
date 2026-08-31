@@ -45,6 +45,29 @@ export function icu2ClimbTempos(start: number, top: number, round: Icu2Round): n
   return out;
 }
 
+// ── Step together (user-requested rotation mode, 2026-08-31) ───────────────
+// Instead of Gebrian's seven rounds, all passages climb side by side: one
+// tempo step on each passage, then around again. Gentler than her recipe
+// (shorter forgetting gaps, one flat interval) — offered as a choice, not a
+// replacement. A miss silently drops that passage one step; a second miss at
+// the same tempo brings up the usual miss card.
+
+export type Icu2Mode = 'rounds' | 'together';
+
+// The full ladder one passage climbs in step-together mode.
+export function stepTogetherTempos(start: number, top: number, inc: number): number[] {
+  return icu2ClimbTempos(start, top, { label: '', intro: '', type: 'inc', inc });
+}
+
+export function stepTogetherTotalReps(
+  pairs: Array<{ start: number; goal: number }>,
+  inc: number,
+): number {
+  let reps = 0;
+  for (const p of pairs) reps += stepTogetherTempos(p.start, p.goal, inc).length;
+  return reps;
+}
+
 // Total reps across the whole protocol for the picker's honesty line.
 export function icu2TotalReps(pairs: Array<{ start: number; goal: number }>): number {
   let reps = 0;

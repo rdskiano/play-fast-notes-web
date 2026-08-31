@@ -11,6 +11,7 @@ import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -911,7 +912,10 @@ const styles = StyleSheet.create({
     borderTopWidth: Borders.thin,
     borderTopColor: Palette.border,
     backgroundColor: Palette.paper,
-    paddingLeft: Spacing.lg,
+    // On web the floating Feedback bubble sits fixed bottom-LEFT (it doesn't
+    // hide on desktop — see FeedbackButton), so the Save set button needs the
+    // same corner clearance the CTA gets on the right for the "?" button.
+    paddingLeft: Platform.OS === 'web' ? HELP_CLEARANCE : Spacing.lg,
     // Extra right padding keeps the CTA clear of the global floating "?" help
     // button (fixed bottom-right, ~60px) so they don't overlap.
     paddingRight: HELP_CLEARANCE,

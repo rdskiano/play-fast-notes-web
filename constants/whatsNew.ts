@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-08-31-icu2-step-together',
+    date: 'August 31, 2026',
+    title: 'New in Interleaved Click-Up 2: step together',
+    body:
+      'A player asked for this one, and we loved the idea. Instead of each passage climbing its whole ladder before the next one starts, step together moves all your passages up side by side: one tempo step on passage A, one on B, one on C, then around again. Miss one and that passage drops a step while the others keep climbing; miss twice at the same tempo and you get the usual choices. Pick it on the tempo screen when you start ICU 2, along with how big each step should be (+5 or +10). That screen also now uses the same tempo cards as the other strategies, with a slider for big jumps and a Hear tempo button so you can listen to a tempo before you commit to it.',
+  },
+  {
     id: '2026-08-30-icu2-micro-timer',
     date: 'August 30, 2026',
     title: 'Fixed: the Micro timer now works in Interleaved Click-Up 2',

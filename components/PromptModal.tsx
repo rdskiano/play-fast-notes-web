@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -20,6 +20,8 @@ type Props = {
   message?: string;
   initialValue?: string;
   placeholder?: string;
+  /** e.g. 'number-pad' for tempo entry; defaults to the text keyboard. */
+  keyboardType?: ComponentProps<typeof TextInput>['keyboardType'];
   submitLabel?: string;
   cancelLabel?: string;
   onSubmit: (value: string) => void;
@@ -32,6 +34,7 @@ export function PromptModal({
   message,
   initialValue = '',
   placeholder,
+  keyboardType,
   submitLabel = 'OK',
   cancelLabel = 'Cancel',
   onSubmit,
@@ -72,6 +75,7 @@ export function PromptModal({
             onChangeText={setValue}
             placeholder={placeholder}
             placeholderTextColor={C.icon}
+            keyboardType={keyboardType}
             returnKeyType="done"
             onSubmitEditing={() => onSubmit(value.trim())}
             style={[styles.input, { color: C.text, borderColor: C.icon }]}
