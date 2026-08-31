@@ -1,10 +1,28 @@
 import { peekPracticeDurationMs } from '@/lib/practiceLog/sessionClock';
+import { TOOLS_ONLY_ID } from '@/lib/strategies/toolsMode';
 import { getAllRecordingEntries } from '@/lib/supabase/recordingLog';
 import { newPracticeSyncId } from '@/lib/sync/ids';
 
 import { getDb } from '../client';
 import { parseSections, sectionForPosition } from './documents';
 import { parseRegions } from './passages';
+
+// Freehand Tools-room sessions carry their display title in data_json (the
+// sentinel piece_id has no pieces row to take a title from). Kept identical
+// to the .web sibling for signature parity.
+export function parseToolsSessionTitle(data_json: string | null): string {
+  if (data_json) {
+    try {
+      const data = JSON.parse(data_json);
+      if (typeof data.title === 'string' && data.title.trim().length > 0) {
+        return data.title;
+      }
+    } catch {
+      // fall through to the default
+    }
+  }
+  return 'Practice tools';
+}
 
 export type PracticeLogEntry = {
   id: number;
@@ -217,8 +235,39 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
     section_name: resolveSectionName(r),
     is_deleted: r.piece_deleted_at != null,
   }));
+  // Freehand Tools-room sessions have the sentinel piece_id and no pieces
+  // row, so the JOIN above drops them — fetch and merge them separately.
+  // The card title lives in the row's own data_json.
+  const toolsRows = await db.getAllAsync<{
+    id: number;
+    strategy: string;
+    practiced_at: number;
+    data_json: string | null;
+  }>(
+    `SELECT id, strategy, practiced_at, data_json
+     FROM practice_log
+     WHERE piece_id = ? AND deleted_at IS NULL
+     ORDER BY practiced_at DESC;`,
+    TOOLS_ONLY_ID,
+  );
+  const tools = toolsRows.map((r) => ({
+    id: r.id,
+    piece_id: TOOLS_ONLY_ID,
+    strategy: r.strategy,
+    practiced_at: r.practiced_at,
+    data_json: r.data_json,
+    exercise_id: null,
+    exercise_name: null,
+    piece_title: parseToolsSessionTitle(r.data_json),
+    folder_id: null,
+    folder_name: null,
+    document_id: null,
+    document_title: null,
+    section_name: null,
+    is_deleted: false,
+  }));
   const recordings = await getAllRecordingEntries();
-  return [...local, ...recordings].sort(
+  return [...local, ...tools, ...recordings].sort(
     (a, b) => b.practiced_at - a.practiced_at,
   );
 }

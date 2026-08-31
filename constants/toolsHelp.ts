@@ -10,7 +10,7 @@ export type ToolsHelp = { title: string; body: string };
 export const TOOLS_HUB_HELP: ToolsHelp = {
   title: 'Practice tools',
   body:
-    'These tools work on their own — no piece of music needed, and nothing is saved to your practice log. They’re for warming up and drilling technique.\n\n' +
+    'These tools work on their own — no piece of music needed. They’re for warming up and drilling technique. Nothing is saved automatically, though Rhythm Variations lets you log a session in your own words when you finish.\n\n' +
     // Plain names, no emoji bullets: the cards below carry their own drawn
     // icons + printed titles, and the old emoji didn't match those glyphs.
     'Metronome — tempo, meter, subdivisions, drum grooves, drone, and random gaps.\n' +
@@ -48,5 +48,5 @@ export const TOOLS_RHYTHMIC_HELP: ToolsHelp = {
   body:
     'Practice with a different rhythm pattern each time — dotted, swung, reversed — to even out your technique and expose weak spots that playing as written can hide.\n\n' +
     'Pick a note grouping (how many notes are in one beat or chunk). The big staff in the middle shows the current pattern: tap ▶ Loop to hear it (■ Stop to silence it), and ← Prev / Next → to move through the library. Use the N-note ▾ chip up top to switch groupings.\n\n' +
-    'This is the tools version: no piece of music on screen, and nothing is saved. Open a passage from the library if you want it tied to specific music.',
+    'This is the tools version: no piece of music on screen. When you finish, tap Done to log the session in your own words (a title plus an optional note), or exit without logging. Open a passage from the library if you want it tied to specific music.',
 };

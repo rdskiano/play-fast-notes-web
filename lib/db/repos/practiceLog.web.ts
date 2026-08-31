@@ -1,7 +1,24 @@
 import { parseSections, sectionForPosition } from '@/lib/db/repos/documents';
 import { parseRegions } from '@/lib/db/repos/passages';
 import { peekPracticeDurationMs } from '@/lib/practiceLog/sessionClock';
+import { TOOLS_ONLY_ID } from '@/lib/strategies/toolsMode';
 import { supabase } from '@/lib/supabase/client';
+
+// Freehand Tools-room sessions carry their display title in data_json (the
+// sentinel piece_id has no pieces row to take a title from).
+export function parseToolsSessionTitle(data_json: string | null): string {
+  if (data_json) {
+    try {
+      const data = JSON.parse(data_json);
+      if (typeof data.title === 'string' && data.title.trim().length > 0) {
+        return data.title;
+      }
+    } catch {
+      // fall through to the default
+    }
+  }
+  return 'Practice tools';
+}
 
 export type PracticeLogEntry = {
   id: number;
@@ -423,6 +440,21 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
           ? exerciseNames.get(r.exercise_id) ?? null
           : null,
       };
+      // Freehand Tools-room session: no piece behind it — the card title
+      // comes from the row's own data_json, filed under no folder.
+      if (r.piece_id === TOOLS_ONLY_ID) {
+        return {
+          ...base,
+          piece_id: r.piece_id,
+          piece_title: parseToolsSessionTitle(r.data_json),
+          document_id: null,
+          document_title: null,
+          section_name: null,
+          folder_id: null,
+          folder_name: null,
+          is_deleted: false,
+        };
+      }
       if (r.piece_id) {
         const piece = pieceById.get(r.piece_id);
         if (!piece) return null;

@@ -15,6 +15,7 @@ import { Lift, Palette } from '@/constants/palette';
 import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { listAllFolders, type Folder } from '@/lib/db/repos/folders';
+import { isToolsOnly } from '@/lib/strategies/toolsMode';
 import {
   deletePracticeLog,
   getPracticeLogForLibrary,
@@ -320,14 +321,20 @@ export default function LibraryLogScreen() {
         }
         section.passageMap.get(e.piece_id)!.entries.push(e);
       } else {
-        if (!folder.standaloneMap.has(e.piece_id)) {
-          folder.standaloneMap.set(e.piece_id, {
+        // Freehand Tools-room rows all share one sentinel piece_id, but each
+        // carries its own freehand title — key those cards by title so two
+        // differently-named sessions on the same day don't collapse into one.
+        const cardKey = isToolsOnly(e.piece_id)
+          ? `${e.piece_id}:${e.piece_title}`
+          : e.piece_id;
+        if (!folder.standaloneMap.has(cardKey)) {
+          folder.standaloneMap.set(cardKey, {
             passageTitle: e.piece_title || 'Untitled',
             folderName: e.folder_name,
             entries: [],
           });
         }
-        folder.standaloneMap.get(e.piece_id)!.entries.push(e);
+        folder.standaloneMap.get(cardKey)!.entries.push(e);
       }
     }
     for (const day of dayMap.values()) {

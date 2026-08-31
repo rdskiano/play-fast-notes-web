@@ -13,6 +13,7 @@ import { PracticeToolsLayer } from '@/components/PracticeToolsLayer';
 import { RotateForPractice } from '@/components/RotateForPractice';
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
+import { ToolsLogPrompt } from '@/components/ToolsLogPrompt';
 import { ScoreWithMarkers } from '@/components/ScoreWithMarkers';
 import { SessionTopBar } from '@/components/SessionTopBar';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
@@ -33,7 +34,7 @@ import { logPractice } from '@/lib/db/repos/practiceLog';
 import { returnToScoreAfterSession } from '@/lib/sessions/lastPassageInDoc';
 import { stampLastUsed } from '@/lib/db/repos/strategyLastUsed';
 import { buildRhythmAbc } from '@/lib/notation/buildAbc';
-import { isToolsOnly } from '@/lib/strategies/toolsMode';
+import { isToolsOnly, TOOLS_ONLY_ID } from '@/lib/strategies/toolsMode';
 import { TOOLS_RHYTHMIC_HELP } from '@/constants/toolsHelp';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import {
@@ -42,13 +43,16 @@ import {
   SCORE_FRAME_BG,
 } from '@/lib/layout/configForm';
 import {
-  meterTempoFactor,
   parseBeatDenominator,
   patternsByGrouping,
   RHYTHM_PATTERNS,
   type Grouping,
   type RhythmPattern,
 } from '@/lib/strategies/rhythmPatterns';
+import {
+  beatUnitsPerWhole,
+  meterDialFactor,
+} from '@/lib/strategies/rhythmMeterFeel';
 
 const GROUPING_CHOICES: { n: Grouping; abc: string; w: number }[] = [
   { n: 3, abc: 'X:1\nM:none\nL:1/8\nK:none clef=none stafflines=0\nBBB', w: 70 },
@@ -109,6 +113,8 @@ export default function RhythmicScreen() {
   );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
+  // Freehand log box for Tools-only sessions (no piece to file under).
+  const [toolsLogVisible, setToolsLogVisible] = useState(false);
   // When true, re-show the grouping picker overlay so the user can switch
   // groupings mid-session without leaving the screen.
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -140,11 +146,14 @@ export default function RhythmicScreen() {
   // on the Micro timer being enabled.
   const advanceCountRef = useRef(0);
 
-  // ── Meter-aware tempo (B-018) — GROUPING 4 ONLY ────────────────────────
-  // The dial counts the meter's DENOMINATOR unit, so the same number is a
-  // different real speed in 3/8 vs 2/4. Two jobs here:
+  // ── Meter-aware tempo (B-018, re-anchored to the BEAT 2026-08-28) —
+  // GROUPING 4 ONLY. The dial counts the meter's BEAT (Ralph's feel table:
+  // 3/8 = dotted quarter, 2/4 = quarter, 5/8 and 7/8 = eighth —
+  // lib/strategies/rhythmMeterFeel.ts), and the rhythm loop receives
+  // beatUnitsPerWhole so the same number drives both the click and the
+  // pattern. Two jobs here:
   //   1. Seed the dial from the passage's goal tempo (pieces.performance_tempo,
-  //      B-013) × the meter's factor, once, when play begins.
+  //      B-013) × the meter's beat factor, once, when play begins.
   //   2. On every pattern change, rescale the dial by the factor ratio so the
   //      FELT tempo stays put while the number changes. Pure ratio — a manual
   //      nudge ("slower today") carries across meter changes proportionally.
@@ -161,7 +170,7 @@ export default function RhythmicScreen() {
     if (tempoAnchorRef.current != null) return; // already seeded
     const pat = patterns[currentIndex];
     if (!pat) return;
-    const f = meterTempoFactor(pat.timeSig);
+    const f = meterDialFactor(pat.timeSig);
     const goal = passage?.performance_tempo;
     if (goal) metronome.setBpm(goal * f);
     // Anchor even without a goal so pattern changes still hold the felt tempo.
@@ -169,10 +178,29 @@ export default function RhythmicScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, grouping, passage, patterns, currentIndex, toolsOnly]);
 
+  // The meter the current pattern pushed onto the metronome panel, so its
+  // beat dots always show the pattern on screen (all groupings — the dots
+  // should match even where the dial stays legacy).
+  const [toolMeter, setToolMeter] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (phase !== 'playing') return;
+    const sig = patterns[currentIndex]?.timeSig;
+    if (sig) setToolMeter(sig);
+  }, [phase, patterns, currentIndex]);
+
+  // Beat units the rhythm loop schedules against: managed grouping 4 hands
+  // it the meter's BEAT so the dial number means one click; unmanaged
+  // groupings keep the legacy denominator.
+  function loopBeatUnits(pat: RhythmPattern): number {
+    return grouping === 4
+      ? beatUnitsPerWhole(pat.timeSig)
+      : parseBeatDenominator(pat.timeSig);
+  }
+
   // Rescale the dial for the pattern about to show. Call BEFORE restarting the
   // loop so the restart schedules at the new rate.
   function retargetTempo(next: RhythmPattern) {
-    const f = meterTempoFactor(next.timeSig);
+    const f = meterDialFactor(next.timeSig);
     const prev = tempoAnchorRef.current;
     if (prev != null && f !== prev) {
       metronome.setBpm(metronome.bpm * (f / prev));
@@ -201,12 +229,25 @@ export default function RhythmicScreen() {
   }
 
   function doneSession() {
-    // Tools-only mode has no piece to log against — just leave, no log prompt.
+    // Tools-only mode has no piece to log against — offer the freehand
+    // Tools-room log box (title + note) instead of the passage note prompt.
     if (toolsOnly) {
-      exitSession();
+      setToolsLogVisible(true);
       return;
     }
     setNotePromptVisible(true);
+  }
+
+  // Freehand Tools-room log: the row is keyed to the sentinel id and carries
+  // its display title in data_json (see ToolsLogPrompt + the log repos).
+  async function finishToolsLog(payload: { title: string; note: string | null }) {
+    setToolsLogVisible(false);
+    const data: Record<string, unknown> = { title: payload.title };
+    if (payload.note) data.note = payload.note;
+    await logPractice(TOOLS_ONLY_ID, 'rhythmic', data);
+    metronome.stop();
+    metronome.stopRhythmLoop();
+    router.back();
   }
 
   async function finishLog(
@@ -260,10 +301,7 @@ export default function RhythmicScreen() {
     setCurrentIndex(next);
     if (grouping === 4 && patterns[next]) retargetTempo(patterns[next]);
     if (metronome.rhythmLooping && patterns[next]) {
-      metronome.startRhythmLoop(
-        patterns[next].notes,
-        parseBeatDenominator(patterns[next].timeSig),
-      );
+      metronome.startRhythmLoop(patterns[next].notes, loopBeatUnits(patterns[next]));
     }
   }
   function onNext() {
@@ -275,20 +313,14 @@ export default function RhythmicScreen() {
     if (advanceCountRef.current % everyN === 0) microbreak.trigger();
     if (grouping === 4 && patterns[next]) retargetTempo(patterns[next]);
     if (metronome.rhythmLooping && patterns[next]) {
-      metronome.startRhythmLoop(
-        patterns[next].notes,
-        parseBeatDenominator(patterns[next].timeSig),
-      );
+      metronome.startRhythmLoop(patterns[next].notes, loopBeatUnits(patterns[next]));
     }
   }
 
   function toggleRhythm() {
     const current = patterns[currentIndex];
     if (!current) return;
-    metronome.toggleRhythmLoop(
-      current.notes,
-      parseBeatDenominator(current.timeSig),
-    );
+    metronome.toggleRhythmLoop(current.notes, loopBeatUnits(current));
   }
 
   // In Tools mode there's no passage to wait for — render straight through.
@@ -575,6 +607,7 @@ export default function RhythmicScreen() {
         {phase === 'playing' && isGuided && (
           <PracticeToolsLayer
             metronome={metronome}
+            syncMeter={toolMeter}
             tools={
               isPhone
                 ? { left: [], right: ['metronome'] }
@@ -603,6 +636,7 @@ export default function RhythmicScreen() {
       {!isGuided && phase === 'playing' && (
         <PracticeToolsBar
           metronome={metronome}
+          syncMeter={toolMeter}
           pencil={{ ...ann.pencil, onUndo: ann.undo }}
           recorderPassageId={passage?.id}
         />
@@ -684,7 +718,7 @@ export default function RhythmicScreen() {
           and the practice-log prompt so it can't fire behind a modal.
           PedalCatcher already ignores keystrokes aimed at text inputs. */}
       <PedalCatcher
-        active={phase === 'playing' && !notePromptVisible && !pickerOpen}
+        active={phase === 'playing' && !notePromptVisible && !toolsLogVisible && !pickerOpen}
         onAdvance={onNext}
       />
 
@@ -700,6 +734,21 @@ export default function RhythmicScreen() {
         cancelLabel="Skip"
         onSubmit={({ mood, note, remindNext }) => finishLog(mood, note, remindNext)}
         onSkip={() => finishLog(null, null)}
+      />
+
+      {/* Tools-only: freehand log box (title + note) — there is no piece to
+          file the session under, so the row carries its own title. */}
+      <ToolsLogPrompt
+        visible={toolsLogVisible}
+        metronome={metronome}
+        onSave={(payload) => {
+          void finishToolsLog(payload);
+        }}
+        onDiscard={() => {
+          setToolsLogVisible(false);
+          exitSession();
+        }}
+        onKeepPracticing={() => setToolsLogVisible(false)}
       />
 
       {/* Guided onboarding: DONE fires a single celebratory overlay (no
