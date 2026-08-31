@@ -294,6 +294,7 @@ const BODY_MOVE_INTERVAL_OPTS = [15, 20, 30, 45, 60] as const;
 const MICROBREAK_SECONDS_OPTS = [8, 12, 20, 30] as const;
 // Per-strategy cadence options for the Micro timer.
 const TL_REPS_OPTS = [2, 3, 4, 5] as const;
+const ICU2_REPS_OPTS = [2, 3, 4, 5] as const;
 const RHY_PATTERNS_OPTS = [2, 4, 6, 8] as const;
 const MICRO_NOTES_OPTS = [2, 3, 4, 5] as const;
 const MACRO_STEPS_OPTS = [1, 2, 3, 4] as const;
@@ -518,6 +519,17 @@ function TimerSettingsModal({
                   onChange={(v) => microbreak.setConfig({ macroChainSteps: v })}
                   unit=" steps"
                   prefix="Macro-Chaining — every"
+                  disabled={!microbreak.config.enabled}
+                />
+                <ChipRow
+                  options={ICU2_REPS_OPTS}
+                  value={
+                    (ICU2_REPS_OPTS.find((v) => v === microbreak.config.icu2Reps) ??
+                      ICU2_REPS_OPTS[1]) as (typeof ICU2_REPS_OPTS)[number]
+                  }
+                  onChange={(v) => microbreak.setConfig({ icu2Reps: v })}
+                  unit=" reps"
+                  prefix="Interleaved Click-Up 2 — every"
                   disabled={!microbreak.config.enabled}
                 />
                 <ThemedText style={[styles.chipPrefix, { color: C.icon, opacity: 0.7 }]}>

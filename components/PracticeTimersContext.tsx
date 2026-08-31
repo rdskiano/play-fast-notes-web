@@ -26,6 +26,8 @@ export type MicrobreakConfig = {
   rhythmicPatterns: number;
   microChainNotes: number;
   macroChainSteps: number;
+  // ICU2: every N clean reps (✓ Next presses). Ralph's call 2026-08-30.
+  icu2Reps: number;
 };
 export type PlayItColdConfig = {
   enabled: boolean;
@@ -46,6 +48,7 @@ const DEFAULT_MICROBREAK: MicrobreakConfig = {
   rhythmicPatterns: 4,
   microChainNotes: 3,
   macroChainSteps: 1,
+  icu2Reps: 3,
 };
 const DEFAULT_PLAY_IT_COLD: PlayItColdConfig = {
   enabled: false,

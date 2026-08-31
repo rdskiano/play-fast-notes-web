@@ -17,6 +17,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PassagePicker } from '@/components/PassagePicker';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
+import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { RotateForPractice } from '@/components/RotateForPractice';
 import { ScorePeekModal } from '@/components/ScorePeekModal';
@@ -121,6 +122,7 @@ function Icu2ScreenInner() {
   const repsRef = useRef(0);
 
   const metronome = useMetronome(80);
+  const microbreak = useMicrobreakTimer();
 
   const cur = phase === 'playing' ? (items[itemIdx] ?? null) : null;
   const ann = useScoreAnnotation(cur?.passage);
@@ -297,6 +299,9 @@ function Icu2ScreenInner() {
   }
 
   function nextSlot() {
+    // The Micro cadence counts reps ON THIS PASSAGE — switching to the next
+    // passage (or round) starts the count over (Ralph's call 2026-08-30).
+    repsRef.current = 0;
     if (itemIdx < items.length - 1) {
       setItemIdx(itemIdx + 1);
       setTempoIdx(0);
@@ -316,6 +321,14 @@ function Icu2ScreenInner() {
   async function onNext() {
     if (!cur) return;
     repsRef.current += 1;
+    // Micro break every N clean reps (✓ Next presses) on the current
+    // passage — cadence from the Timer tool's Micro settings; nextSlot()
+    // zeroes the count on every passage/round switch. trigger() self-gates
+    // on the Micro timer being enabled, and the break's auto-pause
+    // snapshots a running click and resumes it after — no explicit
+    // metronome.stop() here.
+    const everyN = microbreak.config.icu2Reps || 3;
+    if (repsRef.current % everyN === 0) microbreak.trigger();
     await ann.flush();
     if (tempoIdx < tempos.length - 1) {
       setTempoIdx(tempoIdx + 1);
