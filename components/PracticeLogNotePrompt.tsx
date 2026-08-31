@@ -230,7 +230,7 @@ export function PracticeLogNotePrompt({
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.backdrop}>
-        <View style={[styles.card, { maxHeight: winH - 16 }]}>
+        <View style={[styles.card, { maxHeight: winH - 48 }]}>
           {keepPracticing && (
             <Pressable
               onPress={keepPracticing}
@@ -297,7 +297,7 @@ export function PracticeLogNotePrompt({
             placeholder=""
             placeholderTextColor={C.icon}
             multiline
-            autoFocus
+            autoFocus={!phoneLandscape}
             style={[styles.input, { color: C.text, borderColor: C.icon }]}
           />
 
