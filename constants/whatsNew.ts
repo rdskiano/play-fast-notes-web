@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-02-save-finish-crash-fix',
+    date: 'September 2, 2026',
+    title: 'Fixed: the app could crash right after saving a session',
+    body:
+      'On iPad and iPhone, tapping "Save & finish" at the end of a practice session would sometimes shut the whole app down. The good news is your session was always saved before the crash — check your practice log and it will be there. The cause was the metronome\'s sound engine being torn down a moment too early while the speaker was still asking it for sound. It now winds down gently, so saving a session should never take the app down with it.',
+  },
+  {
     id: '2026-09-02-battery-and-metronome-recovery',
     date: 'September 2, 2026',
     title: 'A big battery fix, and a tougher metronome',

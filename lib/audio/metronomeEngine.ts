@@ -79,6 +79,7 @@ type AudioContextCtor = new () => {
   createBuffer: (channels: number, length: number, sampleRate: number) => RnAudioBuffer;
   createBufferSource: () => RnBufferSource | Promise<RnBufferSource>;
   resume: () => Promise<void>;
+  suspend: () => Promise<boolean>;
   close: () => Promise<void>;
 };
 
@@ -1219,12 +1220,28 @@ export class MetronomeEngine {
     // syncKeepAwake; this is a belt-and-suspenders release so a disposed
     // engine can never keep the screen pinned awake.
     this.syncKeepAwake();
-    try {
-      void this.ctx?.close();
-    } catch {
-      // ignore
-    }
+    // Closing the context while the render thread is mid-pull is a
+    // use-after-free inside react-native-audio-api's AVAudioSourceNode
+    // callback — the intermittent hard crash on "Save & finish"
+    // (crash log PlayFast-2026-09-01-123943: EXC_BAD_ACCESS on the audio
+    // thread, seen since 2026-07 as F12/F26). Suspend pauses the render
+    // callback gracefully; close only after the in-flight quantum drains.
+    const ctx = this.ctx;
     this.ctx = null;
+    if (ctx) {
+      try {
+        void ctx.suspend?.();
+      } catch {
+        // ignore
+      }
+      setTimeout(() => {
+        try {
+          void ctx.close();
+        } catch {
+          // ignore
+        }
+      }, 400);
+    }
   }
 
   // ── Internals ─────────────────────────────────────────────────────────────
