@@ -14,6 +14,56 @@ starts from inputting the music.
 
 ---
 
+# 2026-09-02 — D66: the assessment's missing floor — sub-half-tempo means
+# CHAINING, not a ladder (Ralph's own realization, self-report overturned)
+
+- **What Ralph reported (his words, design conversation):** during an
+  assessment "it asked me if I could play the performance tempo, and I
+  could not. It then had me trying to find the tempo where I could play
+  it, and I realized that I couldn't even play it at half tempo. At that
+  point, I did something very natural, which was to just sort of practice
+  it myself a little bit before I tried the assessment again. What I ended
+  up doing was basically chaining, which flies in the face of everything
+  I've said I do. I said I don't really do chaining, but when I looked at
+  what I was actually doing… it was actually chaining."
+- **Why it matters:** (1) A self-report overturned by observed behavior —
+  the strongest argument yet for behavior-over-interview (the same lesson
+  that killed the questionnaire coach). (2) It extends the D61 principle
+  down the severity axis: below some floor, the passage doesn't have a
+  SPEED problem, it has a NOTES problem — the material lacks basic
+  structure, and the tool that supplies structure is chaining. A ladder
+  from a pitiful base is the wrong medicine. (3) It fills a real hole in
+  the assessment: today the find-your-tempo path always ends in a ladder
+  recommendation no matter how low the found tempo is.
+- **Ralph's proposed rule (his design, ratifiable):** in the assessment,
+  when the found playable tempo lands below ~50% of the performance
+  tempo → suggest Macro- or Micro-Chaining instead of the Tempo Ladder.
+  Open: the exact threshold (50% is his number, tunable), and which
+  chaining to lead with (micro vs macro) or whether to offer both.
+- **RATIFIED same conversation:** threshold = 50% "as a decent testing
+  threshold" (tunable with use). Which chaining: his real behavior was a
+  BLEND — "instinctively moving through units that were easier and then
+  slowing down through units that were more difficult, and maybe going
+  note by note. I didn't do it long — just enough to get familiar enough
+  to play the passage slowly." So the sub-50% card states the diagnosis
+  ("not a speed problem yet — a notes problem") and offers BOTH chaining
+  tools; the copy frames it as a SHORT familiarization pass, not a full
+  session — chunk it until it's playable slowly, then return and climb.
+  Macro leans "work through the units"; micro leans "note by note on the
+  hard spots."
+- **Same conversation — blank-slate coach-button structure sketched and
+  well received (not yet formally ratified as THE plan):** the button's
+  first job is identifying the player's RELATIONSHIP to the music —
+  maintenance (coach stands down; daily-exercises territory) · polishing
+  (no measurement; piece-level list-walking is the job) · learning (the
+  assessment as an instrument available whenever an unmeasured new-to-you
+  passage needs it, not a one-shot first-practice door; its outcome
+  routes by DISTANCE from goal: solid=done / shaky=keep working / decent
+  tempo=ladder / below 50%=chaining). Dissolves the practiced-but-
+  unmeasured dead zone.
+
+---
+
 # SESSION 6 (2026-09-01, at the stand) — warm-up day on A clarinet;
 # Daily Routine gets a NEW finger-exercise resource. Narrated live.
 # Later same sitting: concert prep (Classical 1 folder) + Cuban Overture.
