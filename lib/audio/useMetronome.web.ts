@@ -7,7 +7,83 @@ import {
 } from '@/components/PracticeTimersContext';
 import { TOKEN_QUARTER_FRACTIONS, type RhythmToken } from '@/lib/strategies/rhythmPatterns';
 import { getGroove, STEPS_PER_QUARTER, type Groove } from '@/lib/audio/grooves';
-import { unlockIosSilentMode } from '@/lib/audio/iosSilentMode';
+import {
+  iosSilentModeDebugStatus,
+  releaseIosSilentMode,
+  retainIosSilentMode,
+  setIosSilentModeDebugHook,
+  unlockIosSilentMode,
+} from '@/lib/audio/iosSilentMode';
+
+// ── Temporary on-screen audio diagnostics ─────────────────────────────────
+// Load any page with ?audiodebug=1 and a black overlay pins to the top-left
+// showing the live AudioContext state, whether its clock is actually moving,
+// the silent-loop status, and the last few audio lifecycle events. Evaluated
+// once at page load, so it stays on across in-app navigation. Debug-only:
+// nothing here runs without the flag. Remove once the iOS background-return
+// silence bug (2026-09-02) is diagnosed.
+const AUDIO_DEBUG =
+  typeof window !== 'undefined' && window.location.search.includes('audiodebug');
+let debugDiv: HTMLDivElement | null = null;
+const debugEvents: string[] = [];
+let debugCtx: AudioContext | null = null;
+let debugPrevClock = -1;
+let debugTickerStarted = false;
+
+function renderAudioDebug(statusLine: string): void {
+  if (!debugDiv) {
+    debugDiv = document.createElement('div');
+    Object.assign(debugDiv.style, {
+      position: 'fixed',
+      top: '70px',
+      left: '8px',
+      zIndex: '99999',
+      background: 'rgba(0,0,0,0.85)',
+      color: '#7CFC00',
+      font: '11px/1.5 monospace',
+      padding: '6px 8px',
+      borderRadius: '6px',
+      pointerEvents: 'none',
+      whiteSpace: 'pre',
+      maxWidth: '90vw',
+    } as CSSStyleDeclaration);
+    document.body.appendChild(debugDiv);
+  }
+  debugDiv.textContent = [statusLine, ...debugEvents].join('\n');
+}
+
+function audioDebugStatusLine(): string {
+  const c = debugCtx;
+  let ctxLine = 'ctx:none';
+  if (c) {
+    const moving = c.currentTime > debugPrevClock;
+    debugPrevClock = c.currentTime;
+    ctxLine = `ctx:${c.state} sr:${c.sampleRate} t:${c.currentTime.toFixed(1)} ${moving ? 'clock▶' : 'clock■FROZEN'}`;
+  }
+  return `${ctxLine} | ${iosSilentModeDebugStatus()}`;
+}
+
+function audioDebug(msg: string): void {
+  if (!AUDIO_DEBUG || typeof document === 'undefined') return;
+  const stamp = new Date().toTimeString().slice(0, 8);
+  debugEvents.unshift(`${stamp} ${msg}`);
+  if (debugEvents.length > 8) debugEvents.pop();
+  renderAudioDebug(audioDebugStatusLine());
+}
+
+if (AUDIO_DEBUG && typeof document !== 'undefined') {
+  setIosSilentModeDebugHook(audioDebug);
+  if (!debugTickerStarted) {
+    debugTickerStarted = true;
+    setInterval(() => renderAudioDebug(audioDebugStatusLine()), 1000);
+  }
+}
+
+// Battery (F30): how long after this instance goes fully quiet (metronome
+// stopped, no rhythm loop, no exercise playback) its AudioContext is put to
+// sleep. A running-but-silent context keeps the device's audio hardware awake;
+// warm expo-router screens each hold one, so idle ones must actually suspend.
+const CTX_SUSPEND_AFTER_MS = 30_000;
 
 // Resume a context that isn't running. Deliberately checks anything-but-
 // 'running' rather than === 'suspended': iOS also uses a nonstandard
@@ -266,6 +342,9 @@ export function useMetronome(initialBpm = 60) {
   const [subdivision, setSubdivisionState] = useState<Subdivision>(1);
   const [volume, setVolumeState] = useState<number>(readSavedVolume);
   const [rhythmLooping, setRhythmLooping] = useState(false);
+  // Declared up here (not in the pitch-playback section that owns it) because
+  // the battery lifecycle effect below reads it alongside running/rhythmLooping.
+  const [playingSequence, setPlayingSequence] = useState(false);
   const [droneEnabled, setDroneEnabledState] = useState(false);
   const [droneMidi, setDroneMidiState] = useState(69); // A4
   const [droneSustain, setDroneSustainState] = useState(0.6);
@@ -344,6 +423,16 @@ export function useMetronome(initialBpm = 60) {
   const pitchGateRef = useRef<GainNode | null>(null);
   const pitchEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // True while this instance is (or should be) making sound. Gates the
+  // passive resume paths (statechange handler + document tap listeners) so a
+  // deliberately-suspended idle context stays asleep instead of being re-woken
+  // by every tap anywhere on the page. Explicit resumes on the start paths
+  // (wakeAudio, the schedulers) are NOT gated — the 2026-07-21 first-start-
+  // silent lesson still holds there.
+  const audioWantedRef = useRef(false);
+  const silentModeRetainedRef = useRef(false);
+  const ctxSuspendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Ref-mirror of `running` so non-render code (the pitch-rhythm
   // start-time computation) can see live state without going stale.
   const runningRef = useRef(false);
@@ -387,14 +476,20 @@ export function useMetronome(initialBpm = 60) {
     }
     const created = new Ctor();
     ctxRef.current = created;
+    debugCtx = created;
+    audioDebug(`ctx created (${created.state})`);
     // Self-heal async suspensions. iOS parks the context (state 'suspended'
     // or the nonstandard 'interrupted') when the silent-loop <audio> claims
     // the media channel ~100 ms after the FIRST start, or after Siri / a
     // call / app switch. statechange retries immediately; if Safari refuses
     // a resume outside a gesture, the tap listeners retry from the user's
-    // next real tap anywhere, which always sticks.
+    // next real tap anywhere, which always sticks. Gated on audioWantedRef so
+    // an idle-suspended context (battery) is left asleep on purpose.
     created.onstatechange = () => {
-      if (ctxRef.current === created) resumeIfNotRunning(created);
+      audioDebug(`ctx statechange → ${created.state}`);
+      if (ctxRef.current === created && audioWantedRef.current) {
+        resumeIfNotRunning(created);
+      }
     };
     installTapRecovery();
     return created;
@@ -406,7 +501,11 @@ export function useMetronome(initialBpm = 60) {
   const tapRecoveryCleanupRef = useRef<(() => void) | null>(null);
   function installTapRecovery() {
     if (tapRecoveryCleanupRef.current || typeof document === 'undefined') return;
-    const retry = () => resumeIfNotRunning(ctxRef.current);
+    // Only re-wake a context that WANTS to be awake — otherwise every tap on
+    // the page would undo the idle suspend of every warm screen's metronome.
+    const retry = () => {
+      if (audioWantedRef.current) resumeIfNotRunning(ctxRef.current);
+    };
     document.addEventListener('touchend', retry, true);
     document.addEventListener('click', retry, true);
     tapRecoveryCleanupRef.current = () => {
@@ -415,6 +514,140 @@ export function useMetronome(initialBpm = 60) {
     };
   }
   useEffect(() => () => tapRecoveryCleanupRef.current?.(), []);
+
+  // ── Zombie-context recovery ─────────────────────────────────────────────
+  // iOS sometimes hands back a DEAD AudioContext after the page was
+  // backgrounded: resume() resolves, state may even read 'running', but the
+  // audio clock is frozen and nothing sounds. No amount of resume() heals it
+  // (Ralph's iPhone repro, 2026-09-02: background the running metronome, open
+  // Mail, return → silent; stop/start → still silent). The only reliable
+  // recovery is discarding the context and building a fresh one.
+  function rebuildDeadContext() {
+    const old = ctxRef.current;
+    if (!old) return;
+    audioDebug('REBUILDING dead ctx');
+    old.onstatechange = null;
+    ctxRef.current = null;
+    try {
+      old.close().catch(() => undefined);
+    } catch {
+      // ignore — closing a zombie can throw; we're abandoning it either way
+    }
+    // The noise buffer belongs to the dead context's sample rate — recreate.
+    noiseBufRef.current = null;
+    const fresh = ensureContext();
+    if (!fresh) return;
+    resumeIfNotRunning(fresh);
+    // Re-anchor the click scheduler to the new clock…
+    nextNoteTimeRef.current = fresh.currentTime + 0.1;
+    subStepRef.current = 0;
+    // …and rebuild any active loops whose output gates dangle from the
+    // closed context.
+    if (grooveActiveRef.current && runningRef.current) startGrooveLoop();
+    const rTokens = rhythmTokensRef.current;
+    if (rTokens) startRhythmLoop(rTokens.slice(), rhythmBeatDenomRef.current);
+  }
+
+  // Watch the context's clock shortly after (re)starting playback or
+  // returning to the foreground. A healthy context's currentTime advances;
+  // a frozen clock after a resume retry means zombie → rebuild. Gated on
+  // audioWantedRef so an idle-suspended context is never "healed" awake.
+  function verifyContextAlive(delayMs = 700) {
+    const c = ctxRef.current;
+    if (!c) return;
+    const t0 = c.currentTime;
+    setTimeout(() => {
+      if (ctxRef.current !== c || !audioWantedRef.current) return;
+      if (c.state === 'running' && c.currentTime > t0) {
+        audioDebug('watchdog: ctx looks healthy');
+        return;
+      }
+      audioDebug(`watchdog: suspicious (${c.state}), retrying resume`);
+      resumeIfNotRunning(c);
+      const t1 = c.currentTime;
+      setTimeout(() => {
+        if (ctxRef.current !== c || !audioWantedRef.current) return;
+        if (c.state === 'running' && c.currentTime > t1) return;
+        rebuildDeadContext();
+      }, 300);
+    }, delayMs);
+  }
+
+  // Battery lifecycle (F30). While anything sustained is audible, hold the
+  // iOS silent-mode loop open and keep the context awake. Once everything is
+  // quiet, release the loop and, after a grace period, suspend this
+  // instance's AudioContext so an idle (or warm-but-blurred) screen stops
+  // keeping the audio hardware powered. The next start resumes it from
+  // inside the user's tap (wakeAudio / the start paths call resume
+  // explicitly, ungated).
+  function armCtxSuspend() {
+    if (ctxSuspendTimerRef.current) clearTimeout(ctxSuspendTimerRef.current);
+    ctxSuspendTimerRef.current = setTimeout(() => {
+      ctxSuspendTimerRef.current = null;
+      const c = ctxRef.current;
+      if (!audioWantedRef.current && c && c.state === 'running') {
+        c.suspend().catch(() => undefined);
+      }
+    }, CTX_SUSPEND_AFTER_MS);
+  }
+  const audioActive = running || rhythmLooping || playingSequence;
+  useEffect(() => {
+    audioWantedRef.current = audioActive;
+    if (audioActive) {
+      if (ctxSuspendTimerRef.current) {
+        clearTimeout(ctxSuspendTimerRef.current);
+        ctxSuspendTimerRef.current = null;
+      }
+      if (!silentModeRetainedRef.current) {
+        silentModeRetainedRef.current = true;
+        retainIosSilentMode();
+      }
+      resumeIfNotRunning(ctxRef.current);
+    } else {
+      if (silentModeRetainedRef.current) {
+        silentModeRetainedRef.current = false;
+        releaseIosSilentMode();
+      }
+      armCtxSuspend();
+    }
+    // armCtxSuspend is a stable closure over refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioActive]);
+  // Ralph's call (2026-09-02): the click should NOT keep going in the
+  // background — match the iOS app. A hidden page stops everything cleanly,
+  // and does NOT auto-resume on return (same honesty rule as the warm-screen
+  // blur silencer below). Background clicking was only sputtering anyway
+  // (iOS throttles hidden pages' timers below what the lookahead needs), and
+  // stopping here also shrinks the window in which iOS can hand us back a
+  // dead context.
+  useEffect(() => {
+    if (!audioActive || typeof document === 'undefined') return;
+    const onHide = () => {
+      if (document.visibilityState !== 'hidden') return;
+      setRunning(false);
+      stopRhythmLoop();
+      stopPitchSequence();
+    };
+    document.addEventListener('visibilitychange', onHide);
+    return () => document.removeEventListener('visibilitychange', onHide);
+    // The stop fns are stable closures over refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioActive]);
+
+  // Unmount: drop the retain and any pending suspend timer.
+  useEffect(
+    () => () => {
+      if (ctxSuspendTimerRef.current) {
+        clearTimeout(ctxSuspendTimerRef.current);
+        ctxSuspendTimerRef.current = null;
+      }
+      if (silentModeRetainedRef.current) {
+        silentModeRetainedRef.current = false;
+        releaseIosSilentMode();
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!running) {
@@ -533,7 +766,11 @@ export function useMetronome(initialBpm = 60) {
       timerRef.current = setTimeout(scheduler, 25);
     }
 
+    audioDebug('metronome start');
     scheduler();
+    // If iOS handed us back a dead engine (see rebuildDeadContext), notice
+    // within a second of the user pressing play and swap in a fresh one.
+    verifyContextAlive();
 
     // Resync as soon as the tab regains focus so the user does not have to
     // wait for the next throttled setTimeout to fire after waking.
@@ -549,6 +786,10 @@ export function useMetronome(initialBpm = 60) {
         rhythmNextStartRef.current = c.currentTime + 0.08;
         rhythmTokenIdxRef.current = 0;
       }
+      // Returning from the background is exactly when iOS zombifies the
+      // context — check that its clock actually moves again.
+      audioDebug('page visible again, resyncing');
+      verifyContextAlive();
     }
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', onVisibility);
@@ -909,7 +1150,6 @@ export function useMetronome(initialBpm = 60) {
   // piano keyboard to sound the tapped note, and by the Play button to
   // hear the entered passage straight through.
   const sequenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [playingSequence, setPlayingSequence] = useState(false);
 
   function playPitch(freqHz: number, durationSec = 0.4) {
     const ctx = ensureContext();
@@ -927,6 +1167,10 @@ export function useMetronome(initialBpm = 60) {
     osc.connect(gain).connect(ctx.destination);
     osc.start(t);
     osc.stop(t + durationSec + 0.05);
+    // One-shot sound with no `playingSequence` state: re-arm the idle
+    // suspend ourselves, or the context this tap just resumed would stay
+    // awake indefinitely.
+    if (!audioWantedRef.current) armCtxSuspend();
   }
 
   // A clearer melodic voice for pitch playback (the Bumblebee onboarding run +

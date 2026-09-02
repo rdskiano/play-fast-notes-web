@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-02-battery-and-metronome-recovery',
+    date: 'September 2, 2026',
+    title: 'A big battery fix, and a tougher metronome',
+    body:
+      'Long practice sessions on an iPad or iPhone were draining the battery much faster than they should, because the app quietly kept its sound engine running all session, even while you were just reading the score. Now the audio goes to sleep about a minute after the last sound and wakes instantly when you press play. Also fixed: if you switched to another app while the metronome was running, coming back could leave it stuck silent no matter what you pressed. The click now stops cleanly when you leave the page (just like the iPad app), and if iOS damages the sound while you are away, pressing play rebuilds it on the spot, so the metronome always comes back, even with the silent switch on.',
+  },
+  {
     id: '2026-08-31-icu2-phone-polish',
     date: 'August 31, 2026',
     title: 'ICU 2 on the phone: cleaner and easier to read',

@@ -5,3 +5,19 @@
 export function unlockIosSilentMode(): void {
   // no-op on native
 }
+
+export function retainIosSilentMode(): void {
+  // no-op on native
+}
+
+export function setIosSilentModeDebugHook(_fn: (msg: string) => void): void {
+  // no-op on native
+}
+
+export function iosSilentModeDebugStatus(): string {
+  return '';
+}
+
+export function releaseIosSilentMode(): void {
+  // no-op on native
+}

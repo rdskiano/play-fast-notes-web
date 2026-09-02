@@ -31,6 +31,30 @@ const KIT = 'FluidR3_GM';
 const NOTE_RELEASE = 0.18;
 
 let ctx: AudioContext | null = null;
+
+// Battery (F30): suspend the sampler's context this long after playback ends
+// so it doesn't keep the audio hardware awake all session. getInstrument
+// already resumes it at the top of every play path.
+const CTX_SUSPEND_AFTER_MS = 30_000;
+let suspendTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelIdleSuspend(): void {
+  if (suspendTimer) {
+    clearTimeout(suspendTimer);
+    suspendTimer = null;
+  }
+}
+
+function armIdleSuspend(): void {
+  cancelIdleSuspend();
+  suspendTimer = setTimeout(() => {
+    suspendTimer = null;
+    if (!current && ctx && ctx.state === 'running') {
+      ctx.suspend().catch(() => undefined);
+    }
+  }, CTX_SUSPEND_AFTER_MS);
+}
+
 const cache = new Map<string, unknown>();
 const loading = new Set<string>();
 let current: { stop: () => void } | null = null;
@@ -114,6 +138,8 @@ export async function playMelody(
   onEnd?: () => void,
 ): Promise<void> {
   stopMelody();
+  // stopMelody armed the idle suspend — we're about to play, so cancel it.
+  cancelIdleSuspend();
   const myToken = ++playToken;
   const inst = await getInstrument(gm);
   // Superseded while we were loading (another play started, or stopMelody was
@@ -157,6 +183,7 @@ export async function playMelody(
     () => {
       current = null;
       onEnd?.();
+      armIdleSuspend();
     },
     Math.ceil((0.15 + end) * 1000) + 200,
   );
@@ -179,4 +206,5 @@ export function stopMelody(): void {
     }
     current = null;
   }
+  armIdleSuspend();
 }

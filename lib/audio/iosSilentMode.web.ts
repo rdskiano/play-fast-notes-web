@@ -17,11 +17,42 @@
 // That's inherent to claiming the media channel — every web metronome that
 // beats the mute switch behaves this way.
 //
+// Battery (F30, 2026-09-02): the loop must NOT play forever. A 4-hour practice
+// session is mostly silent reading; keeping the iPad decoding "media" the whole
+// time keeps its audio hardware awake all session. So the loop now runs only
+// while a caller holds a retain (sustained playback: metronome running, rhythm
+// loop, exercise playback) or within a grace window after the last sound
+// activity (covers one-shot sounds like piano-key taps). Re-claiming later
+// happens from inside the next tap that starts sound (unlockIosSilentMode is
+// already on every sound path), and the brief 'interrupted' state the re-claim
+// causes is healed by the metronome's existing statechange/tap retries.
+//
 // Web-only: imported from `.web.ts` audio modules only; must never reach the
 // native bundle (native handles its audio session in metronomeEngine.ts).
 
 let el: HTMLAudioElement | null = null;
 let listenersInstalled = false;
+let refCount = 0;
+let lastActivityMs = 0;
+let idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+// How long after the last sound activity (with no retains held) the silent
+// loop keeps playing. Long enough that stop/start churn within a practice
+// stretch doesn't re-interrupt the audio session on every restart.
+const IDLE_PAUSE_MS = 60_000;
+
+function shouldBePlaying(): boolean {
+  return refCount > 0 || Date.now() - lastActivityMs < IDLE_PAUSE_MS;
+}
+
+function scheduleIdleCheck(): void {
+  if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    idleTimer = null;
+    if (!el || shouldBePlaying()) return;
+    if (!el.paused) el.pause();
+  }, IDLE_PAUSE_MS + 1_000);
+}
 
 function isIosFamily(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -61,9 +92,98 @@ function silentWavDataUri(): string {
   return 'data:audio/wav;base64,' + btoa(bin);
 }
 
+// Temporary diagnostics seam (?audiodebug=1 overlay in useMetronome.web.ts).
+let debugHook: ((msg: string) => void) | null = null;
+export function setIosSilentModeDebugHook(fn: (msg: string) => void): void {
+  debugHook = fn;
+}
+export function iosSilentModeDebugStatus(): string {
+  if (!el) return 'loop:none';
+  return `loop:${el.paused ? 'PAUSED' : 'playing'} refs:${refCount}`;
+}
+
+// After the page has been backgrounded, the loop can come back CLAIMING to
+// play (el.paused === false, play() resolves) while iOS has actually severed
+// its media-channel claim — with the mute switch on, all Web Audio then stays
+// silenced and no amount of "already playing, nothing to do" fixes it
+// (Ralph's iPhone repro, 2026-09-02). So a background stint marks the loop
+// dirty, and the next tryPlay does a hard pause→restart to re-assert the
+// claim instead of trusting el.paused.
+let needsKick = false;
+
+function makeSilentEl(): HTMLAudioElement {
+  const a = document.createElement('audio');
+  a.src = silentWavDataUri();
+  a.loop = true;
+  a.preload = 'auto';
+  a.setAttribute('playsinline', '');
+  return a;
+}
+
 function tryPlay(): void {
   if (!el || document.visibilityState === 'hidden') return;
-  if (el.paused) el.play().catch(() => undefined);
+  // Idle-gated: taps and visibility returns must not resurrect the loop
+  // after it paused itself for inactivity.
+  if (!shouldBePlaying()) {
+    debugHook?.('loop: gated (idle)');
+    return;
+  }
+  if (needsKick) {
+    // Pause+replay of the SAME element proved insufficient (2026-09-02):
+    // after a background stint iOS can permanently deaden that element's
+    // media session while play() still resolves. Discard it and claim the
+    // channel with a brand-new element instead.
+    try {
+      el.pause();
+      el.src = '';
+    } catch {
+      // ignore — we're abandoning this element regardless
+    }
+    el = makeSilentEl();
+    el.play()
+      .then(() => {
+        needsKick = false;
+        debugHook?.('loop: kicked (hard restart) ok');
+      })
+      .catch((e: unknown) =>
+        // Keep needsKick set: the permanent tap listeners retry from the
+        // user's next real gesture, where play() always sticks.
+        debugHook?.(
+          `loop: kick FAILED ${e instanceof Error ? e.name : String(e)}`,
+        ),
+      );
+    return;
+  }
+  if (el.paused) {
+    el.play()
+      .then(() => debugHook?.('loop: play ok'))
+      .catch((e: unknown) =>
+        debugHook?.(
+          `loop: play FAILED ${e instanceof Error ? e.name : String(e)}`,
+        ),
+      );
+  }
+}
+
+/**
+ * Hold the media channel open for the duration of sustained playback (a
+ * running metronome, a looping rhythm, an exercise playing through). Pair
+ * every retain with exactly one release. While any retain is held the silent
+ * loop never idle-pauses, so the mute switch stays beaten mid-session.
+ */
+export function retainIosSilentMode(): void {
+  if (typeof document === 'undefined' || !isIosFamily()) return;
+  refCount += 1;
+  lastActivityMs = Date.now();
+  tryPlay();
+}
+
+export function releaseIosSilentMode(): void {
+  if (typeof document === 'undefined' || !isIosFamily()) return;
+  refCount = Math.max(0, refCount - 1);
+  // Grace window counts from when the sound STOPPED, not when it started.
+  lastActivityMs = Date.now();
+  if (refCount === 0) scheduleIdleCheck();
 }
 
 /**
@@ -75,13 +195,11 @@ function tryPlay(): void {
  */
 export function unlockIosSilentMode(): void {
   if (typeof document === 'undefined' || !isIosFamily()) return;
-  if (!el) {
-    el = document.createElement('audio');
-    el.src = silentWavDataUri();
-    el.loop = true;
-    el.preload = 'auto';
-    el.setAttribute('playsinline', '');
-  }
+  // Every sound path funnels through here at sound-start, so this timestamp
+  // is the "something just played" heartbeat the idle pause checks against.
+  lastActivityMs = Date.now();
+  scheduleIdleCheck();
+  if (!el) el = makeSilentEl();
   if (!listenersInstalled) {
     listenersInstalled = true;
     // Retry on any tap (covers sounds started outside a gesture, e.g. by a
@@ -91,8 +209,14 @@ export function unlockIosSilentMode(): void {
     document.addEventListener('click', tryPlay, true);
     document.addEventListener('visibilitychange', () => {
       if (!el) return;
-      if (document.visibilityState === 'hidden') el.pause();
-      else tryPlay();
+      if (document.visibilityState === 'hidden') {
+        el.pause();
+        // Whatever iOS does to our audio session while hidden, don't trust
+        // the element's state on return — force a hard restart (see needsKick).
+        needsKick = true;
+      } else {
+        tryPlay();
+      }
     });
   }
   tryPlay();
