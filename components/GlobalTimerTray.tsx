@@ -1,6 +1,6 @@
 import { usePathname, useRouter } from 'expo-router';
 import { useState, useSyncExternalStore } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { PassagePickerModal } from '@/components/PassagePickerModal';
@@ -9,6 +9,7 @@ import {
   useMicrobreakTimer,
   useMoveOnTimer,
   usePlayItColdTimer,
+  usePromptTimer,
 } from '@/components/PracticeTimersContext';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
@@ -46,6 +47,12 @@ const TIMER_INFO: { icon: string; title: string; body: string }[] = [
     title: 'Break Timer',
     body:
       'A gentle nudge to step away from the instrument, stretch, and walk around every so often. Long, motionless practice sessions hurt your back and your concentration; brief movement breaks reset both. Different from Rotate — that one swaps passages without you leaving the chair.',
+  },
+  {
+    icon: '💬',
+    title: 'Prompt Timer',
+    body:
+      'Your own coaching reminders, on a clock. Load it with the cues you (or your teachers) always need to hear — "support from the diaphragm", "relax your throat", "do you feel tension in your back?" — and every few minutes one of them appears briefly at the top of the screen, then fades away on its own. No tapping needed, and it works anywhere in the app, even when you are just practicing off a score with the metronome. The app never writes these for you: the words are yours, the timing is the app\'s.',
   },
 ];
 
@@ -124,6 +131,7 @@ export function PracticeTimersPill({
   const microbreak = useMicrobreakTimer();
   const playItCold = usePlayItColdTimer();
   const bodyMove = useBodyMoveTimer();
+  const prompts = usePromptTimer();
 
   // Subscribe to the Serial Practice singleton so the pill auto-hides the
   // Move On dot while a session is active — including on the strategy
@@ -235,6 +243,22 @@ export function PracticeTimersPill({
             bodyMove.setConfig({ enabled: !bodyMove.config.enabled })
           }
         />
+        <TimerDot
+          icon="💬"
+          label="Prompts"
+          enabled={prompts.config.enabled}
+          device={dev}
+          onPress={() => {
+            // Turning it on with an empty cue list would fire nothing —
+            // open the settings sheet instead so the user writes cues
+            // first (mirrors Cold opening its passage picker).
+            if (!prompts.config.enabled && prompts.config.prompts.length === 0) {
+              setSettingsOpen(true);
+              return;
+            }
+            prompts.setConfig({ enabled: !prompts.config.enabled });
+          }}
+        />
         {/* Settings + Help look like dimmer siblings of the timer keys
             so the whole row reads as one uniform strip of controls
             (matching height + radius), instead of mixing tall keys with
@@ -303,6 +327,9 @@ const MACRO_STEPS_OPTS = [1, 2, 3, 4] as const;
 // sheet.
 const COLD_MIN_INTERVAL_OPTS = [2, 3, 5, 8, 10] as const;
 const COLD_MAX_INTERVAL_OPTS = [5, 10, 15, 20, 30] as const;
+// Prompt timer cadence. The teacher-prescribed original ("every 10 minutes,
+// pick up the breath builder") sits comfortably in this range.
+const PROMPT_INTERVAL_OPTS = [3, 5, 10, 15] as const;
 
 function ChipRow<T extends number>({
   options,
@@ -418,7 +445,22 @@ function TimerSettingsModal({
   const microbreak = useMicrobreakTimer();
   const playItCold = usePlayItColdTimer();
   const bodyMove = useBodyMoveTimer();
+  const prompts = usePromptTimer();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [promptDraft, setPromptDraft] = useState('');
+
+  function addPromptCue() {
+    const text = promptDraft.trim();
+    if (!text) return;
+    const wasEmpty = prompts.config.prompts.length === 0;
+    // Writing the first cue is the clearest possible "I want this on" —
+    // auto-enable then (mirrors Cold enabling when a passage is picked).
+    prompts.setConfig({
+      prompts: [...prompts.config.prompts, text],
+      ...(wasEmpty ? { enabled: true } : {}),
+    });
+    setPromptDraft('');
+  }
 
   return (
     <>
@@ -619,6 +661,79 @@ function TimerSettingsModal({
                   disabled={!bodyMove.config.enabled}
                 />
               </View>
+
+              <View style={styles.settingsBlock}>
+                <ToggleRow
+                  icon="💬"
+                  title="Prompts"
+                  subtitle="Your own coaching cues, on a clock"
+                  enabled={prompts.config.enabled}
+                  onToggle={() =>
+                    prompts.setConfig({ enabled: !prompts.config.enabled })
+                  }
+                />
+                <ChipRow
+                  options={PROMPT_INTERVAL_OPTS}
+                  value={
+                    (PROMPT_INTERVAL_OPTS.find(
+                      (v) => v === prompts.config.intervalMin,
+                    ) ?? PROMPT_INTERVAL_OPTS[1]) as (typeof PROMPT_INTERVAL_OPTS)[number]
+                  }
+                  onChange={(v) => prompts.setConfig({ intervalMin: v })}
+                  unit=" min"
+                  prefix="Show one every"
+                  disabled={!prompts.config.enabled}
+                />
+                {prompts.config.prompts.map((cue, i) => (
+                  <View
+                    key={`${i}-${cue}`}
+                    style={[styles.promptRow, { borderColor: C.icon + '33' }]}>
+                    <ThemedText style={styles.promptRowText} numberOfLines={2}>
+                      {cue}
+                    </ThemedText>
+                    <Pressable
+                      onPress={() =>
+                        prompts.setConfig({
+                          prompts: prompts.config.prompts.filter(
+                            (_, j) => j !== i,
+                          ),
+                        })
+                      }
+                      hitSlop={8}
+                      accessibilityLabel={`Remove cue: ${cue}`}>
+                      <ThemedText style={[styles.promptRowDelete, { color: C.icon }]}>
+                        ✕
+                      </ThemedText>
+                    </Pressable>
+                  </View>
+                ))}
+                <View style={styles.promptAddRow}>
+                  <TextInput
+                    value={promptDraft}
+                    onChangeText={setPromptDraft}
+                    onSubmitEditing={addPromptCue}
+                    placeholder="Add a cue — e.g. Relax your throat"
+                    placeholderTextColor={C.icon}
+                    style={[
+                      styles.promptInput,
+                      { borderColor: C.icon + '55', color: C.text },
+                    ]}
+                  />
+                  <Pressable
+                    onPress={addPromptCue}
+                    disabled={!promptDraft.trim()}
+                    style={[
+                      styles.promptAddBtn,
+                      {
+                        backgroundColor: promptDraft.trim()
+                          ? C.tint
+                          : C.icon + '33',
+                      },
+                    ]}>
+                    <ThemedText style={styles.promptAddBtnText}>Add</ThemedText>
+                  </Pressable>
+                </View>
+              </View>
             </ScrollView>
             <Button label="Close" onPress={onClose} />
           </View>
@@ -702,13 +817,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     // Stay on ONE row across every device — the parent card is sized
-    // to fit all six items (4 toggles + ⚙ + ?). Wrapping made the row
-    // split into an asymmetric 3 + 3 that looked broken.
+    // to fit all seven items (5 toggles + ⚙ + ?). Wrapping made the row
+    // split into an asymmetric halves that looked broken. Key widths are
+    // trimmed (54→50 / 38→36, gap 6→5) so the Prompts key fits the same
+    // 360-wide card an iPhone can hold.
     flexWrap: 'nowrap',
-    gap: 6,
+    gap: 5,
   },
   timerKey: {
-    width: 54,
+    width: 50,
     paddingVertical: 8,
     borderRadius: 12,
     alignItems: 'center',
@@ -744,7 +861,7 @@ const styles = StyleSheet.create({
   // Utility key (⚙ / ?) — same height + radius as a timer key so the
   // row reads as one uniform strip, narrower because there's no label.
   utilityKey: {
-    width: 38,
+    width: 36,
     height: 46,
     borderRadius: 12,
     alignItems: 'center',
@@ -807,6 +924,32 @@ const styles = StyleSheet.create({
 
   // Timer settings sheet
   settingsBlock: { gap: 8 },
+  promptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: Borders.thin,
+    borderRadius: Radii.md,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  promptRowText: { flex: 1, fontSize: Type.size.md },
+  promptRowDelete: { fontSize: Type.size.md, paddingHorizontal: 2 },
+  promptAddRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  promptInput: {
+    flex: 1,
+    borderWidth: Borders.thin,
+    borderRadius: Radii.md,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    fontSize: Type.size.md,
+  },
+  promptAddBtn: {
+    borderRadius: Radii.md,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+  },
+  promptAddBtnText: { color: '#fff', fontSize: Type.size.md },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',

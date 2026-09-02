@@ -39,6 +39,16 @@ export type PlayItColdConfig = {
 // stand up, stretch, walk around. Distinct from Move On (which rotates
 // passages) and Microbreak (which is a short mental rest after reps).
 export type BodyMoveConfig = { enabled: boolean; intervalMin: number };
+// Prompt timer — surfaces one of the player's own coaching cues ("support
+// from the diaphragm", "relax your throat") on a fixed interval as an
+// auto-fading banner. The app supplies only the clock and the random pick;
+// the words are entirely the player's / their teachers'. Unlike the other
+// timers it never blocks: no overlay, no dismissal required.
+export type PromptsConfig = {
+  enabled: boolean;
+  intervalMin: number;
+  prompts: string[];
+};
 
 const DEFAULT_MOVE_ON: MoveOnConfig = { enabled: false, intervalMin: 3 };
 const DEFAULT_MICROBREAK: MicrobreakConfig = {
@@ -57,11 +67,21 @@ const DEFAULT_PLAY_IT_COLD: PlayItColdConfig = {
   pieceId: null,
 };
 const DEFAULT_BODY_MOVE: BodyMoveConfig = { enabled: false, intervalMin: 20 };
+const DEFAULT_PROMPTS: PromptsConfig = {
+  enabled: false,
+  intervalMin: 5,
+  prompts: [],
+};
+
+// How long a prompt banner stays before auto-fading. Hands are on the
+// instrument, so the banner must never wait for a tap.
+const PROMPT_VISIBLE_MS = 8_000;
 
 const KEY_MOVE_ON = 'timers.moveOn';
 const KEY_MICROBREAK = 'timers.microbreak';
 const KEY_PLAY_IT_COLD = 'timers.playItCold';
 const KEY_BODY_MOVE = 'timers.bodyMove';
+const KEY_PROMPTS = 'timers.prompts';
 
 // Fire priority: Move On > Play It Cold > Microbreak > Body Move
 type FiringKind = 'moveOn' | 'microbreak' | 'playItCold' | 'bodyMove' | null;
@@ -98,11 +118,21 @@ type BodyMoveHook = {
   dismiss: () => void;
 };
 
+type PromptsHook = {
+  config: PromptsConfig;
+  setConfig: (next: Partial<PromptsConfig>) => void;
+  // The prompt text currently on screen, or null. Non-blocking: rendered
+  // as an auto-fading banner (PromptBanner), never through the alert modal.
+  activePrompt: string | null;
+  dismissPrompt: () => void;
+};
+
 type Ctx = {
   moveOn: MoveOnHook;
   microbreak: MicrobreakHook;
   playItCold: PlayItColdHook;
   bodyMove: BodyMoveHook;
+  prompts: PromptsHook;
 };
 
 const CtxObj = createContext<Ctx | null>(null);
@@ -133,7 +163,13 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
   const [microbreakCfg, setMicrobreakCfg] = useState<MicrobreakConfig>(DEFAULT_MICROBREAK);
   const [playItColdCfg, setPlayItColdCfg] = useState<PlayItColdConfig>(DEFAULT_PLAY_IT_COLD);
   const [bodyMoveCfg, setBodyMoveCfg] = useState<BodyMoveConfig>(DEFAULT_BODY_MOVE);
+  const [promptsCfg, setPromptsCfg] = useState<PromptsConfig>(DEFAULT_PROMPTS);
   const [hydrated, setHydrated] = useState(false);
+
+  const [activePrompt, setActivePrompt] = useState<string | null>(null);
+  const promptIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const promptHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPromptIndexRef = useRef(-1);
 
   const [firing, setFiring] = useState<FiringKind>(null);
   const queueRef = useRef<FiringKind[]>([]);
@@ -155,21 +191,30 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
   playItColdCfgRef.current = playItColdCfg;
   const bodyMoveCfgRef = useRef(bodyMoveCfg);
   bodyMoveCfgRef.current = bodyMoveCfg;
+  const promptsCfgRef = useRef(promptsCfg);
+  promptsCfgRef.current = promptsCfg;
   const firingRef = useRef<FiringKind>(null);
   firingRef.current = firing;
 
   useEffect(() => {
     (async () => {
-      const [mo, mb, pc, bm] = await Promise.all([
+      const [mo, mb, pc, bm, pr] = await Promise.all([
         loadJson<MoveOnConfig>(KEY_MOVE_ON, DEFAULT_MOVE_ON),
         loadJson<MicrobreakConfig>(KEY_MICROBREAK, DEFAULT_MICROBREAK),
         loadJson<PlayItColdConfig>(KEY_PLAY_IT_COLD, DEFAULT_PLAY_IT_COLD),
         loadJson<BodyMoveConfig>(KEY_BODY_MOVE, DEFAULT_BODY_MOVE),
+        loadJson<PromptsConfig>(KEY_PROMPTS, DEFAULT_PROMPTS),
       ]);
       setMoveOnCfg(mo);
       setMicrobreakCfg(mb);
       setPlayItColdCfg(pc);
       setBodyMoveCfg(bm);
+      setPromptsCfg({
+        ...pr,
+        prompts: Array.isArray(pr.prompts)
+          ? pr.prompts.filter((p) => typeof p === 'string')
+          : [],
+      });
       setHydrated(true);
     })();
   }, []);
@@ -265,6 +310,60 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
       }
     };
   }, [hydrated, bodyMoveCfg.enabled, bodyMoveCfg.intervalMin, enqueueFire]);
+
+  // Prompt scheduler. Independent of the blocking fire queue: a prompt is
+  // a whisper, not an interruption — it must never stack behind (or block)
+  // a Rotate/Micro/Cold/Break overlay.
+  const hidePrompt = useCallback(() => {
+    if (promptHideRef.current) {
+      clearTimeout(promptHideRef.current);
+      promptHideRef.current = null;
+    }
+    setActivePrompt(null);
+  }, []);
+
+  const showRandomPrompt = useCallback(() => {
+    const cfg = promptsCfgRef.current;
+    const list = cfg.prompts;
+    if (!cfg.enabled || list.length === 0) return;
+    let idx = Math.floor(Math.random() * list.length);
+    // Avoid repeating the same cue twice in a row when there is a choice.
+    if (list.length > 1 && idx === lastPromptIndexRef.current) {
+      idx = (idx + 1) % list.length;
+    }
+    lastPromptIndexRef.current = idx;
+    setActivePrompt(list[idx]);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    if (promptHideRef.current) clearTimeout(promptHideRef.current);
+    promptHideRef.current = setTimeout(() => {
+      promptHideRef.current = null;
+      setActivePrompt(null);
+    }, PROMPT_VISIBLE_MS);
+  }, []);
+
+  useEffect(() => {
+    if (promptIntervalRef.current) {
+      clearInterval(promptIntervalRef.current);
+      promptIntervalRef.current = null;
+    }
+    if (!hydrated || !promptsCfg.enabled || promptsCfg.prompts.length === 0) {
+      return;
+    }
+    const ms = Math.max(30_000, promptsCfg.intervalMin * 60_000);
+    promptIntervalRef.current = setInterval(showRandomPrompt, ms);
+    return () => {
+      if (promptIntervalRef.current) {
+        clearInterval(promptIntervalRef.current);
+        promptIntervalRef.current = null;
+      }
+    };
+  }, [
+    hydrated,
+    promptsCfg.enabled,
+    promptsCfg.intervalMin,
+    promptsCfg.prompts.length,
+    showRandomPrompt,
+  ]);
 
   const schedulePlayItCold = useCallback(() => {
     if (coldTimeoutRef.current) {
@@ -362,6 +461,14 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setPromptsConfig = useCallback((patch: Partial<PromptsConfig>) => {
+    setPromptsCfg((prev) => {
+      const next = { ...prev, ...patch };
+      setSetting(KEY_PROMPTS, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
   const value: Ctx = {
     moveOn: {
       config: moveOnCfg,
@@ -388,6 +495,12 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
       setConfig: setBodyMoveConfig,
       firing: firing === 'bodyMove',
       dismiss: dismissBodyMove,
+    },
+    prompts: {
+      config: promptsCfg,
+      setConfig: setPromptsConfig,
+      activePrompt,
+      dismissPrompt: hidePrompt,
     },
   };
 
@@ -424,6 +537,12 @@ function useCtx(): Ctx {
         firing: false,
         dismiss: () => {},
       },
+      prompts: {
+        config: DEFAULT_PROMPTS,
+        setConfig: () => {},
+        activePrompt: null,
+        dismissPrompt: () => {},
+      },
     };
   }
   return ctx;
@@ -443,6 +562,10 @@ export function usePlayItColdTimer() {
 
 export function useBodyMoveTimer() {
   return useCtx().bodyMove;
+}
+
+export function usePromptTimer() {
+  return useCtx().prompts;
 }
 
 export function usePracticeTimers() {

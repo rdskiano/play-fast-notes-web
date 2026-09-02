@@ -39,6 +39,7 @@ import {
   InterleavedTimerProvider,
 } from '@/components/InterleavedTimerContext';
 import { PracticeTimerAlertModal } from '@/components/PracticeTimerAlertModal';
+import { PromptBanner } from '@/components/PromptBanner';
 import { PracticeTimersProvider } from '@/components/PracticeTimersContext';
 import { StitchHost } from '@/components/StitchHost';
 import { StrategyColorsProvider } from '@/components/StrategyColorsContext';
@@ -234,6 +235,7 @@ export default function RootLayout() {
               </Stack>
                 {!IS_WEB && <InterleavedStatusBar />}
                 <PracticeTimerAlertModal />
+                <PromptBanner />
                 {!IS_WEB && <StitchHost />}
                 {/* Help system: HelpModal is the single global modal
                     that both auto-fires (from <TutorialStep>) and
