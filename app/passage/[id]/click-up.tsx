@@ -47,6 +47,8 @@ import { TutorialStep } from '@/components/TutorialStep';
 import { useScreenTour } from '@/components/tour/TourContext';
 import { tourTag, type TourStep } from '@/components/tour/types';
 import { ActionSheet } from '@/components/ActionSheet';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
 import { activePairMarkers, mapUnitsToScore } from '@/lib/strategies/clickUp';
 import {
   actionButtonStyle,
@@ -67,6 +69,11 @@ const ACCENT = Palette.accent;
 // Shared by the marking badges (place) and the playing ▼ arrows so a unit's
 // cue sits at the SAME height on both screens.
 const ICU_MARK_LIFT = SCORE_MARK_LIFT;
+
+// Sessions with at least this many steps get a one-time "arm the Micro
+// timer?" offer at start. Deliberately generous — the observed fatigue case
+// was 141 steps; tune with real use.
+const BIG_SESSION_STEP_OFFER = 80;
 
 function formatActiveUnits(activeUnits: number[]): string {
   if (activeUnits.length === 0) return '';
@@ -205,6 +212,29 @@ export default function ClickUpScreen() {
   } = session;
 
   const ann = useScoreAnnotation(passage);
+
+  // Big-session Micro offer (coach signal D64, live-validated 2026-09-01:
+  // fatigue arrived ~1/3 into a 141-step session; the self-administered
+  // Micro break helped). When a session starts with a big step count and
+  // the Micro timer is off, offer to arm it — an offer of an existing
+  // tool, never a rule. One-shot per screen visit; guided onboarding
+  // manages the Micro timer itself, so it never sees this.
+  const microbreak = useMicrobreakTimer();
+  const [microOfferVisible, setMicroOfferVisible] = useState(false);
+  const microOfferShownRef = useRef(false);
+  const bigSessionSteps = storedConfig?.steps.length ?? 0;
+  useEffect(() => {
+    if (
+      phase === 'playing' &&
+      !isGuided &&
+      bigSessionSteps >= BIG_SESSION_STEP_OFFER &&
+      !microbreak.config.enabled &&
+      !microOfferShownRef.current
+    ) {
+      microOfferShownRef.current = true;
+      setMicroOfferVisible(true);
+    }
+  }, [phase, isGuided, bigSessionSteps, microbreak.config.enabled]);
 
   // On phone landscape the floating metronome (and its "+N" bump graphic) is
   // collapsed off-screen, so a tempo step-up has no visual tell. Pulse the BPM
@@ -1214,6 +1244,19 @@ export default function ClickUpScreen() {
         ]}
         cancelLabel={null}
         onCancel={dismissReverseOffer}
+      />
+
+      <ConfirmModal
+        visible={microOfferVisible}
+        title="Big session ahead"
+        message={`This session has ${bigSessionSteps} steps. Short rests help long sittings — want the Micro timer on? It pauses you for a few seconds at each phase boundary.`}
+        confirmLabel="Turn on Micro"
+        cancelLabel="No thanks"
+        onConfirm={() => {
+          microbreak.setConfig({ enabled: true });
+          setMicroOfferVisible(false);
+        }}
+        onCancel={() => setMicroOfferVisible(false)}
       />
 
       <PracticeLogNotePrompt
