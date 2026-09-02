@@ -26,6 +26,7 @@ import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import {
   useBodyMoveTimer,
   useMicrobreakTimer,
+  usePromptTimer,
   useMoveOnTimer,
   usePlayItColdTimer,
 } from '@/components/PracticeTimersContext';
@@ -152,8 +153,9 @@ export function PracticeToolsLayer({
   const microbreakEnabled = useMicrobreakTimer().config.enabled;
   const coldEnabled = usePlayItColdTimer().config.enabled;
   const bodyMoveEnabled = useBodyMoveTimer().config.enabled;
+  const promptsEnabled = usePromptTimer().config.enabled;
   const anyTimerOn =
-    moveOnEnabled || microbreakEnabled || coldEnabled || bodyMoveEnabled;
+    moveOnEnabled || microbreakEnabled || coldEnabled || bodyMoveEnabled || promptsEnabled;
   // Pencil is a stylus-only feature on web; hide its tab until the user proves
   // they have a pen (Apple Pencil in iPad Safari, Surface Pen, etc.). Native
   // always sees it — the iPad always pairs with an Apple Pencil.

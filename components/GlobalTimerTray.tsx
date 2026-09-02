@@ -249,14 +249,15 @@ export function PracticeTimersPill({
           enabled={prompts.config.enabled}
           device={dev}
           onPress={() => {
-            // Turning it on with an empty cue list would fire nothing —
-            // open the settings sheet instead so the user writes cues
-            // first (mirrors Cold opening its passage picker).
-            if (!prompts.config.enabled && prompts.config.prompts.length === 0) {
+            // Toggle the lit state like every other key (Ralph's report:
+            // the tap must visibly flip, same as its siblings). Turning it
+            // on with an empty cue list ALSO opens the settings sheet so
+            // there are cues for the clock to pick from.
+            const turningOn = !prompts.config.enabled;
+            prompts.setConfig({ enabled: turningOn });
+            if (turningOn && prompts.config.prompts.length === 0) {
               setSettingsOpen(true);
-              return;
             }
-            prompts.setConfig({ enabled: !prompts.config.enabled });
           }}
         />
         {/* Settings + Help look like dimmer siblings of the timer keys

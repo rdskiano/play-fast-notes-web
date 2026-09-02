@@ -25,6 +25,7 @@ import { PracticeTimersPill } from '@/components/GlobalTimerTray';
 import {
   useBodyMoveTimer,
   useMicrobreakTimer,
+  usePromptTimer,
   useMoveOnTimer,
   usePlayItColdTimer,
 } from '@/components/PracticeTimersContext';
@@ -137,8 +138,9 @@ export function PracticeToolsBar({
   const microbreakEnabled = useMicrobreakTimer().config.enabled;
   const coldEnabled = usePlayItColdTimer().config.enabled;
   const bodyMoveEnabled = useBodyMoveTimer().config.enabled;
+  const promptsEnabled = usePromptTimer().config.enabled;
   const anyTimerOn =
-    moveOnEnabled || microbreakEnabled || coldEnabled || bodyMoveEnabled;
+    moveOnEnabled || microbreakEnabled || coldEnabled || bodyMoveEnabled || promptsEnabled;
 
   const [open, setOpen] = useState<ToolBarKey | null>(null);
   const keys = tools ?? (['metronome', 'timer', 'recorder'] as ToolBarKey[]);

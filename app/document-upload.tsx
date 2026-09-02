@@ -155,7 +155,10 @@ export default function DocumentUploadScreen() {
             await addPdfDocument({
               fileUri: item.uri,
               title: item.title.trim(),
-              composer,
+              // Batch parts carry no composer — the field is hidden in this
+              // mode, and a leftover value typed in single mode must not
+              // silently stamp every part.
+              composer: '',
               folderId,
               onProgress: (msg) => setProgress(`${prefix}\n${msg}`),
             });
@@ -321,17 +324,24 @@ export default function DocumentUploadScreen() {
           </>
         )}
 
-        <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.7 }}>
-          Composer (optional)
-        </ThemedText>
-        <TextInput
-          value={composer}
-          onChangeText={setComposer}
-          editable={!busy}
-          placeholder="e.g. Gustav Mahler"
-          placeholderTextColor={C.icon}
-          style={[styles.input, { borderColor: C.icon, color: C.text }]}
-        />
+        {/* No composer in batch mode — five titles with one shared composer
+            makes no sense (Ralph, 2026-09-02); composer stays a single-part
+            nicety. */}
+        {!isBatch && (
+          <>
+            <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.7 }}>
+              Composer (optional)
+            </ThemedText>
+            <TextInput
+              value={composer}
+              onChangeText={setComposer}
+              editable={!busy}
+              placeholder="e.g. Gustav Mahler"
+              placeholderTextColor={C.icon}
+              style={[styles.input, { borderColor: C.icon, color: C.text }]}
+            />
+          </>
+        )}
 
         {progress && (
           <View style={[styles.progressCard, { borderColor: C.icon }]}>

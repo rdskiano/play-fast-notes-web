@@ -81,7 +81,9 @@ export default function DocumentUploadScreen() {
           await uploadPdfDocument({
             file: item.file,
             title: item.title.trim(),
-            composer: composer.trim() ? composer.trim() : null,
+            // Batch parts carry no composer — the field is hidden in this
+            // mode; a leftover single-mode value must not stamp every part.
+            composer: null,
             folder_id: targetFolderId,
             onProgress: (p) => setProgress(p),
           });
@@ -217,14 +219,20 @@ export default function DocumentUploadScreen() {
             </>
           )}
 
-          <ThemedText style={styles.fieldLabel}>Composer (optional)</ThemedText>
-          <TextInput
-            value={composer}
-            onChangeText={setComposer}
-            placeholder="e.g. Gustav Mahler"
-            placeholderTextColor={Palette.textMuted}
-            style={styles.input}
-          />
+          {/* No composer in batch mode — five titles with one shared composer
+              makes no sense (Ralph, 2026-09-02). */}
+          {!isBatch && (
+            <>
+              <ThemedText style={styles.fieldLabel}>Composer (optional)</ThemedText>
+              <TextInput
+                value={composer}
+                onChangeText={setComposer}
+                placeholder="e.g. Gustav Mahler"
+                placeholderTextColor={Palette.textMuted}
+                style={styles.input}
+              />
+            </>
+          )}
 
           {progress && (
             <View style={styles.progressCard}>
