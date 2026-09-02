@@ -19,6 +19,11 @@ export default function DocumentUploadScreen() {
   const insets = useSafeAreaInsets();
 
   const [picked, setPicked] = useState<File | null>(null);
+  // Batch mode: picking SEVERAL PDFs at once (concert-folder filling — the
+  // parts are usually all scanned already, F29). Each gets its own editable
+  // title, prefilled from its filename; composer is shared.
+  const [batch, setBatch] = useState<{ key: string; file: File; title: string }[]>([]);
+  const [batchLabel, setBatchLabel] = useState<string | null>(null);
   // Prefilled when arriving from IMSLP (the work title + composer of the score
   // being downloaded), so the imported document is labeled correctly.
   const [title, setTitle] = useState(typeof params.title === 'string' ? params.title : '');
@@ -30,21 +35,71 @@ export default function DocumentUploadScreen() {
   const saving = progress !== null && progress.phase !== 'done';
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPicked(file);
-    if (!title) {
-      const nameNoExt = file.name.replace(/\.pdf$/i, '');
-      setTitle(nameNoExt);
-    }
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
+    if (files.length === 0) return;
+    if (files.length === 1) {
+      const file = files[0];
+      setBatch([]);
+      setPicked(file);
+      if (!title) {
+        const nameNoExt = file.name.replace(/\.pdf$/i, '');
+        setTitle(nameNoExt);
+      }
+      return;
+    }
+    // Several PDFs → batch mode: one row per part, titles from filenames.
+    setPicked(null);
+    setBatch(
+      files.map((file, i) => ({
+        key: `b_${Date.now()}_${i}`,
+        file,
+        title: file.name.replace(/\.pdf$/i, ''),
+      })),
+    );
   }
 
-  const canSave = !!picked && title.trim().length > 0 && !saving;
+  const isBatch = batch.length > 0;
+  const canSave =
+    !saving &&
+    (isBatch
+      ? batch.every((b) => b.title.trim().length > 0)
+      : !!picked && title.trim().length > 0);
 
   async function onSave() {
-    if (!canSave || !picked) return;
+    if (!canSave) return;
     setError(null);
+    if (isBatch) {
+      // Sequential ingest — one part at a time so progress stays honest and
+      // a failure names the part it stopped on. Added parts stay added; the
+      // failed one and the rest remain listed for a retry.
+      setProgress({ phase: 'uploading', pages_done: 0, pages_total: 0 });
+      for (let i = 0; i < batch.length; i++) {
+        const item = batch[i];
+        setBatchLabel(`Part ${i + 1} of ${batch.length} — ${item.title}`);
+        try {
+          await uploadPdfDocument({
+            file: item.file,
+            title: item.title.trim(),
+            composer: composer.trim() ? composer.trim() : null,
+            folder_id: targetFolderId,
+            onProgress: (p) => setProgress(p),
+          });
+        } catch (e) {
+          setBatch(batch.slice(i));
+          setBatchLabel(null);
+          setProgress(null);
+          setError(
+            `"${item.title}" failed (${e instanceof Error ? e.message : String(e)}). ` +
+              `${i} of ${batch.length} parts were added; the rest are still listed — fix and try again.`,
+          );
+          return;
+        }
+      }
+      router.back();
+      return;
+    }
+    if (!picked) return;
     setProgress({ phase: 'uploading', pages_done: 0, pages_total: 0 });
     try {
       const document = await uploadPdfDocument({
@@ -107,17 +162,60 @@ export default function DocumentUploadScreen() {
               fontSize: Type.size.md,
               userSelect: 'none',
             }}>
-            {picked ? `Selected: ${picked.name}` : 'Pick PDF'}
+            {picked
+              ? `Selected: ${picked.name}`
+              : isBatch
+                ? `Selected: ${batch.length} PDFs`
+                : 'Pick PDF (choose several to add a whole concert)'}
           </label>
 
-          <ThemedText style={styles.fieldLabel}>Title</ThemedText>
-          <TextInput
-            value={title}
-            onChangeText={setTitle}
-            placeholder="e.g. Mahler 9 — Clarinet I"
-            placeholderTextColor={Palette.textMuted}
-            style={styles.input}
-          />
+          {isBatch && (
+            <View style={{ gap: Spacing.sm }}>
+              <ThemedText style={styles.fieldLabel}>
+                Check each part&apos;s title
+              </ThemedText>
+              {batch.map((item) => (
+                <View key={item.key} style={styles.batchRow}>
+                  <TextInput
+                    value={item.title}
+                    editable={!saving}
+                    onChangeText={(t) =>
+                      setBatch((prev) =>
+                        prev.map((b) => (b.key === item.key ? { ...b, title: t } : b)),
+                      )
+                    }
+                    placeholder="Part title"
+                    placeholderTextColor={Palette.textMuted}
+                    style={[styles.input, styles.batchInput]}
+                  />
+                  <Pressable
+                    onPress={() =>
+                      setBatch((prev) => prev.filter((b) => b.key !== item.key))
+                    }
+                    disabled={saving}
+                    hitSlop={8}
+                    accessibilityLabel={`Remove ${item.title}`}>
+                    <ThemedText style={{ color: Palette.textMuted, fontSize: Type.size.lg }}>
+                      ✕
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {!isBatch && (
+            <>
+              <ThemedText style={styles.fieldLabel}>Title</ThemedText>
+              <TextInput
+                value={title}
+                onChangeText={setTitle}
+                placeholder="e.g. Mahler 9 — Clarinet I"
+                placeholderTextColor={Palette.textMuted}
+                style={styles.input}
+              />
+            </>
+          )}
 
           <ThemedText style={styles.fieldLabel}>Composer (optional)</ThemedText>
           <TextInput
@@ -130,6 +228,9 @@ export default function DocumentUploadScreen() {
 
           {progress && (
             <View style={styles.progressCard}>
+              {batchLabel && (
+                <ThemedText style={styles.progressTitle}>{batchLabel}</ThemedText>
+              )}
               <ThemedText style={styles.progressTitle}>
                 {progressLabel(progress)}
               </ThemedText>
@@ -149,6 +250,7 @@ export default function DocumentUploadScreen() {
         id={fileInputId}
         type="file"
         accept="application/pdf"
+        multiple
         onChange={onFileChange}
         style={{ display: 'none' }}
       />
@@ -161,7 +263,7 @@ export default function DocumentUploadScreen() {
           <ActivityIndicator color="#fff" />
         ) : (
           <ThemedText style={[styles.saveText, { color: canSave ? '#fff' : Palette.textMuted }]}>
-            Upload + render
+            {isBatch ? `Upload ${batch.length} parts` : 'Upload + render'}
           </ThemedText>
         )}
       </Pressable>
@@ -221,6 +323,8 @@ const styles = StyleSheet.create({
     color: Palette.text,
     ...Lift,
   },
+  batchRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  batchInput: { flex: 1 },
   progressCard: {
     backgroundColor: Palette.card,
     borderWidth: Borders.thin,

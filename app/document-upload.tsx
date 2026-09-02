@@ -31,6 +31,10 @@ import { addScannedDocument } from '@/lib/scan/addScannedDocument';
 // strip (tap a page to rescan it) and the naming fields. Nothing is saved
 // until Add.
 type ScannedPage = { id: string; uri: string };
+// Batch mode: picking SEVERAL PDFs at once (concert-folder filling — the
+// parts are usually all scanned already, F29). Each gets its own editable
+// title, prefilled from its filename; composer is shared.
+type BatchItem = { key: string; uri: string; title: string };
 
 function newPageId(): string {
   return `pg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -45,6 +49,7 @@ export default function DocumentUploadScreen() {
   const C = Colors[scheme];
 
   const [picked, setPicked] = useState<{ uri: string; name: string } | null>(null);
+  const [batch, setBatch] = useState<BatchItem[]>([]);
   const [scanned, setScanned] = useState<ScannedPage[]>([]);
   // Prefilled when arriving from IMSLP, so the imported part is labeled right.
   const [title, setTitle] = useState(typeof params.title === 'string' ? params.title : '');
@@ -58,12 +63,26 @@ export default function DocumentUploadScreen() {
     const res = await DocumentPicker.getDocumentAsync({
       type: 'application/pdf',
       copyToCacheDirectory: true,
+      multiple: true,
     });
-    if (res.canceled || !res.assets?.[0]) return;
-    const asset = res.assets[0];
+    if (res.canceled || !res.assets || res.assets.length === 0) return;
     setScanned([]);
-    setPicked({ uri: asset.uri, name: asset.name ?? 'document.pdf' });
-    if (!title.trim()) setTitle((asset.name ?? '').replace(/\.pdf$/i, ''));
+    if (res.assets.length === 1) {
+      const asset = res.assets[0];
+      setBatch([]);
+      setPicked({ uri: asset.uri, name: asset.name ?? 'document.pdf' });
+      if (!title.trim()) setTitle((asset.name ?? '').replace(/\.pdf$/i, ''));
+      return;
+    }
+    // Several PDFs → batch mode: one row per part, titles from filenames.
+    setPicked(null);
+    setBatch(
+      res.assets.map((a, i) => ({
+        key: `b_${Date.now()}_${i}`,
+        uri: a.uri,
+        title: (a.name ?? `Part ${i + 1}`).replace(/\.pdf$/i, ''),
+      })),
+    );
   }
 
   // Launch the VisionKit scanner; returns page image URIs, or null on cancel.
@@ -85,6 +104,7 @@ export default function DocumentUploadScreen() {
       const imgs = await runScanner();
       if (!imgs) return;
       setPicked(null);
+      setBatch([]);
       setScanned((prev) => [...prev, ...imgs.map((uri) => ({ id: newPageId(), uri }))]);
       // No default title — the Add button stays disabled until the user names
       // the piece, so naming can't be skipped by accident.
@@ -110,14 +130,48 @@ export default function DocumentUploadScreen() {
     }
   }
 
-  const hasSource = !!picked || scanned.length > 0;
-  const canAdd = hasSource && title.trim().length > 0 && !busy;
+  const isBatch = batch.length > 0;
+  const hasSource = !!picked || isBatch || scanned.length > 0;
+  const canAdd =
+    hasSource &&
+    !busy &&
+    (isBatch
+      ? batch.every((b) => b.title.trim().length > 0)
+      : title.trim().length > 0);
 
   async function onAdd() {
     if (!canAdd) return;
     setBusy(true);
     setError(null);
     try {
+      if (isBatch) {
+        // Sequential ingest — one part at a time so progress stays honest
+        // and a failure names the part it stopped on. Successfully added
+        // parts stay added; the failed one and the rest remain listed.
+        for (let i = 0; i < batch.length; i++) {
+          const item = batch[i];
+          const prefix = `Part ${i + 1} of ${batch.length} — ${item.title}`;
+          try {
+            await addPdfDocument({
+              fileUri: item.uri,
+              title: item.title.trim(),
+              composer,
+              folderId,
+              onProgress: (msg) => setProgress(`${prefix}\n${msg}`),
+            });
+          } catch (e) {
+            const remaining = batch.slice(i);
+            setBatch(remaining);
+            throw new Error(
+              `"${item.title}" failed (${e instanceof Error ? e.message : String(e)}). ` +
+                `${i} of ${batch.length} parts were added; the rest are still listed below — fix and tap Add again.`,
+            );
+          }
+        }
+        // All parts landed — back to the library/folder they were aimed at.
+        router.back();
+        return;
+      }
       let docId: string;
       if (picked) {
         ({ docId } = await addPdfDocument({
@@ -194,6 +248,39 @@ export default function DocumentUploadScreen() {
           </ThemedText>
         )}
 
+        {isBatch && (
+          <View style={styles.pagesBlock}>
+            <ThemedText style={styles.pagesHeading}>
+              {batch.length} PDFs selected — check each part's title
+            </ThemedText>
+            {batch.map((item) => (
+              <View key={item.key} style={styles.batchRow}>
+                <TextInput
+                  value={item.title}
+                  editable={!busy}
+                  onChangeText={(t) =>
+                    setBatch((prev) =>
+                      prev.map((b) => (b.key === item.key ? { ...b, title: t } : b)),
+                    )
+                  }
+                  placeholder="Part title"
+                  placeholderTextColor={C.icon}
+                  style={[styles.input, styles.batchInput, { borderColor: C.icon, color: C.text }]}
+                />
+                <Pressable
+                  onPress={() =>
+                    setBatch((prev) => prev.filter((b) => b.key !== item.key))
+                  }
+                  disabled={busy}
+                  hitSlop={8}
+                  accessibilityLabel={`Remove ${item.title}`}>
+                  <ThemedText style={{ color: C.icon, fontSize: Type.size.lg }}>✕</ThemedText>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        )}
+
         {scanned.length > 0 && (
           <View style={styles.pagesBlock}>
             <ThemedText style={styles.pagesHeading}>
@@ -220,15 +307,19 @@ export default function DocumentUploadScreen() {
           </View>
         )}
 
-        <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.7 }}>Title</ThemedText>
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          editable={!busy}
-          placeholder="e.g. Mahler 9 — Clarinet I"
-          placeholderTextColor={C.icon}
-          style={[styles.input, { borderColor: C.icon, color: C.text }]}
-        />
+        {!isBatch && (
+          <>
+            <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.7 }}>Title</ThemedText>
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              editable={!busy}
+              placeholder="e.g. Mahler 9 — Clarinet I"
+              placeholderTextColor={C.icon}
+              style={[styles.input, { borderColor: C.icon, color: C.text }]}
+            />
+          </>
+        )}
 
         <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.7 }}>
           Composer (optional)
@@ -257,7 +348,9 @@ export default function DocumentUploadScreen() {
         {busy ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <ThemedText style={styles.addText}>Add to library</ThemedText>
+          <ThemedText style={styles.addText}>
+            {isBatch ? `Add ${batch.length} parts` : 'Add to library'}
+          </ThemedText>
         )}
       </Pressable>
     </ThemedView>
@@ -287,6 +380,8 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   pagesBlock: { gap: Spacing.sm },
+  batchRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  batchInput: { flex: 1 },
   pagesHeading: {
     fontSize: Type.size.xs,
     fontWeight: Type.weight.bold,

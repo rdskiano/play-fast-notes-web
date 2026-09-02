@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-02-prompt-timer-batch-upload',
+    date: 'September 2, 2026',
+    title: 'New: the Prompt timer, batch PDF upload, and a smarter big-session nudge',
+    body:
+      'Three additions from a long day at the practice stand. The Prompt timer is a fifth timer next to Rotate, Micro, Cold, and Break: load it with the reminders you always need to hear ("relax your throat", "support from the diaphragm") and every few minutes one appears briefly at the top of the screen, then fades away on its own — it works anywhere, even when you are just playing off a score with the metronome. Adding a full part now lets you select several PDFs at once, so filling a concert folder with already-scanned parts is one trip instead of many; each part gets its title from its filename, and you can fix any of them before uploading. And when you start a really long Interleaved Click-Up session, the app now offers to turn on the Micro timer for you — short rests are exactly what big sessions need, and by the time you feel it, you are already tired.',
+  },
+  {
     id: '2026-09-02-save-finish-crash-fix',
     date: 'September 2, 2026',
     title: 'Fixed: the app could crash right after saving a session',
