@@ -91,6 +91,9 @@ function TimerDot({ icon, label, enabled, device, onPress }: DotProps) {
         minimumFontScale={0.75}
         style={[
           styles.timerKeyLabel,
+          // adjustsFontSizeToFit is a native-only affordance; on web a long
+          // label ("Prompts") needs the explicit slimmer size to fit 50px.
+          label.length >= 7 && { fontSize: 10, letterSpacing: 0.1 },
           { color: enabled ? device.onText : device.offText },
         ]}>
         {label}
