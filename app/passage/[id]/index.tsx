@@ -916,6 +916,7 @@ export default function PassageDetailScreen() {
         <PracticeToolsBar
           pencil={{ ...ann.pencil, onUndo: ann.undo }}
           recorderPassageId={passage?.id}
+          tempoMemoryKey={passage ? (passage.document_id ?? passage.id) : null}
           anchorTop={insets.top + 8}
           anchorRight={58}
         />
@@ -1085,6 +1086,7 @@ export default function PassageDetailScreen() {
         <PracticeToolsBar
           pencil={{ ...ann.pencil, onUndo: ann.undo }}
           recorderPassageId={passage?.id}
+          tempoMemoryKey={passage ? (passage.document_id ?? passage.id) : null}
           anchorRight={58 + Math.max(0, (vpW - HERO_COL_MAX) / 2)}
         />
         {overlays}

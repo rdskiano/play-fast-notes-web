@@ -12,7 +12,7 @@
 // here so they survive opening and closing the panel.
 
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -30,6 +30,7 @@ import {
   usePlayItColdTimer,
 } from '@/components/PracticeTimersContext';
 import { DEVICE, MetronomePanel } from '@/components/MetronomePanel';
+import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { RecorderPanel } from '@/components/RecorderPanel';
 import { ThemedText } from '@/components/themed-text';
 import { Lift, Palette } from '@/constants/palette';
@@ -75,6 +76,7 @@ export function PracticeToolsBar({
   pencil,
   recorderPassageId,
   recorderDocumentId,
+  tempoMemoryKey,
   tools,
   anchorTop,
   anchorRight,
@@ -85,6 +87,15 @@ export function PracticeToolsBar({
   pencil?: { active: boolean; onToggle: () => void; onUndo?: () => void };
   recorderPassageId?: string;
   recorderDocumentId?: string;
+  /**
+   * Per-piece tempo memory for the bar's own free-standing metronome (F27,
+   * Ralph's pick 2026-09-02: option b). Pass the piece's identity (document
+   * id, or passage id for document-less passages) and the metronome opens
+   * at the last tempo the user dialed on THAT piece — falling back to their
+   * most recent tempo anywhere, then the plain 120 default. Ignored when a
+   * strategy passes its own `metronome` (session tempos are the strategy's).
+   */
+  tempoMemoryKey?: string | null;
   /** Which tools to show, in order. Defaults to all three. */
   tools?: ToolBarKey[];
   /**
@@ -109,6 +120,55 @@ export function PracticeToolsBar({
   // Free-standing fallback so the panel always has an engine to drive.
   const ownMetro = useMetronome(120);
   const metro = metronome ?? ownMetro;
+
+  // ── Per-piece tempo memory (viewer metronome only) ──────────────────────
+  // Hydrate the free-standing metronome from the piece's remembered tempo
+  // (then the global most-recent, then leave the 120 default), and persist
+  // the user's dials back. `appliedRef` marks the programmatic set so
+  // hydration itself is never mistaken for a dial.
+  const usingOwnMetro = !metronome;
+  const memHydratedRef = useRef(false);
+  const memAppliedRef = useRef<number | null>(null);
+  const memPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!usingOwnMetro || !tempoMemoryKey) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const saved =
+          (await getSetting(`metronome:lastBpm:${tempoMemoryKey}`)) ??
+          (await getSetting('metronome:lastBpm:_global'));
+        const bpm = saved ? parseInt(saved, 10) : NaN;
+        if (!cancelled && Number.isFinite(bpm) && bpm >= 20 && bpm <= 400) {
+          memAppliedRef.current = bpm;
+          ownMetro.setBpm(bpm);
+        }
+      } catch {
+        // no memory is fine — the 120 default stands
+      }
+      if (!cancelled) memHydratedRef.current = true;
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tempoMemoryKey, usingOwnMetro]);
+  useEffect(() => {
+    if (!usingOwnMetro || !tempoMemoryKey || !memHydratedRef.current) return;
+    // The bpm we just applied from storage is not a user dial.
+    if (metro.bpm === memAppliedRef.current) return;
+    memAppliedRef.current = null;
+    const bpm = metro.bpm;
+    if (memPersistTimer.current) clearTimeout(memPersistTimer.current);
+    memPersistTimer.current = setTimeout(() => {
+      setSetting(`metronome:lastBpm:${tempoMemoryKey}`, String(bpm)).catch(() => {});
+      setSetting('metronome:lastBpm:_global', String(bpm)).catch(() => {});
+    }, 600);
+    return () => {
+      if (memPersistTimer.current) clearTimeout(memPersistTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metro.bpm, usingOwnMetro, tempoMemoryKey]);
 
   // Lifted metronome state — survives opening / closing the dropdown.
   const [meter, setMeter] = useState('4/4');

@@ -1412,6 +1412,7 @@ export default function DocumentScreen() {
           <PracticeToolsBar
             pencil={pencilProp}
             recorderDocumentId={id}
+            tempoMemoryKey={id}
             anchorTop={8}
             anchorRight={screenCount > 1 ? 56 : 12}
           />

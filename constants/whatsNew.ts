@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-02-metronome-tempo-memory',
+    date: 'September 2, 2026',
+    title: 'The metronome now remembers each piece\'s tempo',
+    body:
+      'Opening a score used to greet you with the metronome reset to 120, every time, no matter what tempo you had just been working at. Now each piece remembers the last tempo you dialed in on its pages, and the metronome opens right there. A piece you have never dialed a tempo on starts from your most recent tempo instead of the generic default. Practice-session screens are unchanged — their tempos still come from the session itself.',
+  },
+  {
     id: '2026-09-02-prompt-timer-batch-upload',
     date: 'September 2, 2026',
     title: 'New: the Prompt timer, batch PDF upload, and a smarter big-session nudge',
