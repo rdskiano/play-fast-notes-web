@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-02-coach-button-resting',
+    date: 'September 2, 2026',
+    title: 'The practice coach is taking a short sabbatical',
+    body:
+      'The beta "How should I practice?" button is stepping off the passage screen for a while. A week of closely watched real practice taught us that its suggestions were too often confidently wrong — telling daily scales to graduate, mistaking warm-up routines for ruts, and measuring pieces you already know by heart. Rather than let a beta coach mislead you, we are rebuilding it around what we learned. All the practice strategies are exactly where they always were; nothing about your practicing or your history changes. The coach will be back when it deserves to be.',
+  },
+  {
     id: '2026-09-02-metronome-tempo-memory',
     date: 'September 2, 2026',
     title: 'The metronome now remembers each piece\'s tempo',

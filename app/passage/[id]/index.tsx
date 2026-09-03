@@ -36,6 +36,7 @@ import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Lift, Palette } from '@/constants/palette';
+import { COACH_BUTTON_ENABLED } from '@/constants/coach';
 import { Colors, Fonts } from '@/constants/theme';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
@@ -883,28 +884,30 @@ export default function PassageDetailScreen() {
               <ScrollView
                 contentContainerStyle={{ gap: Spacing.sm, paddingBottom: Spacing.lg }}
                 showsVerticalScrollIndicator={false}>
-                <Pressable
-                  onPress={() => {
-                    setPracticeOpen(false);
-                    guardedNav(() =>
-                      router.push(
-                        `/passage/${passage.id}/${hasPracticed === false ? 'evaluate' : 'coach'}`,
-                      ),
-                    );
-                  }}
-                  style={styles.heroCoach}>
-                  <View style={styles.heroCoachIcon}>
-                    <Feather name="zap" size={18} color="#fff" />
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <ThemedText style={styles.heroCoachTitle}>
-                      {hasPracticed === false ? 'Ready to practice?' : 'How should I practice?'}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.heroBeta}>
-                    <ThemedText style={styles.heroBetaText}>BETA</ThemedText>
-                  </View>
-                </Pressable>
+                {COACH_BUTTON_ENABLED && (
+                  <Pressable
+                    onPress={() => {
+                      setPracticeOpen(false);
+                      guardedNav(() =>
+                        router.push(
+                          `/passage/${passage.id}/${hasPracticed === false ? 'evaluate' : 'coach'}`,
+                        ),
+                      );
+                    }}
+                    style={styles.heroCoach}>
+                    <View style={styles.heroCoachIcon}>
+                      <Feather name="zap" size={18} color="#fff" />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <ThemedText style={styles.heroCoachTitle}>
+                        {hasPracticed === false ? 'Ready to practice?' : 'How should I practice?'}
+                      </ThemedText>
+                    </View>
+                    <View style={styles.heroBeta}>
+                      <ThemedText style={styles.heroBetaText}>BETA</ThemedText>
+                    </View>
+                  </Pressable>
+                )}
                 {STRATEGIES.map(renderStratRow)}
               </ScrollView>
             </View>
@@ -1039,6 +1042,7 @@ export default function PassageDetailScreen() {
             onProBlocked={() => setBuilderPaywall(true)}
           />
 
+          {COACH_BUTTON_ENABLED && (
           <Pressable
             onPress={() =>
               guardedNav(() =>
@@ -1065,6 +1069,7 @@ export default function PassageDetailScreen() {
               <ThemedText style={styles.heroBetaText}>BETA</ThemedText>
             </View>
           </Pressable>
+          )}
 
           <ThemedText style={styles.heroSectionHeading}>Practice strategies</ThemedText>
           {/* Keyed by viewport width: after a landscape→portrait round-trip the
