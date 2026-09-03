@@ -83,7 +83,12 @@ function TimerDot({ icon, label, enabled, device, onPress }: DotProps) {
         { backgroundColor: enabled ? device.keyOn : device.keyOff },
       ]}>
       <ThemedText style={styles.timerKeyIcon}>{icon}</ThemedText>
+      {/* One line always — "Prompts" wrapped inside the 50px key on iPhone
+          (Ralph, 2026-09-02); shrink-to-fit beats renaming or wider keys. */}
       <ThemedText
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
         style={[
           styles.timerKeyLabel,
           { color: enabled ? device.onText : device.offText },
