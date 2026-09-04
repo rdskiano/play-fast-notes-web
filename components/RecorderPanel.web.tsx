@@ -41,6 +41,27 @@ type Take = {
   saved: boolean;
 };
 
+// ---- Session-long take store -------------------------------------------
+// Takes must survive the panel unmounting (Ralph's rule: "that take should
+// stay there until the practice session is over"). The tool cards mount
+// one panel at a time, so opening the metronome to silence a drone used to
+// DESTROY a just-recorded take — the state (and its object URLs) lived in
+// the component. The list now lives at module scope for the life of the
+// page; URLs are revoked only when a take is deleted or pruned, never on
+// unmount. Capped so blobs can't pile up across a long day.
+const MAX_SESSION_TAKES = 8;
+let sessionTakes: Take[] = [];
+let sessionActiveTakeId: string | null = null;
+
+function pruneSessionTakes(next: Take[]): Take[] {
+  if (next.length <= MAX_SESSION_TAKES) return next;
+  const keep = next.slice(next.length - MAX_SESSION_TAKES);
+  next
+    .slice(0, next.length - MAX_SESSION_TAKES)
+    .forEach((t) => URL.revokeObjectURL(t.url));
+  return keep;
+}
+
 const SPEEDS = [1, 0.75, 0.5] as const;
 const METER_FLOOR = -50;
 const HOT_DB = -3;
@@ -69,9 +90,21 @@ function relativeTime(createdAt: number): string {
 export function RecorderPanel({
   passageId,
   documentId,
+  onPlaybackStart,
+  collapsed,
+  onToggleCollapsed,
 }: {
   passageId?: string;
   documentId?: string;
+  // Called the moment a take starts playing. The mounting layer passes a
+  // "silence the metronome/drone" hook — nobody presses play on a take of
+  // themselves WANTING a drone underneath it (Ralph, first live use).
+  onPlaybackStart?: () => void;
+  // Mini mode: just the record button + elapsed, so the card stops hiding
+  // the score behind it (Ralph: "collapse down to just the record button").
+  // The mounting layer owns the state because it also owns the card size.
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
   const session = useSession();
   // Phone density: shorter side under 600 px (catches landscape too).
@@ -87,8 +120,23 @@ export function RecorderPanel({
       ? { documentId }
       : null;
 
-  const [takes, setTakes] = useState<Take[]>([]);
-  const [activeTakeId, setActiveTakeId] = useState<string | null>(null);
+  // Seed from (and mirror back to) the module store so takes survive the
+  // panel being closed and reopened mid-session.
+  const [takes, setTakesState] = useState<Take[]>(sessionTakes);
+  const [activeTakeId, setActiveTakeIdState] = useState<string | null>(
+    sessionActiveTakeId,
+  );
+  const setTakes = useCallback((updater: (prev: Take[]) => Take[]) => {
+    setTakesState((prev) => {
+      const next = pruneSessionTakes(updater(prev));
+      sessionTakes = next;
+      return next;
+    });
+  }, []);
+  const setActiveTakeId = useCallback((id: string | null) => {
+    sessionActiveTakeId = id;
+    setActiveTakeIdState(id);
+  }, []);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [freshTakeId, setFreshTakeId] = useState<string | null>(null);
   const [rate, setRate] = useState<number>(1);
@@ -110,8 +158,11 @@ export function RecorderPanel({
   const recordStartRef = useRef(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Revoke object URLs and tear down any live capture when the panel unmounts
-  // (e.g. on navigation). Takes themselves are session-only on web.
+  // Tear down any live capture when the panel unmounts (e.g. on navigation
+  // or switching tool cards). Takes and their object URLs deliberately
+  // SURVIVE unmount — they live in the module store above and are revoked
+  // only on delete/prune. (Previously they were revoked here, which is how
+  // a take died when Ralph left the recorder to turn off the drone.)
   useEffect(() => {
     return () => {
       stopMeter();
@@ -121,7 +172,6 @@ export function RecorderPanel({
         audioElRef.current.pause();
         audioElRef.current = null;
       }
-      takes.forEach((t) => URL.revokeObjectURL(t.url));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -312,6 +362,8 @@ export function RecorderPanel({
   }
 
   function playTake(take: Take) {
+    // Listening intent is unambiguous — quiet any other app audio first.
+    onPlaybackStart?.();
     const a = ensureAudioEl();
     if (activeTakeId !== take.id) {
       a.src = take.url;
@@ -378,6 +430,37 @@ export function RecorderPanel({
   const circleSize = isPhone ? 56 : 76;
   const innerSize = isPhone ? 22 : 30;
 
+  // Mini mode — record/stop + elapsed + expand, nothing else. All hooks
+  // above have already run, so record state carries across the toggle.
+  if (collapsed) {
+    return (
+      <View style={styles.miniPanel}>
+        <Pressable
+          onPress={onToggleCollapsed}
+          hitSlop={10}
+          accessibilityLabel="Expand recorder"
+          style={styles.miniExpand}>
+          <ThemedText style={styles.miniExpandText}>⤢</ThemedText>
+        </Pressable>
+        <Pressable
+          onPress={toggleRecord}
+          hitSlop={6}
+          style={[styles.recordCircle, styles.miniCircle]}>
+          <View
+            style={
+              recording
+                ? styles.stopGlyph
+                : [styles.recordGlyph, styles.miniInner]
+            }
+          />
+        </Pressable>
+        <ThemedText style={styles.miniTimer}>
+          {fmt(recording ? elapsed : 0)}
+        </ThemedText>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.panel, isPhone && styles.panelPhone]}>
       {/* Header — status dot + title + live take count */}
@@ -391,9 +474,20 @@ export function RecorderPanel({
           />
           <ThemedText style={styles.title}>Recorder</ThemedText>
         </View>
-        <ThemedText style={styles.takeCount}>
-          {takes.length} take{takes.length === 1 ? '' : 's'}
-        </ThemedText>
+        <View style={styles.headerRight}>
+          <ThemedText style={styles.takeCount}>
+            {takes.length} take{takes.length === 1 ? '' : 's'}
+          </ThemedText>
+          {onToggleCollapsed ? (
+            <Pressable
+              onPress={onToggleCollapsed}
+              hitSlop={10}
+              accessibilityLabel="Collapse recorder to just the record button"
+              style={styles.collapseBtn}>
+              <ThemedText style={styles.collapseBtnText}>⌄</ThemedText>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       {/* Stage — record circle + timer + live waveform */}
@@ -590,6 +684,33 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  collapseBtn: { paddingHorizontal: 4 },
+  collapseBtnText: {
+    fontSize: 18,
+    lineHeight: 20,
+    color: Palette.textSecondary,
+    fontWeight: Type.weight.heavy,
+  },
+  // Mini mode — the whole panel is just a record button + elapsed.
+  miniPanel: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: Spacing.sm,
+  },
+  miniExpand: { position: 'absolute', top: 6, right: 8 },
+  miniExpandText: { fontSize: 15, color: Palette.textSecondary },
+  miniCircle: { width: 56, height: 56, borderRadius: 28 },
+  miniInner: { width: 40, height: 40, borderRadius: 20 },
+  miniTimer: {
+    fontFamily: Fonts.rounded,
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+    fontVariant: ['tabular-nums'],
+  },
   statusDot: { width: 11, height: 11, borderRadius: 6 },
   title: {
     fontFamily: Fonts.rounded,

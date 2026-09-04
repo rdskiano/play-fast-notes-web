@@ -30,6 +30,7 @@ import {
   usePlayItColdTimer,
 } from '@/components/PracticeTimersContext';
 import { DEVICE, MetronomePanel } from '@/components/MetronomePanel';
+import { useDronePitchMemory } from '@/hooks/useDronePitchMemory';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { RecorderPanel } from '@/components/RecorderPanel';
 import { ThemedText } from '@/components/themed-text';
@@ -120,6 +121,10 @@ export function PracticeToolsBar({
   // Free-standing fallback so the panel always has an engine to drive.
   const ownMetro = useMetronome(120);
   const metro = metronome ?? ownMetro;
+  // Hand back the drone pitch the player chose for this passage/document
+  // last time (state-memory law — the pitch is picked from the passage's
+  // home note, a once-per-passage decision).
+  useDronePitchMemory(metro, recorderPassageId ?? recorderDocumentId);
 
   // ── Per-piece tempo memory (viewer metronome only) ──────────────────────
   // Hydrate the free-standing metronome from the piece's remembered tempo
@@ -203,6 +208,10 @@ export function PracticeToolsBar({
     moveOnEnabled || microbreakEnabled || coldEnabled || bodyMoveEnabled || promptsEnabled;
 
   const [open, setOpen] = useState<ToolBarKey | null>(null);
+  // Recorder mini mode — the dropdown card shrinks to just the record
+  // button so it stops covering the score (the dropdown is anchored, so
+  // unlike the dock cards it can't be dragged out of the way).
+  const [recorderCollapsed, setRecorderCollapsed] = useState(false);
   const keys = tools ?? (['metronome', 'timer', 'recorder'] as ToolBarKey[]);
 
   // Each panel's intrinsic (unscaled) size. On phone the open panel is scaled
@@ -230,6 +239,9 @@ export function PracticeToolsBar({
         bg: TIMER_DEVICE.body,
         border: TIMER_DEVICE.rim,
       };
+    }
+    if (recorderCollapsed) {
+      return { w: 120, h: 132, bg: '#fff', border: Palette.border };
     }
     return {
       w: isPhone ? 260 : 300,
@@ -278,6 +290,11 @@ export function PracticeToolsBar({
       <RecorderPanel
         passageId={recorderPassageId}
         documentId={recorderDocumentId}
+        // Playing back a take silences the metronome (click + drone ride
+        // the same clock) — nobody reviews a take over a drone.
+        onPlaybackStart={() => metro.stop()}
+        collapsed={recorderCollapsed}
+        onToggleCollapsed={() => setRecorderCollapsed((c) => !c)}
       />
     ) : null;
 
@@ -457,7 +474,10 @@ const styles = StyleSheet.create({
   },
   timerPanel: {
     flex: 1,
-    padding: 12,
+    paddingVertical: 12,
+    // Slim side padding: the 7-item pill needs 336px of row inside the
+    // 360-wide panel — 12px sides pushed the Rotate key into the edge.
+    paddingHorizontal: 8,
     gap: 8,
     alignItems: 'center',
     justifyContent: 'center',

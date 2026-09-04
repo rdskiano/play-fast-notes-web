@@ -116,9 +116,15 @@ export function formatPracticeDetail(
         parts.push(`step ${data.step + 1}/${data.totalSteps}`);
       if (data.tempo) parts.push(`${data.tempo} BPM`);
       // Direction (beta): a forward-then-reverse sitting logs passes: 2;
-      // a single backward climb logs direction: 'backward'.
+      // a single backward climb logs direction: 'backward'. Spell the
+      // common case out in player language — a bare "2 passes" made its
+      // own author guess what it meant a day later (D72).
       if (typeof data.passes === 'number' && data.passes > 1) {
-        parts.push(`${data.passes} passes`);
+        parts.push(
+          data.passes === 2
+            ? 'forward, then back'
+            : `${data.passes} passes, alternating direction`,
+        );
       } else if (data.direction === 'backward') {
         parts.push('backward');
       }

@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-03-prompts-recorder-drone-fixes',
+    date: 'September 3, 2026',
+    title: 'A dozen fixes from a recorded day at the practice stand',
+    body:
+      'The Prompt timer grew up fast: you can now type any interval you want (down to 1 minute), each prompt has a checkbox so it can rest in your library without being deleted, the add box sits above the list and keeps the keyboard up so you can enter a whole wall of post-it notes in one go, and every prompt banner carries a small mute so you can silence prompts from any screen. Recordings are safer too: a take you record now survives until you close the app, playing a take automatically silences the metronome and drone, and the recorder card can collapse to just its record button so it stops covering your music. Plus: the drone switch now looks like a switch, the drone remembers the pitch you chose for each passage, a built exercise remembers the tempo you first practiced it at, and the practice log now says "forward, then back" instead of the mysterious "2 passes."',
+  },
+  {
     id: '2026-09-02-coach-button-resting',
     date: 'September 2, 2026',
     title: 'The practice coach is taking a short sabbatical',

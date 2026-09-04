@@ -1,6 +1,6 @@
 import { usePathname, useRouter } from 'expo-router';
-import { useState, useSyncExternalStore } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useRef, useState, useSyncExternalStore } from 'react';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { PassagePickerModal } from '@/components/PassagePickerModal';
@@ -340,25 +340,32 @@ const COLD_MAX_INTERVAL_OPTS = [5, 10, 15, 20, 30] as const;
 // pick up the breath builder") sits comfortably in this range.
 const PROMPT_INTERVAL_OPTS = [3, 5, 10, 15] as const;
 
-function ChipRow<T extends number>({
+function ChipRow({
   options,
   value,
   onChange,
   unit,
   disabled,
   prefix,
+  allowCustom,
 }: {
-  options: readonly T[];
-  value: T;
-  onChange: (next: T) => void;
+  options: readonly number[];
+  value: number;
+  onChange: (next: number) => void;
   unit: string;
   disabled?: boolean;
   // A small label rendered above the chips ("Fire every", "Rest for",
   // "Min interval", …) so the user can tell an interval from a duration.
   prefix?: string;
+  // Adds a type-your-own chip after the presets (1–99), mirroring the
+  // Tempo Ladder custom-increment treatment: outlined box until the typed
+  // number is the active value, then filled like a selected preset.
+  allowCustom?: boolean;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  const isPreset = options.includes(value);
+  const [customText, setCustomText] = useState(isPreset ? '' : String(value));
   return (
     <View style={disabled ? { opacity: 0.4 } : undefined}>
       {prefix ? (
@@ -372,7 +379,10 @@ function ChipRow<T extends number>({
           return (
             <Pressable
               key={opt}
-              onPress={() => onChange(opt)}
+              onPress={() => {
+                onChange(opt);
+                setCustomText('');
+              }}
               disabled={disabled}
               style={[
                 styles.chip,
@@ -390,6 +400,32 @@ function ChipRow<T extends number>({
             </Pressable>
           );
         })}
+        {allowCustom && (
+          <View
+            style={[
+              styles.chip,
+              styles.chipInputWrap,
+              !isPreset
+                ? { backgroundColor: C.tint, borderColor: C.tint }
+                : { backgroundColor: 'transparent', borderColor: C.icon + '55' },
+            ]}>
+            <TextInput
+              value={customText}
+              onChangeText={(t) => {
+                const digits = t.replace(/[^0-9]/g, '').slice(0, 2);
+                setCustomText(digits);
+                const n = parseInt(digits, 10);
+                if (Number.isFinite(n) && n >= 1 && n <= 99) onChange(n);
+              }}
+              editable={!disabled}
+              keyboardType="number-pad"
+              inputMode="numeric"
+              placeholder="other"
+              placeholderTextColor={!isPreset ? 'rgba(255,255,255,0.7)' : C.icon}
+              style={[styles.chipInput, { color: !isPreset ? '#fff' : C.text }]}
+            />
+          </View>
+        )}
       </View>
     </View>
   );
@@ -457,6 +493,7 @@ function TimerSettingsModal({
   const prompts = usePromptTimer();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [promptDraft, setPromptDraft] = useState('');
+  const promptInputRef = useRef<TextInput>(null);
 
   function addPromptCue() {
     const text = promptDraft.trim();
@@ -465,10 +502,26 @@ function TimerSettingsModal({
     // Writing the first cue is the clearest possible "I want this on" —
     // auto-enable then (mirrors Cold enabling when a passage is picked).
     prompts.setConfig({
-      prompts: [...prompts.config.prompts, text],
+      prompts: [...prompts.config.prompts, { text, active: true }],
       ...(wasEmpty ? { enabled: true } : {}),
     });
     setPromptDraft('');
+    // Keep the keyboard up and the caret in the box — cues arrive in
+    // batches (a wall of post-its), so each add flows into the next.
+    promptInputRef.current?.focus();
+  }
+
+  // iPad/phone web: the on-screen keyboard covers the lower half of the
+  // centered modal card, hiding the input mid-typing. When the field gains
+  // focus, nudge it into the visible half once the keyboard has settled.
+  function scrollPromptInputIntoView() {
+    if (Platform.OS !== 'web') return;
+    setTimeout(() => {
+      const node = promptInputRef.current as unknown as {
+        scrollIntoView?: (opts: object) => void;
+      } | null;
+      node?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    }, 300);
   }
 
   return (
@@ -479,7 +532,13 @@ function TimerSettingsModal({
             <ThemedText type="title" style={{ textAlign: 'center' }}>
               Timer settings
             </ThemedText>
-            <ScrollView contentContainerStyle={{ gap: 18 }}>
+            {/* keyboardShouldPersistTaps: with the iPad keyboard up, the
+                first tap on Add must PRESS Add, not merely dismiss the
+                keyboard — otherwise batch-entering cues needs two taps
+                per cue. */}
+            <ScrollView
+              contentContainerStyle={{ gap: 18 }}
+              keyboardShouldPersistTaps="handled">
               {!hideMoveOn && (
                 <View style={styles.settingsBlock}>
                   <ToggleRow
@@ -683,44 +742,36 @@ function TimerSettingsModal({
                 />
                 <ChipRow
                   options={PROMPT_INTERVAL_OPTS}
-                  value={
-                    (PROMPT_INTERVAL_OPTS.find(
-                      (v) => v === prompts.config.intervalMin,
-                    ) ?? PROMPT_INTERVAL_OPTS[1]) as (typeof PROMPT_INTERVAL_OPTS)[number]
-                  }
+                  value={prompts.config.intervalMin}
                   onChange={(v) => prompts.setConfig({ intervalMin: v })}
                   unit=" min"
                   prefix="Show one every"
                   disabled={!prompts.config.enabled}
+                  allowCustom
                 />
-                {prompts.config.prompts.map((cue, i) => (
-                  <View
-                    key={`${i}-${cue}`}
-                    style={[styles.promptRow, { borderColor: C.icon + '33' }]}>
-                    <ThemedText style={styles.promptRowText} numberOfLines={2}>
-                      {cue}
-                    </ThemedText>
-                    <Pressable
-                      onPress={() =>
-                        prompts.setConfig({
-                          prompts: prompts.config.prompts.filter(
-                            (_, j) => j !== i,
-                          ),
-                        })
-                      }
-                      hitSlop={8}
-                      accessibilityLabel={`Remove cue: ${cue}`}>
-                      <ThemedText style={[styles.promptRowDelete, { color: C.icon }]}>
-                        ✕
-                      </ThemedText>
-                    </Pressable>
-                  </View>
-                ))}
+                {/* Add-box ABOVE the cue list: cues arrive in batches, and
+                    with the box below a growing list every add pushed it
+                    further down (and under the iPad keyboard). Here it
+                    stays put while new cues stack below it. */}
                 <View style={styles.promptAddRow}>
                   <TextInput
+                    ref={promptInputRef}
                     value={promptDraft}
                     onChangeText={setPromptDraft}
                     onSubmitEditing={addPromptCue}
+                    // RN-web did NOT fire onSubmitEditing for the Enter key
+                    // in the 2026-09-03 smoke pass (two cues concatenated in
+                    // the box) — catch Enter here too. addPromptCue no-ops
+                    // on an empty draft, so double-firing is harmless.
+                    onKeyPress={(e) => {
+                      if (
+                        (e.nativeEvent as { key?: string }).key === 'Enter'
+                      ) {
+                        addPromptCue();
+                      }
+                    }}
+                    onFocus={scrollPromptInputIntoView}
+                    blurOnSubmit={false}
                     placeholder="Add a cue — e.g. Relax your throat"
                     placeholderTextColor={C.icon}
                     style={[
@@ -742,6 +793,62 @@ function TimerSettingsModal({
                     <ThemedText style={styles.promptAddBtnText}>Add</ThemedText>
                   </Pressable>
                 </View>
+                {prompts.config.prompts.map((cue, i) => (
+                  <View
+                    key={`${i}-${cue.text}`}
+                    style={[styles.promptRow, { borderColor: C.icon + '33' }]}>
+                    {/* Checkbox = "in today's rotation". Unchecked cues
+                        stay in the library (post-its aren't thrown away;
+                        some just aren't today's focus). */}
+                    <Pressable
+                      onPress={() =>
+                        prompts.setConfig({
+                          prompts: prompts.config.prompts.map((p, j) =>
+                            j === i ? { ...p, active: !p.active } : p,
+                          ),
+                        })
+                      }
+                      hitSlop={8}
+                      accessibilityLabel={
+                        cue.active
+                          ? `Remove from today's rotation: ${cue.text}`
+                          : `Add to today's rotation: ${cue.text}`
+                      }
+                      style={[
+                        styles.promptCheck,
+                        {
+                          borderColor: cue.active ? C.tint : C.icon + '77',
+                          backgroundColor: cue.active ? C.tint : 'transparent',
+                        },
+                      ]}>
+                      {cue.active ? (
+                        <ThemedText style={styles.promptCheckMark}>✓</ThemedText>
+                      ) : null}
+                    </Pressable>
+                    <ThemedText
+                      style={[
+                        styles.promptRowText,
+                        !cue.active && { opacity: 0.45 },
+                      ]}
+                      numberOfLines={2}>
+                      {cue.text}
+                    </ThemedText>
+                    <Pressable
+                      onPress={() =>
+                        prompts.setConfig({
+                          prompts: prompts.config.prompts.filter(
+                            (_, j) => j !== i,
+                          ),
+                        })
+                      }
+                      hitSlop={8}
+                      accessibilityLabel={`Remove cue: ${cue.text}`}>
+                      <ThemedText style={[styles.promptRowDelete, { color: C.icon }]}>
+                        ✕
+                      </ThemedText>
+                    </Pressable>
+                  </View>
+                ))}
               </View>
             </ScrollView>
             <Button label="Close" onPress={onClose} />
@@ -828,13 +935,15 @@ const styles = StyleSheet.create({
     // Stay on ONE row across every device — the parent card is sized
     // to fit all seven items (5 toggles + ⚙ + ?). Wrapping made the row
     // split into an asymmetric halves that looked broken. Key widths are
-    // trimmed (54→50 / 38→36, gap 6→5) so the Prompts key fits the same
-    // 360-wide card an iPhone can hold.
+    // trimmed (50→48, gap 5→4) so all seven items + the panels' side
+    // padding fit the 360-wide card an iPhone can hold: 5×48 + 2×36 +
+    // 6×4 = 336 content, ≤344 with padding. At 50/5 the row was 352 and
+    // overflowed the box — the Rotate key touched its left edge.
     flexWrap: 'nowrap',
-    gap: 5,
+    gap: 4,
   },
   timerKey: {
-    width: 50,
+    width: 48,
     paddingVertical: 8,
     borderRadius: 12,
     alignItems: 'center',
@@ -933,6 +1042,20 @@ const styles = StyleSheet.create({
 
   // Timer settings sheet
   settingsBlock: { gap: 8 },
+  promptCheck: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: Borders.medium,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  promptCheckMark: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: Type.weight.heavy,
+    lineHeight: 16,
+  },
   promptRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -992,6 +1115,20 @@ const styles = StyleSheet.create({
     borderWidth: Borders.thin,
   },
   chipText: { fontSize: Type.size.sm, fontWeight: Type.weight.bold },
+  // The type-your-own chip (ChipRow allowCustom): a chip-shaped shell
+  // holding a bare TextInput, mirroring TempoConfigFields' treatment.
+  chipInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 0,
+  },
+  chipInput: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.bold,
+    paddingVertical: 5,
+    minWidth: 40,
+    textAlign: 'center',
+  },
   chipPrefix: {
     fontSize: 12,
     fontWeight: Type.weight.semibold,

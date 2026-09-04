@@ -88,6 +88,18 @@ support (attendance receipts, polishing without probes, maintenance tempos).
 6. **Whether "maintaining-phase repertoire" (slider at the far right)
    changes anything in v1** (proposed: no).
 
+## Live data: Ralph's whole library is tagged
+
+2026-09-03: Ralph tagged all 46 library items by multiple-choice in one
+sitting — see `LIBRARY_ROLE_TAGS.md` for the full table AND eight design
+findings from doing it live (folder-based defaults worked for Ralph but he
+flagged them as an n=1 hypothesis — suggest-and-confirm only, never silent;
+the trail provably can't infer phase — Frenzy vs. Cuban Overture; the role
+question needs a skip path; roles are the player's call; new exercises can
+start as "building"). Ralph RULED (same day): no fifth "teaching material" role —
+music he adds to teach is simply Solo ("I need to learn it in order to
+teach it"); the four roles stand.
+
 ## Log & design lineage
 
 COACH_SIGNAL_LOG.md: D53, D55, D56, D57, D59, D60, D61, D63, D64, D65, D66.

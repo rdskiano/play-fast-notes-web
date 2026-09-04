@@ -723,19 +723,34 @@ function DroneOverlay({
             showsVerticalScrollIndicator={false}>
           <View style={styles.droneRow}>
             <ThemedText style={styles.droneRowLabel}>DRONE TONE</ThemedText>
-            <Pressable
-              onPress={() => onToggle(!m.droneEnabled)}
-              style={[
-                styles.onOff,
-                styles.raised,
-                {
-                  backgroundColor: m.droneEnabled ? DEVICE.tone : DEVICE.mute,
-                },
-              ]}>
-              <ThemedText style={styles.onOffText}>
+            {/* A real switch, not a state-labelled button: the old raised
+                "OFF" key read as "press to turn off" (Ralph, first live
+                use). The knob's position + track colour carry the state;
+                the small caption names it without sitting on the control. */}
+            <View style={styles.droneSwitchRow}>
+              <ThemedText style={styles.droneSwitchCaption}>
                 {m.droneEnabled ? 'ON' : 'OFF'}
               </ThemedText>
-            </Pressable>
+              <Pressable
+                onPress={() => onToggle(!m.droneEnabled)}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: m.droneEnabled }}
+                accessibilityLabel="Drone tone"
+                hitSlop={8}
+                style={[
+                  styles.droneSwitchTrack,
+                  {
+                    backgroundColor: m.droneEnabled ? DEVICE.tone : DEVICE.mute,
+                  },
+                ]}>
+                <View
+                  style={[
+                    styles.droneSwitchKnob,
+                    { transform: [{ translateX: m.droneEnabled ? 24 : 2 }] },
+                  ]}
+                />
+              </Pressable>
+            </View>
           </View>
 
           <ThemedText style={styles.droneSectionLabel}>PITCH</ThemedText>
@@ -1261,23 +1276,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  droneSwitchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  droneSwitchCaption: {
+    color: DEVICE.text,
+    opacity: 0.6,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  droneSwitchTrack: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: DEVICE.rim,
+    justifyContent: 'center',
+  },
+  droneSwitchKnob: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#fff',
+  },
   droneRowLabel: {
     fontSize: 11,
     fontWeight: Type.weight.bold,
     letterSpacing: 1,
     color: DEVICE.dim,
   },
-  onOff: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DEVICE.rim,
-    minWidth: 66,
-    alignItems: 'center',
-  },
-  onOffText: { fontSize: 14, fontWeight: Type.weight.black, color: '#fff' },
-
   droneSectionLabel: {
     fontSize: 10,
     fontWeight: Type.weight.bold,

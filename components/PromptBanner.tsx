@@ -19,7 +19,7 @@ const FADE_IN_MS = 250;
 const FADE_OUT_MS = 600;
 
 export function PromptBanner() {
-  const { activePrompt, dismissPrompt } = usePromptTimer();
+  const { activePrompt, dismissPrompt, setConfig } = usePromptTimer();
   const insets = useSafeAreaInsets();
   const opacity = useRef(new Animated.Value(0)).current;
   // Keep the last text mounted through the fade-out so the banner does not
@@ -53,6 +53,21 @@ export function PromptBanner() {
       style={[styles.wrap, { top: insets.top + 10, opacity }]}>
       <Pressable onPress={dismissPrompt} style={styles.card}>
         <ThemedText style={styles.text}>{shownText}</ThemedText>
+        {/* Mute-where-it-appears: prompts fire on every screen (library
+            included) but the timer controls only live on practice screens,
+            so the banner itself carries the off switch. One tap turns the
+            Prompts timer off; turning it back on happens wherever the
+            timer tools are. */}
+        <Pressable
+          onPress={() => {
+            setConfig({ enabled: false });
+            dismissPrompt();
+          }}
+          hitSlop={10}
+          accessibilityLabel="Turn prompt timer off"
+          style={styles.muteBtn}>
+          <ThemedText style={styles.muteBtnText}>🔕</ThemedText>
+        </Pressable>
       </Pressable>
     </Animated.View>
   );
@@ -70,6 +85,9 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     maxWidth: 520,
     marginHorizontal: 16,
     paddingVertical: 12,
@@ -86,9 +104,18 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
   },
   text: {
+    flexShrink: 1,
     color: '#f3efe9',
     fontSize: 17,
     lineHeight: 24,
     textAlign: 'center',
+  },
+  muteBtn: {
+    opacity: 0.55,
+    paddingLeft: 2,
+  },
+  muteBtnText: {
+    fontSize: 16,
+    lineHeight: 20,
   },
 });

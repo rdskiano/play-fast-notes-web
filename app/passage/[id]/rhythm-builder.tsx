@@ -112,6 +112,12 @@ type StoredConfig = {
   grouping?: number;
   pitches?: Pitch[];
   useSharps?: boolean;
+  // The dial tempo at the FIRST practice-phase play of this exercise —
+  // the player's canonical starting tempo, restored on every later open
+  // (state-memory law, D68: "remember what I set it to the first time").
+  // Deliberately first-set, not last-used: mid-session dial moves for
+  // other meters must not overwrite the anchor.
+  startBpm?: number;
 };
 
 function parseConfig(json: string | null | undefined): StoredConfig {
@@ -221,6 +227,8 @@ export default function RhythmBuilderScreen() {
   const [grouping, setGrouping] = useState<Grouping>(4);
   const [useSharps, setUseSharps] = useState(true);
   const [pitches, setPitches] = useState<Pitch[]>([]);
+  // The exercise's remembered starting tempo (see StoredConfig.startBpm).
+  const [startBpm, setStartBpm] = useState<number | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
@@ -344,6 +352,13 @@ export default function RhythmBuilderScreen() {
           // exercises (practice) phase instead of starting back at Setup.
           if (cfg.pitches.length > 0) setPhase('generate');
         }
+        if (
+          typeof cfg.startBpm === 'number' &&
+          cfg.startBpm >= 20 &&
+          cfg.startBpm <= 400
+        ) {
+          setStartBpm(cfg.startBpm);
+        }
         setHydrated(true);
       });
     } else {
@@ -385,6 +400,7 @@ export default function RhythmBuilderScreen() {
       grouping,
       pitches,
       useSharps,
+      ...(startBpm != null ? { startBpm } : {}),
     };
     const json = JSON.stringify(merged);
     pendingSaveRef.current = { exerciseId: exercise.id, json };
@@ -415,6 +431,7 @@ export default function RhythmBuilderScreen() {
     grouping,
     pitches,
     useSharps,
+    startBpm,
   ]);
 
   // Unmount: if a debounced save is still pending, fire it now so the
@@ -1073,6 +1090,13 @@ export default function RhythmBuilderScreen() {
             onBack={() => setPhase('entry')}
             goalTempo={passage?.performance_tempo ?? null}
             onMeterChange={setToolMeter}
+            startBpm={startBpm}
+            onCaptureStartBpm={(bpm) =>
+              // Capture-once: only the FIRST play stamps the exercise's
+              // canonical starting tempo (Ralph's ask — later dial moves
+              // for other meters must not overwrite it).
+              setStartBpm((prev) => prev ?? bpm)
+            }
           />
           {/* Phone keeps the floating tool rail (no header room for extra
               buttons). Tablet/laptop reach the metronome + timer from the
@@ -1289,6 +1313,8 @@ function ExercisesPhase({
   onBack,
   goalTempo,
   onMeterChange,
+  startBpm,
+  onCaptureStartBpm,
 }: {
   pitches: Pitch[];
   grouping: Grouping;
@@ -1302,6 +1328,10 @@ function ExercisesPhase({
   goalTempo: number | null;
   /** Push the exercise's time signature onto the metronome panel. */
   onMeterChange?: (timeSig: string) => void;
+  /** The exercise's remembered starting tempo — wins over the goal seed. */
+  startBpm?: number | null;
+  /** Reports the dial tempo when a pattern plays (parent keeps first-set). */
+  onCaptureStartBpm?: (bpm: number) => void;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -1326,6 +1356,14 @@ function ExercisesPhase({
     const first = patterns[0];
     if (!first) return;
     onMeterChange?.(first.timeSig);
+    // The exercise's own remembered starting tempo wins over the generic
+    // goal seed — it's the dial value the player chose on their first
+    // play (typically on this same first pattern), restored verbatim.
+    if (startBpm != null) {
+      metronome.setBpm(startBpm);
+      if (grouping === 4) tempoAnchorRef.current = meterDialFactor(first.timeSig);
+      return;
+    }
     if (grouping === 4 && goalTempo && tempoAnchorRef.current == null) {
       const f = meterDialFactor(first.timeSig);
       metronome.setBpm(goalTempo * f);
@@ -1391,6 +1429,9 @@ function ExercisesPhase({
         : parseBeatDenominator(pattern.timeSig);
     metronome.playPitchRhythm(freqs, tokens, beatUnits);
     setPlayingId(pattern.id);
+    // Report the dial the player actually pressed ▶ at — the parent keeps
+    // only the first (the exercise's canonical starting tempo).
+    onCaptureStartBpm?.(Math.round(metronome.bpm));
   }
 
   return (

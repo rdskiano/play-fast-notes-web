@@ -14,6 +14,56 @@ starts from inputting the music.
 
 ---
 
+# 2026-09-03 — SESSION 7 (D67–D74): first RECORDED session — four videos,
+# full detail in PRACTICE_VIDEO_MARKS_2026-09-03.md (timestamped marks +
+# 14-item fix list). Also same morning: whole library tagged with roles &
+# phases → LIBRARY_ROLE_TAGS.md. Headlines only here:
+
+- **D67 — the prompt timer IS an attention scheduler (validated).** Prompts
+  loaded from his studio post-its; first fire redirected him from a fixation
+  (biting) to the dropped cue (support) — "awesome timing"; a "use your breath
+  builder" prompt he wrote at minute 5 changed his behavior at minute 32.
+  His words: "it just tells you which one to focus on right now." Wants: faster-
+  than-2-min free-entry interval, per-piece + per-activity prompt sets, "remind
+  me next time" checkbox on session notes, a "don't"-detector nudge (positive
+  cue phrasing — he caught himself twice).
+- **D68 — state-memory law (4 instances in one day):** whatever the player set
+  deliberately, hand it back — static-exercise maintenance tempo (re-dials
+  117→112 daily), exercise starting tempo, prompt interval, drone pitch per
+  passage. Ladders remember their peak; nothing remembers his intention.
+- **D69 — the allocation moment is real:** "two hours left, exercises vs. rep"
+  is where he wants the piece-level coach; due dates are the missing input and
+  folder-inherited concert dates (already sketched in an earlier entry) got
+  re-derived from need. "No more data entry" is the constraint.
+- **D70 — PHASE SLIDER MARKUP (feeds plan Undecided #3):** morning tagging used
+  4 coarse stops; by afternoon "performance-ready" Cuban Overture was getting
+  technique-drilled. His ruling: not enough gradation — the tag meant FAMILIAR,
+  not ready-today. The top of the slider needs the most room: a pro's season
+  lives between "could play it now" and "as solid as I want."
+- **D71 — per-piece dashboard spec'd itself:** passage jump-list + days-since
+  per row + tempo/progress + a "marking complete" flag (Cuban's 3 marks are
+  exhaustive; the Adams is only surveyed to p.4 — absence of marks is ambiguous
+  without survey state). Motivation: COVERAGE BLINDNESS — "I thought I had
+  practiced this whole piece, but I can see that I didn't." Paper showed
+  neglect; the app must earn that honesty back. (Recency = 3rd request.)
+- **D72 — capture dies without voice:** he abandoned a session note because
+  dictation didn't work ("that means I'm not gonna do it"); his own log
+  entries needed decoding a day later ("two passes"? "only do half" — why?).
+  Log language must be reconstructable; notes want the WHY; dictation is load-
+  bearing for the whole notes-as-prompts loop.
+- **D73 — configure big, operate tiny:** two tools independently asked for a
+  persistent micro-control (metronome start/stop on the page; recorder
+  collapsed to just a record button once armed). A shared pattern, not two
+  features.
+- **D74 — drone: discoverability, not absence.** He left the app for
+  TonalEnergy while the drone sat live in the metronome; once found, it was
+  under every passage within 20 minutes (incl. first-ever drone+ICU) and he
+  called practicing with pitch "amazing." Real bugs found: intermittent
+  tempo-correlated click in the drone; recorder take DIES on tool-switch
+  (must live session-long; play-take should silence other audio — his fix).
+
+---
+
 # 2026-09-02 — D66: the assessment's missing floor — sub-half-tempo means
 # CHAINING, not a ladder (Ralph's own realization, self-report overturned)
 

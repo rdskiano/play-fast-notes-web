@@ -44,10 +44,14 @@ export type BodyMoveConfig = { enabled: boolean; intervalMin: number };
 // auto-fading banner. The app supplies only the clock and the random pick;
 // the words are entirely the player's / their teachers'. Unlike the other
 // timers it never blocks: no overlay, no dismissal required.
+// A cue keeps its place in the library when unchecked — `active` only
+// controls whether the rotation may pick it right now. (Ralph: post-its
+// don't get thrown away after one session; some just aren't today's focus.)
+export type PromptCue = { text: string; active: boolean };
 export type PromptsConfig = {
   enabled: boolean;
   intervalMin: number;
-  prompts: string[];
+  prompts: PromptCue[];
 };
 
 const DEFAULT_MOVE_ON: MoveOnConfig = { enabled: false, intervalMin: 3 };
@@ -211,8 +215,26 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
       setBodyMoveCfg(bm);
       setPromptsCfg({
         ...pr,
+        // Normalize both stored generations: plain strings (the original
+        // shape) become active cues; object cues pass through with a
+        // defaulted `active` so partially-written rows can't crash.
         prompts: Array.isArray(pr.prompts)
-          ? pr.prompts.filter((p) => typeof p === 'string')
+          ? (pr.prompts as unknown[]).flatMap((p): PromptCue[] => {
+              if (typeof p === 'string') return [{ text: p, active: true }];
+              if (
+                p &&
+                typeof p === 'object' &&
+                typeof (p as PromptCue).text === 'string'
+              ) {
+                return [
+                  {
+                    text: (p as PromptCue).text,
+                    active: (p as PromptCue).active !== false,
+                  },
+                ];
+              }
+              return [];
+            })
           : [],
       });
       setHydrated(true);
@@ -324,7 +346,9 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
 
   const showRandomPrompt = useCallback(() => {
     const cfg = promptsCfgRef.current;
-    const list = cfg.prompts;
+    // Only checked cues are in today's rotation; unchecked ones stay in
+    // the library untouched.
+    const list = cfg.prompts.filter((p) => p.active);
     if (!cfg.enabled || list.length === 0) return;
     let idx = Math.floor(Math.random() * list.length);
     // Avoid repeating the same cue twice in a row when there is a choice.
@@ -332,7 +356,7 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
       idx = (idx + 1) % list.length;
     }
     lastPromptIndexRef.current = idx;
-    setActivePrompt(list[idx]);
+    setActivePrompt(list[idx].text);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     if (promptHideRef.current) clearTimeout(promptHideRef.current);
     promptHideRef.current = setTimeout(() => {
@@ -341,12 +365,21 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
     }, PROMPT_VISIBLE_MS);
   }, []);
 
+  // Whether any cue is checked into the rotation. Deliberately a boolean,
+  // not a count: the effect below restarts the interval clock whenever a
+  // dependency changes, and during Ralph's first recorded session every
+  // mid-practice cue-add was silently resetting the schedule ("is this
+  // thing even on?"). Adding/unchecking cues while at least one stays
+  // active must NOT touch the clock — showRandomPrompt reads the live
+  // list through a ref anyway.
+  const hasActivePrompts = promptsCfg.prompts.some((p) => p.active);
+
   useEffect(() => {
     if (promptIntervalRef.current) {
       clearInterval(promptIntervalRef.current);
       promptIntervalRef.current = null;
     }
-    if (!hydrated || !promptsCfg.enabled || promptsCfg.prompts.length === 0) {
+    if (!hydrated || !promptsCfg.enabled || !hasActivePrompts) {
       return;
     }
     const ms = Math.max(30_000, promptsCfg.intervalMin * 60_000);
@@ -361,7 +394,7 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
     hydrated,
     promptsCfg.enabled,
     promptsCfg.intervalMin,
-    promptsCfg.prompts.length,
+    hasActivePrompts,
     showRandomPrompt,
   ]);
 

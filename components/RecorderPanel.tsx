@@ -48,9 +48,19 @@ function fmt(sec: number): string {
 export function RecorderPanel({
   passageId,
   documentId,
+  onPlaybackStart,
+  collapsed,
+  onToggleCollapsed,
 }: {
   passageId?: string;
   documentId?: string;
+  // Called the moment a take starts playing — the mounting layer silences
+  // the metronome/drone (mirrors the web panel).
+  onPlaybackStart?: () => void;
+  // Mini mode: just the record button, so the card stops hiding the score
+  // (mirrors the web panel; the mounting layer owns the card size).
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
@@ -139,6 +149,8 @@ export function RecorderPanel({
   }
 
   function playTake(take: Take) {
+    // Listening intent is unambiguous — quiet any other app audio first.
+    onPlaybackStart?.();
     if (activeTakeId !== take.id) {
       player.replace({ uri: take.uri });
       setActiveTakeId(take.id);
@@ -176,8 +188,43 @@ export function RecorderPanel({
     }
   }
 
+  // Mini mode — just record/stop (+ expand), so the card stops hiding the
+  // score (mirrors the web panel).
+  if (collapsed) {
+    return (
+      <View style={styles.miniPanel}>
+        <Pressable
+          onPress={onToggleCollapsed}
+          hitSlop={10}
+          accessibilityLabel="Expand recorder"
+          style={styles.miniExpand}>
+          <ThemedText style={styles.miniExpandText}>⤢</ThemedText>
+        </Pressable>
+        <Pressable
+          onPress={toggleRecord}
+          style={[styles.recordBtn, { backgroundColor: Palette.danger }]}>
+          <View style={recording ? styles.stopGlyph : styles.recordGlyph} />
+          <ThemedText style={styles.recordLabel}>
+            {recording
+              ? fmt((Date.now() - recordStartRef.current) / 1000)
+              : 'Record'}
+          </ThemedText>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.panel}>
+      {onToggleCollapsed ? (
+        <Pressable
+          onPress={onToggleCollapsed}
+          hitSlop={10}
+          accessibilityLabel="Collapse recorder to just the record button"
+          style={styles.collapseBtn}>
+          <ThemedText style={styles.collapseBtnText}>⌄</ThemedText>
+        </Pressable>
+      ) : null}
       <Pressable
         onPress={toggleRecord}
         style={[
@@ -309,6 +356,22 @@ const styles = StyleSheet.create({
     borderRadius: Radii.lg,
   },
   recordGlyph: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#fff' },
+  // Mini (collapsed) mode.
+  miniPanel: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.sm,
+  },
+  miniExpand: { position: 'absolute', top: 6, right: 8 },
+  miniExpandText: { fontSize: 15, color: Palette.textSecondary },
+  collapseBtn: { position: 'absolute', top: 4, right: 8, zIndex: 1 },
+  collapseBtnText: {
+    fontSize: 18,
+    lineHeight: 20,
+    color: Palette.textSecondary,
+    fontWeight: Type.weight.heavy,
+  },
   stopGlyph: { width: 14, height: 14, borderRadius: 3, backgroundColor: '#fff' },
   recordLabel: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.md },
   meterTrack: {

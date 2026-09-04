@@ -38,6 +38,7 @@ import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useDronePitchMemory } from '@/hooks/useDronePitchMemory';
 import { usePenDetected } from '@/hooks/usePenDetected';
 import { useMetronome, type BeatState, type MetronomeApi } from '@/lib/audio/useMetronome';
 
@@ -216,6 +217,9 @@ export function PracticeToolsLayer({
   // a practice screen the strategy passes its own so it can drive it.
   const ownMetronome = useMetronome(120);
   const metro = metronome ?? ownMetronome;
+  // Hand back the drone pitch the player chose for this passage/document
+  // last time (state-memory law — mirrors PracticeToolsBar).
+  useDronePitchMemory(metro, recorderPassageId ?? recorderDocumentId);
 
   function onLayout(e: LayoutChangeEvent) {
     const { width, height } = e.nativeEvent.layout;
@@ -334,11 +338,11 @@ export function PracticeToolsLayer({
             tabTop={tabTop}
             tabSpan={span}
             indicator={anyTimerOn ? DEVICE.accent : undefined}
-            // Wider card so all six pill items (Rotate / Break / Cold /
-            // Move + ⚙ + ?) fit in a single row on every device. Phone
-            // gets the same width — 360 still fits inside an iPhone in
-            // portrait (~390 wide). Trim height since one row only needs
-            // ~110 instead of the old 144.
+            // Wider card so all seven pill items (Rotate / Micro / Cold /
+            // Break / Prompts + ⚙ + ?) fit in a single row on every
+            // device. Phone gets the same width — 360 still fits inside
+            // an iPhone in portrait (~390 wide). Trim height since one
+            // row only needs ~110 instead of the old 144.
             panelWidth={360}
             panelHeight={132}>
             <View style={styles.timerPanel}>
@@ -382,6 +386,9 @@ export function PracticeToolsLayer({
             <RecorderPanel
               passageId={recorderPassageId}
               documentId={recorderDocumentId}
+              // Playing back a take silences the metronome (click + drone
+              // ride the same clock) — nobody reviews a take over a drone.
+              onPlaybackStart={() => metro.stop()}
             />
           </ToolDock>
         );
@@ -540,7 +547,10 @@ const styles = StyleSheet.create({
   },
   timerPanel: {
     flex: 1,
-    padding: Spacing.md,
+    paddingVertical: Spacing.md,
+    // Slim side padding: the 7-item pill needs 336px of row inside the
+    // 360-wide card — Spacing.md sides pushed the Rotate key into the edge.
+    paddingHorizontal: 8,
     gap: Spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
