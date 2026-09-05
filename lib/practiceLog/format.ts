@@ -108,8 +108,23 @@ export function formatPracticeDetail(
 
     if (entry.strategy === 'click_up') {
       if (compact) {
-        if (data.step != null && data.totalSteps) return `${data.step + 1}/${data.totalSteps}`;
-        return null;
+        // Direction rides the compact chip too — the document and library
+        // logs showed a bare "Interleaved Click-Up" while only the passage
+        // view said "forward, then back" (Ralph's verification pass).
+        const dir =
+          typeof data.passes === 'number' && data.passes > 1
+            ? data.passes === 2
+              ? 'forward, then back'
+              : `${data.passes} passes`
+            : data.direction === 'backward'
+              ? 'backward'
+              : null;
+        const step =
+          data.step != null && data.totalSteps
+            ? `${data.step + 1}/${data.totalSteps}`
+            : null;
+        if (step && dir) return `${step} · ${dir}`;
+        return step ?? dir;
       }
       const parts: string[] = [];
       if (data.step != null && data.totalSteps)

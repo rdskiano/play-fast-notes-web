@@ -240,14 +240,18 @@ export function MetronomePanel({
     setEditingBpm(false);
   }
 
-  // The DRONE / RHYTHMS / GAPS layers are mutually exclusive — each is its
-  // own practice mode. Turning one on clears the other two so the metronome
-  // is only ever doing one of: pitched drone, drum groove, or random gaps.
+  // DRONE and GAPS are COMPATIBLE (2026-09-03): gaps silence a share of
+  // beats and the drone only changes what a sounding beat sounds like —
+  // the engine already applies the drop before either voice. The old
+  // all-three-exclusive rule meant turning the drone on silently zeroed a
+  // running gaps setting, which read as "gaps stopped working after a
+  // while" (Ralph, the day he started practicing with the drone under
+  // everything). RHYTHMS stays exclusive with both: grooves run their own
+  // scheduler that bypasses the click/drone/gaps path entirely.
   function enableDrone(on: boolean) {
     m.setDroneEnabled(on);
     if (on) {
       m.setGroove(null);
-      m.setDropChance(0);
     }
   }
   function pickGroove(id: string | null) {
@@ -262,7 +266,6 @@ export function MetronomePanel({
     m.setDropChance(frac);
     if (frac > 0) {
       m.setGroove(null);
-      m.setDroneEnabled(false);
       if (!m.running) m.start();
     }
   }
@@ -913,14 +916,17 @@ function RhythmsOverlay({
   );
 }
 
-// The Gaps levels — 10 % … 80 % of beats dropped. 0 (Off) is the absence of
-// any lit segment, set via the Off pill.
-const GAP_LEVELS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+// The Gaps levels — 5 % … 50 % of beats dropped in 5 % steps. Recalibrated
+// 2026-09-03 (Ralph): nobody uses past 40–50 %, and the musically useful
+// 10–40 % band needed finer control than the old 10 % jumps gave. 0 (Off)
+// is the absence of any lit segment, set via the Off pill.
+const GAP_LEVELS = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5];
 
 // Gaps picker — a centred modal with a big percentage readout and a stepped
 // bar. Picking a level silences that share of beats at random (beat 1
-// included, no visual tell); "Off" brings every click back. Its own
-// standalone mode — selecting it clears any drone / groove (see setGaps).
+// included, no visual tell); "Off" brings every click back. Compatible
+// with the drone (gaps silence beats; the drone colors them) — only a
+// groove clears it (see setGaps).
 function GapsOverlay({
   visible,
   m,

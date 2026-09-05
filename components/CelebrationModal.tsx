@@ -1,4 +1,4 @@
-import { Modal, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { ThemedText } from '@/components/themed-text';
@@ -40,8 +40,14 @@ export function CelebrationModal({
       transparent
       animationType="fade"
       onRequestClose={onRequestClose}>
-      <View style={styles.backdrop}>
-        <View style={[styles.card, { backgroundColor: C.background }]}>
+      {/* Tapping OUTSIDE the card fires onRequestClose — callers wire it to
+          "return to the session" so an accidental arrival here (or a change
+          of heart) never forces logging a session that isn't finished
+          (Ralph, 2026-09-03). The card itself swallows its taps. */}
+      <Pressable style={styles.backdrop} onPress={onRequestClose}>
+        <Pressable
+          style={[styles.card, { backgroundColor: C.background }]}
+          onPress={(e) => e.stopPropagation()}>
           <ThemedText style={styles.emoji}>{emoji}</ThemedText>
           <ThemedText type="title" style={styles.title}>
             {title}
@@ -70,8 +76,8 @@ export function CelebrationModal({
                   : undefined
             }
           />
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }

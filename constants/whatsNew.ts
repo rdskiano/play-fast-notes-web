@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-03-meter-tempos-and-polish',
+    date: 'September 3, 2026',
+    title: 'Rhythm exercises now start at sensible tempos for each meter',
+    body:
+      'Rhythm patterns used to guess their starting tempo from the passage, and the guesses were often strange. Now each meter simply opens at a musical starting point (3/8 at 70 for the dotted quarter, 2/4 at 120, 5/8 and 7/8 at 380 for the eighth), everywhere rhythms play, including the tools room. Move the dial and each meter remembers where you left it; in the Exercise Builder that memory saves with the exercise. Also in this update: new prompt cues appear at the top of the list so you can see them land, the settings card stays clear of the phone keyboard while you type a cue, the metronome remembers your tuning reference (440, 441, or 442) everywhere, the practice log shows "forward, then back" in every view, and recordings on the iPad app now survive switching tools, with clearer collapse buttons on the recorder. Metronome extras: GAPS and DRONE now work together (turning the drone on used to silently cancel your gaps), the gaps picker offers finer steps in the useful 5-50% range, the book-mode Click-Up metronome has a ♪ button to hear a tempo before you commit to it, your foot pedal now turns pages in the part viewer, and tapping outside the celebration card returns you to your session instead of making you log it.',
+  },
+  {
     id: '2026-09-03-prompts-recorder-drone-fixes',
     date: 'September 3, 2026',
     title: 'A dozen fixes from a recorded day at the practice stand',

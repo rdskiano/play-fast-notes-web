@@ -63,4 +63,45 @@ export function useDronePitchMemory(
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, [usable, targetId, droneMidi]);
+
+  // The A4 reference (440/441/442) is a property of the PLAYER, not the
+  // passage — "someone who plays at 440 will always play at 440" (Ralph).
+  // One GLOBAL setting, restored on every mount, saved on change.
+  const a4RestoredRef = useRef<number | null>(null);
+  const a4ReadyRef = useRef(false);
+  const a4SaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await getSetting('drone:a4');
+        const n = raw == null ? NaN : parseInt(raw, 10);
+        if (!cancelled && Number.isFinite(n) && n >= 400 && n <= 480) {
+          a4RestoredRef.current = n;
+          metroRef.current.setDroneA4(n);
+        }
+      } catch {
+        // Memory is a convenience — never let it break the tools.
+      }
+      if (!cancelled) a4ReadyRef.current = true;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const droneA4 = metro.droneA4;
+  useEffect(() => {
+    if (!a4ReadyRef.current) return;
+    if (droneA4 === a4RestoredRef.current) return;
+    if (a4SaveTimer.current) clearTimeout(a4SaveTimer.current);
+    a4SaveTimer.current = setTimeout(() => {
+      a4RestoredRef.current = droneA4;
+      setSetting('drone:a4', String(droneA4)).catch(() => {});
+    }, 800);
+    return () => {
+      if (a4SaveTimer.current) clearTimeout(a4SaveTimer.current);
+    };
+  }, [droneA4]);
 }

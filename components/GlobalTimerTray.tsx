@@ -494,6 +494,11 @@ function TimerSettingsModal({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [promptDraft, setPromptDraft] = useState('');
   const promptInputRef = useRef<TextInput>(null);
+  // While the cue input is focused, the centered card jumps to the TOP of
+  // the screen — on a phone the keyboard eats the bottom half, and a
+  // centered card leaves the input underneath it (Ralph, verification
+  // pass). Top-aligned, the input sits in the surviving upper half.
+  const [promptInputFocused, setPromptInputFocused] = useState(false);
 
   function addPromptCue() {
     const text = promptDraft.trim();
@@ -502,7 +507,11 @@ function TimerSettingsModal({
     // Writing the first cue is the clearest possible "I want this on" —
     // auto-enable then (mirrors Cold enabling when a passage is picked).
     prompts.setConfig({
-      prompts: [...prompts.config.prompts, { text, active: true }],
+      // Newest FIRST: the fresh cue appears directly under the add box,
+      // where the typer is already looking — appended-to-bottom cues fell
+      // behind the iPad keyboard and looked like they vanished (Ralph,
+      // verification pass).
+      prompts: [{ text, active: true }, ...prompts.config.prompts],
       ...(wasEmpty ? { enabled: true } : {}),
     });
     setPromptDraft('');
@@ -527,7 +536,11 @@ function TimerSettingsModal({
   return (
     <>
       <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-        <View style={styles.infoBackdrop}>
+        <View
+          style={[
+            styles.infoBackdrop,
+            promptInputFocused && styles.infoBackdropKbd,
+          ]}>
           <View style={[styles.infoCard, { backgroundColor: C.background }]}>
             <ThemedText type="title" style={{ textAlign: 'center' }}>
               Timer settings
@@ -770,7 +783,11 @@ function TimerSettingsModal({
                         addPromptCue();
                       }
                     }}
-                    onFocus={scrollPromptInputIntoView}
+                    onFocus={() => {
+                      setPromptInputFocused(true);
+                      scrollPromptInputIntoView();
+                    }}
+                    onBlur={() => setPromptInputFocused(false)}
                     blurOnSubmit={false}
                     placeholder="Add a cue — e.g. Relax your throat"
                     placeholderTextColor={C.icon}
@@ -1019,6 +1036,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+  },
+  // While the cue input is focused, pin the card to the TOP: on phones the
+  // keyboard eats the bottom half of a centered card and buries the input.
+  infoBackdropKbd: {
+    justifyContent: 'flex-start',
+    paddingTop: 10,
   },
   infoCard: {
     width: '100%',

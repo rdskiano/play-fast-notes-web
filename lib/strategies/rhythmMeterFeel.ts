@@ -68,3 +68,24 @@ export function meterDialFactor(timeSig: string): number {
   const base = meterTempoFactor(timeSig);
   return beatFeelFor(timeSig) === 'dottedQuarter' ? base / 3 : base;
 }
+
+/**
+ * Fixed STARTING dial tempo per meter, in that meter's felt beat.
+ * Ralph's call 2026-09-03, replacing the goal-derived seed for rhythm
+ * exercises ("I don't think this calculation from the practice tempo of
+ * the passage is working" — a fixed, predictable start per meter, then the
+ * player's own dial moves are what get remembered):
+ *   3/8 → 70 (dotted quarter) · 2/4 → 120 (quarter) ·
+ *   5/8 and 7/8 → 380 (eighth; the engine's setBpm ceiling is 600).
+ * Meters not listed have no start opinion (legacy behaviour).
+ */
+export const METER_START_BPM: Record<string, number> = {
+  '3/8': 70,
+  '2/4': 120,
+  '5/8': 380,
+  '7/8': 380,
+};
+
+export function meterStartBpm(timeSig: string): number | null {
+  return METER_START_BPM[timeSig] ?? null;
+}

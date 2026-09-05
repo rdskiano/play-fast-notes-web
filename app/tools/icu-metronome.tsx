@@ -81,10 +81,34 @@ export default function IcuMetronomeScreen() {
   function nudgeGoal(delta: number) {
     const g = clampBpm((parseInt(goalStr, 10) || 120) + delta);
     onGoalChange(String(g));
+    if (previewing === 'goal') metronome.setBpm(g);
   }
   function nudgeStart(delta: number) {
     startTouched.current = true;
-    setStartStr(String(clampBpm((parseInt(startStr, 10) || 60) + delta)));
+    const s = clampBpm((parseInt(startStr, 10) || 60) + delta);
+    setStartStr(String(s));
+    if (previewing === 'start') metronome.setBpm(s);
+  }
+
+  // Hear-before-committing (Ralph's ask): a ♪ preview beside each tempo on
+  // the setup face clicks at that number until tapped again, so the player
+  // can FEEL a tempo before flipping the device over. Nudging a previewed
+  // number retargets the click live.
+  const [previewing, setPreviewing] = useState<null | 'goal' | 'start'>(null);
+  function togglePreview(which: 'goal' | 'start') {
+    if (previewing === which) {
+      metronome.stop();
+      setPreviewing(null);
+      return;
+    }
+    const bpm =
+      which === 'goal'
+        ? clampBpm(parseInt(goalStr, 10) || 120)
+        : clampBpm(parseInt(startStr, 10) || 60);
+    metronome.setBpm(bpm);
+    // Inside the tap = the user gesture that unlocks web audio.
+    if (!metronome.running) metronome.start();
+    setPreviewing(which);
   }
 
   // ── Run-face state ──────────────────────────────────────────────────────
@@ -107,6 +131,7 @@ export default function IcuMetronomeScreen() {
   });
 
   function flipToRun() {
+    setPreviewing(null);
     const goal = clampBpm(parseInt(goalStr, 10) || 120);
     let start = clampBpm(parseInt(startStr, 10) || defaultStart(goal));
     if (start >= goal) start = defaultStart(goal);
@@ -212,6 +237,25 @@ export default function IcuMetronomeScreen() {
               <Pressable onPress={() => nudgeGoal(5)} style={styles.capBtn}>
                 <ThemedText style={styles.capText}>+5</ThemedText>
               </Pressable>
+              <Pressable
+                onPress={() => togglePreview('goal')}
+                accessibilityLabel={
+                  previewing === 'goal'
+                    ? 'Stop hearing this tempo'
+                    : 'Hear this tempo'
+                }
+                style={[
+                  styles.previewBtn,
+                  previewing === 'goal' && styles.previewBtnOn,
+                ]}>
+                <ThemedText
+                  style={[
+                    styles.previewText,
+                    previewing === 'goal' && styles.previewTextOn,
+                  ]}>
+                  {previewing === 'goal' ? '■' : '♪'}
+                </ThemedText>
+              </Pressable>
             </View>
 
             <ThemedText style={styles.fieldLabel}>CLIMB BY</ThemedText>
@@ -238,6 +282,25 @@ export default function IcuMetronomeScreen() {
               </Pressable>
               <Pressable onPress={() => nudgeStart(5)} style={styles.capBtnSm}>
                 <ThemedText style={styles.capTextSm}>+5</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => togglePreview('start')}
+                accessibilityLabel={
+                  previewing === 'start'
+                    ? 'Stop hearing the starting tempo'
+                    : 'Hear the starting tempo'
+                }
+                style={[
+                  styles.previewBtnSm,
+                  previewing === 'start' && styles.previewBtnOn,
+                ]}>
+                <ThemedText
+                  style={[
+                    styles.previewTextSm,
+                    previewing === 'start' && styles.previewTextOn,
+                  ]}>
+                  {previewing === 'start' ? '■' : '♪'}
+                </ThemedText>
               </Pressable>
             </View>
 
@@ -391,6 +454,29 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   capTextSm: { color: DEVICE.text, fontWeight: Type.weight.bold, fontSize: Type.size.sm },
+  // ♪ hear-this-tempo preview keys — cap-shaped siblings of the ±5 keys;
+  // lit orange while clicking (■ stops).
+  previewBtn: {
+    backgroundColor: DEVICE.cap,
+    borderRadius: Radii.md,
+    borderWidth: 1,
+    borderColor: DEVICE.rim,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
+  previewBtnSm: {
+    backgroundColor: DEVICE.cap,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+    borderColor: DEVICE.rim,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+  },
+  previewBtnOn: { backgroundColor: DEVICE.accent, borderColor: DEVICE.accent },
+  previewText: { color: DEVICE.text, fontWeight: Type.weight.heavy, fontSize: Type.size.md },
+  previewTextSm: { color: DEVICE.text, fontWeight: Type.weight.bold, fontSize: Type.size.sm },
+  previewTextOn: { color: '#fff' },
   incRow: { flexDirection: 'row', gap: Spacing.sm },
   incChip: {
     flex: 1,

@@ -51,7 +51,7 @@ import {
 } from '@/lib/strategies/rhythmPatterns';
 import {
   beatUnitsPerWhole,
-  meterDialFactor,
+  meterStartBpm,
 } from '@/lib/strategies/rhythmMeterFeel';
 
 const GROUPING_CHOICES: { n: Grouping; abc: string; w: number }[] = [
@@ -146,37 +146,32 @@ export default function RhythmicScreen() {
   // on the Micro timer being enabled.
   const advanceCountRef = useRef(0);
 
-  // ── Meter-aware tempo (B-018, re-anchored to the BEAT 2026-08-28) —
-  // GROUPING 4 ONLY. The dial counts the meter's BEAT (Ralph's feel table:
-  // 3/8 = dotted quarter, 2/4 = quarter, 5/8 and 7/8 = eighth —
-  // lib/strategies/rhythmMeterFeel.ts), and the rhythm loop receives
-  // beatUnitsPerWhole so the same number drives both the click and the
-  // pattern. Two jobs here:
-  //   1. Seed the dial from the passage's goal tempo (pieces.performance_tempo,
-  //      B-013) × the meter's beat factor, once, when play begins.
-  //   2. On every pattern change, rescale the dial by the factor ratio so the
-  //      FELT tempo stays put while the number changes. Pure ratio — a manual
-  //      nudge ("slower today") carries across meter changes proportionally.
-  // Ralph's calibration data (RHYTHM_TEMPO_PLAN.md) covers sixteenth-run
-  // passages = grouping 4 ONLY — his explicit call. Other groupings imply
-  // other figures (3 = triplets, 6 = sextuplets, …) whose right anchor is
-  // unknown; they keep the legacy fixed dial until each gets its own
-  // ear-calibration and, likely, a grouping-aware factor table.
-  // tempoAnchorRef = the meter factor the dial is currently calibrated to.
-  const tempoAnchorRef = useRef<number | null>(null);
+  // ── Meter-aware tempo (B-018, re-anchored to the BEAT 2026-08-28; fixed
+  // per-meter STARTS 2026-09-03) — GROUPING 4 ONLY. The dial counts the
+  // meter's BEAT (Ralph's feel table: 3/8 = dotted quarter, 2/4 = quarter,
+  // 5/8 and 7/8 = eighth — lib/strategies/rhythmMeterFeel.ts), and the
+  // rhythm loop receives beatUnitsPerWhole so the same number drives both
+  // the click and the pattern. Goal-derived seeding is RETIRED ("I don't
+  // think this calculation from the practice tempo is working"): each meter
+  // opens at METER_START_BPM, and within the session the dial value the
+  // player leaves a meter at is remembered per meter — everywhere rhythms
+  // play, tools-only included.
+  // Ralph's calibration covers grouping 4 ONLY — his explicit call. Other
+  // groupings keep the legacy fixed dial until each gets its own
+  // ear-calibration.
+  const meterMapRef = useRef<Record<string, number>>({});
+  const activeMeterRef = useRef<string | null>(null);
   useEffect(() => {
     if (phase !== 'playing' || grouping !== 4) return;
-    if (!toolsOnly && !passage) return; // wait for the passage (its goal tempo)
-    if (tempoAnchorRef.current != null) return; // already seeded
+    if (activeMeterRef.current != null) return; // already seeded
     const pat = patterns[currentIndex];
     if (!pat) return;
-    const f = meterDialFactor(pat.timeSig);
-    const goal = passage?.performance_tempo;
-    if (goal) metronome.setBpm(goal * f);
-    // Anchor even without a goal so pattern changes still hold the felt tempo.
-    tempoAnchorRef.current = f;
+    const start = meterStartBpm(pat.timeSig);
+    if (start != null) metronome.setBpm(start);
+    activeMeterRef.current = pat.timeSig;
+    meterMapRef.current[pat.timeSig] = Math.round(metronome.bpm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, grouping, passage, patterns, currentIndex, toolsOnly]);
+  }, [phase, grouping, patterns, currentIndex]);
 
   // The meter the current pattern pushed onto the metronome panel, so its
   // beat dots always show the pattern on screen (all groupings — the dots
@@ -197,15 +192,24 @@ export default function RhythmicScreen() {
       : parseBeatDenominator(pat.timeSig);
   }
 
-  // Rescale the dial for the pattern about to show. Call BEFORE restarting the
-  // loop so the restart schedules at the new rate.
+  // Retarget the dial for the pattern about to show. Call BEFORE restarting
+  // the loop so the restart schedules at the new rate. Leaving a meter
+  // remembers where the player left its dial (session-local); entering one
+  // greets them with its remembered tempo, else METER_START_BPM.
   function retargetTempo(next: RhythmPattern) {
-    const f = meterDialFactor(next.timeSig);
-    const prev = tempoAnchorRef.current;
-    if (prev != null && f !== prev) {
-      metronome.setBpm(metronome.bpm * (f / prev));
+    // Callers gate on grouping 4 themselves — no guard here, because
+    // startWithGrouping calls this before the grouping state updates.
+    const m = next.timeSig;
+    const prev = activeMeterRef.current;
+    if (prev === m) {
+      meterMapRef.current[m] = Math.round(metronome.bpm);
+      return;
     }
-    tempoAnchorRef.current = f;
+    if (prev) meterMapRef.current[prev] = Math.round(metronome.bpm);
+    const target = meterMapRef.current[m] ?? meterStartBpm(m);
+    if (target != null) metronome.setBpm(target);
+    activeMeterRef.current = m;
+    meterMapRef.current[m] = Math.round(metronome.bpm);
   }
 
   function startWithGrouping(g: Grouping) {
@@ -214,12 +218,12 @@ export default function RhythmicScreen() {
     // Stop any in-flight rhythm loop — the pattern being looped is about
     // to disappear from the visible card.
     metronome.stopRhythmLoop();
-    // Mid-session grouping switch: grouping 4 holds the felt tempo across the
-    // meter jump (the seed effect owns the initial dial). Any other grouping
-    // drops out of tempo management entirely — dial stays where the user left
-    // it, and a later return to grouping 4 re-seeds fresh.
-    if (g === 4 && tempoAnchorRef.current != null) retargetTempo(list[0]);
-    if (g !== 4) tempoAnchorRef.current = null;
+    // Mid-session grouping switch: grouping 4 greets the first pattern's
+    // meter with its remembered/default tempo. Any other grouping drops out
+    // of tempo management entirely — dial stays where the user left it, and
+    // a later return to grouping 4 re-seeds fresh.
+    if (g === 4 && activeMeterRef.current != null) retargetTempo(list[0]);
+    if (g !== 4) activeMeterRef.current = null;
     setGrouping(g);
     setPatterns(list);
     setCurrentIndex(0);

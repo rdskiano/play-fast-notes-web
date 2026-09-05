@@ -13,7 +13,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -33,6 +33,15 @@ import { useSession } from '@/lib/supabase/auth';
 import { saveRecording, type RecordingTarget } from '@/lib/supabase/recordings';
 
 type Take = { id: string; uri: string; durationSec: number; saved: boolean };
+
+// Session-long take store — mirrors the web panel. Takes must survive the
+// panel unmounting (switching to the metronome card used to destroy a
+// just-recorded take; Ralph hit it on the iPad app during verification).
+// Native takes are file URIs in the app cache, so keeping the refs at
+// module scope for the life of the app session is enough.
+const MAX_SESSION_TAKES = 8;
+let sessionTakes: Take[] = [];
+let sessionActiveTakeId: string | null = null;
 
 const SPEEDS = [1, 0.75, 0.5] as const;
 // Metering is in dBFS — 0 is clipping. Map this floor..0 onto the meter bar.
@@ -82,8 +91,29 @@ export function RecorderPanel({
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
 
-  const [takes, setTakes] = useState<Take[]>([]);
-  const [activeTakeId, setActiveTakeId] = useState<string | null>(null);
+  // Seed from (and mirror back to) the module store so takes survive the
+  // panel being closed and reopened mid-session.
+  const [takes, setTakesState] = useState<Take[]>(sessionTakes);
+  const [activeTakeId, setActiveTakeIdState] = useState<string | null>(
+    sessionActiveTakeId,
+  );
+  const setTakes = useCallback(
+    (updater: (prev: Take[]) => Take[]) => {
+      setTakesState((prev) => {
+        let next = updater(prev);
+        if (next.length > MAX_SESSION_TAKES) {
+          next = next.slice(next.length - MAX_SESSION_TAKES);
+        }
+        sessionTakes = next;
+        return next;
+      });
+    },
+    [],
+  );
+  const setActiveTakeId = useCallback((id: string | null) => {
+    sessionActiveTakeId = id;
+    setActiveTakeIdState(id);
+  }, []);
   const [rate, setRate] = useState<number>(1);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
@@ -188,28 +218,33 @@ export function RecorderPanel({
     }
   }
 
-  // Mini mode — just record/stop (+ expand), so the card stops hiding the
-  // score (mirrors the web panel).
+  // Mini mode — a wordless red record circle + elapsed time, with the
+  // expand control in its own row above so nothing overlaps (the first
+  // version squeezed the labelled Record pill into the mini box and hid
+  // the ⤢ behind it — Ralph's verification pass).
   if (collapsed) {
     return (
       <View style={styles.miniPanel}>
-        <Pressable
-          onPress={onToggleCollapsed}
-          hitSlop={10}
-          accessibilityLabel="Expand recorder"
-          style={styles.miniExpand}>
-          <ThemedText style={styles.miniExpandText}>⤢</ThemedText>
-        </Pressable>
+        <View style={styles.miniTopRow}>
+          <Pressable
+            onPress={onToggleCollapsed}
+            hitSlop={12}
+            accessibilityLabel="Expand recorder"
+            style={styles.miniExpand}>
+            <ThemedText style={styles.miniExpandText}>⤢</ThemedText>
+          </Pressable>
+        </View>
         <Pressable
           onPress={toggleRecord}
-          style={[styles.recordBtn, { backgroundColor: Palette.danger }]}>
-          <View style={recording ? styles.stopGlyph : styles.recordGlyph} />
-          <ThemedText style={styles.recordLabel}>
-            {recording
-              ? fmt((Date.now() - recordStartRef.current) / 1000)
-              : 'Record'}
-          </ThemedText>
+          accessibilityLabel={recording ? 'Stop recording' : 'Record'}
+          style={styles.miniCircle}>
+          <View
+            style={recording ? styles.miniStopGlyph : styles.miniRecGlyph}
+          />
         </Pressable>
+        <ThemedText style={styles.miniTimer}>
+          {recording ? fmt((Date.now() - recordStartRef.current) / 1000) : ' '}
+        </ThemedText>
       </View>
     );
   }
@@ -217,13 +252,15 @@ export function RecorderPanel({
   return (
     <View style={styles.panel}>
       {onToggleCollapsed ? (
-        <Pressable
-          onPress={onToggleCollapsed}
-          hitSlop={10}
-          accessibilityLabel="Collapse recorder to just the record button"
-          style={styles.collapseBtn}>
-          <ThemedText style={styles.collapseBtnText}>⌄</ThemedText>
-        </Pressable>
+        <View style={styles.collapseRow}>
+          <Pressable
+            onPress={onToggleCollapsed}
+            hitSlop={12}
+            accessibilityLabel="Collapse recorder to just the record button"
+            style={styles.collapseBtn}>
+            <ThemedText style={styles.collapseBtnText}>⌄</ThemedText>
+          </Pressable>
+        </View>
       ) : null}
       <Pressable
         onPress={toggleRecord}
@@ -356,20 +393,55 @@ const styles = StyleSheet.create({
     borderRadius: Radii.lg,
   },
   recordGlyph: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#fff' },
-  // Mini (collapsed) mode.
+  // Mini (collapsed) mode — expand row on top, wordless red circle below.
   miniPanel: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.sm,
+    padding: Spacing.xs,
+    gap: 2,
   },
-  miniExpand: { position: 'absolute', top: 6, right: 8 },
-  miniExpandText: { fontSize: 15, color: Palette.textSecondary },
-  collapseBtn: { position: 'absolute', top: 4, right: 8, zIndex: 1 },
+  miniTopRow: { alignSelf: 'stretch', alignItems: 'flex-end' },
+  miniExpand: { padding: 4 },
+  miniExpandText: {
+    fontSize: 20,
+    lineHeight: 22,
+    color: Palette.text,
+    opacity: 0.75,
+  },
+  miniCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 3,
+    borderColor: Palette.danger,
+    backgroundColor: Palette.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniRecGlyph: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Palette.danger,
+  },
+  miniStopGlyph: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    backgroundColor: Palette.danger,
+  },
+  miniTimer: {
+    fontSize: 14,
+    fontWeight: Type.weight.heavy,
+    fontVariant: ['tabular-nums'],
+  },
+  collapseRow: { alignSelf: 'stretch', alignItems: 'flex-end', marginBottom: -6 },
+  collapseBtn: { padding: 4 },
   collapseBtnText: {
-    fontSize: 18,
-    lineHeight: 20,
-    color: Palette.textSecondary,
+    fontSize: 22,
+    lineHeight: 24,
+    color: Palette.text,
+    opacity: 0.75,
     fontWeight: Type.weight.heavy,
   },
   stopGlyph: { width: 14, height: 14, borderRadius: 3, backgroundColor: '#fff' },

@@ -109,6 +109,63 @@ longer restart the interval clock.**
 13. HIGH — Recorder take lost on tool switch: a recorded take must survive for the whole practice session (Ralph's rule). It died when he left the recorder card to turn off the drone and came back. Lift take state (blob + playback state) out of the card component to session level. AND (Ralph's fix, same minute): pressing play on a take silences any other app audio (drone/click) — listening intent is unambiguous; nobody wants a drone under their playback. Both halves wanted: the take surviving AND play-kills-other-audio removing the need to leave at all.
 14. Recorder card occludes the score and won't drag (check which screen/presentation — reskinned bar vs. ToolDock card; drag may be broken on touch or absent in this context). Ralph's proposal: collapse mode — just a record button once armed. Same shape as the persistent metronome play button (video two): CONFIGURE in a big card, OPERATE from a tiny persistent control. That's two tools asking for the same pattern — likely a shared design, not two one-offs.
 
+## Batch 2 (post-verification feedback, 2026-09-03 evening — coded, unshipped)
+- New cues insert at the TOP of the list (visible under the add box as you
+  type; bottom-appended cues fell behind the iPad keyboard).
+- Phone: the settings card pins to the top of the screen while the cue
+  input is focused, so the keyboard can't bury it.
+- Drone A4 reference (440/441/442) now remembered GLOBALLY — a player
+  property, not a passage property ("someone who plays at 440 will always
+  play at 440" — Ralph). Settings key drone:a4, restored on mount.
+  (Per-passage PITCH memory was already in batch 1 — checklist item 10.)
+- ICU direction in the COMPACT log chip too: document + library logs showed
+  a bare "Interleaved Click-Up" while only the passage view said "forward,
+  then back" — the direction now rides all three log renderings.
+- NATIVE recorder parity (Ralph caught it on the iPad app): take survival
+  had only been built for web — the native panel's takes died on tool
+  switch exactly as before. Same module-level session store now on native.
+  Also: native mini rebuilt as a wordless red circle (the labelled Record
+  pill didn't fit the mini box), and the collapse/expand controls got their
+  own rows + bigger, darker glyphs on BOTH platforms (they were small,
+  faint, and overlapped by the record button).
+- RHYTHM TEMPO REWORK (Ralph's verification verdict: goal-derived seeding
+  "is not working"): fixed per-meter STARTING tempos in felt-beat units —
+  3/8 → 70 (dotted quarter), 2/4 → 120 (quarter), 5/8 + 7/8 → 380 (eighth)
+  — METER_START_BPM in rhythmMeterFeel.ts. Applied to the Exercise Builder
+  AND the Rhythmic Variation screen (passage, "rhythm patterns only", and
+  tools-only — same sentinel screen). Each meter opens at its start tempo;
+  the dial value the player leaves a meter at is remembered PER METER —
+  session-local on rhythmic, persisted per exercise in the builder
+  (config meterBpm map, replacing the hours-old single startBpm; goal-
+  derived seeding and ratio-rescaling retired on both screens).
+- GAPS × DRONE now compatible (the old three-way exclusivity meant turning
+  the drone on silently ZEROED a running gaps setting — almost certainly
+  Ralph's "gaps stop skipping after a while", reported the same day he
+  started droning under everything; the engine applies the drop before
+  either voice, so no audio change needed). Grooves stay exclusive.
+- GAPS levels recalibrated: 5-50% in 5% steps (was 10-80% in 10% jumps);
+  Ralph: nobody uses past 40-50%, the 10-40 band needed finer control.
+- ICU Metronome tool (tools room): ♪ hear-this-tempo preview keys beside
+  the performance and starting tempos on the setup face; nudging a
+  previewed number retargets the click live.
+- Foot pedal turns pages in the document viewer (same key vocabulary as
+  PedalCatcher: right pedal/arrows/PageDown forward, left/PageUp back;
+  typing guard + 300ms de-dupe; off during draw/resize modes).
+- CelebrationModal: tap outside the card = back to the session (wired to
+  dismissCelebration on Tempo Ladder) — no more being forced to log a
+  session you ended by accident.
+
+## Follow-up work item: prompt cues don't reach the NATIVE app
+Ralph: "plenty of prompts on my iPad that do not show up on my iPhone."
+Root cause confirmed in code: settings.web.ts = Supabase (account-wide,
+all browsers share), settings.ts (native) = device-local SQLite that never
+syncs. His big cue library lives in the native iPad app's local DB; the
+account row holds one cue (what other devices see). Fix = let timer
+settings ride the existing sync engine (or a signed-in native read/write of
+the settings row). Real plumbing — own session, not a patch. Note the same
+split silently affects EVERY settings-backed preference on native
+(tutorial flags, strategy colors, drone pitch memory, whats-new last-seen).
+
 ## Open observation threads (cut short by the baby)
 - Do later prompt fires land as well as the first, or start feeling like interruptions?
 - Is 3 minutes the right rotation interval?

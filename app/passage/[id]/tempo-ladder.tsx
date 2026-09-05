@@ -1151,6 +1151,9 @@ export default function TempoLadderScreen() {
         // Tools-only mode never shows the log prompt, so the celebration also
         // covers the goal-reached case here (and its End just exits).
         visible={!isGuided && celebrating !== null && (toolsOnly || !reachedGoal)}
+        // Tap outside the card = back to the session, nothing ends, nothing
+        // logs — the escape hatch for landing here by accident.
+        onRequestClose={dismissCelebration}
         title={
           reachedGoal
             ? `Goal tempo reached — ${progress.goal_tempo} BPM!`

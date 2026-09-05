@@ -560,15 +560,35 @@ export default function DocumentScreen() {
     }, 0);
   }, [viewMode, currentIndex, width]);
 
-  // Keyboard arrows. Disabled during draw/resize because those modes own the
-  // pointer; section-mark allows nav so the user can swipe-or-arrow to the
-  // right page before tapping.
+  // Keyboard arrows + FOOT PEDAL page turns (Ralph's ask, 2026-09-03).
+  // Bluetooth page-turner pedals pair as keyboards and send arrows,
+  // PageUp/PageDown, or Space — the same vocabulary PedalCatcher listens
+  // for on practice screens: right pedal turns forward, left pedal turns
+  // back. Disabled during draw/resize because those modes own the pointer;
+  // section-mark allows nav so the user can swipe-or-arrow to the right
+  // page before tapping. Typing guard so section-name / note inputs keep
+  // their keystrokes; 300 ms de-dupe tames pedal auto-repeat.
+  const lastPedalTurnRef = useRef(0);
   useEffect(() => {
     if (Platform.OS !== 'web') return;
+    const FORWARD = ['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Spacebar', 'Enter'];
+    const BACK = ['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'];
+    function isTypingTarget(target: EventTarget | null): boolean {
+      if (!target || !(target instanceof HTMLElement)) return false;
+      if (target.isContentEditable) return true;
+      const tag = target.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    }
     function onKey(e: KeyboardEvent) {
       if (mode === 'draw' || mode === 'resize') return;
-      if (e.key === 'ArrowRight') goTo(currentIndex + 1);
-      else if (e.key === 'ArrowLeft') goTo(currentIndex - 1);
+      if (isTypingTarget(e.target)) return;
+      const dir = FORWARD.includes(e.key) ? 1 : BACK.includes(e.key) ? -1 : 0;
+      if (dir === 0) return;
+      const now = Date.now();
+      if (now - lastPedalTurnRef.current < 300) return;
+      lastPedalTurnRef.current = now;
+      e.preventDefault();
+      goTo(currentIndex + dir);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

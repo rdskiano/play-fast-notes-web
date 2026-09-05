@@ -685,11 +685,12 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  collapseBtn: { paddingHorizontal: 4 },
+  collapseBtn: { paddingHorizontal: 6 },
   collapseBtnText: {
-    fontSize: 18,
-    lineHeight: 20,
-    color: Palette.textSecondary,
+    fontSize: 22,
+    lineHeight: 24,
+    color: Palette.text,
+    opacity: 0.75,
     fontWeight: Type.weight.heavy,
   },
   // Mini mode — the whole panel is just a record button + elapsed.
@@ -700,8 +701,13 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: Spacing.sm,
   },
-  miniExpand: { position: 'absolute', top: 6, right: 8 },
-  miniExpandText: { fontSize: 15, color: Palette.textSecondary },
+  miniExpand: { position: 'absolute', top: 4, right: 6, padding: 4 },
+  miniExpandText: {
+    fontSize: 20,
+    lineHeight: 22,
+    color: Palette.text,
+    opacity: 0.75,
+  },
   miniCircle: { width: 56, height: 56, borderRadius: 28 },
   miniInner: { width: 40, height: 40, borderRadius: 20 },
   miniTimer: {
