@@ -30,6 +30,7 @@ import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { quiesceEnginesForSessionChange } from '@/lib/audio/metronomeEngine';
 import { noteForeignAudioUse, setRecordingActive } from '@/lib/audio/recordingSessionFlag';
 import { useSession } from '@/lib/supabase/auth';
 import { saveRecording, type RecordingTarget } from '@/lib/supabase/recordings';
@@ -136,31 +137,41 @@ export function RecorderPanel({
 
   async function toggleRecord() {
     if (recording) {
-      await recorder.stop();
-      setRecordingActive(false);
-      noteForeignAudioUse();
-      const uri = recorder.uri;
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
-      const durationSec = (Date.now() - recordStartRef.current) / 1000;
-      // Drop accidental sub-1-second takes (a quick double-tap of Record)
-      // instead of filing a 0:00 stub in the practice log — matches web.
-      if (durationSec < 1) {
-        Alert.alert(
-          'Recording too short',
-          'Hold Record for at least a second to capture a take.',
-        );
-        return;
-      }
-      if (uri) {
-        setTakes((t) => [
-          ...t,
-          {
-            id: `t_${Date.now()}`,
-            uri,
-            durationSec,
-            saved: false,
-          },
-        ]);
+      // Silence + drain the metronome engines BEFORE the session flips —
+      // stopping the recorder while the click rendered segfaulted the
+      // audio thread (crash log 2026-09-05, AVAudioSourceNode render
+      // callback racing the session change). Resume in `finally` so even
+      // the short-take early exit brings the click back.
+      const resumeClick = await quiesceEnginesForSessionChange();
+      try {
+        await recorder.stop();
+        setRecordingActive(false);
+        noteForeignAudioUse();
+        const uri = recorder.uri;
+        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+        const durationSec = (Date.now() - recordStartRef.current) / 1000;
+        // Drop accidental sub-1-second takes (a quick double-tap of Record)
+        // instead of filing a 0:00 stub in the practice log — matches web.
+        if (durationSec < 1) {
+          Alert.alert(
+            'Recording too short',
+            'Hold Record for at least a second to capture a take.',
+          );
+          return;
+        }
+        if (uri) {
+          setTakes((t) => [
+            ...t,
+            {
+              id: `t_${Date.now()}`,
+              uri,
+              durationSec,
+              saved: false,
+            },
+          ]);
+        }
+      } finally {
+        resumeClick();
       }
       return;
     }
@@ -172,6 +183,11 @@ export function RecorderPanel({
       );
       return;
     }
+    // Same quiesce discipline on the way IN: flipping to playAndRecord
+    // under a rendering engine is the same race. The click resumes right
+    // after the mic is rolling (fresh context, built under the record
+    // session), so click-along recording still works.
+    const resumeClick = await quiesceEnginesForSessionChange();
     try {
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
@@ -188,6 +204,8 @@ export function RecorderPanel({
         'Could not start recording',
         e instanceof Error ? e.message : 'Please try again.',
       );
+    } finally {
+      resumeClick();
     }
   }
 

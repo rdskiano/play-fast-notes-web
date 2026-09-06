@@ -202,7 +202,38 @@ function releaseKeepAwake() {
   }
 }
 
+// Live engines, so the recorder can quiesce ALL of them around an audio-
+// session change. Crash log PlayFast-2026-09-05-213551: stopping a
+// recording while the click ran segfaulted on AURemoteIO::IOThread inside
+// the AVAudioSourceNode render callback — the session flip raced the live
+// render, the same use-after-free family as the Save-&-finish crash (F12).
+// Rule: NEVER change the audio session while an engine is rendering.
+const LIVE_ENGINES = new Set<MetronomeEngine>();
+
+/**
+ * Silence + suspend-drain-close every live engine's context ahead of an
+ * external audio-session change (recorder start/stop). Resolves once the
+ * render thread has had a beat to drain. Returns a resume function that
+ * restarts the plain click on engines that had it running — through the
+ * normal start() path, so the moved foreign-audio stamp rebuilds each
+ * context fresh under the new session.
+ */
+export async function quiesceEnginesForSessionChange(): Promise<() => void> {
+  const toResume: MetronomeEngine[] = [];
+  for (const e of LIVE_ENGINES) {
+    if (e.quiesceForSessionChange()) toResume.push(e);
+  }
+  await new Promise((r) => setTimeout(r, 60));
+  return () => {
+    for (const e of toResume) e.start();
+  };
+}
+
 export class MetronomeEngine {
+  constructor() {
+    LIVE_ENGINES.add(this);
+  }
+
   private ctx: RnAudioContext | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private nextNoteTime = 0;
@@ -1238,7 +1269,42 @@ export class MetronomeEngine {
     }
   }
 
+  /**
+   * Stop everything and suspend-drain-close the context ahead of an
+   * audio-session change (see quiesceEnginesForSessionChange). Returns
+   * whether the plain click was running, so the caller can resume it.
+   */
+  quiesceForSessionChange(): boolean {
+    const wasClicking = this.running;
+    this.stop();
+    this.stopRhythmLoop();
+    this.stopPitchSequence();
+    this.stopGrooveLoop();
+    const ctx = this.ctx;
+    this.ctx = null;
+    this.accentBuffer = null;
+    this.normalBuffer = null;
+    this.subBuffer = null;
+    this.noiseBuffer = null;
+    if (ctx) {
+      try {
+        void ctx.suspend?.();
+      } catch {
+        // ignore — we're discarding it either way
+      }
+      setTimeout(() => {
+        try {
+          void ctx.close();
+        } catch {
+          // ignore
+        }
+      }, 400);
+    }
+    return wasClicking;
+  }
+
   dispose() {
+    LIVE_ENGINES.delete(this);
     this.stop();
     this.stopRhythmLoop();
     this.stopPitchSequence();
