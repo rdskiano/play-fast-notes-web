@@ -283,15 +283,16 @@ export default function FolderLogScreen() {
                             {note}
                           </ThemedText>
                         )}
+                        {/* Player WITH its entry, not appended after the
+                            group (Ralph: "not intuitive"). */}
+                        {(() => {
+                          const uri = recordingUri(e);
+                          return uri ? <RecordingPlayer uri={uri} /> : null;
+                        })()}
                       </View>
                     );
                   })}
                 </View>
-                {pg.entries.map((e) => {
-                  const uri = recordingUri(e);
-                  if (!uri) return null;
-                  return <RecordingPlayer key={`rec-${e.id}`} uri={uri} />;
-                })}
               </View>
             );
 

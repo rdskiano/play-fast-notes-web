@@ -239,15 +239,17 @@ export default function DocumentLogScreen() {
                   {note}
                 </ThemedText>
               )}
+              {/* The player sits WITH its entry — appending all players
+                  after the list separated a recording's label from its
+                  play button (Ralph: "not intuitive"). */}
+              {(() => {
+                const uri = recordingUri(e);
+                return uri ? <RecordingPlayer uri={uri} /> : null;
+              })()}
             </View>
           );
         })}
       </View>
-      {pg.entries.map((e) => {
-        const uri = recordingUri(e);
-        if (!uri) return null;
-        return <RecordingPlayer key={`rec-${e.id}`} uri={uri} />;
-      })}
     </View>
   );
 

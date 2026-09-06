@@ -151,22 +151,29 @@ function renderDateCard(
       {/* DESIGN_RULES §2: strategies render as neutral rows with a small
           colored dot + ink label, not fully-saturated filled pills. */}
       <View style={styles.entryList}>
-        {pg.entries.map((e) => (
-          <Pressable
-            key={e.id}
-            onPress={() => setEditing(e)}
-            style={styles.entryRow}>
-            <View
-              style={[
-                styles.entryDot,
-                { backgroundColor: STRATEGY_COLORS[e.strategy] ?? Palette.textMuted },
-              ]}
-            />
-            <ThemedText style={styles.entryRowLabel} numberOfLines={2}>
-              {entryLabel(e)}
-            </ThemedText>
-          </Pressable>
-        ))}
+        {pg.entries.map((e) => {
+          const uri = recordingUri(e);
+          return (
+            <View key={e.id}>
+              <Pressable
+                onPress={() => setEditing(e)}
+                style={styles.entryRow}>
+                <View
+                  style={[
+                    styles.entryDot,
+                    { backgroundColor: STRATEGY_COLORS[e.strategy] ?? Palette.textMuted },
+                  ]}
+                />
+                <ThemedText style={styles.entryRowLabel} numberOfLines={2}>
+                  {entryLabel(e)}
+                </ThemedText>
+              </Pressable>
+              {/* Player WITH its entry, not appended after the group
+                  (Ralph: "not intuitive"). */}
+              {uri ? <RecordingPlayer uri={uri} /> : null}
+            </View>
+          );
+        })}
       </View>
       {pg.entries.some((e) => parseMoodNote(e).note) && (
         <View style={styles.notesList}>
@@ -184,11 +191,6 @@ function renderDateCard(
           })}
         </View>
       )}
-      {pg.entries.map((e) => {
-        const uri = recordingUri(e);
-        if (!uri) return null;
-        return <RecordingPlayer key={`rec-${e.id}`} uri={uri} />;
-      })}
     </View>
   );
 }
