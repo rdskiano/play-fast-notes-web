@@ -18,3 +18,19 @@ export function setRecordingActive(on: boolean): void {
 export function isRecordingActive(): boolean {
   return recordingActive;
 }
+
+// Monotonic stamp bumped whenever expo-audio touches the session (record
+// start/stop, take playback). Re-asserting the session category was NOT
+// enough after take playback — the engine's AudioContext reports running
+// but its clock is dead (Ralph, round 2: "metronome still doesn't come
+// back"). Each engine remembers the stamp it last built its context under
+// and does a full context rebuild when the stamp has moved.
+let foreignAudioStamp = 0;
+
+export function noteForeignAudioUse(): void {
+  foreignAudioStamp++;
+}
+
+export function getForeignAudioStamp(): number {
+  return foreignAudioStamp;
+}

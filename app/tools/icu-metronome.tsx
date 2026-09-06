@@ -7,16 +7,17 @@
 // presses NEXT.
 //
 // One card, two faces, like a physical device you flip over:
-//  - SETUP face: performance tempo (house BpmStepper: ±1 tap, ±5 hold, slider,
-//    Hear tempo), increment chips, and a display-only start tempo (always
+//  - SETUP face: performance tempo — house-control behavior (±1 tap, ±5
+//    hold, slider, HEAR TEMPO cap) in the device skin — increment chips, and a display-only start tempo (always
 //    half of performance, rounded to 5 — information, not a control).
 //  - RUN face: big tempo readout, giant NEXT (also spacebar / foot pedal via
-//    PedalCatcher), BACK, ±5 escape hatches for when reality diverges. At the
-//    top of a climb the display celebrates; NEXT then starts the next phase
+//    PedalCatcher) and BACK — NEXT and BACK are the machine's whole
+//    vocabulary (the ±5 escape caps were noise — Ralph). At the top of a climb the display celebrates; NEXT then starts the next phase
 //    back at the start tempo automatically.
 //
 // Tools-mode rules apply: nothing is saved, no passage, no DB writes.
 
+import Slider from '@react-native-community/slider';
 import { Stack, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -25,10 +26,10 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   View,
 } from 'react-native';
 
-import { BpmStepper } from '@/components/BpmStepper';
 import { DEVICE } from '@/components/MetronomePanel';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { SessionTopBar } from '@/components/SessionTopBar';
@@ -42,7 +43,10 @@ const BPM_MAX = 240;
 const INCREMENTS = [3, 5, 7, 10];
 
 const CARD_W = 340;
-const CARD_H = 500;
+// Tall enough that the setup face's full stack (title, tempo control with
+// slider + HEAR cap, increment chips, starts-at, FLIP) sits INSIDE the
+// gray — the flip button was falling off the card (Ralph).
+const CARD_H = 560;
 
 function clampBpm(v: number): number {
   return Math.max(BPM_MIN, Math.min(BPM_MAX, v));
@@ -78,7 +82,31 @@ export default function IcuMetronomeScreen() {
     if (Number.isFinite(g) && g >= BPM_MIN) {
       setStartStr(String(defaultStart(g)));
     }
+    // A previewing click follows the number live.
+    if (previewing && Number.isFinite(g)) metronome.setBpm(clampBpm(g));
   }
+  function nudgeGoal(delta: number) {
+    nudgeGoalTo((parseInt(goalStr, 10) || 120) + delta);
+  }
+  function nudgeGoalTo(value: number) {
+    onGoalChange(String(clampBpm(value)));
+  }
+
+  // Hear-before-committing: the ▶ HEAR TEMPO cap clicks at the goal until
+  // tapped again, so the player can FEEL the number before flipping.
+  const [previewing, setPreviewing] = useState(false);
+  function togglePreview() {
+    if (previewing) {
+      metronome.stop();
+      setPreviewing(false);
+      return;
+    }
+    metronome.setBpm(clampBpm(parseInt(goalStr, 10) || 120));
+    // Inside the tap = the user gesture that unlocks web audio.
+    if (!metronome.running) metronome.start();
+    setPreviewing(true);
+  }
+
   // ── Run-face state ──────────────────────────────────────────────────────
   const [face, setFace] = useState<'setup' | 'run'>('setup');
   const [tempos, setTempos] = useState<number[]>([]);
@@ -99,6 +127,7 @@ export default function IcuMetronomeScreen() {
   });
 
   function flipToRun() {
+    setPreviewing(false);
     const goal = clampBpm(parseInt(goalStr, 10) || 120);
     let start = clampBpm(parseInt(startStr, 10) || defaultStart(goal));
     if (start >= goal) start = defaultStart(goal);
@@ -148,12 +177,6 @@ export default function IcuMetronomeScreen() {
     }
   }
 
-  // Manual ±5 while running: an escape hatch that nudges the click without
-  // moving the sequence position — the next NEXT snaps back onto the climb.
-  function nudgeRun(delta: number) {
-    metronome.setBpm(clampBpm(metronome.bpm + delta));
-  }
-
   function exit() {
     metronome.stop();
     router.back();
@@ -188,17 +211,71 @@ export default function IcuMetronomeScreen() {
             </ThemedText>
 
             <ThemedText style={styles.fieldLabel}>PERFORMANCE TEMPO</ThemedText>
-            {/* The house tempo control (Ralph: "like everywhere else") —
-                ±1 tap / ±5 long-press, slider, and its built-in
-                "▶ Hear tempo" preview (it hands the metronome the number
-                and retargets live while nudging). */}
-            <BpmStepper
-              value={goalStr}
-              onChange={onGoalChange}
-              min={BPM_MIN}
-              max={BPM_MAX}
-              metronome={metronome}
-            />
+            {/* House-control BEHAVIOR (±1 tap / ±5 hold, slider, hear-
+                tempo) in the DEVICE's skin — dropping the white BpmStepper
+                card in here broke the one-machine illusion (Ralph: "an
+                entirely different color palette than the rest of this
+                device"). */}
+            <View style={styles.goalRow}>
+              <Pressable
+                onPress={() => nudgeGoal(-1)}
+                onLongPress={() => nudgeGoal(-5)}
+                hitSlop={6}
+                style={styles.capBtn}>
+                <ThemedText style={styles.capText}>−</ThemedText>
+              </Pressable>
+              <View style={styles.display}>
+                <TextInput
+                  value={goalStr}
+                  onChangeText={onGoalChange}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  style={styles.displayInput}
+                />
+              </View>
+              <Pressable
+                onPress={() => nudgeGoal(1)}
+                onLongPress={() => nudgeGoal(5)}
+                hitSlop={6}
+                style={styles.capBtn}>
+                <ThemedText style={styles.capText}>+</ThemedText>
+              </Pressable>
+            </View>
+            {Platform.OS === 'web' ? (
+              <input
+                type="range"
+                min={BPM_MIN}
+                max={BPM_MAX}
+                step={1}
+                value={parseInt(goalStr, 10) || 120}
+                onChange={(e) =>
+                  nudgeGoalTo(parseInt(e.target.value, 10))
+                }
+                style={{ width: '100%', accentColor: DEVICE.accent }}
+              />
+            ) : (
+              <Slider
+                minimumValue={BPM_MIN}
+                maximumValue={BPM_MAX}
+                step={1}
+                value={parseInt(goalStr, 10) || 120}
+                onValueChange={(v) => nudgeGoalTo(v)}
+                minimumTrackTintColor={DEVICE.accent}
+                maximumTrackTintColor={DEVICE.rim}
+                style={{ width: '100%' }}
+              />
+            )}
+            <Pressable
+              onPress={togglePreview}
+              accessibilityLabel={
+                previewing ? 'Stop hearing this tempo' : 'Hear this tempo'
+              }
+              style={[styles.hearBtn, previewing && styles.hearBtnOn]}>
+              <ThemedText
+                style={[styles.hearText, previewing && styles.hearTextOn]}>
+                {previewing ? '■  STOP' : '▶  HEAR TEMPO'}
+              </ThemedText>
+            </Pressable>
 
             <ThemedText style={styles.fieldLabel}>CLIMB BY</ThemedText>
             <View style={styles.incRow}>
@@ -266,12 +343,6 @@ export default function IcuMetronomeScreen() {
             <View style={styles.runControls}>
               <Pressable onPress={back} style={styles.capBtn}>
                 <ThemedText style={styles.capText}>← BACK</ThemedText>
-              </Pressable>
-              <Pressable onPress={() => nudgeRun(-5)} style={styles.capBtn}>
-                <ThemedText style={styles.capText}>−5</ThemedText>
-              </Pressable>
-              <Pressable onPress={() => nudgeRun(5)} style={styles.capBtn}>
-                <ThemedText style={styles.capText}>+5</ThemedText>
               </Pressable>
             </View>
 
@@ -375,6 +446,23 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   capTextSm: { color: DEVICE.text, fontWeight: Type.weight.bold, fontSize: Type.size.sm },
+  // ▶ HEAR TEMPO — a full-width device cap; lit orange while clicking.
+  hearBtn: {
+    backgroundColor: DEVICE.cap,
+    borderRadius: Radii.md,
+    borderWidth: 1,
+    borderColor: DEVICE.rim,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
+  hearBtnOn: { backgroundColor: DEVICE.accent, borderColor: DEVICE.accent },
+  hearText: {
+    color: DEVICE.text,
+    fontWeight: Type.weight.heavy,
+    fontSize: Type.size.sm,
+    letterSpacing: 1,
+  },
+  hearTextOn: { color: '#fff' },
   incRow: { flexDirection: 'row', gap: Spacing.sm },
   incChip: {
     flex: 1,

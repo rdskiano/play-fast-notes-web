@@ -30,7 +30,7 @@ import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { setRecordingActive } from '@/lib/audio/recordingSessionFlag';
+import { noteForeignAudioUse, setRecordingActive } from '@/lib/audio/recordingSessionFlag';
 import { useSession } from '@/lib/supabase/auth';
 import { saveRecording, type RecordingTarget } from '@/lib/supabase/recordings';
 
@@ -138,6 +138,7 @@ export function RecorderPanel({
     if (recording) {
       await recorder.stop();
       setRecordingActive(false);
+      noteForeignAudioUse();
       const uri = recorder.uri;
       await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
       const durationSec = (Date.now() - recordStartRef.current) / 1000;
@@ -175,6 +176,7 @@ export function RecorderPanel({
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
+      noteForeignAudioUse();
       // Tell the metronome engine the session belongs to the mic now —
       // it must NOT re-assert its playback category mid-take (see
       // lib/audio/recordingSessionFlag.ts).
@@ -192,6 +194,9 @@ export function RecorderPanel({
   function playTake(take: Take) {
     // Listening intent is unambiguous — quiet any other app audio first.
     onPlaybackStart?.();
+    // expo-audio playback wrecks the metronome's context clock — stamp it
+    // so the next metronome start rebuilds (see recordingSessionFlag).
+    noteForeignAudioUse();
     if (activeTakeId !== take.id) {
       player.replace({ uri: take.uri });
       setActiveTakeId(take.id);

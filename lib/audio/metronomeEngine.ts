@@ -11,7 +11,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
 import { TOKEN_QUARTER_FRACTIONS, type RhythmToken } from '@/lib/strategies/rhythmPatterns';
 import { getGroove, STEPS_PER_QUARTER, type Groove } from './grooves';
-import { isRecordingActive } from './recordingSessionFlag';
+import { getForeignAudioStamp, isRecordingActive } from './recordingSessionFlag';
 
 // Clicks per beat: 1 (quarter), 2 (eighths), 3 (triplet), 4 (sixteenths).
 export type Subdivision = 1 | 2 | 3 | 4;
@@ -390,6 +390,9 @@ export class MetronomeEngine {
   start() {
     this.running = true;
     this.syncKeepAwake();
+    // Recover BEFORE the unavailable guard — a wrecked context may have
+    // latched the flag, and recovery clears it.
+    this.recoverFromForeignAudio();
     if (this.unavailable) return;
     // Re-claim the playback session — the Recorder may have reshaped it
     // since the last start (see assertPlaybackSession).
@@ -426,6 +429,7 @@ export class MetronomeEngine {
 
   /** One-shot pitch with a short triangle-wave envelope. */
   playPitch(frequencyHz: number, durationSec = 0.55) {
+    this.recoverFromForeignAudio();
     if (this.unavailable || frequencyHz <= 0) return;
     this.ensureCtx();
     if (!this.ctx) return;
@@ -479,6 +483,7 @@ export class MetronomeEngine {
     beatDenominator: number,
     onEnd?: () => void,
   ): void {
+    this.recoverFromForeignAudio();
     if (this.unavailable || freqs.length === 0 || tokens.length === 0) {
       onEnd?.();
       return;
@@ -659,6 +664,7 @@ export class MetronomeEngine {
 
   /** Even-spaced pitch sequence. Returns total scheduled seconds. */
   playPitchSequence(freqs: number[], secondsPerNote: number): number {
+    this.recoverFromForeignAudio();
     if (this.unavailable || freqs.length === 0) return 0;
     assertPlaybackSession();
     this.stopPitchSequence();
@@ -784,6 +790,7 @@ export class MetronomeEngine {
    * mutes anything scheduled in the ~250 ms lookahead window.
    */
   startRhythmLoop(tokens: RhythmToken[], beatDenominator = 4) {
+    this.recoverFromForeignAudio();
     if (this.unavailable || tokens.length === 0) return;
     assertPlaybackSession();
     this.stopRhythmLoop();
@@ -1266,7 +1273,35 @@ export class MetronomeEngine {
 
   // ── Internals ─────────────────────────────────────────────────────────────
 
+  // The stamp this engine's context was built under. When the recorder
+  // touches the audio session (record / take playback), the stamp moves;
+  // our context can then LOOK running while its clock is dead — session
+  // re-assertion alone did not revive it (Ralph, iPad app). A moved stamp
+  // forces a full context rebuild on the next sound.
+  private foreignStamp = getForeignAudioStamp();
+
+  private recoverFromForeignAudio() {
+    const s = getForeignAudioStamp();
+    if (s === this.foreignStamp) return;
+    this.foreignStamp = s;
+    if (this.ctx) {
+      try {
+        void this.ctx.close();
+      } catch {
+        // Closing a wrecked context can itself throw — we're discarding it.
+      }
+    }
+    this.ctx = null;
+    this.accentBuffer = null;
+    this.normalBuffer = null;
+    this.subBuffer = null;
+    this.noiseBuffer = null;
+    // A fresh context may build even where the old one wedged the flag.
+    this.unavailable = false;
+  }
+
   private ensureCtx() {
+    this.recoverFromForeignAudio();
     if (this.unavailable) return;
     if (!this.ctx || this.ctx.state === 'closed') {
       const api = loadAudioApi();
