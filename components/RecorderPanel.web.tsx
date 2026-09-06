@@ -430,8 +430,27 @@ export function RecorderPanel({
   const circleSize = isPhone ? 56 : 76;
   const innerSize = isPhone ? 22 : 30;
 
-  // Mini mode — record/stop + elapsed + expand, nothing else. All hooks
-  // above have already run, so record state carries across the toggle.
+  // Mini mode. PHONE: a bare red dot hanging under the pill's mic icon —
+  // no card, no chrome (Ralph: even the corner card was in the way of the
+  // music); expanding happens by tapping the mic icon in the pill. Tablet/
+  // desktop keep the small card with timer + expand. All hooks above have
+  // already run, so record state carries across the toggle.
+  if (collapsed && isPhone) {
+    return (
+      <View style={styles.dotWrap}>
+        <Pressable
+          onPress={toggleRecord}
+          hitSlop={10}
+          accessibilityLabel={recording ? 'Stop recording' : 'Record'}
+          style={[styles.dotBtn, recording && styles.dotBtnRec]}>
+          <View style={recording ? styles.dotStopGlyph : styles.dotRecGlyph} />
+        </Pressable>
+        {recording ? (
+          <ThemedText style={styles.dotTimer}>{fmt(elapsed)}</ThemedText>
+        ) : null}
+      </View>
+    );
+  }
   if (collapsed) {
     return (
       <View style={styles.miniPanel}>
@@ -715,6 +734,33 @@ const styles = StyleSheet.create({
     fontSize: Type.size.lg,
     fontWeight: Type.weight.heavy,
     color: Palette.text,
+    fontVariant: ['tabular-nums'],
+  },
+  // Phone collapsed-dot mode.
+  dotWrap: { flex: 1, alignItems: 'center', gap: 2, paddingTop: 2 },
+  dotBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 3,
+    borderColor: Palette.danger,
+    backgroundColor: Palette.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Lift,
+  },
+  dotBtnRec: { backgroundColor: Palette.danger },
+  dotRecGlyph: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Palette.danger,
+  },
+  dotStopGlyph: { width: 16, height: 16, borderRadius: 4, backgroundColor: '#fff' },
+  dotTimer: {
+    fontSize: 12,
+    fontWeight: Type.weight.heavy,
+    color: Palette.danger,
     fontVariant: ['tabular-nums'],
   },
   statusDot: { width: 11, height: 11, borderRadius: 6 },

@@ -241,6 +241,10 @@ export function PracticeToolsBar({
       };
     }
     if (recorderCollapsed) {
+      // Phone: no card at all — a bare red dot hanging right under the
+      // pill's mic icon (Ralph: the corner card was still in the way of
+      // the music). Tablet/desktop keep the small card with the timer.
+      if (isPhone) return { w: 56, h: 72, bg: 'transparent', border: 'transparent' };
       return { w: 120, h: 132, bg: '#fff', border: Palette.border };
     }
     return {
@@ -329,7 +333,16 @@ export function PracticeToolsBar({
             return (
               <Pressable
                 key={key}
-                onPress={() => setOpen((o) => (o === key ? null : key))}
+                onPress={() => {
+                  // Recorder icon while the collapsed dot is out: EXPAND
+                  // back to the full card (the dot has no expand control
+                  // of its own). Otherwise the usual open/close toggle.
+                  if (key === 'recorder' && open === 'recorder' && recorderCollapsed) {
+                    setRecorderCollapsed(false);
+                    return;
+                  }
+                  setOpen((o) => (o === key ? null : key));
+                }}
                 accessibilityLabel={key}
                 style={[styles.iconBtn, active && styles.iconBtnActive]}>
                 <MaterialCommunityIcons
@@ -377,6 +390,7 @@ export function PracticeToolsBar({
           <View
             style={[
               styles.panel,
+              size.bg === 'transparent' && styles.panelBare,
               {
                 width: size.w,
                 height: size.h,
@@ -460,6 +474,13 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     ...Lift,
+  },
+  // The phone's collapsed-recorder dot: no card chrome, no shadow.
+  panelBare: {
+    borderWidth: 0,
+    shadowOpacity: 0,
+    elevation: 0,
+    overflow: 'visible',
   },
   phoneOverlay: {
     position: 'absolute',

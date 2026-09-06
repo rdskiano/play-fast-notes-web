@@ -234,10 +234,27 @@ export function RecorderPanel({
     }
   }
 
-  // Mini mode — a wordless red record circle + elapsed time, with the
-  // expand control in its own row above so nothing overlaps (the first
-  // version squeezed the labelled Record pill into the mini box and hid
-  // the ⤢ behind it — Ralph's verification pass).
+  // Mini mode. PHONE: a bare red dot hanging under the pill's mic icon —
+  // no card, no chrome (Ralph: even the corner card was in the way);
+  // expand by tapping the mic icon in the pill. Tablet keeps the card.
+  if (collapsed && isPhone) {
+    return (
+      <View style={styles.dotWrap}>
+        <Pressable
+          onPress={toggleRecord}
+          hitSlop={10}
+          accessibilityLabel={recording ? 'Stop recording' : 'Record'}
+          style={[styles.dotBtn, recording && styles.dotBtnRec]}>
+          <View style={recording ? styles.dotStopGlyph : styles.dotRecGlyph} />
+        </Pressable>
+        {recording ? (
+          <ThemedText style={styles.dotTimer}>
+            {fmt((Date.now() - recordStartRef.current) / 1000)}
+          </ThemedText>
+        ) : null}
+      </View>
+    );
+  }
   if (collapsed) {
     return (
       <View style={styles.miniPanel}>
@@ -413,6 +430,32 @@ const styles = StyleSheet.create({
     borderRadius: Radii.lg,
   },
   recordGlyph: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#fff' },
+  // Phone collapsed-dot mode.
+  dotWrap: { flex: 1, alignItems: 'center', gap: 2, paddingTop: 2 },
+  dotBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 3,
+    borderColor: Palette.danger,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dotBtnRec: { backgroundColor: Palette.danger },
+  dotRecGlyph: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Palette.danger,
+  },
+  dotStopGlyph: { width: 16, height: 16, borderRadius: 4, backgroundColor: '#fff' },
+  dotTimer: {
+    fontSize: 12,
+    fontWeight: Type.weight.heavy,
+    color: Palette.danger,
+    fontVariant: ['tabular-nums'],
+  },
   // Mini (collapsed) mode — expand row on top, wordless red circle below.
   miniPanel: {
     flex: 1,
