@@ -221,12 +221,39 @@ const LIVE_ENGINES = new Set<MetronomeEngine>();
 export async function quiesceEnginesForSessionChange(): Promise<() => void> {
   const toResume: MetronomeEngine[] = [];
   for (const e of LIVE_ENGINES) {
-    if (e.quiesceForSessionChange()) toResume.push(e);
+    // AWAITED: the first version fired suspend() and waited a blind 60ms —
+    // the render callback was still live when the session flipped, and the
+    // crash recurred with the identical signature (second log,
+    // 2026-09-05-214453). Suspension and close are async native work;
+    // nothing may touch the session until they have actually finished.
+    if (await e.quiesceForSessionChange()) toResume.push(e);
   }
-  await new Promise((r) => setTimeout(r, 60));
+  // Small tail for the audio HAL to settle after the last close.
+  await new Promise((r) => setTimeout(r, 50));
   return () => {
     for (const e of toResume) e.start();
   };
+}
+
+// Await a possibly-hung native promise with a ceiling — a wrecked context's
+// suspend/close may never resolve, and the UI must not wedge on it.
+function awaitWithTimeout(p: Promise<unknown> | undefined, ms: number): Promise<void> {
+  if (!p || typeof (p as Promise<unknown>).then !== 'function') {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    const t = setTimeout(resolve, ms);
+    (p as Promise<unknown>).then(
+      () => {
+        clearTimeout(t);
+        resolve();
+      },
+      () => {
+        clearTimeout(t);
+        resolve();
+      },
+    );
+  });
 }
 
 export class MetronomeEngine {
@@ -1274,7 +1301,7 @@ export class MetronomeEngine {
    * audio-session change (see quiesceEnginesForSessionChange). Returns
    * whether the plain click was running, so the caller can resume it.
    */
-  quiesceForSessionChange(): boolean {
+  async quiesceForSessionChange(): Promise<boolean> {
     const wasClicking = this.running;
     this.stop();
     this.stopRhythmLoop();
@@ -1287,18 +1314,19 @@ export class MetronomeEngine {
     this.subBuffer = null;
     this.noiseBuffer = null;
     if (ctx) {
+      // Fully wind the render callback down BEFORE the caller touches the
+      // audio session: suspend (awaited), then close (awaited), each with
+      // a ceiling so a wrecked context can't hang the recorder UI.
       try {
-        void ctx.suspend?.();
+        await awaitWithTimeout(ctx.suspend?.(), 400);
       } catch {
         // ignore — we're discarding it either way
       }
-      setTimeout(() => {
-        try {
-          void ctx.close();
-        } catch {
-          // ignore
-        }
-      }, 400);
+      try {
+        await awaitWithTimeout(ctx.close(), 400);
+      } catch {
+        // ignore
+      }
     }
     return wasClicking;
   }
