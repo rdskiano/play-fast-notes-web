@@ -7,8 +7,9 @@
 // presses NEXT.
 //
 // One card, two faces, like a physical device you flip over:
-//  - SETUP face: performance tempo (typed or ±5), increment chips, start
-//    tempo (auto = half of performance, rounded to 5, until hand-edited).
+//  - SETUP face: performance tempo (house BpmStepper: ±1 tap, ±5 hold, slider,
+//    Hear tempo), increment chips, and a display-only start tempo (always
+//    half of performance, rounded to 5 — information, not a control).
 //  - RUN face: big tempo readout, giant NEXT (also spacebar / foot pedal via
 //    PedalCatcher), BACK, ±5 escape hatches for when reality diverges. At the
 //    top of a climb the display celebrates; NEXT then starts the next phase
@@ -24,10 +25,10 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from 'react-native';
 
+import { BpmStepper } from '@/components/BpmStepper';
 import { DEVICE } from '@/components/MetronomePanel';
 import { PedalCatcher } from '@/components/PedalCatcher';
 import { SessionTopBar } from '@/components/SessionTopBar';
@@ -67,50 +68,17 @@ export default function IcuMetronomeScreen() {
   // ── Setup-face state ────────────────────────────────────────────────────
   const [goalStr, setGoalStr] = useState('120');
   const [inc, setInc] = useState(5);
+  // Start tempo is always half the goal (display-only — Ralph's call:
+  // starts-at is information, not a control).
   const [startStr, setStartStr] = useState(String(defaultStart(120)));
-  // Auto-derive start from goal (half) until the user edits start by hand.
-  const startTouched = useRef(false);
 
   function onGoalChange(next: string) {
     setGoalStr(next);
     const g = parseInt(next, 10);
-    if (!startTouched.current && Number.isFinite(g) && g >= BPM_MIN) {
+    if (Number.isFinite(g) && g >= BPM_MIN) {
       setStartStr(String(defaultStart(g)));
     }
   }
-  function nudgeGoal(delta: number) {
-    const g = clampBpm((parseInt(goalStr, 10) || 120) + delta);
-    onGoalChange(String(g));
-    if (previewing === 'goal') metronome.setBpm(g);
-  }
-  function nudgeStart(delta: number) {
-    startTouched.current = true;
-    const s = clampBpm((parseInt(startStr, 10) || 60) + delta);
-    setStartStr(String(s));
-    if (previewing === 'start') metronome.setBpm(s);
-  }
-
-  // Hear-before-committing (Ralph's ask): a ♪ preview beside each tempo on
-  // the setup face clicks at that number until tapped again, so the player
-  // can FEEL a tempo before flipping the device over. Nudging a previewed
-  // number retargets the click live.
-  const [previewing, setPreviewing] = useState<null | 'goal' | 'start'>(null);
-  function togglePreview(which: 'goal' | 'start') {
-    if (previewing === which) {
-      metronome.stop();
-      setPreviewing(null);
-      return;
-    }
-    const bpm =
-      which === 'goal'
-        ? clampBpm(parseInt(goalStr, 10) || 120)
-        : clampBpm(parseInt(startStr, 10) || 60);
-    metronome.setBpm(bpm);
-    // Inside the tap = the user gesture that unlocks web audio.
-    if (!metronome.running) metronome.start();
-    setPreviewing(which);
-  }
-
   // ── Run-face state ──────────────────────────────────────────────────────
   const [face, setFace] = useState<'setup' | 'run'>('setup');
   const [tempos, setTempos] = useState<number[]>([]);
@@ -131,7 +99,6 @@ export default function IcuMetronomeScreen() {
   });
 
   function flipToRun() {
-    setPreviewing(null);
     const goal = clampBpm(parseInt(goalStr, 10) || 120);
     let start = clampBpm(parseInt(startStr, 10) || defaultStart(goal));
     if (start >= goal) start = defaultStart(goal);
@@ -221,42 +188,17 @@ export default function IcuMetronomeScreen() {
             </ThemedText>
 
             <ThemedText style={styles.fieldLabel}>PERFORMANCE TEMPO</ThemedText>
-            <View style={styles.goalRow}>
-              <Pressable onPress={() => nudgeGoal(-5)} style={styles.capBtn}>
-                <ThemedText style={styles.capText}>−5</ThemedText>
-              </Pressable>
-              <View style={styles.display}>
-                <TextInput
-                  value={goalStr}
-                  onChangeText={onGoalChange}
-                  keyboardType="number-pad"
-                  maxLength={3}
-                  style={styles.displayInput}
-                />
-              </View>
-              <Pressable onPress={() => nudgeGoal(5)} style={styles.capBtn}>
-                <ThemedText style={styles.capText}>+5</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => togglePreview('goal')}
-                accessibilityLabel={
-                  previewing === 'goal'
-                    ? 'Stop hearing this tempo'
-                    : 'Hear this tempo'
-                }
-                style={[
-                  styles.previewBtn,
-                  previewing === 'goal' && styles.previewBtnOn,
-                ]}>
-                <ThemedText
-                  style={[
-                    styles.previewText,
-                    previewing === 'goal' && styles.previewTextOn,
-                  ]}>
-                  {previewing === 'goal' ? '■' : '♪'}
-                </ThemedText>
-              </Pressable>
-            </View>
+            {/* The house tempo control (Ralph: "like everywhere else") —
+                ±1 tap / ±5 long-press, slider, and its built-in
+                "▶ Hear tempo" preview (it hands the metronome the number
+                and retargets live while nudging). */}
+            <BpmStepper
+              value={goalStr}
+              onChange={onGoalChange}
+              min={BPM_MIN}
+              max={BPM_MAX}
+              metronome={metronome}
+            />
 
             <ThemedText style={styles.fieldLabel}>CLIMB BY</ThemedText>
             <View style={styles.incRow}>
@@ -272,36 +214,15 @@ export default function IcuMetronomeScreen() {
               ))}
             </View>
 
+            {/* Starts-at is INFORMATION, not a control (Ralph, 2026-09-03):
+                always half the performance tempo — no nudges, no preview.
+                The ±5 escape hatches on the RUN face cover mid-climb
+                reality; the setup face stays two decisions (goal +
+                increment). */}
             <View style={styles.startRow}>
               <ThemedText style={styles.startLabel}>
-                STARTS AT ♩ = {startStr}
-                {startTouched.current ? '' : '  (half)'}
+                STARTS AT ♩ = {startStr}  (half)
               </ThemedText>
-              <Pressable onPress={() => nudgeStart(-5)} style={styles.capBtnSm}>
-                <ThemedText style={styles.capTextSm}>−5</ThemedText>
-              </Pressable>
-              <Pressable onPress={() => nudgeStart(5)} style={styles.capBtnSm}>
-                <ThemedText style={styles.capTextSm}>+5</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => togglePreview('start')}
-                accessibilityLabel={
-                  previewing === 'start'
-                    ? 'Stop hearing the starting tempo'
-                    : 'Hear the starting tempo'
-                }
-                style={[
-                  styles.previewBtnSm,
-                  previewing === 'start' && styles.previewBtnOn,
-                ]}>
-                <ThemedText
-                  style={[
-                    styles.previewTextSm,
-                    previewing === 'start' && styles.previewTextOn,
-                  ]}>
-                  {previewing === 'start' ? '■' : '♪'}
-                </ThemedText>
-              </Pressable>
             </View>
 
             <Pressable onPress={flipToRun} style={styles.goBtn}>
@@ -454,29 +375,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   capTextSm: { color: DEVICE.text, fontWeight: Type.weight.bold, fontSize: Type.size.sm },
-  // ♪ hear-this-tempo preview keys — cap-shaped siblings of the ±5 keys;
-  // lit orange while clicking (■ stops).
-  previewBtn: {
-    backgroundColor: DEVICE.cap,
-    borderRadius: Radii.md,
-    borderWidth: 1,
-    borderColor: DEVICE.rim,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    alignItems: 'center',
-  },
-  previewBtnSm: {
-    backgroundColor: DEVICE.cap,
-    borderRadius: Radii.sm,
-    borderWidth: 1,
-    borderColor: DEVICE.rim,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-  },
-  previewBtnOn: { backgroundColor: DEVICE.accent, borderColor: DEVICE.accent },
-  previewText: { color: DEVICE.text, fontWeight: Type.weight.heavy, fontSize: Type.size.md },
-  previewTextSm: { color: DEVICE.text, fontWeight: Type.weight.bold, fontSize: Type.size.sm },
-  previewTextOn: { color: '#fff' },
   incRow: { flexDirection: 'row', gap: Spacing.sm },
   incChip: {
     flex: 1,

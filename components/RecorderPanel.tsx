@@ -20,6 +20,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -29,6 +30,7 @@ import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { setRecordingActive } from '@/lib/audio/recordingSessionFlag';
 import { useSession } from '@/lib/supabase/auth';
 import { saveRecording, type RecordingTarget } from '@/lib/supabase/recordings';
 
@@ -74,6 +76,9 @@ export function RecorderPanel({
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const session = useSession();
+  // Phone density (house convention): shorter side under 600.
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   // Where a saved take is filed: a passage on a practice screen, or the whole
   // document on the PDF viewer. Save is disabled when there's neither.
@@ -132,6 +137,7 @@ export function RecorderPanel({
   async function toggleRecord() {
     if (recording) {
       await recorder.stop();
+      setRecordingActive(false);
       const uri = recorder.uri;
       await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
       const durationSec = (Date.now() - recordStartRef.current) / 1000;
@@ -169,8 +175,13 @@ export function RecorderPanel({
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
+      // Tell the metronome engine the session belongs to the mic now —
+      // it must NOT re-assert its playback category mid-take (see
+      // lib/audio/recordingSessionFlag.ts).
+      setRecordingActive(true);
       recordStartRef.current = Date.now();
     } catch (e) {
+      setRecordingActive(false);
       Alert.alert(
         'Could not start recording',
         e instanceof Error ? e.message : 'Please try again.',
@@ -296,9 +307,13 @@ export function RecorderPanel({
       </ThemedText>
 
       <View style={styles.speedRow}>
-        <ThemedText style={[styles.speedLabel, { color: C.icon }]}>
-          Playback speed
-        </ThemedText>
+        {/* Phone card is too narrow for the caption + three chips — the
+            chips say "×" already, drop the words there (mirrors web). */}
+        {!isPhone && (
+          <ThemedText style={[styles.speedLabel, { color: C.icon }]}>
+            Playback speed
+          </ThemedText>
+        )}
         {SPEEDS.map((s) => (
           <Pressable
             key={s}
@@ -454,7 +469,7 @@ const styles = StyleSheet.create({
   },
   meterFill: { height: '100%', borderRadius: 5 },
   meterNote: { fontSize: Type.size.xs, textAlign: 'center' },
-  speedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  speedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, flexWrap: 'wrap' },
   speedLabel: {
     fontSize: Type.size.xs,
     fontWeight: Type.weight.semibold,

@@ -940,14 +940,22 @@ export default function TempoLadderScreen() {
       {/* ── Reskinned run top bar (all devices) — Exit (left) · title +
           live "BPM · streak dots · count" pill (centre). The tools pill
           floats top-right (rendered last, below). */}
-      <View style={[styles.runTopBar, { paddingTop: insets.top + 10 }]}>
-        <View style={styles.runSide}>
+      <View
+        style={[
+          styles.runTopBar,
+          // Phone: the floating tools pill (top-right) overlapped the
+          // centered pill — the tracker drops to its own row (same fix as
+          // Rhythmic Variation, 2026-09-03).
+          isPhone && styles.runTopBarPhone,
+          { paddingTop: insets.top + 10 },
+        ]}>
+        <View style={[styles.runSide, isPhone && styles.runSidePhone]}>
           <Pressable onPress={onEndPress} hitSlop={8} style={styles.runExit}>
             <Feather name="log-out" size={15} color={Palette.danger} />
             <ThemedText style={styles.runExitText}>Exit</ThemedText>
           </Pressable>
         </View>
-        <View style={styles.runCenter}>
+        <View style={[styles.runCenter, isPhone && styles.runCenterPhone]}>
           {/* Strategy + passage title — desktop / iPad only. Dropped on phone
               to save a whole line (practice runs in landscape there, where
               vertical space is scarce). The tracker pill stays centred. */}
@@ -972,7 +980,7 @@ export default function TempoLadderScreen() {
             {trackerDots(true)}
           </View>
         </View>
-        <View style={styles.runSide} />
+        {!isPhone && <View style={styles.runSide} />}
       </View>
 
       {/* ── Score ──────────────────────────────────────────────────── */}
@@ -1634,6 +1642,11 @@ const styles = StyleSheet.create({
   playRoot: { flex: 1, backgroundColor: Palette.paper },
 
   // ── Reskinned run top bar ────────────────────────────────────────
+  // Phone variants: Exit row on top (tools pill floats at its right), the
+  // tracker pill on its own full-width row beneath (2026-09-03).
+  runTopBarPhone: { flexDirection: 'column', alignItems: 'stretch' },
+  runSidePhone: { flex: 0, alignItems: 'flex-start' },
+  runCenterPhone: { alignItems: 'center', paddingTop: 2 },
   runTopBar: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -11,6 +11,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
 import { TOKEN_QUARTER_FRACTIONS, type RhythmToken } from '@/lib/strategies/rhythmPatterns';
 import { getGroove, STEPS_PER_QUARTER, type Groove } from './grooves';
+import { isRecordingActive } from './recordingSessionFlag';
 
 // Clicks per beat: 1 (quarter), 2 (eighths), 3 (triplet), 4 (sixteenths).
 export type Subdivision = 1 | 2 | 3 | 4;
@@ -117,6 +118,20 @@ function loadAudioApi(): { AudioContext: AudioContextCtor } | null {
   // stuck in 'suspended', so nothing plays. The Simulator silently
   // tolerates the bad option, which is why the bug was device-only.
   // mixWithOthers lets music keep playing in parallel.
+  assertPlaybackSession();
+  return audioApi;
+}
+
+// (Re-)claim the playback audio session. Called at library load AND on
+// every engine start: the Recorder (expo-audio) reconfigures the session
+// for recording/playback of takes, and a metronome started afterwards
+// found the session in the recorder's shape and stayed SILENT (Ralph,
+// iPad app, 2026-09-03 — "after playing back the take, the metronome
+// won't work"). Skipped while a recording is actively rolling — flipping
+// the category to 'playback' mid-take would kill the mic.
+export function assertPlaybackSession(): void {
+  if (!audioApi) return;
+  if (isRecordingActive()) return;
   try {
     const am = (audioApi as { AudioManager?: {
       setAudioSessionOptions: (o: {
@@ -137,7 +152,6 @@ function loadAudioApi(): { AudioContext: AudioContextCtor } | null {
     // Non-fatal: session may not be configurable on this platform/version.
     // The metronome will still try to play; behavior matches pre-config state.
   }
-  return audioApi;
 }
 
 // Tuning. The everyday click (NORMAL) is now the bright, clear tone that used
@@ -377,6 +391,9 @@ export class MetronomeEngine {
     this.running = true;
     this.syncKeepAwake();
     if (this.unavailable) return;
+    // Re-claim the playback session — the Recorder may have reshaped it
+    // since the last start (see assertPlaybackSession).
+    assertPlaybackSession();
     this.ensureCtx();
     if (!this.ctx) return;
     try {
@@ -466,6 +483,7 @@ export class MetronomeEngine {
       onEnd?.();
       return;
     }
+    assertPlaybackSession();
     this.stopPitchSequence();
     this.ensureCtx();
     if (!this.ctx) {
@@ -642,6 +660,7 @@ export class MetronomeEngine {
   /** Even-spaced pitch sequence. Returns total scheduled seconds. */
   playPitchSequence(freqs: number[], secondsPerNote: number): number {
     if (this.unavailable || freqs.length === 0) return 0;
+    assertPlaybackSession();
     this.stopPitchSequence();
     this.ensureCtx();
     if (!this.ctx) return 0;
@@ -766,6 +785,7 @@ export class MetronomeEngine {
    */
   startRhythmLoop(tokens: RhythmToken[], beatDenominator = 4) {
     if (this.unavailable || tokens.length === 0) return;
+    assertPlaybackSession();
     this.stopRhythmLoop();
     this.ensureCtx();
     if (!this.ctx) return;

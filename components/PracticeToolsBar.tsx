@@ -305,7 +305,9 @@ export function PracticeToolsBar({
           the metronome, tap the page to dismiss"). The tap is consumed, not
           passed through, matching the phone overlay's behaviour: the first
           outside tap closes, it never doubles as a score/marker action. */}
-      {open && !isPhone && (
+      {/* No catcher while the recorder is COLLAPSED: the mini exists to
+          float beside the music while it stays visible and tappable. */}
+      {open && !isPhone && !(open === 'recorder' && recorderCollapsed) && (
         <Pressable
           style={[StyleSheet.absoluteFill, styles.outsideCatcher]}
           accessibilityLabel="Close tool"
@@ -366,8 +368,12 @@ export function PracticeToolsBar({
           )}
         </View>
 
-        {/* Desktop / iPad: drop the panel straight down from the pill. */}
-        {open && size && !isPhone && (
+        {/* Desktop / iPad: drop the panel straight down from the pill.
+            ALSO the phone's COLLAPSED recorder: the mini record button
+            must hug the corner under the pill with the music visible and
+            tappable — the centered phone overlay parked it (and its dim
+            backdrop) right on top of the score (Ralph, iPhone). */}
+        {open && size && (!isPhone || (open === 'recorder' && recorderCollapsed)) && (
           <View
             style={[
               styles.panel,
@@ -386,7 +392,7 @@ export function PracticeToolsBar({
       {/* Phone: a top-anchored dropdown can run off a short (landscape)
           screen, so centre the panel over a dim backdrop and cap its height
           to the viewport instead. Tapping the backdrop closes it. */}
-      {open && size && isPhone && (
+      {open && size && isPhone && !(open === 'recorder' && recorderCollapsed) && (
         <View style={styles.phoneOverlay}>
           <Pressable
             style={StyleSheet.absoluteFill}

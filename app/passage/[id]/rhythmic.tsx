@@ -443,14 +443,24 @@ export default function RhythmicScreen() {
               centered "Pattern n/N · grouping ▾" tracker (centre). The tools
               pill floats top-right (rendered at root, below). Mirrors Tempo
               Ladder / Click-Up. */}
-          <View style={[styles.runTopBar, { paddingTop: insets.top + 10 }]}>
-            <View style={styles.runSide}>
+          {/* Phone: the floating tools pill (top-right, rendered at root)
+              overlapped the centered Pattern pill — no width for both, so
+              the tracker drops to its OWN full-width row under the Exit
+              row (Ralph, iPhone tools-only screenshot). Tablet/desktop
+              keep the single three-slot row. */}
+          <View
+            style={[
+              styles.runTopBar,
+              isPhone && styles.runTopBarPhone,
+              { paddingTop: insets.top + 10 },
+            ]}>
+            <View style={[styles.runSide, isPhone && styles.runSidePhone]}>
               <Pressable onPress={exitSession} hitSlop={8} style={styles.runExit}>
                 <Feather name="log-out" size={15} color={Palette.danger} />
                 <ThemedText style={styles.runExitText}>Exit</ThemedText>
               </Pressable>
             </View>
-            <View style={styles.runCenter}>
+            <View style={[styles.runCenter, isPhone && styles.runCenterPhone]}>
               <View style={styles.runStatPill}>
                 <ThemedText style={styles.runStatLabel}>Pattern</ThemedText>
                 <ThemedText style={styles.runStatCount}>
@@ -469,7 +479,7 @@ export default function RhythmicScreen() {
                 </Pressable>
               </View>
             </View>
-            <View style={styles.runSide} />
+            {!isPhone && <View style={styles.runSide} />}
           </View>
 
           {/* Loop band — ▶ Loop · ‹ · rhythm notation · › (no score in Tools
@@ -862,7 +872,20 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
     gap: Spacing.sm,
   },
+  // Phone: Exit row on top (tools pill floats at its right), Pattern pill
+  // on its own full-width row beneath — see the header comment above.
+  runTopBarPhone: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  runCenterPhone: {
+    alignItems: 'center',
+    paddingTop: 2,
+  },
   runSide: { flex: 1, justifyContent: 'center' },
+  // Column layout: flex:1 children of an auto-height column can collapse
+  // to zero — pin the Exit row to its content height on phone.
+  runSidePhone: { flex: 0, alignItems: 'flex-start' },
   runExit: {
     flexDirection: 'row',
     alignItems: 'center',

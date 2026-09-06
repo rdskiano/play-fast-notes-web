@@ -1,6 +1,6 @@
 import { usePathname, useRouter } from 'expo-router';
 import { useRef, useState, useSyncExternalStore } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { PassagePickerModal } from '@/components/PassagePickerModal';
@@ -499,6 +499,16 @@ function TimerSettingsModal({
   // centered card leaves the input underneath it (Ralph, verification
   // pass). Top-aligned, the input sits in the surviving upper half.
   const [promptInputFocused, setPromptInputFocused] = useState(false);
+  // PHONE: even the pinned card wasn't enough — the cue input sits at the
+  // bottom of a long settings scroll and iPhone Safari's keyboard still
+  // buried it (Ralph, round 2). So on phones the add box opens a dedicated
+  // COMPOSE sheet: a small card pinned to the very top of the screen with
+  // just the input + Add, out of any keyboard's reach. It stays open for
+  // batch entry and shows a receipt for each added cue.
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [lastAdded, setLastAdded] = useState<string | null>(null);
 
   function addPromptCue() {
     const text = promptDraft.trim();
@@ -515,6 +525,7 @@ function TimerSettingsModal({
       ...(wasEmpty ? { enabled: true } : {}),
     });
     setPromptDraft('');
+    setLastAdded(text);
     // Keep the keyboard up and the caret in the box — cues arrive in
     // batches (a wall of post-its), so each add flows into the next.
     promptInputRef.current?.focus();
@@ -765,7 +776,26 @@ function TimerSettingsModal({
                 {/* Add-box ABOVE the cue list: cues arrive in batches, and
                     with the box below a growing list every add pushed it
                     further down (and under the iPad keyboard). Here it
-                    stays put while new cues stack below it. */}
+                    stays put while new cues stack below it. On PHONES the
+                    box is a button that opens the top-pinned compose sheet
+                    instead — no inline typing under a keyboard. */}
+                {isPhone ? (
+                  <Pressable
+                    onPress={() => {
+                      setLastAdded(null);
+                      setComposeOpen(true);
+                    }}
+                    accessibilityLabel="Add a cue"
+                    style={[
+                      styles.promptInput,
+                      styles.promptAddFake,
+                      { borderColor: C.icon + '55' },
+                    ]}>
+                    <ThemedText style={{ color: C.icon }}>
+                      Add a cue — e.g. Relax your throat
+                    </ThemedText>
+                  </Pressable>
+                ) : (
                 <View style={styles.promptAddRow}>
                   <TextInput
                     ref={promptInputRef}
@@ -810,6 +840,7 @@ function TimerSettingsModal({
                     <ThemedText style={styles.promptAddBtnText}>Add</ThemedText>
                   </Pressable>
                 </View>
+                )}
                 {prompts.config.prompts.map((cue, i) => (
                   <View
                     key={`${i}-${cue.text}`}
@@ -869,6 +900,69 @@ function TimerSettingsModal({
               </View>
             </ScrollView>
             <Button label="Close" onPress={onClose} />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Phone compose sheet — pinned to the TOP of the screen so the
+          keyboard (bottom half) can never cover it. Stays open for batch
+          entry; each add shows a receipt and clears the box. */}
+      <Modal
+        supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+        visible={composeOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setComposeOpen(false)}>
+        <View style={styles.composeBackdrop}>
+          <View style={[styles.composeCard, { backgroundColor: C.background }]}>
+            <View style={styles.composeHeader}>
+              <ThemedText style={styles.composeTitle}>Add cues</ThemedText>
+              <Pressable
+                onPress={() => setComposeOpen(false)}
+                hitSlop={10}
+                accessibilityLabel="Done adding cues">
+                <ThemedText style={[styles.composeDone, { color: C.tint }]}>
+                  Done
+                </ThemedText>
+              </Pressable>
+            </View>
+            <View style={styles.promptAddRow}>
+              <TextInput
+                ref={promptInputRef}
+                value={promptDraft}
+                onChangeText={setPromptDraft}
+                onSubmitEditing={addPromptCue}
+                onKeyPress={(e) => {
+                  if ((e.nativeEvent as { key?: string }).key === 'Enter') {
+                    addPromptCue();
+                  }
+                }}
+                autoFocus
+                blurOnSubmit={false}
+                placeholder="e.g. Relax your throat"
+                placeholderTextColor={C.icon}
+                style={[
+                  styles.promptInput,
+                  { borderColor: C.icon + '55', color: C.text },
+                ]}
+              />
+              <Pressable
+                onPress={addPromptCue}
+                disabled={!promptDraft.trim()}
+                style={[
+                  styles.promptAddBtn,
+                  {
+                    backgroundColor: promptDraft.trim()
+                      ? C.tint
+                      : C.icon + '33',
+                  },
+                ]}>
+                <ThemedText style={styles.promptAddBtnText}>Add</ThemedText>
+              </Pressable>
+            </View>
+            <ThemedText style={[styles.composeReceipt, { color: C.icon }]}>
+              {lastAdded ? `Added ✓  ${lastAdded}` : ' '}
+            </ThemedText>
           </View>
         </View>
       </Modal>
@@ -1091,6 +1185,30 @@ const styles = StyleSheet.create({
   promptRowText: { flex: 1, fontSize: Type.size.md },
   promptRowDelete: { fontSize: Type.size.md, paddingHorizontal: 2 },
   promptAddRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // Phone: the add box is a button that opens the compose sheet.
+  promptAddFake: { justifyContent: 'center' },
+  // Compose sheet (phone) — top-pinned so the keyboard can't reach it.
+  composeBackdrop: {
+    flex: 1,
+    backgroundColor: '#000000aa',
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+    padding: 12,
+    paddingTop: 56,
+  },
+  composeCard: {
+    borderRadius: Radii['2xl'],
+    padding: 16,
+    gap: 10,
+  },
+  composeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  composeTitle: { fontWeight: Type.weight.heavy, fontSize: 17 },
+  composeDone: { fontWeight: Type.weight.heavy, fontSize: 16 },
+  composeReceipt: { fontSize: 13, minHeight: 18 },
   promptInput: {
     flex: 1,
     borderWidth: Borders.thin,

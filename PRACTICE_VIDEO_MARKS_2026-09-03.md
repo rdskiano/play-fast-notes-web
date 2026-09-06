@@ -155,6 +155,32 @@ longer restart the interval clock.**
   dismissCelebration on Tempo Ladder) — no more being forced to log a
   session you ended by accident.
 
+## Batch 3 (Ralph's iOS-app testing, same night — coded, unshipped)
+- METRONOME DEAD AFTER TAKE PLAYBACK (iPad/iPhone app): the engine claimed
+  its iOS audio session ONCE at library load; the recorder's playback
+  reshaped the session and the metronome never re-claimed → silent. Now
+  assertPlaybackSession() runs on every engine start (click, rhythm loop,
+  pitch playback), guarded by a recordingActive flag (recorder sets it) so
+  a click started MID-TAKE can't flip the category and kill the mic.
+  (Take survival itself Ralph-VERIFIED working on the app.)
+- iPhone recorder card: playback-speed caption hidden on phone (chips
+  wrapped + didn't fit the 260-wide card); speed row wraps as safety.
+- iPhone collapsed recorder no longer parks CENTERED over the music behind
+  a dim overlay — it anchors under the tool pill top-right like desktop,
+  with no outside-tap catcher, so the score stays visible AND tappable
+  (catcher also skipped for desktop mini).
+- iPhone prompt entry, round 2: the pinned-card fix wasn't enough (input
+  still at the bottom of a long scroll under the keyboard). Phones now get
+  a dedicated COMPOSE SHEET: the add box opens a small card pinned to the
+  very top of the screen — input + Add + "Added ✓ <cue>" receipt — stays
+  open for batch entry, Done closes. (Ralph's own suggestion: "maybe it
+  just needs to appear as a separate text box".)
+- Phone run-header overlap (Ralph's tools-only Rhythmic screenshot: the
+  floating tools pill sat ON the "Pattern 18/21" pill): on phones the
+  tracker pill drops to its own full-width row under the Exit row — fixed
+  as a CLASS on Rhythmic Variation, Tempo Ladder, and Click-Up (all three
+  share the runTopBar pattern).
+
 ## Follow-up work item: prompt cues don't reach the NATIVE app
 Ralph: "plenty of prompts on my iPad that do not show up on my iPhone."
 Root cause confirmed in code: settings.web.ts = Supabase (account-wide,
