@@ -45,8 +45,12 @@ const INCREMENTS = [3, 5, 7, 10];
 const CARD_W = 340;
 // Tall enough that the setup face's full stack (title, tempo control with
 // slider + HEAR cap, increment chips, starts-at, FLIP) sits INSIDE the
-// gray — the flip button was falling off the card (Ralph).
-const CARD_H = 560;
+// gray on a phone-width card, where the subtitle wraps to four lines —
+// 560 clipped the title at the top and FLIP at the bottom (Ralph's iPhone
+// screenshot; the face centers its content, so overflow eats both ends).
+// The screen body is a ScrollView, so a tall card scrolls on short
+// landscape screens instead of clipping.
+const CARD_H = 640;
 
 function clampBpm(v: number): number {
   return Math.max(BPM_MIN, Math.min(BPM_MAX, v));
