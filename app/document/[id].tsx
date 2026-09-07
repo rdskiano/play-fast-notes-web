@@ -35,6 +35,7 @@ import { ZoomableImage } from '@/components/ZoomableImage';
 import { PinchZoomPan } from '@/components/PinchZoomPan';
 import { PassageRectDrawer } from '@/components/PassageRectDrawer';
 import { PassageRectResizer } from '@/components/PassageRectResizer';
+import { PedalCatcher } from '@/components/PedalCatcher';
 import { PostSaveSheet } from '@/components/PostSaveSheet';
 import { PracticeToolsBar } from '@/components/PracticeToolsBar';
 import { PromptModal } from '@/components/PromptModal';
@@ -939,6 +940,26 @@ export default function DocumentScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      {/* Foot-pedal page turns on the iPad/iPhone APP. The 2026-09-03 pedal
+          feature only covered web (the window-keydown effect above); native
+          key events never reach `window`, so the app needs the hardware-keys
+          PedalCatcher. Same gating as the web effect (off during draw/resize),
+          plus off while a naming prompt is open — the capture view re-claims
+          keyboard focus on a 1s timer and would steal it from the TextInput.
+          Pencil stand-down is handled inside PedalCatcher itself. */}
+      {Platform.OS !== 'web' && (
+        <PedalCatcher
+          active={
+            mode !== 'draw' &&
+            mode !== 'resize' &&
+            renamePromptFor === null &&
+            !namePromptOpen &&
+            pendingSectionMark === null
+          }
+          onAdvance={() => goTo(currentIndex + 1)}
+          onBack={() => goTo(currentIndex - 1)}
+        />
+      )}
       {/* Guided onboarding wears the quiz's minimal clothes: no app chrome, no
           tool tabs, no wall-of-text tutorial — just a light instruction banner
           over the photo + box-drawing surface. Everything below is gated on the

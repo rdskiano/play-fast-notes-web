@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-07-pedal-page-turns-app',
+    date: 'September 7, 2026',
+    title: 'Foot pedal page turns now work in the app',
+    body:
+      'The September 3 update promised foot pedal page turns in the part viewer, but they only worked on the website. The iPad and iPhone app now listens for your pedal too: right pedal turns forward, left pedal turns back. The pedal pauses while you are drawing a passage box, using the Pencil tool, or typing a name, so it never steals a keystroke.',
+  },
+  {
     id: '2026-09-03-phone-and-app-polish',
     date: 'September 3, 2026',
     title: 'Phone polish, and the metronome always comes back',
