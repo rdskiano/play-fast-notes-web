@@ -14,6 +14,8 @@
 //   - compact (the three log screens): a short chip that sits after the
 //             strategy label — "Step · 100 BPM", "100 BPM ✓".
 
+import { noteName } from '@/lib/audio/noteNames';
+
 export type PracticeLogLike = {
   strategy: string;
   data_json?: string | null;
@@ -76,138 +78,159 @@ export function formatPracticeDetail(
   const compact = opts.compact ?? false;
   try {
     const data = JSON.parse(entry.data_json);
-
-    if (entry.strategy === 'tempo_ladder') {
-      const mode = tempoLadderMode(data);
-      if (compact) {
-        if (!data.tempo) return null;
-        return mode ? `${mode} · ${data.tempo} BPM` : `${data.tempo} BPM`;
-      }
-      const parts: string[] = [];
-      if (mode) parts.push(mode);
-      if (data.tempo) parts.push(`${data.tempo} BPM`);
-      if (data.goalTempo) parts.push(`goal ${data.goalTempo}`);
-      if (typeof data.completedSets === 'number' && data.completedSets > 0) {
-        parts.push(`${data.completedSets} ${data.completedSets === 1 ? 'set' : 'sets'}`);
-      }
-      return parts.join(' · ');
-    }
-
-    if (entry.strategy === 'evaluation') {
-      // First-practice measurements: {goal, probeClean, tempo?, clean?, misses?}.
-      if (data.probeClean) {
-        return compact
-          ? `${data.goal} ✓`
-          : `probed at ${data.goal} BPM — clean, performance-ready`;
-      }
-      const parts: string[] = [];
-      if (data.clean) parts.push(compact ? `clean ${data.clean}` : `clean at ${data.clean} BPM`);
-      if (data.goal) parts.push(`goal ${data.goal}`);
-      return parts.length ? parts.join(' · ') : null;
-    }
-
-    if (entry.strategy === 'click_up') {
-      if (compact) {
-        // Direction rides the compact chip too — the document and library
-        // logs showed a bare "Interleaved Click-Up" while only the passage
-        // view said "forward, then back" (Ralph's verification pass).
-        const dir =
-          typeof data.passes === 'number' && data.passes > 1
-            ? data.passes === 2
-              ? 'forward, then back'
-              : `${data.passes} passes`
-            : data.direction === 'backward'
-              ? 'backward'
-              : null;
-        const step =
-          data.step != null && data.totalSteps
-            ? `${data.step + 1}/${data.totalSteps}`
-            : null;
-        if (step && dir) return `${step} · ${dir}`;
-        return step ?? dir;
-      }
-      const parts: string[] = [];
-      if (data.step != null && data.totalSteps)
-        parts.push(`step ${data.step + 1}/${data.totalSteps}`);
-      if (data.tempo) parts.push(`${data.tempo} BPM`);
-      // Direction (beta): a forward-then-reverse sitting logs passes: 2;
-      // a single backward climb logs direction: 'backward'. Spell the
-      // common case out in player language — a bare "2 passes" made its
-      // own author guess what it meant a day later (D72).
-      if (typeof data.passes === 'number' && data.passes > 1) {
-        parts.push(
-          data.passes === 2
-            ? 'forward, then back'
-            : `${data.passes} passes, alternating direction`,
-        );
-      } else if (data.direction === 'backward') {
-        parts.push('backward');
-      }
-      return parts.join(' · ');
-    }
-
-    if (entry.strategy === 'interleaved') {
-      if (compact) {
-        const parts: string[] = [];
-        if (typeof data.tempo === 'number') parts.push(`${data.tempo} BPM`);
-        if (data.completed) parts.push('✓');
-        return parts.length > 0 ? parts.join(' ') : null;
-      }
-      const parts: string[] = ['Rep Rotator session'];
-      // List the OTHER passages in the rotation so the user reading this
-      // passage's log knows it was part of a group session and which group.
-      // Trim to the first 3 names so the line doesn't blow out on a long
-      // rotation.
-      if (Array.isArray(data.sessionPassages) && data.sessionPassages.length > 0) {
-        const names = data.sessionPassages.filter(
-          (n: unknown): n is string => typeof n === 'string' && n.length > 0,
-        );
-        if (names.length > 0) {
-          const shown = names.slice(0, 3).join(', ');
-          const more = names.length > 3 ? ` +${names.length - 3} more` : '';
-          parts.push(`with ${shown}${more}`);
-        }
-      }
-      if (typeof data.tempo === 'number') parts.push(`${data.tempo} BPM`);
-      if (data.completed) parts.push('completed ✓');
-      else if (data.streak != null && data.targetReps) {
-        parts.push(`${data.streak}/${data.targetReps} reps`);
-      }
-      return parts.join(' · ');
-    }
-
-    if (entry.strategy === 'icu2') {
-      // {goal, start, reached, atTempo, sessionPassages?, mode?, climbBy?}
-      if (compact) {
-        if (typeof data.reached !== 'number') return null;
-        return data.atTempo ? `${data.reached} BPM ✓` : `saved at ${data.reached}`;
-      }
-      const parts: string[] = [];
-      if (data.mode === 'together') parts.push('step together');
-      if (Array.isArray(data.sessionPassages) && data.sessionPassages.length > 0) {
-        const names = data.sessionPassages.filter(
-          (n: unknown): n is string => typeof n === 'string' && n.length > 0,
-        );
-        if (names.length > 0) {
-          const shown = names.slice(0, 3).join(', ');
-          const more = names.length > 3 ? ` +${names.length - 3} more` : '';
-          parts.push(`with ${shown}${more}`);
-        }
-      }
-      if (typeof data.goal === 'number') parts.push(`goal ${data.goal}`);
-      if (typeof data.reached === 'number') {
-        parts.push(data.atTempo ? `reached ${data.reached} ✓` : `saved at ${data.reached}`);
-      }
-      return parts.length ? parts.join(' · ') : null;
-    }
-
-    if (entry.strategy === 'recording' && typeof data.duration_seconds === 'number') {
-      const m = Math.floor(data.duration_seconds / 60);
-      const s = Math.floor(data.duration_seconds % 60);
-      return `${m}:${s.toString().padStart(2, '0')}`;
-    }
+    const main = strategyDetail(entry.strategy, data, compact);
+    // Drone stamped by logPractice (droneMidi) rides every strategy's line,
+    // including ones with no branch above — a chunking session with a drone
+    // still shows "drone on A4".
+    const drone =
+      typeof data.droneMidi === 'number'
+        ? compact
+          ? `drone ${noteName(data.droneMidi)}`
+          : `drone on ${noteName(data.droneMidi)}`
+        : null;
+    if (main && drone) return `${main} · ${drone}`;
+    return main ?? drone;
   } catch {
     // ignore
+  }
+  return null;
+}
+
+// The per-strategy portion of the detail line (everything except the drone
+// suffix). Strategies without a branch return null.
+function strategyDetail(
+  strategy: string,
+  data: Record<string, any>,
+  compact: boolean,
+): string | null {
+  if (strategy === 'tempo_ladder') {
+    const mode = tempoLadderMode(data);
+    if (compact) {
+      if (!data.tempo) return null;
+      return mode ? `${mode} · ${data.tempo} BPM` : `${data.tempo} BPM`;
+    }
+    const parts: string[] = [];
+    if (mode) parts.push(mode);
+    if (data.tempo) parts.push(`${data.tempo} BPM`);
+    if (data.goalTempo) parts.push(`goal ${data.goalTempo}`);
+    if (typeof data.completedSets === 'number' && data.completedSets > 0) {
+      parts.push(`${data.completedSets} ${data.completedSets === 1 ? 'set' : 'sets'}`);
+    }
+    return parts.join(' · ');
+  }
+
+  if (strategy === 'evaluation') {
+    // First-practice measurements: {goal, probeClean, tempo?, clean?, misses?}.
+    if (data.probeClean) {
+      return compact
+        ? `${data.goal} ✓`
+        : `probed at ${data.goal} BPM — clean, performance-ready`;
+    }
+    const parts: string[] = [];
+    if (data.clean) parts.push(compact ? `clean ${data.clean}` : `clean at ${data.clean} BPM`);
+    if (data.goal) parts.push(`goal ${data.goal}`);
+    return parts.length ? parts.join(' · ') : null;
+  }
+
+  if (strategy === 'click_up') {
+    if (compact) {
+      // Direction rides the compact chip too — the document and library
+      // logs showed a bare "Interleaved Click-Up" while only the passage
+      // view said "forward, then back" (Ralph's verification pass).
+      const dir =
+        typeof data.passes === 'number' && data.passes > 1
+          ? data.passes === 2
+            ? 'forward, then back'
+            : `${data.passes} passes`
+          : data.direction === 'backward'
+            ? 'backward'
+            : null;
+      const step =
+        data.step != null && data.totalSteps
+          ? `${data.step + 1}/${data.totalSteps}`
+          : null;
+      if (step && dir) return `${step} · ${dir}`;
+      return step ?? dir;
+    }
+    const parts: string[] = [];
+    if (data.step != null && data.totalSteps)
+      parts.push(`step ${data.step + 1}/${data.totalSteps}`);
+    if (data.tempo) parts.push(`${data.tempo} BPM`);
+    // Direction (beta): a forward-then-reverse sitting logs passes: 2;
+    // a single backward climb logs direction: 'backward'. Spell the
+    // common case out in player language — a bare "2 passes" made its
+    // own author guess what it meant a day later (D72).
+    if (typeof data.passes === 'number' && data.passes > 1) {
+      parts.push(
+        data.passes === 2
+          ? 'forward, then back'
+          : `${data.passes} passes, alternating direction`,
+      );
+    } else if (data.direction === 'backward') {
+      parts.push('backward');
+    }
+    return parts.join(' · ');
+  }
+
+  if (strategy === 'interleaved') {
+    if (compact) {
+      const parts: string[] = [];
+      if (typeof data.tempo === 'number') parts.push(`${data.tempo} BPM`);
+      if (data.completed) parts.push('✓');
+      return parts.length > 0 ? parts.join(' ') : null;
+    }
+    const parts: string[] = ['Rep Rotator session'];
+    // List the OTHER passages in the rotation so the user reading this
+    // passage's log knows it was part of a group session and which group.
+    // Trim to the first 3 names so the line doesn't blow out on a long
+    // rotation.
+    if (Array.isArray(data.sessionPassages) && data.sessionPassages.length > 0) {
+      const names = data.sessionPassages.filter(
+        (n: unknown): n is string => typeof n === 'string' && n.length > 0,
+      );
+      if (names.length > 0) {
+        const shown = names.slice(0, 3).join(', ');
+        const more = names.length > 3 ? ` +${names.length - 3} more` : '';
+        parts.push(`with ${shown}${more}`);
+      }
+    }
+    if (typeof data.tempo === 'number') parts.push(`${data.tempo} BPM`);
+    if (data.completed) parts.push('completed ✓');
+    else if (data.streak != null && data.targetReps) {
+      parts.push(`${data.streak}/${data.targetReps} reps`);
+    }
+    return parts.join(' · ');
+  }
+
+  if (strategy === 'icu2') {
+    // {goal, start, reached, atTempo, sessionPassages?, mode?, climbBy?}
+    if (compact) {
+      if (typeof data.reached !== 'number') return null;
+      return data.atTempo ? `${data.reached} BPM ✓` : `saved at ${data.reached}`;
+    }
+    const parts: string[] = [];
+    if (data.mode === 'together') parts.push('step together');
+    if (Array.isArray(data.sessionPassages) && data.sessionPassages.length > 0) {
+      const names = data.sessionPassages.filter(
+        (n: unknown): n is string => typeof n === 'string' && n.length > 0,
+      );
+      if (names.length > 0) {
+        const shown = names.slice(0, 3).join(', ');
+        const more = names.length > 3 ? ` +${names.length - 3} more` : '';
+        parts.push(`with ${shown}${more}`);
+      }
+    }
+    if (typeof data.goal === 'number') parts.push(`goal ${data.goal}`);
+    if (typeof data.reached === 'number') {
+      parts.push(data.atTempo ? `reached ${data.reached} ✓` : `saved at ${data.reached}`);
+    }
+    return parts.length ? parts.join(' · ') : null;
+  }
+
+  if (strategy === 'recording' && typeof data.duration_seconds === 'number') {
+    const m = Math.floor(data.duration_seconds / 60);
+    const s = Math.floor(data.duration_seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
   }
   return null;
 }

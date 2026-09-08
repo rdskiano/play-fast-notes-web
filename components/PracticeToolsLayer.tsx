@@ -39,6 +39,7 @@ import { Colors } from '@/constants/theme';
 import { Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDronePitchMemory } from '@/hooks/useDronePitchMemory';
+import { useDroneUseTracker } from '@/hooks/useDroneUseTracker';
 import { usePenDetected } from '@/hooks/usePenDetected';
 import { useMetronome, type BeatState, type MetronomeApi } from '@/lib/audio/useMetronome';
 
@@ -220,6 +221,9 @@ export function PracticeToolsLayer({
   // Hand back the drone pitch the player chose for this passage/document
   // last time (state-memory law — mirrors PracticeToolsBar).
   useDronePitchMemory(metro, recorderPassageId ?? recorderDocumentId);
+  // Record drone-on-while-running so logPractice can stamp the session's
+  // drone pitch into the practice log (lib/practiceLog/droneUsage.ts).
+  useDroneUseTracker(metro);
 
   function onLayout(e: LayoutChangeEvent) {
     const { width, height } = e.nativeEvent.layout;

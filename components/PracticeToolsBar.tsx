@@ -31,6 +31,7 @@ import {
 } from '@/components/PracticeTimersContext';
 import { DEVICE, MetronomePanel } from '@/components/MetronomePanel';
 import { useDronePitchMemory } from '@/hooks/useDronePitchMemory';
+import { useDroneUseTracker } from '@/hooks/useDroneUseTracker';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { RecorderPanel } from '@/components/RecorderPanel';
 import { ThemedText } from '@/components/themed-text';
@@ -125,6 +126,9 @@ export function PracticeToolsBar({
   // last time (state-memory law — the pitch is picked from the passage's
   // home note, a once-per-passage decision).
   useDronePitchMemory(metro, recorderPassageId ?? recorderDocumentId);
+  // Record drone-on-while-running so logPractice can stamp the session's
+  // drone pitch into the practice log (lib/practiceLog/droneUsage.ts).
+  useDroneUseTracker(metro);
 
   // ── Per-piece tempo memory (viewer metronome only) ──────────────────────
   // Hydrate the free-standing metronome from the piece's remembered tempo

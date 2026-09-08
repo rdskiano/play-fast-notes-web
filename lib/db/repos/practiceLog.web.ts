@@ -1,5 +1,6 @@
 import { parseSections, sectionForPosition } from '@/lib/db/repos/documents';
 import { parseRegions } from '@/lib/db/repos/passages';
+import { peekDroneUseMidi } from '@/lib/practiceLog/droneUsage';
 import { peekPracticeDurationMs } from '@/lib/practiceLog/sessionClock';
 import { TOOLS_ONLY_ID } from '@/lib/strategies/toolsMode';
 import { supabase } from '@/lib/supabase/client';
@@ -213,6 +214,12 @@ export async function logPractice(
   const durationMs = peekPracticeDurationMs();
   if (durationMs != null && (data == null || data.durationMs === undefined)) {
     data = { ...data, durationMs };
+  }
+  // Drone pitch that sounded during this session (see droneUsage.ts —
+  // peeked like durationMs, so every row of a multi-passage burst carries it).
+  const droneMidi = peekDroneUseMidi();
+  if (droneMidi != null && (data == null || data.droneMidi === undefined)) {
+    data = { ...data, droneMidi };
   }
   const row: InsertRow = {
     piece_id,

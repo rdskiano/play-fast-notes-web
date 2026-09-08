@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-08-library-home-drone-fixes',
+    date: 'September 8, 2026',
+    title: 'Library button goes home, and the drone plays the note it shows',
+    body:
+      'Coming back from a practice session now lands you on the library homepage instead of deep inside the folder you were browsing, so no more tapping up three levels to switch pieces. The metronome drone also had a bug where it remembered your note for a passage but quietly played an A anyway; it now plays exactly the note it displays. And the practice log now records the drone: any session where the drone was sounding shows the note you used, like "drone on A4".',
+  },
+  {
     id: '2026-09-07-pedal-page-turns-app',
     date: 'September 7, 2026',
     title: 'Foot pedal page turns now work in the app',

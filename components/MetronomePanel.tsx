@@ -44,6 +44,7 @@ import { NoteValueGlyph, type NoteValue } from '@/components/NoteValueGlyph';
 import { ThemedText } from '@/components/themed-text';
 import { VolumeSlider } from '@/components/VolumeSlider';
 import { getGroove, groovesForMeter } from '@/lib/audio/grooves';
+import { noteName } from '@/lib/audio/noteNames';
 import { Palette } from '@/constants/palette';
 import { Spacing, Type } from '@/constants/tokens';
 import type {
@@ -92,24 +93,6 @@ const WEB_TAP =
 const DRONE_LO = 36; // C2
 const DRONE_HI = 84; // C6
 const A4_OPTIONS = [440, 441, 442];
-const NOTE_NAMES = [
-  'C',
-  'C♯',
-  'D',
-  'D♯',
-  'E',
-  'F',
-  'F♯',
-  'G',
-  'G♯',
-  'A',
-  'A♯',
-  'B',
-];
-
-function noteName(midi: number): string {
-  return NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
-}
 
 const METERS = [
   '1/4',

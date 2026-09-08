@@ -108,6 +108,17 @@ export function useMetronome(initialBpm: number = 60) {
     };
   }, []);
 
+  // Drone frequency is derived from committed state, mirroring the web hook.
+  // The setters used to push droneHz(midi, a4) imperatively, each reading the
+  // OTHER value from its render-time closure — so when useDronePitchMemory's
+  // per-passage pitch restore and the global A4 restore landed in the same
+  // commit, whichever ran second recomputed the frequency from a stale
+  // partner value and the engine droned A while the panel showed the
+  // restored note.
+  useEffect(() => {
+    engineRef.current?.setDroneFreq(droneHz(droneMidi, droneA4));
+  }, [droneMidi, droneA4]);
+
   return {
     bpm,
     subdivision,
@@ -152,7 +163,6 @@ export function useMetronome(initialBpm: number = 60) {
       setDroneEnabledState(enabled);
     },
     setDroneMidi(midi: number) {
-      engineRef.current?.setDroneFreq(droneHz(midi, droneA4));
       setDroneMidiState(midi);
     },
     setDroneSustain(frac: number) {
@@ -161,7 +171,6 @@ export function useMetronome(initialBpm: number = 60) {
       setDroneSustainState(f);
     },
     setDroneA4(a4Hz: number) {
-      engineRef.current?.setDroneFreq(droneHz(droneMidi, a4Hz));
       setDroneA4State(a4Hz);
     },
     setDropChance(frac: number) {

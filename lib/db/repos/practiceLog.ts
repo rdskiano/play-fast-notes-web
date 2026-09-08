@@ -1,3 +1,4 @@
+import { peekDroneUseMidi } from '@/lib/practiceLog/droneUsage';
 import { peekPracticeDurationMs } from '@/lib/practiceLog/sessionClock';
 import { TOOLS_ONLY_ID } from '@/lib/strategies/toolsMode';
 import { getAllRecordingEntries } from '@/lib/supabase/recordingLog';
@@ -60,6 +61,12 @@ export async function logPractice(
   const durationMs = peekPracticeDurationMs();
   if (durationMs != null && (data == null || data.durationMs === undefined)) {
     data = { ...data, durationMs };
+  }
+  // Drone pitch that sounded during this session (see droneUsage.ts —
+  // peeked like durationMs, so every row of a multi-passage burst carries it).
+  const droneMidi = peekDroneUseMidi();
+  if (droneMidi != null && (data == null || data.droneMidi === undefined)) {
+    data = { ...data, droneMidi };
   }
   // sync_id is the row's cross-device identity (cloud client_id); updated_at
   // is what newest-wins sync compares. The local INTEGER id stays the UI key.

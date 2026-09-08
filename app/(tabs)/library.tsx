@@ -662,6 +662,22 @@ export default function LibraryScreen() {
     }, [refresh]),
   );
 
+  // Leaving the library resets it to its homepage, so the Library button
+  // always lands at the top instead of deep inside the folder you were
+  // browsing (Ralph, 2026-09-08: three taps of "up" after every practice
+  // session). Deliberately a SEPARATE focus effect with no deps — the one
+  // above re-runs whenever refresh's identity changes, so a reset in its
+  // cleanup would fire on every in-library folder step. This cleanup runs
+  // only on real blur/unmount, while the screen is hidden.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setCurrentFolderId(null);
+        setPath([]);
+      };
+    }, []),
+  );
+
   useEffect(() => {
     return () => {
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
