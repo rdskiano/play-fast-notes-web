@@ -24,6 +24,7 @@ import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import {
   deletePracticeLog,
   getPracticeLogForDocument,
+  logPractice,
   updatePracticeLogMoodNote,
   type PracticeLogWithTitle,
 } from '@/lib/db/repos/practiceLog';
@@ -116,6 +117,7 @@ export default function DocumentLogScreen() {
   const [days, setDays] = useState<DayGroup[]>([]);
   const [editing, setEditing] = useState<PracticeLogWithTitle | null>(null);
   const [deleteConfirmFor, setDeleteConfirmFor] = useState<PracticeLogWithTitle | null>(null);
+  const [addingEntry, setAddingEntry] = useState(false);
 
   const title = documentTitle || 'Document';
 
@@ -257,9 +259,14 @@ export default function DocumentLogScreen() {
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <ThemedText style={styles.backLink}>‹ Document</ThemedText>
-        </Pressable>
+        <View style={styles.headerTopRow}>
+          <Pressable onPress={() => router.back()} hitSlop={8}>
+            <ThemedText style={styles.backLink}>‹ Document</ThemedText>
+          </Pressable>
+          <Pressable onPress={() => setAddingEntry(true)} hitSlop={8}>
+            <ThemedText style={styles.backLink}>＋ Add an entry</ThemedText>
+          </Pressable>
+        </View>
         <ThemedText type="title">{title} — Practice Log</ThemedText>
       </View>
       {days.length === 0 ? (
@@ -317,6 +324,27 @@ export default function DocumentLogScreen() {
         onDelete={onEditDelete}
       />
 
+      {/* Freeform "Add an entry" for THIS document — the row carries the
+          document id as its piece_id (doc-level recording convention) so it
+          files under the PDF's title in every log view. */}
+      <PracticeLogNotePrompt
+        visible={addingEntry}
+        plain
+        promptTitle="Add a practice entry"
+        strategy="freeform"
+        submitLabel="Save"
+        cancelLabel="Cancel"
+        onSubmit={async ({ note }) => {
+          setAddingEntry(false);
+          if (!note || !documentId) return;
+          await logPractice(documentId, 'freeform', { note }, null, {
+            sessionStamps: false,
+          });
+          refresh();
+        }}
+        onSkip={() => setAddingEntry(false)}
+      />
+
       <ConfirmModal
         visible={deleteConfirmFor !== null}
         title="Delete this log entry?"
@@ -344,6 +372,11 @@ export default function DocumentLogScreen() {
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, gap: Spacing.xs },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   backLink: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, color: Palette.accent },
   content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'], gap: 18 },
   empty: {

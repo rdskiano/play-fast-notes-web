@@ -32,6 +32,8 @@ import {
 import { DEVICE, MetronomePanel } from '@/components/MetronomePanel';
 import { useDronePitchMemory } from '@/hooks/useDronePitchMemory';
 import { useDroneUseTracker } from '@/hooks/useDroneUseTracker';
+import { reportViewerMetronomeUse } from '@/lib/practiceLog/viewerSession';
+import { isToolsOnly } from '@/lib/strategies/toolsMode';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { RecorderPanel } from '@/components/RecorderPanel';
 import { ThemedText } from '@/components/themed-text';
@@ -78,6 +80,7 @@ export function PracticeToolsBar({
   pencil,
   recorderPassageId,
   recorderDocumentId,
+  viewerParentDocumentId,
   tempoMemoryKey,
   tools,
   anchorTop,
@@ -89,6 +92,13 @@ export function PracticeToolsBar({
   pencil?: { active: boolean; onToggle: () => void; onUndo?: () => void };
   recorderPassageId?: string;
   recorderDocumentId?: string;
+  /**
+   * The passage's parent PDF (passage viewer only). Rides along on an
+   * unguided-metronome session (lib/practiceLog/viewerSession.ts) so the PDF
+   * viewer can offer "Would you like to log anything?" when the player backs
+   * out of the passage into it.
+   */
+  viewerParentDocumentId?: string | null;
   /**
    * Per-piece tempo memory for the bar's own free-standing metronome (F27,
    * Ralph's pick 2026-09-02: option b). Pass the piece's identity (document
@@ -136,6 +146,28 @@ export function PracticeToolsBar({
   // the user's dials back. `appliedRef` marks the programmatic set so
   // hydration itself is never mistaken for a dial.
   const usingOwnMetro = !metronome;
+
+  // Unguided practice: the metronome running on a viewer surface (own metro,
+  // a real passage/document behind it, no strategy driving) marks a pending
+  // freeform-log offer for the library / PDF viewer to surface later.
+  const viewerTargetId = recorderPassageId ?? recorderDocumentId;
+  const viewerMetroRunning = usingOwnMetro && metro.running;
+  useEffect(() => {
+    if (!viewerMetroRunning || !viewerTargetId || isToolsOnly(viewerTargetId)) {
+      return;
+    }
+    reportViewerMetronomeUse({
+      pieceId: recorderPassageId ?? null,
+      documentId: recorderPassageId ? null : (recorderDocumentId ?? null),
+      parentDocumentId: viewerParentDocumentId ?? null,
+    });
+  }, [
+    viewerMetroRunning,
+    viewerTargetId,
+    recorderPassageId,
+    recorderDocumentId,
+    viewerParentDocumentId,
+  ]);
   const memHydratedRef = useRef(false);
   const memAppliedRef = useRef<number | null>(null);
   const memPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

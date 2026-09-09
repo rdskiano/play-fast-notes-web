@@ -204,22 +204,28 @@ export async function logPractice(
   strategy: string,
   data?: Record<string, unknown>,
   exercise_id?: string | null,
+  // sessionStamps: false for rows typed in after the fact ("Add an entry") —
+  // the peeked duration/drone belong to whatever screen ran last, not to a
+  // manually written memory.
+  opts?: { sessionStamps?: boolean },
 ): Promise<number> {
   // Opportunistic sync of anything parked by an earlier failure.
   flushPendingPracticeLogs().catch(() => {});
   const now = Date.now();
-  // Session-level elapsed time since the practice screen mounted (see
-  // sessionClock.ts — peeked, so every row of a multi-passage burst carries
-  // the same value; never sum durationMs across rows).
-  const durationMs = peekPracticeDurationMs();
-  if (durationMs != null && (data == null || data.durationMs === undefined)) {
-    data = { ...data, durationMs };
-  }
-  // Drone pitch that sounded during this session (see droneUsage.ts —
-  // peeked like durationMs, so every row of a multi-passage burst carries it).
-  const droneMidi = peekDroneUseMidi();
-  if (droneMidi != null && (data == null || data.droneMidi === undefined)) {
-    data = { ...data, droneMidi };
+  if (opts?.sessionStamps !== false) {
+    // Session-level elapsed time since the practice screen mounted (see
+    // sessionClock.ts — peeked, so every row of a multi-passage burst carries
+    // the same value; never sum durationMs across rows).
+    const durationMs = peekPracticeDurationMs();
+    if (durationMs != null && (data == null || data.durationMs === undefined)) {
+      data = { ...data, durationMs };
+    }
+    // Drone pitch that sounded during this session (see droneUsage.ts —
+    // peeked like durationMs, so every row of a multi-passage burst carries it).
+    const droneMidi = peekDroneUseMidi();
+    if (droneMidi != null && (data == null || data.droneMidi === undefined)) {
+      data = { ...data, droneMidi };
+    }
   }
   const row: InsertRow = {
     piece_id,
@@ -464,21 +470,42 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
       }
       if (r.piece_id) {
         const piece = pieceById.get(r.piece_id);
-        if (!piece) return null;
-        const { document_title, section_name } = resolveSection(piece, documents);
-        return {
-          ...base,
-          piece_id: r.piece_id,
-          piece_title: piece.title,
-          document_id: piece.document_id,
-          document_title,
-          section_name,
-          folder_id: piece.folder_id,
-          folder_name: piece.folder_id
-            ? folderNames.get(piece.folder_id) ?? null
-            : null,
-          is_deleted: piece.deleted_at != null,
-        };
+        if (piece) {
+          const { document_title, section_name } = resolveSection(piece, documents);
+          return {
+            ...base,
+            piece_id: r.piece_id,
+            piece_title: piece.title,
+            document_id: piece.document_id,
+            document_title,
+            section_name,
+            folder_id: piece.folder_id,
+            folder_name: piece.folder_id
+              ? folderNames.get(piece.folder_id) ?? null
+              : null,
+            is_deleted: piece.deleted_at != null,
+          };
+        }
+        // Freeform entry attached to a whole PDF: piece_id carries the
+        // DOCUMENT id (same convention as doc-level recording takes). File
+        // it under the document's title, in the document's folder.
+        const docByPiece = documents.get(r.piece_id);
+        if (docByPiece) {
+          return {
+            ...base,
+            piece_id: r.piece_id,
+            piece_title: docByPiece.title,
+            document_id: null,
+            document_title: null,
+            section_name: null,
+            folder_id: docByPiece.folder_id,
+            folder_name: docByPiece.folder_id
+              ? folderNames.get(docByPiece.folder_id) ?? null
+              : null,
+            is_deleted: docByPiece.deleted_at != null,
+          };
+        }
+        return null;
       }
       // A document-level entry (a recording made on the PDF viewer): file it
       // under the document's title, in the document's folder.
@@ -775,16 +802,32 @@ export async function getPracticeLogForDocument(
       };
       if (r.piece_id) {
         const piece = pieceById.get(r.piece_id);
-        if (!piece) return null;
-        const { document_title, section_name } = resolveSection(piece, documents);
-        return {
-          ...base,
-          piece_id: r.piece_id,
-          piece_title: piece.title,
-          document_id: piece.document_id,
-          document_title,
-          section_name,
-        };
+        if (piece) {
+          const { document_title, section_name } = resolveSection(piece, documents);
+          return {
+            ...base,
+            piece_id: r.piece_id,
+            piece_title: piece.title,
+            document_id: piece.document_id,
+            document_title,
+            section_name,
+          };
+        }
+        // Freeform entry attached to the whole PDF (piece_id = document id).
+        // The documents map holds only this document, so this matches only
+        // rows that belong here.
+        const docByPiece = documents.get(r.piece_id);
+        if (docByPiece) {
+          return {
+            ...base,
+            piece_id: r.piece_id,
+            piece_title: docByPiece.title,
+            document_id: null,
+            document_title: null,
+            section_name: null,
+          };
+        }
+        return null;
       }
       // A document-level entry (a recording made on the PDF viewer). The
       // documents map holds only this document, so a no-piece row matches
@@ -869,23 +912,39 @@ export async function getPracticeLogForFolder(
       };
       if (r.piece_id) {
         const piece = pieceById.get(r.piece_id);
-        if (!piece) return null;
-        // Keep only pieces that live in this folder. A document-child passage's
-        // membership is its parent document's folder (its own folder_id is
-        // null); a standalone passage's is its own folder_id.
-        const effectiveFolder = piece.document_id
-          ? documents.get(piece.document_id)?.folder_id ?? null
-          : piece.folder_id;
-        if (effectiveFolder !== folder_id) return null;
-        const { document_title, section_name } = resolveSection(piece, documents);
-        return {
-          ...base,
-          piece_id: r.piece_id,
-          piece_title: piece.title,
-          document_id: piece.document_id,
-          document_title,
-          section_name,
-        };
+        if (piece) {
+          // Keep only pieces that live in this folder. A document-child passage's
+          // membership is its parent document's folder (its own folder_id is
+          // null); a standalone passage's is its own folder_id.
+          const effectiveFolder = piece.document_id
+            ? documents.get(piece.document_id)?.folder_id ?? null
+            : piece.folder_id;
+          if (effectiveFolder !== folder_id) return null;
+          const { document_title, section_name } = resolveSection(piece, documents);
+          return {
+            ...base,
+            piece_id: r.piece_id,
+            piece_title: piece.title,
+            document_id: piece.document_id,
+            document_title,
+            section_name,
+          };
+        }
+        // Freeform entry attached to a whole PDF (piece_id = document id):
+        // keep it only when that document lives in this folder.
+        const docByPiece = documents.get(r.piece_id);
+        if (docByPiece) {
+          if (docByPiece.folder_id !== folder_id) return null;
+          return {
+            ...base,
+            piece_id: r.piece_id,
+            piece_title: docByPiece.title,
+            document_id: null,
+            document_title: null,
+            section_name: null,
+          };
+        }
+        return null;
       }
       // A document-level entry (a recording made on the PDF viewer): keep it
       // only when its document lives in this folder.

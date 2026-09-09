@@ -83,7 +83,13 @@ import {
   getDocumentPassageStatus,
   type PassageStatus,
 } from '@/lib/db/repos/passageStatus';
-import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
+import { countPracticeLogEntries, logPractice } from '@/lib/db/repos/practiceLog';
+import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
+import {
+  clearViewerSession,
+  peekViewerSession,
+  type ViewerSession,
+} from '@/lib/practiceLog/viewerSession';
 import { cropImage, stitchVerticallyUris, type Rect } from '@/lib/image/canvasCrop';
 import { persistPassageImage } from '@/lib/image/persistPassageImage';
 import { resolvePageForCrop } from '@/lib/pdf/pageImage';
@@ -488,6 +494,32 @@ export default function DocumentScreen() {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, passages, pages]),
   );
+
+  // Unguided practice offer: backing out of a passage view where the
+  // metronome ran (no strategy) lands here — offer a freeform log entry for
+  // that passage. Only sessions from THIS document's passages qualify; a
+  // pending session from the PDF viewer itself (documentId set, pieceId
+  // null) is still in progress and is offered at the library instead.
+  const [viewerLogOffer, setViewerLogOffer] = useState<ViewerSession | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      const pending = peekViewerSession();
+      if (pending?.pieceId && pending.parentDocumentId === id) {
+        setViewerLogOffer(pending);
+      }
+    }, [id]),
+  );
+
+  async function saveViewerLogEntry(note: string | null) {
+    const offer = viewerLogOffer;
+    setViewerLogOffer(null);
+    clearViewerSession();
+    if (!offer?.pieceId || !note) return;
+    // Session stamps stay ON: the viewer session marked the clock and reset
+    // the drone tracker when the metronome first ran, so duration + drone
+    // describe exactly that stretch of unguided practice.
+    await logPractice(offer.pieceId, 'freeform', { note });
+  }
 
   // One-time "tap a box to practice" coach toast. Triggered the first
   // time a user opens any PDF that already has marked passages — the
@@ -1691,6 +1723,24 @@ export default function DocumentScreen() {
         }}
         onDone={() => setPostSaveTitle(null)}
         onCancel={() => setPostSaveTitle(null)}
+      />
+
+      {/* Freeform log offer after unguided metronome practice on one of this
+          document's passages. "No thanks" clears it so it never nags. */}
+      <PracticeLogNotePrompt
+        visible={viewerLogOffer !== null}
+        plain
+        promptTitle="Would you like to log anything?"
+        strategy="freeform"
+        submitLabel="Save"
+        cancelLabel="No thanks"
+        onSubmit={({ note }) => {
+          void saveViewerLogEntry(note);
+        }}
+        onSkip={() => {
+          setViewerLogOffer(null);
+          clearViewerSession();
+        }}
       />
 
       <ConfirmModal

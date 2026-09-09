@@ -71,6 +71,12 @@ type Props = {
   // ONLY on the keep-practicing escape (back into the session); Save/Skip end
   // the session and leave the screen, so restarting would just blip.
   metronome?: MetronomeApi;
+  // Freeform journal flows ("Add an entry", the after-metronome "log
+  // anything?" offer) replace the coach question with their own and strip the
+  // coaching furniture: plain hides chips, the coach proposal, and the
+  // reminder checkbox, leaving just the text box.
+  promptTitle?: string;
+  plain?: boolean;
 };
 
 // Single hard-coded prompt. Title / emoji / subtitle props are retained on
@@ -102,15 +108,17 @@ export function PracticeLogNotePrompt({
   onDiscard,
   onKeepPracticing,
   metronome,
+  promptTitle,
+  plain = false,
 }: Props) {
-  const chips = chipsForStrategy(strategy, chipContext);
-  const remindable = strategySupportsReminder(strategy);
+  const chips = plain ? [] : chipsForStrategy(strategy, chipContext);
+  const remindable = !plain && strategySupportsReminder(strategy);
   // The coach's proposal — session-end flows only (edit flows pass no
   // outcome). Shown as an asterisk on the matching chip + a footnote with
   // the reasoning, inside the ONE classic modal. (The earlier two-stage
   // "Sounds right / Something else…" card confused Ralph — the suggestion
   // pill read as a button — and hid the notes box behind a tap.)
-  const proposal = sessionOutcome ? proposeNote(strategy, sessionOutcome) : null;
+  const proposal = !plain && sessionOutcome ? proposeNote(strategy, sessionOutcome) : null;
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   // Preserve any prior mood through edit flows even though the UI no longer
@@ -243,7 +251,7 @@ export function PracticeLogNotePrompt({
           <ThemedText
             type="subtitle"
             style={{ textAlign: 'center', paddingHorizontal: onKeepPracticing ? 28 : 0 }}>
-            {PROMPT_TITLE}
+            {promptTitle ?? PROMPT_TITLE}
           </ThemedText>
 
           {/* The middle scrolls when the card is height-capped (short phone

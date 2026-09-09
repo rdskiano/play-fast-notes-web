@@ -18,6 +18,7 @@ import { getPassage, type Passage } from '@/lib/db/repos/passages';
 import {
   deletePracticeLog,
   getPracticeLogForPassage,
+  logPractice,
   updatePracticeLogMoodNote,
   type PracticeLogEntry,
 } from '@/lib/db/repos/practiceLog';
@@ -100,6 +101,7 @@ export default function HistoryScreen() {
   const [sections, setSections] = useState<Section[]>([]);
   const [editing, setEditing] = useState<PracticeLogEntry | null>(null);
   const [deleteConfirmFor, setDeleteConfirmFor] = useState<PracticeLogEntry | null>(null);
+  const [addingEntry, setAddingEntry] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -154,9 +156,14 @@ export default function HistoryScreen() {
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <ThemedText style={styles.backLink}>‹ Back</ThemedText>
-        </Pressable>
+        <View style={styles.headerTopRow}>
+          <Pressable onPress={() => router.back()} hitSlop={8}>
+            <ThemedText style={styles.backLink}>‹ Back</ThemedText>
+          </Pressable>
+          <Pressable onPress={() => setAddingEntry(true)} hitSlop={8}>
+            <ThemedText style={styles.backLink}>＋ Add an entry</ThemedText>
+          </Pressable>
+        </View>
         <ThemedText type="title">Practice Log</ThemedText>
         <ThemedText style={styles.headerSub} numberOfLines={1}>
           {passage.title}
@@ -231,6 +238,26 @@ export default function HistoryScreen() {
         onDelete={onEditDelete}
       />
 
+      {/* Freeform "Add an entry" for THIS passage — a paragraph logged
+          after the fact, no strategy behind it. */}
+      <PracticeLogNotePrompt
+        visible={addingEntry}
+        plain
+        promptTitle="Add a practice entry"
+        strategy="freeform"
+        submitLabel="Save"
+        cancelLabel="Cancel"
+        onSubmit={async ({ note }) => {
+          setAddingEntry(false);
+          if (!note || !id) return;
+          await logPractice(id, 'freeform', { note }, null, {
+            sessionStamps: false,
+          });
+          refresh();
+        }}
+        onSkip={() => setAddingEntry(false)}
+      />
+
       <ConfirmModal
         visible={deleteConfirmFor !== null}
         title="Delete this log entry?"
@@ -259,6 +286,11 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'] },
   header: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, gap: Spacing.xs },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   backLink: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, color: Palette.accent },
   headerSub: { fontSize: Type.size.md, color: Palette.textSecondary },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing['2xl'] },

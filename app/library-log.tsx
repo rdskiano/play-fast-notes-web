@@ -15,10 +15,11 @@ import { Lift, Palette } from '@/constants/palette';
 import { Fonts } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { listAllFolders, type Folder } from '@/lib/db/repos/folders';
-import { isToolsOnly } from '@/lib/strategies/toolsMode';
+import { isToolsOnly, TOOLS_ONLY_ID } from '@/lib/strategies/toolsMode';
 import {
   deletePracticeLog,
   getPracticeLogForLibrary,
+  logPractice,
   updatePracticeLogMoodNote,
   type LibraryPracticeLogEntry,
 } from '@/lib/db/repos/practiceLog';
@@ -206,6 +207,7 @@ export default function LibraryLogScreen() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [editing, setEditing] = useState<LibraryPracticeLogEntry | null>(null);
   const [deleteConfirmFor, setDeleteConfirmFor] = useState<LibraryPracticeLogEntry | null>(null);
+  const [addingEntry, setAddingEntry] = useState(false);
 
   const refresh = useCallback(async () => {
     const [ents, flds] = await Promise.all([
@@ -371,9 +373,14 @@ export default function LibraryLogScreen() {
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <ThemedText style={styles.backLink}>‹ Library</ThemedText>
-        </Pressable>
+        <View style={styles.headerTopRow}>
+          <Pressable onPress={() => router.back()} hitSlop={8}>
+            <ThemedText style={styles.backLink}>‹ Library</ThemedText>
+          </Pressable>
+          <Pressable onPress={() => setAddingEntry(true)} hitSlop={8}>
+            <ThemedText style={styles.backLink}>＋ Add an entry</ThemedText>
+          </Pressable>
+        </View>
         <ThemedText type="title">Practice Log</ThemedText>
       </View>
 
@@ -464,6 +471,31 @@ export default function LibraryLogScreen() {
         onDelete={onEditDelete}
       />
 
+      {/* Freeform "Add an entry": a paragraph not tied to any piece. Saved
+          under the tools sentinel with its own card title, so it files in
+          the log like any other session. */}
+      <PracticeLogNotePrompt
+        visible={addingEntry}
+        plain
+        promptTitle="Add a practice entry"
+        strategy="freeform"
+        submitLabel="Save"
+        cancelLabel="Cancel"
+        onSubmit={async ({ note }) => {
+          setAddingEntry(false);
+          if (!note) return;
+          await logPractice(
+            TOOLS_ONLY_ID,
+            'freeform',
+            { title: 'Practice entry', note },
+            null,
+            { sessionStamps: false },
+          );
+          refresh();
+        }}
+        onSkip={() => setAddingEntry(false)}
+      />
+
       <ConfirmModal
         visible={deleteConfirmFor !== null}
         title="Delete this log entry?"
@@ -490,6 +522,11 @@ export default function LibraryLogScreen() {
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, gap: Spacing.xs },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   backLink: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, color: Palette.accent },
   content: { padding: Spacing.lg, paddingBottom: Spacing['2xl'], gap: 18 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing['2xl'] },

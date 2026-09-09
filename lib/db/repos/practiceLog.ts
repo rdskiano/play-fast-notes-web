@@ -52,21 +52,27 @@ export async function logPractice(
   strategy: string,
   data?: Record<string, unknown>,
   exercise_id?: string | null,
+  // sessionStamps: false for rows typed in after the fact ("Add an entry") —
+  // the peeked duration/drone belong to whatever screen ran last, not to a
+  // manually written memory.
+  opts?: { sessionStamps?: boolean },
 ): Promise<number> {
   const db = getDb();
   const now = Date.now();
-  // Session-level elapsed time since the practice screen mounted (see
-  // sessionClock.ts — peeked, so every row of a multi-passage burst carries
-  // the same value; never sum durationMs across rows).
-  const durationMs = peekPracticeDurationMs();
-  if (durationMs != null && (data == null || data.durationMs === undefined)) {
-    data = { ...data, durationMs };
-  }
-  // Drone pitch that sounded during this session (see droneUsage.ts —
-  // peeked like durationMs, so every row of a multi-passage burst carries it).
-  const droneMidi = peekDroneUseMidi();
-  if (droneMidi != null && (data == null || data.droneMidi === undefined)) {
-    data = { ...data, droneMidi };
+  if (opts?.sessionStamps !== false) {
+    // Session-level elapsed time since the practice screen mounted (see
+    // sessionClock.ts — peeked, so every row of a multi-passage burst carries
+    // the same value; never sum durationMs across rows).
+    const durationMs = peekPracticeDurationMs();
+    if (durationMs != null && (data == null || data.durationMs === undefined)) {
+      data = { ...data, durationMs };
+    }
+    // Drone pitch that sounded during this session (see droneUsage.ts —
+    // peeked like durationMs, so every row of a multi-passage burst carries it).
+    const droneMidi = peekDroneUseMidi();
+    if (droneMidi != null && (data == null || data.droneMidi === undefined)) {
+      data = { ...data, droneMidi };
+    }
   }
   // sync_id is the row's cross-device identity (cloud client_id); updated_at
   // is what newest-wins sync compares. The local INTEGER id stays the UI key.
@@ -273,8 +279,50 @@ export async function getPracticeLogForLibrary(): Promise<LibraryPracticeLogEntr
     section_name: null,
     is_deleted: false,
   }));
+  // Freeform entries attached to a whole PDF carry the DOCUMENT id as their
+  // piece_id (same convention as document-level recording takes), so the
+  // pieces JOIN above drops them — fetch them via documents and file each
+  // under the document's title, in the document's folder.
+  const docRows = await db.getAllAsync<{
+    id: number;
+    piece_id: string;
+    strategy: string;
+    practiced_at: number;
+    data_json: string | null;
+    doc_title: string;
+    folder_id: string | null;
+    folder_name: string | null;
+    doc_deleted_at: number | null;
+  }>(
+    `SELECT pl.id, pl.piece_id, pl.strategy, pl.practiced_at, pl.data_json,
+            d.title AS doc_title,
+            d.folder_id AS folder_id,
+            f.name AS folder_name,
+            d.deleted_at AS doc_deleted_at
+     FROM practice_log pl
+     JOIN documents d ON d.id = pl.piece_id
+     LEFT JOIN folders f ON f.id = d.folder_id
+     WHERE pl.strategy != 'recording' AND pl.deleted_at IS NULL
+     ORDER BY pl.practiced_at DESC;`,
+  );
+  const docEntries = docRows.map((r) => ({
+    id: r.id,
+    piece_id: r.piece_id,
+    strategy: r.strategy,
+    practiced_at: r.practiced_at,
+    data_json: r.data_json,
+    exercise_id: null,
+    exercise_name: null,
+    piece_title: r.doc_title,
+    folder_id: r.folder_id,
+    folder_name: r.folder_name,
+    document_id: null,
+    document_title: null,
+    section_name: null,
+    is_deleted: r.doc_deleted_at != null,
+  }));
   const recordings = await getAllRecordingEntries();
-  return [...local, ...tools, ...recordings].sort(
+  return [...local, ...tools, ...docEntries, ...recordings].sort(
     (a, b) => b.practiced_at - a.practiced_at,
   );
 }
@@ -512,12 +560,43 @@ export async function getPracticeLogForDocument(
     document_title: r.document_title,
     section_name: resolveSectionName(r),
   }));
+  // Freeform entries attached to the whole PDF (piece_id = the document id —
+  // same convention as document-level recording takes).
+  const docRows = await db.getAllAsync<{
+    id: number;
+    piece_id: string;
+    strategy: string;
+    practiced_at: number;
+    data_json: string | null;
+    doc_title: string;
+  }>(
+    `SELECT pl.id, pl.piece_id, pl.strategy, pl.practiced_at, pl.data_json,
+            d.title AS doc_title
+     FROM practice_log pl
+     JOIN documents d ON d.id = pl.piece_id
+     WHERE pl.piece_id = ? AND pl.strategy != 'recording' AND pl.deleted_at IS NULL
+     ORDER BY pl.practiced_at DESC;`,
+    document_id,
+  );
+  const docEntries = docRows.map((r) => ({
+    id: r.id,
+    piece_id: r.piece_id,
+    strategy: r.strategy,
+    practiced_at: r.practiced_at,
+    data_json: r.data_json,
+    exercise_id: null,
+    exercise_name: null,
+    piece_title: r.doc_title,
+    document_id: null,
+    document_title: null,
+    section_name: null,
+  }));
   // Recordings for this document: doc-level takes (synthetic piece_id = the
   // document id) plus any take attached to one of its passages.
   const recordings = (await getAllRecordingEntries()).filter(
     (r) => r.document_id === document_id || r.piece_id === document_id,
   );
-  return [...local, ...recordings].sort(
+  return [...local, ...docEntries, ...recordings].sort(
     (a, b) => b.practiced_at - a.practiced_at,
   );
 }
@@ -578,10 +657,45 @@ export async function getPracticeLogForFolder(
     document_title: r.document_title,
     section_name: resolveSectionName(r),
   }));
+  // Freeform entries attached to a whole PDF living in this folder
+  // (piece_id = the document id — same convention as doc-level recordings).
+  const docWhere =
+    folder_id === null ? 'd.folder_id IS NULL' : 'd.folder_id = ?';
+  const docParams = folder_id === null ? [] : [folder_id];
+  const docRows = await db.getAllAsync<{
+    id: number;
+    piece_id: string;
+    strategy: string;
+    practiced_at: number;
+    data_json: string | null;
+    doc_title: string;
+  }>(
+    `SELECT pl.id, pl.piece_id, pl.strategy, pl.practiced_at, pl.data_json,
+            d.title AS doc_title
+     FROM practice_log pl
+     JOIN documents d ON d.id = pl.piece_id
+     WHERE ${docWhere} AND d.deleted_at IS NULL
+       AND pl.strategy != 'recording' AND pl.deleted_at IS NULL
+     ORDER BY pl.practiced_at DESC;`,
+    ...docParams,
+  );
+  const docEntries = docRows.map((r) => ({
+    id: r.id,
+    piece_id: r.piece_id,
+    strategy: r.strategy,
+    practiced_at: r.practiced_at,
+    data_json: r.data_json,
+    exercise_id: null,
+    exercise_name: null,
+    piece_title: r.doc_title,
+    document_id: null,
+    document_title: null,
+    section_name: null,
+  }));
   const recordings = (await getAllRecordingEntries()).filter(
     (r) => r.folder_id === folder_id,
   );
-  return [...local, ...recordings].sort(
+  return [...local, ...docEntries, ...recordings].sort(
     (a, b) => b.practiced_at - a.practiced_at,
   );
 }

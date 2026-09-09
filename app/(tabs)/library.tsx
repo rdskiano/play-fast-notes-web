@@ -88,7 +88,13 @@ import {
   updateDocumentSortOrder,
   type DocumentRow,
 } from '@/lib/db/repos/documents';
-import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
+import { countPracticeLogEntries, logPractice } from '@/lib/db/repos/practiceLog';
+import { PracticeLogNotePrompt } from '@/components/PracticeLogNotePrompt';
+import {
+  clearViewerSession,
+  peekViewerSession,
+  type ViewerSession,
+} from '@/lib/practiceLog/viewerSession';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { getTempoLadderProgressForPassages } from '@/lib/db/repos/tempoLadder';
 import { logOnboardingStep } from '@/lib/onboarding/telemetry';
@@ -677,6 +683,30 @@ export default function LibraryScreen() {
       };
     }, []),
   );
+
+  // Unguided practice offer: if the metronome ran on the passage or PDF
+  // viewer with no strategy behind it, landing back on the library offers a
+  // freeform log entry for that piece (lib/practiceLog/viewerSession.ts).
+  const [viewerLogOffer, setViewerLogOffer] = useState<ViewerSession | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      const pending = peekViewerSession();
+      if (pending) setViewerLogOffer(pending);
+    }, []),
+  );
+
+  async function saveViewerLogEntry(note: string | null) {
+    const offer = viewerLogOffer;
+    setViewerLogOffer(null);
+    clearViewerSession();
+    if (!offer || !note) return;
+    const target = offer.pieceId ?? offer.documentId;
+    if (!target) return;
+    // Session stamps stay ON: the viewer session marked the clock and reset
+    // the drone tracker when the metronome first ran, so duration + drone
+    // describe exactly that stretch of unguided practice.
+    await logPractice(target, 'freeform', { note });
+  }
 
   useEffect(() => {
     return () => {
@@ -1501,6 +1531,24 @@ export default function LibraryScreen() {
         destructive
         onConfirm={() => resolveConfirmDelete(true)}
         onCancel={() => resolveConfirmDelete(false)}
+      />
+
+      {/* Freeform log offer after unguided metronome practice on a viewer
+          screen. "No thanks" clears the pending session so it never nags. */}
+      <PracticeLogNotePrompt
+        visible={viewerLogOffer !== null}
+        plain
+        promptTitle="Would you like to log anything?"
+        strategy="freeform"
+        submitLabel="Save"
+        cancelLabel="No thanks"
+        onSubmit={({ note }) => {
+          void saveViewerLogEntry(note);
+        }}
+        onSkip={() => {
+          setViewerLogOffer(null);
+          clearViewerSession();
+        }}
       />
 
       <AddChooserModal

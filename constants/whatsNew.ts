@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-08-freeform-log-entries',
+    date: 'September 8, 2026',
+    title: 'Write your own practice log entries',
+    body:
+      'Not every practice session runs through a guided strategy, so the log can now hear from you directly. Every practice log screen has an "Add an entry" button where you can write a freeform note; from the main log it stands on its own, and from a piece\'s log it attaches to that piece. And if you run the metronome while just looking at a passage or a PDF, the app asks "Would you like to log anything?" when you head back, and saves your note to the piece you were practicing.',
+  },
+  {
     id: '2026-09-08-library-home-drone-fixes',
     date: 'September 8, 2026',
     title: 'Library button goes home, and the drone plays the note it shows',
