@@ -288,30 +288,34 @@ export default function SignInScreen() {
         </ThemedText>
         <ThemedText style={styles.body}>
           {isSignup
-            ? 'Your first month is free — the whole app, no card, no subscription, nothing to cancel.'
+            ? 'Your first month is free: the whole app, no card, no subscription, nothing to cancel.'
+            : 'Guided practice tools that turn your hardest passages into your easiest.'}
+        </ThemedText>
+        <ThemedText style={[styles.body, styles.bodySecondary]}>
+          {isSignup
+            ? directSignup
+              ? 'Your email is only how we save your music and progress, so everything is here when you come back.'
+              : "Your email is only how we save your music and progress (Flight of the Bumblebee, your parts, your practice) so they're here when you come back."
             : 'Sign in with your email and password.'}
         </ThemedText>
-        {isSignup && (
-          <ThemedText style={[styles.body, styles.bodySecondary]}>
-            {directSignup
-              ? 'Your email is only how we save your music and progress, so everything is here when you come back.'
-              : "Your email is only how we save your music and progress — Flight of the Bumblebee, your parts, your practice — so they're here when you come back."}
-          </ThemedText>
-        )}
 
         {directSignup && (
-          <View style={styles.inputWrap}>
-            <MaterialIcons name="person-outline" size={20} color={Palette.textMuted} />
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="Your name"
-              placeholderTextColor={C.icon}
-              autoCapitalize="words"
-              autoCorrect={false}
-              style={[styles.input, { color: C.text }]}
-              editable={status.kind !== 'submitting'}
-            />
+          <View style={styles.field}>
+            <ThemedText style={styles.fieldLabel}>Name</ThemedText>
+            <View style={styles.inputWrap}>
+              <MaterialIcons name="person-outline" size={20} color={Palette.textMuted} />
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                placeholder="Your name"
+                placeholderTextColor={C.icon}
+                autoCapitalize="words"
+                autoCorrect={false}
+                accessibilityLabel="Name"
+                style={[styles.input, { color: C.text }]}
+                editable={status.kind !== 'submitting'}
+              />
+            </View>
           </View>
         )}
 
@@ -356,19 +360,23 @@ export default function SignInScreen() {
           </View>
         )}
 
-        <View style={styles.inputWrap}>
-          <MaterialIcons name="mail-outline" size={20} color={Palette.textMuted} />
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            placeholderTextColor={C.icon}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            style={[styles.input, { color: C.text }]}
-            editable={status.kind !== 'submitting'}
-          />
+        <View style={styles.field}>
+          <ThemedText style={styles.fieldLabel}>Email</ThemedText>
+          <View style={styles.inputWrap}>
+            <MaterialIcons name="mail-outline" size={20} color={Palette.textMuted} />
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              placeholderTextColor={C.icon}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              accessibilityLabel="Email"
+              style={[styles.input, { color: C.text }]}
+              editable={status.kind !== 'submitting'}
+            />
+          </View>
         </View>
 
         {emailSuggestion && (
@@ -388,20 +396,24 @@ export default function SignInScreen() {
           </Pressable>
         )}
 
-        <View style={styles.inputWrap}>
-          <MaterialIcons name="lock-outline" size={20} color={Palette.textMuted} />
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder={`Password (${MIN_PASSWORD}+ characters)`}
-            placeholderTextColor={C.icon}
-            autoCapitalize="none"
-            autoCorrect={false}
-            secureTextEntry
-            style={[styles.input, { color: C.text }]}
-            editable={status.kind !== 'submitting'}
-            onSubmitEditing={onSubmit}
-          />
+        <View style={styles.field}>
+          <ThemedText style={styles.fieldLabel}>Password</ThemedText>
+          <View style={styles.inputWrap}>
+            <MaterialIcons name="lock-outline" size={20} color={Palette.textMuted} />
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder={`${MIN_PASSWORD}+ characters`}
+              placeholderTextColor={C.icon}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+              accessibilityLabel="Password"
+              style={[styles.input, { color: C.text }]}
+              editable={status.kind !== 'submitting'}
+              onSubmitEditing={onSubmit}
+            />
+          </View>
         </View>
 
         <Button
@@ -570,6 +582,18 @@ const styles = StyleSheet.create({
   },
   instrumentSection: {
     gap: Spacing.xs,
+  },
+  // Label + input pair. The visible label stays put while the placeholder
+  // disappears, so the field is never unlabeled mid-typing (and screen
+  // readers get the same word via accessibilityLabel on the input).
+  field: {
+    gap: Spacing.xs,
+  },
+  fieldLabel: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.semibold,
+    color: Palette.textSecondary,
+    paddingLeft: Spacing.md,
   },
   instrumentLabel: {
     fontSize: Type.size.md,

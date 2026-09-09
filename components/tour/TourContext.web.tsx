@@ -1,13 +1,17 @@
 // TourContext (web) — the guided spotlight tour.
 //
-// On the first visit to a screen that registers a tour (via
-// useScreenTour), the page dims and a bright spotlight walks the user
-// through the screen's controls one at a time, each with a short card
-// (Back / Skip / Next + progress dots). "Seen it" is persisted per
-// screen in the settings store (the same store the Click-Up coach uses),
-// so it auto-runs only once. Afterwards a small ⓘ dot sits on each
-// control; tapping one replays the tour from that step. The ? help
-// button also replays the tour when one is registered for the screen.
+// The tour dims the page and a bright spotlight walks the user through
+// the screen's controls one at a time, each with a short card (Back /
+// Skip / Next + progress dots). Small ⓘ dots sit on each control at all
+// times; tapping one shows just that step. The ? help button starts the
+// full walkthrough on screens that register a tour.
+//
+// NO MORE AUTO-RUNNING (Ralph, 2026-09-09): the tour used to hijack the
+// first visit to a screen, which first-time users found disruptive. Now
+// nothing runs unasked — the first-ever visit instead pulses the ?
+// button (the same `tour.seen.<id>` flag that used to gate the auto-run
+// gates the pulse), and the ⓘ dots are visible from the start. The
+// ?tour= URL override still forces a run for QA.
 //
 // Implementation notes:
 //   - Controls are tagged with `data-tour="<id>"` via tourTag() (see
@@ -48,7 +52,13 @@ type TourCtxValue = {
   activeIndex: number | null;
   // true = showing a single step (from an ⓘ dot), no walkthrough nav.
   single: boolean;
-  // Run the full walkthrough from a step (auto-run / ? button replay).
+  // True while the ? button should pulse ("this screen has a tour you
+  // haven't taken"). Set once ever per screen; cleared on start.
+  nudge: boolean;
+  // Ask for the first-visit pulse (called by useScreenTour after the
+  // persisted-flag check).
+  requestNudge: () => void;
+  // Run the full walkthrough from a step (? button / forced QA run).
   start: (fromIndex?: number) => void;
   // Show just one step on its own (ⓘ dots) — closes on "Got it".
   showStep: (index: number) => void;
@@ -62,6 +72,8 @@ const NOOP: TourCtxValue = {
   screen: null,
   activeIndex: null,
   single: false,
+  nudge: false,
+  requestNudge: () => {},
   start: () => {},
   showStep: () => {},
   next: () => {},
@@ -85,6 +97,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
   const [screen, setScreen] = useState<ScreenTour | null>(null);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [single, setSingle] = useState(false);
+  const [nudge, setNudge] = useState(false);
 
   // Ref mirror of `screen` so next() can read the step count without
   // taking `screen` as a dep (keeps the callback identity stable).
@@ -93,13 +106,19 @@ export function TourProvider({ children }: { children: ReactNode }) {
 
   const registerScreen = useCallback((s: ScreenTour | null) => {
     setScreen(s);
-    // Focusing/leaving a screen ends any run; the auto-run effect in
-    // useScreenTour will (re)start it if it's never been seen.
+    // Focusing/leaving a screen ends any run and drops any stale nudge;
+    // the first-visit effect in useScreenTour re-requests it if due.
     setActiveIndex(null);
     setSingle(false);
+    setNudge(false);
+  }, []);
+
+  const requestNudge = useCallback(() => {
+    setNudge(true);
   }, []);
 
   const start = useCallback((fromIndex = 0) => {
+    setNudge(false);
     setSingle(false);
     setActiveIndex(fromIndex);
   }, []);
@@ -123,8 +142,8 @@ export function TourProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<TourCtxValue>(
-    () => ({ screen, activeIndex, single, start, showStep, next, back, stop, registerScreen }),
-    [screen, activeIndex, single, start, showStep, next, back, stop, registerScreen],
+    () => ({ screen, activeIndex, single, nudge, requestNudge, start, showStep, next, back, stop, registerScreen }),
+    [screen, activeIndex, single, nudge, requestNudge, start, showStep, next, back, stop, registerScreen],
   );
 
   return (
@@ -140,17 +159,18 @@ export function useTour(): TourCtxValue {
   return useContext(Ctx);
 }
 
-// Screens call this to register their tour and auto-run it the first
-// time ever. Pass `null` (or an empty array) when the tour shouldn't be
-// active — e.g. on a phase of the screen that has no tour. Keep `steps`
-// a stable reference (a module-level const) so registration doesn't
-// re-fire every render.
+// Screens call this to register their tour. Nothing auto-runs — the
+// first-ever visit pulses the ? button instead (see the file header).
+// Pass `null` (or an empty array) when the tour shouldn't be active —
+// e.g. on a phase of the screen that has no tour. Keep `steps` a stable
+// reference (a module-level const) so registration doesn't re-fire
+// every render.
 export function useScreenTour(
   screenId: string,
   steps: TourStep[] | null,
   accent?: string,
 ): void {
-  const { registerScreen, start } = useTour();
+  const { registerScreen, requestNudge, start } = useTour();
 
   useFocusEffect(
     useCallback(() => {
@@ -177,28 +197,27 @@ export function useScreenTour(
           if (timer) clearTimeout(timer);
         };
       }
+      // First-ever visit: pulse the ? button instead of hijacking the
+      // screen with an auto-run. Persist immediately so it stays a
+      // one-time nudge.
       const key = `tour.seen.${screenId}`;
       getSetting(key)
         .then((seen) => {
           if (cancelled || seen === '1') return;
-          // Let layout/fonts settle so the first target measures correctly.
-          timer = setTimeout(() => {
-            if (cancelled) return;
-            start(0);
-            setSetting(key, '1').catch(() => {
-              // Couldn't persist — worst case it runs once more next visit.
-            });
-          }, 400);
+          requestNudge();
+          setSetting(key, '1').catch(() => {
+            // Couldn't persist — worst case it nudges once more next visit.
+          });
         })
         .catch(() => {
           // Settings read failed (network blip before sign-in). Skip the
-          // auto-run; the ? button / ⓘ dots still offer it on demand.
+          // nudge; the ? button / ⓘ dots still offer the tour on demand.
         });
       return () => {
         cancelled = true;
         if (timer) clearTimeout(timer);
       };
-    }, [screenId, steps, start]),
+    }, [screenId, steps, start, requestNudge]),
   );
 }
 
@@ -550,8 +569,8 @@ function TourOverlay() {
   );
 }
 
-// Small ⓘ dots pinned to each control once the tour has been seen.
-// Tapping one replays the tour from that step. Hidden while a tour runs.
+// Small ⓘ dots pinned to each control whenever a tour is registered.
+// Tapping one shows that step on its own. Hidden while a tour runs.
 function TourDots() {
   const { screen, activeIndex, showStep } = useTour();
   const running = activeIndex !== null;

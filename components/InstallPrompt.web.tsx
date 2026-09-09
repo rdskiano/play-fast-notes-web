@@ -13,6 +13,12 @@
 // already running inside the installed PWA, or is on a larger device
 // where the chrome doesn't actually crowd the score.
 //
+// Amended (Ralph, 2026-09-09, from App Store listing critique): the
+// VERY FIRST load stays quiet. Friend links land strangers on the
+// sign-in page, and greeting them with an install lecture before they
+// know what the app is hurt first impressions. From the second load
+// on, the every-load cadence above resumes.
+//
 // The native sibling at ./InstallPrompt.tsx is a no-op — Metro
 // resolves the .tsx for iOS/Android and this file for web.
 
@@ -31,6 +37,23 @@ import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const SUPPRESS_KEY = 'pfn:install-prompt-suppressed';
+const VISITED_KEY = 'pfn:install-prompt-visited';
+
+// True exactly once per browser: the first load records the visit and
+// stays quiet; every later load reports "not first" and prompts as
+// before. If localStorage is unavailable (private mode), fail toward
+// showing — same policy as isSuppressed below.
+function isFirstVisit(): boolean {
+  try {
+    const storage = window.localStorage;
+    if (!storage) return false;
+    if (storage.getItem(VISITED_KEY) === 'true') return false;
+    storage.setItem(VISITED_KEY, 'true');
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 type DetectedPlatform = 'ios' | 'android' | 'other';
 
@@ -85,12 +108,17 @@ export function InstallPrompt() {
       if (isSuppressed()) return;
       const isPhone = Math.min(width, height) < 600;
       if (!isPhone) return;
+      // Order matters: only a phone-sized load counts as "the visit."
+      // A first look on a laptop shouldn't burn the quiet pass that is
+      // reserved for a stranger's first phone impression.
+      if (isFirstVisit()) return;
       setPlatform(detectPlatform());
       setOpen(true);
     }, 250);
     return () => window.clearTimeout(t);
     // The effect fires once per mount (per app session) — that's the
-    // "every visit until they opt out" cadence Ralph asked for.
+    // "every visit until they opt out" cadence Ralph asked for
+    // (minus the first-load quiet pass, per the 2026-09-09 amendment).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -124,15 +152,15 @@ export function InstallPrompt() {
           <ThemedText style={[styles.body, { color: C.text }]}>
             Play Fast Notes is built for tablets and computers. It works
             on phone too, but you'll want to add it to your home screen
-            first — that hides the browser bars so the score has room to
+            first. That hides the browser bars so the score has room to
             breathe.
           </ThemedText>
 
           {platform === 'ios' ? (
             <View style={styles.steps}>
               <ThemedText style={[styles.step, { color: C.text }]}>
-                1. Tap the Share button — the square with an arrow
-                pointing up. It's in your browser's toolbar, at the top
+                1. Tap the Share button (the square with an arrow
+                pointing up). It's in your browser's toolbar, at the top
                 or bottom edge of the screen.
               </ThemedText>
               <ThemedText style={[styles.step, { color: C.text }]}>

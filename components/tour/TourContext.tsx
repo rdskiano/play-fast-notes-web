@@ -27,6 +27,8 @@ export function useTour() {
     screen: null as { screenId: string; steps: TourStep[] } | null,
     activeIndex: null as number | null,
     single: false,
+    nudge: false,
+    requestNudge: () => {},
     start: (_fromIndex?: number) => {},
     showStep: (_index: number) => {},
     next: () => {},

@@ -250,7 +250,7 @@ export default function HistoryScreen() {
         onSubmit={async ({ note }) => {
           setAddingEntry(false);
           if (!note || !id) return;
-          await logPractice(id, 'freeform', { note }, null, {
+          await logPractice(id, 'freeform', { note, entryKind: 'note' }, null, {
             sessionStamps: false,
           });
           refresh();

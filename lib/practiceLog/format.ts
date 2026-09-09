@@ -42,6 +42,16 @@ export const STRATEGY_LABELS: Record<string, string> = {
 // random-order session is the renamed "Rep Rotator"; older fixed-order
 // sessions stay "Serial". (The STRATEGY_LABELS['interleaved'] value is only a
 // fallback that this branch never reaches.)
+//
+// 'freeform' is special too (Ralph, 2026-09-09: the raw word "Freeform" in
+// the log described nothing). Three different flows share the strategy key,
+// told apart by an `entryKind` stamp in data_json:
+//   - 'metronome' — the after-metronome offer ("Would you like to log
+//     anything?"): unguided practice with the click on whatever the row is
+//     attached to. Labeled "Metronome practice".
+//   - 'note' — the "Add an entry" journal paragraph. Labeled "Practice note".
+//   - unstamped — rows from before 2026-09-09 and the old Self-Led
+//     "Freeform / Other" option keep the historical "Freeform" label.
 export function strategyLabel(entry: PracticeLogLike): string {
   if (entry.strategy === 'interleaved') {
     try {
@@ -53,6 +63,17 @@ export function strategyLabel(entry: PracticeLogLike): string {
       // ignore — fall through to default
     }
     return 'Serial';
+  }
+  if (entry.strategy === 'freeform') {
+    try {
+      if (entry.data_json) {
+        const data = JSON.parse(entry.data_json);
+        if (data?.entryKind === 'metronome') return 'Metronome practice';
+        if (data?.entryKind === 'note') return 'Practice note';
+      }
+    } catch {
+      // ignore — fall through to default
+    }
   }
   return STRATEGY_LABELS[entry.strategy] ?? entry.strategy;
 }
@@ -231,6 +252,22 @@ function strategyDetail(
     const m = Math.floor(data.duration_seconds / 60);
     const s = Math.floor(data.duration_seconds % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  // After-metronome entries carry the session clock's duration stamp — the
+  // one place durationMs is rendered, because here the row IS the whole
+  // sitting (no other rows to double-count against).
+  if (
+    strategy === 'freeform' &&
+    data.entryKind === 'metronome' &&
+    typeof data.durationMs === 'number' &&
+    data.durationMs > 0
+  ) {
+    const mins = Math.round(data.durationMs / 60000);
+    if (compact) return mins < 1 ? 'under a minute' : `${mins} min`;
+    return mins < 1
+      ? 'under a minute with the metronome'
+      : `${mins} min with the metronome`;
   }
   return null;
 }

@@ -15,14 +15,18 @@
 // Cross-platform. Web and native both have a real HelpButton + HelpModal
 // + TutorialStep. HelpProvider is mounted on both platforms.
 //
-// Auto-open is "once ever, per id" — the first time a user lands on a
-// screen whose TutorialStep is eligible (visible), its intro fires and a
-// flag is persisted (`help.autoSeen.<id>`) via the cross-platform
-// settings store (SQLite on native, Supabase on web — the same store the
-// Click-Up coach uses). After that it never auto-fires again; the user
-// reopens on demand with the ? button. An in-memory set additionally
-// dedupes within a single session so the async flag read only runs once
-// per id per launch.
+// NO MORE AUTO-OPENING MODALS (Ralph, 2026-09-09). Watching first-time
+// users showed the popups were pure interruption: dismissed unread,
+// forgotten by the time the question actually came up. `openAuto` now
+// fires a NUDGE instead — the ? button pulses with a small "New here?"
+// tag the first time ever a user lands on a screen whose TutorialStep is
+// eligible (visible). The nudge is "once ever, per id": the same
+// `help.autoSeen.<id>` flag that used to gate the popup now gates the
+// nudge, persisted via the cross-platform settings store (SQLite on
+// native, Supabase on web). The content itself is only ever shown when
+// the user asks, via the ? button. An in-memory set additionally dedupes
+// within a single session so the async flag read only runs once per id
+// per launch.
 
 import {
   createContext,
@@ -51,14 +55,17 @@ type HelpCtxValue = {
   // The most-recently-registered content, or null if none. Drives
   // what the modal shows when opened.
   active: HelpContent | null;
-  // True while the modal is open (either auto-fired or manually opened).
+  // True while the modal is open (manually opened, or forced via the
+  // ?tutorial= QA override).
   isOpen: boolean;
+  // True while the ? button should pulse ("you haven't met this screen's
+  // guide yet"). Set by openAuto, cleared on open or screen change.
+  nudge: boolean;
   // Open the modal showing `active` content (or placeholder if null).
   openManually: () => void;
-  // Auto-open guard: fires the modal the first time EVER for a given id
-  // (persisted across sessions), so a user who has already seen a
-  // strategy's intro doesn't get it again. They can always reopen via
-  // the ? button.
+  // First-visit guard: the first time EVER a given id is eligible
+  // (persisted across sessions), light up the ? button's nudge. Never
+  // opens the modal itself — the user opens it via the ? button.
   openAuto: (id: string) => void;
   close: () => void;
 };
@@ -70,6 +77,7 @@ const NOOP_CTX: HelpCtxValue = {
   register: () => () => {},
   active: null,
   isOpen: false,
+  nudge: false,
   openManually: () => {},
   openAuto: () => {},
   close: () => {},
@@ -85,6 +93,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   const registryRef = useRef<HelpContent[]>([]);
   const [active, setActive] = useState<HelpContent | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [nudge, setNudge] = useState(false);
   // Per-session de-dupe set for auto-opens, so the persisted-flag read
   // below only runs once per id per app launch. The durable "seen ever"
   // record lives in the settings store (see openAuto).
@@ -93,6 +102,9 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   const register = useCallback((content: HelpContent) => {
     registryRef.current = [...registryRef.current, content];
     setActive(content);
+    // A new screen's registration clears any nudge left over from the
+    // previous screen — the pulse always refers to the screen you're on.
+    setNudge(false);
     return () => {
       registryRef.current = registryRef.current.filter(
         (c) => c.id !== content.id,
@@ -100,10 +112,12 @@ export function HelpProvider({ children }: { children: ReactNode }) {
       const next =
         registryRef.current[registryRef.current.length - 1] ?? null;
       setActive(next);
+      if (next === null) setNudge(false);
     };
   }, []);
 
   const openManually = useCallback(() => {
+    setNudge(false);
     setIsOpen(true);
   }, []);
 
@@ -112,23 +126,24 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     // below from re-running when useFocusEffect re-fires).
     if (autoOpenedRef.current.has(id)) return;
     autoOpenedRef.current.add(id);
-    // Fire only the first time ever for this id. Persist immediately so
-    // it never auto-fires again, on any device the user syncs to (web)
-    // or this device (native).
+    // Nudge only the first time ever for this id. Persist immediately so
+    // it never fires again, on any device the user syncs to (web) or
+    // this device (native). NOTE: this no longer opens the modal — it
+    // pulses the ? button (see the file header for the 2026-09-09 why).
     const key = `help.autoSeen.${id}`;
     getSetting(key)
       .then((seen) => {
         if (seen === '1') return;
-        setIsOpen(true);
+        setNudge(true);
         setSetting(key, '1').catch(() => {
-          // Couldn't persist — worst case it auto-fires once more next
+          // Couldn't persist — worst case it nudges once more next
           // session. Not worth surfacing.
         });
       })
       .catch(() => {
         // Read failed (no DB yet on first native launch, or a network
-        // blip on web before sign-in). Fail open: help the user now.
-        setIsOpen(true);
+        // blip on web before sign-in). A stray nudge is harmless.
+        setNudge(true);
       });
   }, []);
 
@@ -137,8 +152,8 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<HelpCtxValue>(
-    () => ({ register, active, isOpen, openManually, openAuto, close }),
-    [register, active, isOpen, openManually, openAuto, close],
+    () => ({ register, active, isOpen, nudge, openManually, openAuto, close }),
+    [register, active, isOpen, nudge, openManually, openAuto, close],
   );
 
   return <HelpCtx.Provider value={value}>{children}</HelpCtx.Provider>;

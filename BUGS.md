@@ -103,6 +103,27 @@ _Bugs that reproduce. Newest at the bottom. When fixed, move to "Verified fixed"
 - **Status:** Open / In progress / Awaiting verification / Fixed (with per-surface verification dates)
 ```
 
+### B-088 — iPad app crashes to home screen mid Tempo Ladder session (metronome + drone)
+
+- **Severity:** P0 (crash during real practice)
+- **Surfaces:** ipad-native (others not checked)
+- **Reported:** 2026-09-09 (Ralph, live report during a session)
+- **Repro (not yet reproduced on demand):**
+  1. iPad app (production OTA channel, current as of 2026-09-09 — carries the Sept 3 batches incl. the STOP-while-clicking fix).
+  2. Real Tempo Ladder practice with the metronome running AND the drone on.
+  3. Practice "for a while" (several minutes+), mid-session, not obviously at a tap/stop moment (to be confirmed).
+  4. Expected: session continues. Actual: app vanishes to the home screen.
+- **Notes:**
+  - No `playfastnotes-*.ips` file in Settings → Analytics Data at report time. Candidate explanations: (a) iOS memory kill — those file as `JetsamEvent-*.ips` instead, Ralph asked to check; (b) log not yet flushed; (c) analytics sharing off.
+  - Adjacent history, same engine: 2026-09-03 SIGSEGV on the audio render thread when a recorder session flip raced the live metronome engine (fixed by awaited suspend+close). The drone is a sustained voice on that same react-native-audio-api engine; a long drone session is the heaviest steady-state the engine sees. Also see memory `feedback_expo_audio_wrecks_rn_audio_context` — any expo-audio touch must call `noteForeignAudioUse()`.
+  - Open question for repro: was the recorder used at any point that session? Was the drone toggled mid-session? Did the crash coincide with a step advance / celebration?
+  - 2026-09-09's local working-tree batch (quiet-help rework) touches NO audio code and is not on the iPad; unrelated.
+- **Investigation so far (2026-09-09, same day):**
+  - Ralph confirmed: NO recorder that session; Tempo Ladder + metronome with drone; ~3 good attempts in; died mid-attempt with no user interaction. No `playfastnotes-*.ips` AND no `JetsamEvent-*` from today in Analytics Data (Jetsams stop at 09-08) — no evidence yet for either a code crash or a memory kill. Logs may lag; re-check later.
+  - Code review of the native drone path (`scheduleDroneTone` in metronomeEngine.ts): creates osc+gain PER TICK, retained JS-side until tone end, never `disconnect()`ed. BUT read of react-native-audio-api 0.11.7 C++ source (AudioNodeManager::prepareNodesForDestruction, AudioNode::connectNode/cleanup) shows a real reclamation path: upstream holds the only graph ref, finished sources with use_count 1 get destructed and cascade-release their gain. So "nodes pile up forever" is NOT confirmed. Plain click creates nodes at the same rate and has months of crash-free practice — weakens the leak theory.
+  - Next diagnostic (set up, blocked on a human tap): simulator dev-client build (Aug 21, ios/build/dd, deps current) installed on booted iPad Air sim, Metro live on :8081, dev client sees the server — blocked at the "Open in Play Fast?" dialog because simulator access wasn't granted (Ralph was away). Plan when granted: run Tools-room metronome + drone 15 min, sample the process RSS every 30 s; monotonic growth = leak confirmed; flat = wait for a real crash log. Sign-in wall may need Ralph to type the test password once (agent never enters credentials).
+- **Status:** Open — awaiting a crash log surfacing and/or the sim memory experiment
+
 ---
 
 ## Verified fixed

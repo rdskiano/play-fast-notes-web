@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-09-quieter-first-steps',
+    date: 'September 9, 2026',
+    title: 'Help now waits to be asked',
+    body:
+      'Instructional pop-ups and walkthroughs no longer interrupt the first time you open a screen. Everything they said still lives behind the round blue "i" button in the bottom corner, which gives a little pulse on screens you have not met yet, and the small "i" dots on practice screens now show from the start. And when you add a new piece, the page itself now offers "Mark your first passage" so the next step is obvious. One more polish: practice log entries stopped saying "Freeform". A note you wrote yourself now reads "Practice note", and a logged metronome session reads "Metronome practice" along with how long you played.',
+  },
+  {
     id: '2026-09-08-freeform-log-entries',
     date: 'September 8, 2026',
     title: 'Write your own practice log entries',

@@ -46,8 +46,9 @@ export function TutorialStep({
     }, [register, id, title, body, image]),
   );
 
-  // Auto-open the modal the first time this step's trigger is true for the
-  // current session (deduped by id in the context, so closing won't re-pop).
+  // First time this step's trigger is true, nudge the ? button (openAuto no
+  // longer opens the modal — see HelpContext's 2026-09-09 note; deduped by id
+  // in the context).
   useFocusEffect(
     useCallback(() => {
       if (visible) openAuto(id);

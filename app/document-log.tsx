@@ -337,7 +337,7 @@ export default function DocumentLogScreen() {
         onSubmit={async ({ note }) => {
           setAddingEntry(false);
           if (!note || !documentId) return;
-          await logPractice(documentId, 'freeform', { note }, null, {
+          await logPractice(documentId, 'freeform', { note, entryKind: 'note' }, null, {
             sessionStamps: false,
           });
           refresh();

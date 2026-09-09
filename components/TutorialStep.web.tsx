@@ -69,7 +69,7 @@ export function TutorialStep({
   body: string;
   image?: TutorialStepImage;
 }) {
-  const { register, openAuto } = useHelpContext();
+  const { register, openAuto, openManually } = useHelpContext();
 
   // Register this screen's help content while focused. The cleanup
   // returned by register() runs on blur (or when any dep changes),
@@ -80,17 +80,18 @@ export function TutorialStep({
     }, [register, id, title, body, image]),
   );
 
-  // Auto-open the modal the first time this step's trigger is true
-  // for the current app session. Also gated on focus so background
-  // screens can't trigger auto-opens while the user is looking
-  // somewhere else. The context dedupes by id, so closing doesn't
-  // trigger a re-pop on navigation.
+  // First time this step's trigger is true, nudge the ? button (openAuto
+  // no longer opens the modal — see HelpContext's 2026-09-09 note). The
+  // ?tutorial= QA override still force-opens the modal itself so copy
+  // can be proofread without a fresh account.
   useFocusEffect(
     useCallback(() => {
-      if (visible || isPreviewMode(id)) {
+      if (isPreviewMode(id)) {
+        openManually();
+      } else if (visible) {
         openAuto(id);
       }
-    }, [visible, id, openAuto]),
+    }, [visible, id, openAuto, openManually]),
   );
 
   return null;

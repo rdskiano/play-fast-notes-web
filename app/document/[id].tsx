@@ -148,6 +148,10 @@ export default function DocumentScreen() {
   // the persisted flag so we don't flash the toast and then immediately
   // hide it on a returning user.
   const [pdfBoxCoachVisible, setPdfBoxCoachVisible] = useState<boolean | null>(null);
+  // Session-only dismissal of the "Mark your first passage" card (the ✕).
+  // Deliberately not persisted: the card targets true first-timers on an
+  // empty document, and vanishes for good once the first passage exists.
+  const [firstPassageCtaDismissed, setFirstPassageCtaDismissed] = useState(false);
   // Global practice-log count for the PDF-overview tutorial gate.
   // null = still loading; 0 = first-timer. Combined with
   // passages.length === 0 below so the modal only fires on an empty
@@ -517,8 +521,9 @@ export default function DocumentScreen() {
     if (!offer?.pieceId || !note) return;
     // Session stamps stay ON: the viewer session marked the clock and reset
     // the drone tracker when the metronome first ran, so duration + drone
-    // describe exactly that stretch of unguided practice.
-    await logPractice(offer.pieceId, 'freeform', { note });
+    // describe exactly that stretch of unguided practice. entryKind drives
+    // the log label ("Metronome practice") — see lib/practiceLog/format.ts.
+    await logPractice(offer.pieceId, 'freeform', { note, entryKind: 'metronome' });
   }
 
   // One-time "tap a box to practice" coach toast. Triggered the first
@@ -1594,6 +1599,50 @@ export default function DocumentScreen() {
         />
       ))}
 
+      {/* "Mark your first passage" call to action (2026-09-09). Watching
+          first-time users showed the moment of maximum confusion is right
+          here: their PDF/photo just opened and nothing on the page points
+          at the next step (the "+ Mark passage" button is small chrome in
+          a crowded top bar). The overview popup that used to fire at this
+          moment was dismissed unread. So instead: while a true
+          first-timer (no practice log) looks at a document with zero
+          passages, an inviting card sits on the score itself and starts
+          box-drawing on tap. Gone for good once the first passage exists;
+          ✕ hides it for the session. */}
+      {!coach &&
+        mode === 'idle' &&
+        !markingSection &&
+        pages.length > 0 &&
+        passages.length === 0 &&
+        practiceLogCount === 0 &&
+        !firstPassageCtaDismissed && (
+          <View style={styles.firstPassageWrap} pointerEvents="box-none">
+            <Pressable
+              onPress={startDraw}
+              accessibilityRole="button"
+              accessibilityLabel="Mark your first passage"
+              style={({ pressed }) => [
+                styles.firstPassageCard,
+                { opacity: pressed ? 0.9 : 1, marginBottom: insets.bottom + 24 },
+              ]}>
+              <Pressable
+                onPress={() => setFirstPassageCtaDismissed(true)}
+                hitSlop={10}
+                accessibilityLabel="Dismiss"
+                style={styles.firstPassageDismiss}>
+                <ThemedText style={styles.firstPassageDismissText}>✕</ThemedText>
+              </Pressable>
+              <ThemedText style={styles.firstPassageTitle}>
+                ▶ Mark your first passage
+              </ThemedText>
+              <ThemedText style={styles.firstPassageBody}>
+                Tap here, then drag a box around a tricky spot you want to
+                practice. The practice tools attach to that spot.
+              </ThemedText>
+            </Pressable>
+          </View>
+        )}
+
       {/* The tap-a-box ActionSheet is gone — pills-first: tapping a pill
           lights the box and opens the compact Practice / Edit / History bar
           rendered by PageBoxOverlay itself. */}
@@ -2042,6 +2091,52 @@ const styles = StyleSheet.create({
   },
   coachToastDismiss: {
     color: '#ffffffaa',
+    fontSize: 14,
+    fontWeight: Type.weight.bold,
+  },
+  // "Mark your first passage" card — dark coaching palette (matches
+  // HelpModal / TourContext / ClickUpCoach) with the site-orange accent,
+  // pinned bottom-center over the score without blocking it.
+  firstPassageWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    zIndex: 90,
+  },
+  firstPassageCard: {
+    backgroundColor: '#1e293b',
+    borderColor: '#e67e22',
+    borderWidth: 2,
+    borderRadius: Radii.xl,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    maxWidth: 380,
+    width: '92%',
+    gap: Spacing.xs,
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  firstPassageTitle: {
+    color: '#f8fafc',
+    fontSize: Type.size.lg,
+    fontWeight: Type.weight.bold,
+  },
+  firstPassageBody: {
+    color: '#cbd5e1',
+    fontSize: Type.size.sm,
+    lineHeight: 19,
+  },
+  firstPassageDismiss: {
+    position: 'absolute',
+    top: 8,
+    right: 10,
+    zIndex: 1,
+  },
+  firstPassageDismissText: {
+    color: '#94a3b8',
     fontSize: 14,
     fontWeight: Type.weight.bold,
   },

@@ -487,7 +487,7 @@ export default function LibraryLogScreen() {
           await logPractice(
             TOOLS_ONLY_ID,
             'freeform',
-            { title: 'Practice entry', note },
+            { title: 'Practice entry', note, entryKind: 'note' },
             null,
             { sessionStamps: false },
           );

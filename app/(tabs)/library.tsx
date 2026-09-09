@@ -704,8 +704,9 @@ export default function LibraryScreen() {
     if (!target) return;
     // Session stamps stay ON: the viewer session marked the clock and reset
     // the drone tracker when the metronome first ran, so duration + drone
-    // describe exactly that stretch of unguided practice.
-    await logPractice(target, 'freeform', { note });
+    // describe exactly that stretch of unguided practice. entryKind drives
+    // the log label ("Metronome practice") — see lib/practiceLog/format.ts.
+    await logPractice(target, 'freeform', { note, entryKind: 'metronome' });
   }
 
   useEffect(() => {
@@ -1414,11 +1415,13 @@ export default function LibraryScreen() {
                   maxWidth: 420,
                 }}>
                 Snap a photo of the page you're working on, mark the spots you
-                want to practice — one tricky spot is all it takes — and the
+                want to practice (one tricky spot is all it takes) and the
                 practice strategies do the rest.
               </ThemedText>
+              {/* "Page", not "passage" (Ralph, 2026-09-09): the button
+                  uploads a page; highlighting the passage comes after. */}
               <Button
-                label="📷 Add your first passage"
+                label="📷 Add your first page"
                 onPress={() =>
                   router.push({ pathname: '/upload', params: { folder: '' } })
                 }
