@@ -2,6 +2,16 @@
 // editing is locked to the page that's on screen when you tap PENCIL (the
 // pager is locked while annotating), and that page's drawing is saved on
 // exit. Every page still *displays* its saved annotation via the map.
+//
+// PAGE PINNING (B-089, 2026-09-09). The page being annotated is captured ONCE
+// when the pencil session starts (after the forced single-page view has
+// rendered) and every save writes to that pinned page until exit. It must NOT
+// track the live `currentPage`: that value is derived from view mode, which is
+// derived from live orientation, so a rotation (or any other remap) mid-
+// session could shift it — and the idle auto-save timer holds an older
+// closure while `canvasRef` is one stable ref, so a drifted page number saved
+// one page's strokes under another page. Ralph hit exactly that: his own
+// earlier marks reappearing in the wrong place, possibly the wrong page.
 
 import { useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -32,6 +42,11 @@ export function useDocumentAnnotation(
     new Map(),
   );
   const [annotating, setAnnotating] = useState(false);
+  // The page this pencil session belongs to — pinned on entry, null when no
+  // session is live. The editable canvas mounts on THIS page and every save
+  // writes to it; live currentPage drift is ignored until exit (see header).
+  const [annotatingPage, setAnnotatingPage] = useState<number | null>(null);
+  const annotatingPageRef = useRef<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
   const canvasRef = useRef<PencilCanvasHandle>(null);
@@ -71,13 +86,28 @@ export function useDocumentAnnotation(
     }, [documentId, session]),
   );
 
-  // Live mirror of the current page's saved overlay-PNG URL, readable from
+  // Pin the session's page one render AFTER `annotating` flips true — by
+  // then the screen's forced single-page view (set in the same tap as the
+  // toggle) has rendered and `currentPage` reflects what the user actually
+  // sees. Cleared when the session ends.
+  useEffect(() => {
+    if (annotating && annotatingPage === null) {
+      setAnnotatingPage(currentPage);
+      annotatingPageRef.current = currentPage;
+    } else if (!annotating && annotatingPage !== null) {
+      setAnnotatingPage(null);
+      annotatingPageRef.current = null;
+    }
+  }, [annotating, annotatingPage, currentPage]);
+
+  // Live mirror of the session page's saved overlay-PNG URL, readable from
   // inside saveDrawing without joining its dependency list. When a cloud
   // upload fails we re-save the PREVIOUS URL instead of nulling it out.
   const prevImageUriRef = useRef<string | null>(null);
   useEffect(() => {
-    prevImageUriRef.current = annotations.get(currentPage)?.imageUri ?? null;
-  }, [annotations, currentPage]);
+    const page = annotatingPage ?? currentPage;
+    prevImageUriRef.current = annotations.get(page)?.imageUri ?? null;
+  }, [annotations, annotatingPage, currentPage]);
 
   // Export the current page's drawing and persist it. Only meaningful while
   // the canvas is mounted (annotation mode on). `silent` skips the dimming
@@ -94,6 +124,11 @@ export function useDocumentAnnotation(
     async (opts?: { silent?: boolean }) => {
       const handle = canvasRef.current;
       if (!handle || !documentId) return;
+      // The pinned session page, read through a ref so even a stale closure
+      // (the idle auto-save timer) saves to the page the strokes were drawn
+      // on — never to whatever the live page number has drifted to.
+      const page = annotatingPageRef.current;
+      if (page == null) return;
       const seq = editSeqRef.current;
       if (!opts?.silent) setSaving(true);
       try {
@@ -102,7 +137,7 @@ export function useDocumentAnnotation(
         if (png) {
           try {
             imageUri = await uploadAnnotationImage(
-              `${documentId}-page${currentPage}`,
+              `${documentId}-page${page}`,
               png,
             );
           } catch (uploadErr) {
@@ -114,8 +149,8 @@ export function useDocumentAnnotation(
           }
         }
         const next: Annotation = { data: data || null, imageUri };
-        await saveDocumentAnnotation(documentId, currentPage, next);
-        setAnnotations((prev) => new Map(prev).set(currentPage, next));
+        await saveDocumentAnnotation(documentId, page, next);
+        setAnnotations((prev) => new Map(prev).set(page, next));
         savedSeqRef.current = seq;
       } catch (e) {
         if (!opts?.silent) {
@@ -130,7 +165,7 @@ export function useDocumentAnnotation(
         if (!opts?.silent) setSaving(false);
       }
     },
-    [documentId, currentPage],
+    [documentId],
   );
 
   // Each pencil edit marks the session dirty and (re)arms the idle auto-save.
@@ -232,6 +267,9 @@ export function useDocumentAnnotation(
     pencil: { active: annotating, onToggle: toggle },
     /** True while editing — the screen should lock the pager. */
     annotating,
+    /** The pinned session page (null when idle). Mount the editable canvas on
+        THIS page, not on the live currentPage. */
+    annotatingPage,
     /** Saved annotation per page index, for display. */
     annotations,
     /** Attach to the current page's editable AnnotationCanvas. */

@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-09-pencil-marks-stay-put',
+    date: 'September 9, 2026',
+    title: 'Pencil marks stay on their page',
+    body:
+      'A rare but nasty one: marks you drew with the pencil could later show up in the wrong spot, or on the wrong page entirely, if the page layout shifted while you were drawing (rotating the iPad mid-markup was the likely trigger). The page you are marking is now locked in the moment you pick up the pencil, and every save goes exactly there. If you ever ran into mystery marks, this was why.',
+  },
+  {
     id: '2026-09-09-quieter-first-steps',
     date: 'September 9, 2026',
     title: 'Help now waits to be asked',

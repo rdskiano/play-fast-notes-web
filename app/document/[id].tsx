@@ -1290,7 +1290,10 @@ export default function DocumentScreen() {
                               );
                             }}
                           />
-                          {docAnn.annotating && p.index === currentPage ? (
+                          {/* Canvas mounts on the PINNED session page (B-089)
+                              so a mid-session page-number drift can't remount
+                              it onto a different page's slot. */}
+                          {docAnn.annotatingPage != null && p.index === docAnn.annotatingPage ? (
                             <RegionAnnotationCanvas
                               pageData={
                                 docAnn.annotations.get(p.index)?.data ?? null

@@ -124,6 +124,26 @@ _Bugs that reproduce. Newest at the bottom. When fixed, move to "Verified fixed"
   - Next diagnostic (set up, blocked on a human tap): simulator dev-client build (Aug 21, ios/build/dd, deps current) installed on booted iPad Air sim, Metro live on :8081, dev client sees the server — blocked at the "Open in Play Fast?" dialog because simulator access wasn't granted (Ralph was away). Plan when granted: run Tools-room metronome + drone 15 min, sample the process RSS every 30 s; monotonic growth = leak confirmed; flat = wait for a real crash log. Sign-in wall may need Ralph to type the test password once (agent never enters credentials).
 - **Status:** Open — awaiting a crash log surfacing and/or the sim memory experiment
 
+### B-089 — Pencil marks appear displaced (wrong spot, possibly wrong page) after later save
+
+- **Severity:** P1 (data-integrity feel; user erased "phantom" marks — but they were REAL marks he'd made, shown in the wrong place)
+- **Surfaces:** ipad-native (others not checked)
+- **Reported:** 2026-09-09 (Ralph, mid real practice; not reproducible on demand)
+- **What happened (one observation):**
+  1. Practicing with Apple Pencil, marking as he went.
+  2. Added a new mark, saved it, kept practicing.
+  3. Later came across EARLIER marks sitting definitely in the wrong place, possibly on the wrong page (couldn't tell which). Erased them, moved on.
+- **Candidate mechanisms (nothing confirmed — for the eventual repro):**
+  - Stale rendered-overlay bitmap: memory `feedback_ios_image_cache_same_path` — RN Image caches by path forever; if a pencil overlay PNG is saved to the SAME path per page, an old bitmap can show instead of the new one. Check whether pencil overlays save under timestamped names.
+  - Page-index mixup: overlay attached to the wrong page row (single vs spread view remaps indices; the doc viewer freezes dimensions during save flows for exactly this class of bug).
+  - Coordinate-space drift: strokes drawn at one zoom/view mode rendered back under another (cf. the web PDF crop scale-mismatch lesson).
+  - Sync echo: a web↔iPad annotation sync bringing an older stroke set back after the local save (pencil sync shipped 2026-08-15/16).
+- **Next-time protocol (Ralph):** BEFORE erasing — screenshot the misplaced marks; note the piece + page number, single-page or spread view, whether the iPad was rotated that session, and whether any of those marks were originally drawn on a different page or before an app update. Then erase freely.
+- **Code finding (2026-09-09 desk analysis, same day):** the annotation "page identity" is NOT pinned while the pencil is up. `useDocumentAnnotation` takes a live `currentPage` = `currentIndex * (spread ? 2 : 1) + 1`, where spread-vs-single derives from LIVE orientation (frozen only during save flows). The editable canvas mounts on `p.index === currentPage`, and the 2.5 s idle auto-save timer captures `saveDrawing` (and its `currentPage`) at arm time via closure while `canvasRef` is one stable ref. So ANY drift of currentPage between stroke and save (a rotation flipping single↔spread mid-annotation is the clearest path; pager taps are locked, pedal stands down) can export the canvas now mounted on page M and save it under page N — i.e. real old strokes reattached to the wrong page. Exactly Ralph's symptom. Not reproduced yet; rotation-while-annotating is the repro to try.
+  - Proposed hardening regardless of exact path: pin the page once on pencil-entry (ref set in `toggle()`), use the pinned page for canvas mount AND every save, ignore live drift until exit. Strictly safer; awaiting Ralph's go-ahead.
+- **Fix (2026-09-09, same day, Ralph-approved):** page pinning implemented in useDocumentAnnotation — `annotatingPage` pinned one render after pencil-entry (post forced-single-view), read via ref inside saveDrawing so stale timer closures cannot drift, canvas mounts on the pinned page, cleared on exit. Shared hook + shared screen = both platforms. What's New entry added.
+- **Status:** Awaiting verification — Ralph: mark up a PDF normally, and ALSO try drawing then rotating the iPad mid-markup, then check the marks landed on the right page (and no other page)
+
 ---
 
 ## Verified fixed
