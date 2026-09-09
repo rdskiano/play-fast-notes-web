@@ -45,13 +45,19 @@ git push web-origin-archive master
 ```
 This push is the live deploy (Vercel auto-deploys master).
 
-## 6. Offer the iPad OTA (JS-only changes)
-If the change matters on iPad/iPhone native, offer:
+## 6. Run the iPad OTA (JS-only changes)
+Ralph's standing instruction (2026-09-09): a ship does BOTH deploys — after the step-5
+yes, run the OTA yourself, don't hand him the command:
 ```
 npx eas-cli update --channel production --message "<same summary>"
 ```
+(Allowed by the `Bash(npx eas-cli update *)` rule in .claude/settings.json. Run it as a
+bare command from the project dir — a `cd ... &&` prefix can break the permission match.)
 Channel **production**, always — Ralph's devices (and every App Store install) are on
 `production`; a `preview` publish reaches nobody (memory `project_playfastnotes_ota_updates`).
 Commit BEFORE publishing. Free, no build. Remind Ralph: **close and relaunch the app twice**
-to pick it up. Only suggest a real EAS build if native code changed (new module, permissions,
-app.json native config) — his build quota is limited.
+to pick it up — and check the "Runtime version" line in the publish output: his device only
+receives the update if its installed App Store build matches that runtime (after a new App
+Store release he must update from the App Store once). Only suggest a real EAS build if
+native code changed (new module, permissions, app.json native config) — his build quota
+is limited.

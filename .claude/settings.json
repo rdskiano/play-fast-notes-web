@@ -21,7 +21,9 @@
       "mcp__909f64e4-7c2b-4dc3-b082-cd50129ca458__get_advisors",
       "mcp__909f64e4-7c2b-4dc3-b082-cd50129ca458__get_project_url",
       "mcp__909f64e4-7c2b-4dc3-b082-cd50129ca458__get_publishable_keys",
-      "mcp__909f64e4-7c2b-4dc3-b082-cd50129ca458__search_docs"
+      "mcp__909f64e4-7c2b-4dc3-b082-cd50129ca458__search_docs",
+      "Bash(npx eas-cli update *)",
+      "Bash(npx eas-cli update:*)"
     ]
   }
 }
