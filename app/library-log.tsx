@@ -253,14 +253,13 @@ export default function LibraryLogScreen() {
   }
 
   // ── By-date grouping: day → folder → (document → passages) + standalones ──
-  // Folder order within a day follows the Library's folder sort order;
-  // "Unfiled" (folder_id = null) comes last. Within a folder, passages that
-  // came from a PDF cluster under their document title so the PDF name is
-  // shown once as a heading instead of repeated on every card.
-  const folderOrderIndex = new Map<string | null, number>();
-  folders.forEach((f, idx) => folderOrderIndex.set(f.id, idx));
-  folderOrderIndex.set(null, folders.length);
-
+  // Entries arrive newest-first, and grouping preserves that encounter order
+  // at every level: within a day, the most recently practiced folder,
+  // document, passage, and entry each sit at the top. (Folders used to follow
+  // the Library's sort order, which read as alphabetical — Ralph wants
+  // practice order.) Within a folder, passages that came from a PDF cluster
+  // under their document title so the PDF name is shown once as a heading
+  // instead of repeated on every card.
   const dayGroups: DayGroup[] = [];
   {
     type DateSectionBuilder = {
@@ -342,10 +341,9 @@ export default function LibraryLogScreen() {
       }
     }
     for (const day of dayMap.values()) {
-      const folderKeys = Array.from(day.folderMap.keys()).sort(
-        (a, b) =>
-          (folderOrderIndex.get(a) ?? 9999) - (folderOrderIndex.get(b) ?? 9999),
-      );
+      // Map insertion order = most-recently-practiced-first (entries arrive
+      // newest-first), replacing the old Library-sort-order folder sort.
+      const folderKeys = Array.from(day.folderMap.keys());
       const dayFolders: DayFolderGroup[] = folderKeys.map((fKey) => {
         const f = day.folderMap.get(fKey)!;
         return {

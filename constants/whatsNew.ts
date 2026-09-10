@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-10-log-folders-in-practice-order',
+    date: 'September 10, 2026',
+    title: 'The practice log follows your practice order',
+    body:
+      'On the main Practice Log, the folders inside each day were arranged in your library\'s order, which usually meant alphabetically, no matter when you actually practiced them. Now they follow your session: the folder you worked in most recently sits at the top of the day, matching how pieces and entries already ordered themselves.',
+  },
+  {
     id: '2026-09-09-pencil-marks-stay-put',
     date: 'September 9, 2026',
     title: 'Pencil marks stay on their page',
