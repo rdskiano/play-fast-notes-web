@@ -8,6 +8,12 @@
       "port": 8081
     },
     {
+      "name": "playfast-web-alt",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--web", "--port", "8083"],
+      "port": 8083
+    },
+    {
       "name": "v2-web",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["expo", "start", "--web", "--port", "8082"],

@@ -91,6 +91,30 @@ function tempoLadderMode(data: Record<string, unknown>): string | null {
   return null;
 }
 
+// Calendar-day relative timestamp for the passage screen's last-session row:
+// "Today", "Yesterday", "5 days ago", "3 weeks ago", "4 months ago". Counts
+// calendar days (not 24h windows), so 11pm→7am is "Yesterday", not "Today".
+export function formatRelativeWhen(ts: number): string {
+  const startOfDay = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round(
+    (startOfDay(new Date()) - startOfDay(new Date(ts))) / 86_400_000,
+  );
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 14) return `${days} days ago`;
+  if (days < 61) {
+    const w = Math.round(days / 7);
+    return `${w} weeks ago`;
+  }
+  if (days < 550) {
+    const m = Math.round(days / 30.4);
+    return `${m} months ago`;
+  }
+  const y = Math.round(days / 365.25);
+  return y === 1 ? 'A year ago' : `${y} years ago`;
+}
+
 export function formatPracticeDetail(
   entry: PracticeLogLike,
   opts: { compact?: boolean } = {},

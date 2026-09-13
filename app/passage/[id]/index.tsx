@@ -47,9 +47,21 @@ import {
   materializeDocumentAssets,
   materializePassageAssets,
 } from '@/lib/assets/materializeAssets';
-import { getOrCreateExercise } from '@/lib/db/repos/exercises';
+import { getOrCreateExercise, listExercisesForPassage } from '@/lib/db/repos/exercises';
+import { getAllRecordingEntries } from '@/lib/supabase/recordingLog';
+import { RecordingPlayer } from '@/components/RecordingPlayer';
 import { getDocumentPassageStatus } from '@/lib/db/repos/passageStatus';
-import { countPracticeLogEntries } from '@/lib/db/repos/practiceLog';
+import {
+  countPracticeLogEntries,
+  getRecentPracticeEntries,
+  type PracticeLogEntry,
+} from '@/lib/db/repos/practiceLog';
+import {
+  formatPracticeDetail,
+  formatRelativeWhen,
+  strategyLabel,
+} from '@/lib/practiceLog/format';
+import { launchForEntry, pickLastSession } from '@/lib/practiceLog/lastSession';
 import {
   getPassage,
   listPassagesInDocument,
@@ -162,6 +174,24 @@ export default function PassageDetailScreen() {
   // into the first-practice evaluation entry ("take its measurements");
   // null = still loading (treated like practiced, so the row never flashes).
   const [hasPracticed, setHasPracticed] = useState<boolean | null>(null);
+  // Newest log rows (DESC) — feed the "pick up where you left off" row
+  // between the coach card and the strategy grid: the last relaunchable
+  // session, plus the freshest note written since it (a journal entry added
+  // after practicing counts — that's exactly the kind of note that used to
+  // need the "remind me" flag to be seen again).
+  const [recentLog, setRecentLog] = useState<PracticeLogEntry[]>([]);
+  // Recordings made the same day as that last session — surfaced as inline
+  // players on the row. Supabase-only data, so this can arrive late or not
+  // at all (offline); the row renders fine without it.
+  const [lastRecordings, setLastRecordings] = useState<
+    { id: number; uri: string }[]
+  >([]);
+  // Long notes collapse to their first line; this toggles the full text.
+  const [noteExpanded, setNoteExpanded] = useState(false);
+  // Built Rhythmic Variation exercises (Exercise Builder) — powers the
+  // "N built" badge on the Rhythmic Variation card, jumping straight to the
+  // saved-exercise list Ralph kept forgetting exists.
+  const [rhythmBuiltCount, setRhythmBuiltCount] = useState(0);
   const [demoId, setDemoId] = useState<StrategyDemoId | null>(null);
   const [rhythmicSheetOpen, setRhythmicSheetOpen] = useState(false);
   // "Chaining" chooser — the one strategy button fans out to Micro / Macro.
@@ -250,6 +280,59 @@ export default function PassageDetailScreen() {
             // count failing just suppresses the tutorial — not fatal
           }
           try {
+            const recent = await getRecentPracticeEntries(id);
+            if (cancelled) return;
+            setRecentLog(recent);
+            // Same-day recordings for the shown session, fetched after the
+            // row is already renderable (Supabase round trip; returns [] on
+            // failure or offline).
+            const picked = pickLastSession(recent, id);
+            if (picked) {
+              void getAllRecordingEntries()
+                .then((all) => {
+                  if (cancelled) return;
+                  const day = new Date(picked.practiced_at).toDateString();
+                  const recs = all
+                    .filter(
+                      (r) =>
+                        r.piece_id === id &&
+                        new Date(r.practiced_at).toDateString() === day,
+                    )
+                    .map((r) => {
+                      try {
+                        const d = r.data_json ? JSON.parse(r.data_json) : null;
+                        return typeof d?.recording_uri === 'string'
+                          ? { id: r.id, uri: d.recording_uri as string }
+                          : null;
+                      } catch {
+                        return null;
+                      }
+                    })
+                    .filter((r): r is { id: number; uri: string } => r !== null)
+                    .slice(0, 3);
+                  setLastRecordings(recs);
+                })
+                .catch(() => {});
+            } else {
+              setLastRecordings([]);
+            }
+          } catch {
+            // the last-session row is an enhancement — skip on failure
+          }
+          try {
+            // Built rhythm exercises only — the `piece:strategy` sentinel row
+            // getOrCreateExercise makes for progress storage is not a built
+            // exercise and must not count.
+            const built = await listExercisesForPassage(id, 'rhythmic');
+            if (!cancelled) {
+              setRhythmBuiltCount(
+                built.filter((e) => e.id !== `${id}:rhythmic`).length,
+              );
+            }
+          } catch {
+            // badge is an enhancement — skip on failure
+          }
+          try {
             const status = await getDocumentPassageStatus([id]);
             if (!cancelled) {
               setHasPracticed((status.get(id)?.lastPracticedAt ?? null) != null);
@@ -266,6 +349,31 @@ export default function PassageDetailScreen() {
       };
     }, [id]),
   );
+
+  // The last relaunchable session and the freshest note written since it
+  // (recentLog is newest-first, so stop once entries predate that session —
+  // a note older than your last practice is stale advice, same one-session
+  // lifetime the remindNext flag had).
+  const lastSession = useMemo(
+    () => (id ? pickLastSession(recentLog, id) : null),
+    [recentLog, id],
+  );
+  const lastNote = useMemo(() => {
+    if (!lastSession) return null;
+    for (const e of recentLog) {
+      if (e.practiced_at < lastSession.practiced_at) break;
+      if (!e.data_json) continue;
+      try {
+        const d = JSON.parse(e.data_json);
+        if (typeof d?.note === 'string' && d.note.trim().length > 0) {
+          return d.note.trim() as string;
+        }
+      } catch {
+        // skip corrupt rows
+      }
+    }
+    return null;
+  }, [recentLog, lastSession]);
 
   const { prev, next } = useMemo(() => {
     if (!passage || siblings.length === 0) return { prev: null, next: null };
@@ -314,6 +422,7 @@ export default function PassageDetailScreen() {
   // Reset the full-photo view when switching to a different passage.
   useEffect(() => {
     setViewFull(false);
+    setNoteExpanded(false);
   }, [id]);
 
   useEffect(() => {
@@ -415,6 +524,25 @@ export default function PassageDetailScreen() {
     }
   }
 
+  // Straight to the saved Exercise Builder list — the "N built" badge on the
+  // Rhythmic Variation card. Ralph kept forgetting he'd already built
+  // notated exercises for a passage; the badge makes them one tap away
+  // instead of buried behind the chooser sheet. Same Pro gate as the
+  // Exercise Builder button in that sheet.
+  function openBuiltRhythms() {
+    if (!passage) return;
+    if (!entitlement.isPro) {
+      setBuilderPaywall(true);
+      return;
+    }
+    guardedNav(() =>
+      router.push({
+        pathname: '/passage/[id]/rhythm-list',
+        params: { id: passage.id },
+      }),
+    );
+  }
+
   function renderPill(s: StrategyDef) {
     const isTempoLadder = s.key === 'tempo_ladder';
     const pct =
@@ -479,6 +607,20 @@ export default function PassageDetailScreen() {
               <View style={[styles.stratPct, { backgroundColor: color + '22' }]}>
                 <ThemedText style={[styles.stratPctText, { color }]}>{pct}%</ThemedText>
               </View>
+            )}
+            {s.key === 'rhythmic' && rhythmBuiltCount > 0 && (
+              <Pressable
+                accessibilityLabel={`Open your ${rhythmBuiltCount} built rhythm ${rhythmBuiltCount === 1 ? 'exercise' : 'exercises'}`}
+                hitSlop={8}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  openBuiltRhythms();
+                }}
+                style={[styles.stratPct, { backgroundColor: color + '22' }]}>
+                <ThemedText style={[styles.stratPctText, { color }]}>
+                  {rhythmBuiltCount} built ›
+                </ThemedText>
+              </Pressable>
             )}
             {demo && (
               <Pressable
@@ -552,6 +694,21 @@ export default function PassageDetailScreen() {
             <ThemedText style={[styles.stratPctText, { color }]}>{pct}%</ThemedText>
           </View>
         )}
+        {s.key === 'rhythmic' && rhythmBuiltCount > 0 && (
+          <Pressable
+            accessibilityLabel={`Open your ${rhythmBuiltCount} built rhythm ${rhythmBuiltCount === 1 ? 'exercise' : 'exercises'}`}
+            hitSlop={8}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              setPracticeOpen(false);
+              openBuiltRhythms();
+            }}
+            style={[styles.stratPct, { backgroundColor: color + '22' }]}>
+            <ThemedText style={[styles.stratPctText, { color }]}>
+              {rhythmBuiltCount} built ›
+            </ThemedText>
+          </Pressable>
+        )}
         {demo && (
           <Pressable
             accessibilityLabel={`How ${s.label} works`}
@@ -567,6 +724,86 @@ export default function PassageDetailScreen() {
         )}
         <Feather name="chevron-right" size={18} color={Palette.textMuted} />
       </Pressable>
+    );
+  }
+
+  // "Pick up where you left off" — the most recent relaunchable session as a
+  // tappable row: strategy dot + name, when, and the log's own detail line.
+  // Tapping reopens that strategy screen, which reloads its saved per-passage
+  // settings itself (see lib/practiceLog/lastSession.ts for the exceptions
+  // that ride the URL). Rendered by both the hub layout and the landscape
+  // Practice panel; fromPanel closes the panel first.
+  function renderLastSession(fromPanel: boolean) {
+    if (!passage || !lastSession) return null;
+    const launch = launchForEntry(lastSession, passage.id);
+    if (!launch) return null;
+    // Random-order interleaved rows are the renamed Rep Rotator — use its
+    // color key so the dot matches the strategy card (same hue either way
+    // by default, but user overrides key on rep_rotator).
+    const colorKey =
+      lastSession.strategy === 'interleaved' &&
+      strategyLabel(lastSession) === 'Rep Rotator'
+        ? 'rep_rotator'
+        : lastSession.strategy;
+    const color =
+      (strategyColors as Record<string, string>)[colorKey] ?? Palette.textMuted;
+    const detail = formatPracticeDetail(lastSession);
+    const sub = [formatRelativeWhen(lastSession.practiced_at), detail]
+      .filter(Boolean)
+      .join(' · ');
+    // Long notes collapse to their first line with a "Show more" toggle —
+    // the note must be glanceable without burying the strategy grid.
+    const noteIsLong =
+      lastNote != null && (lastNote.includes('\n') || lastNote.length > 80);
+    return (
+      <View style={styles.lastSession}>
+        <Pressable
+          accessibilityLabel={`Pick up where you left off: ${strategyLabel(lastSession)}`}
+          onPress={() => {
+            if (fromPanel) setPracticeOpen(false);
+            guardedNav(() =>
+              router.push({
+                pathname: launch.pathname,
+                params: launch.params,
+              } as never),
+            );
+          }}
+          style={styles.lastSessionMain}>
+          <View style={[styles.lastSessionDot, { backgroundColor: color }]} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <ThemedText style={styles.lastSessionTitle} numberOfLines={1}>
+              Last practiced: {strategyLabel(lastSession)}
+            </ThemedText>
+            <ThemedText style={styles.lastSessionSub} numberOfLines={1}>
+              {sub}
+            </ThemedText>
+          </View>
+          <View style={styles.lastSessionCta}>
+            <ThemedText style={styles.lastSessionCtaText}>Pick up</ThemedText>
+            <Feather name="chevron-right" size={16} color={Palette.accent} />
+          </View>
+        </Pressable>
+        {lastNote != null && (
+          <Pressable
+            disabled={!noteIsLong}
+            onPress={() => setNoteExpanded((v) => !v)}
+            style={styles.lastSessionNoteWrap}>
+            <ThemedText
+              style={styles.lastSessionNote}
+              numberOfLines={noteExpanded ? undefined : 1}>
+              “{lastNote}”
+            </ThemedText>
+            {noteIsLong && (
+              <ThemedText style={styles.lastSessionMoreText}>
+                {noteExpanded ? 'Show less' : 'Show more'}
+              </ThemedText>
+            )}
+          </Pressable>
+        )}
+        {lastRecordings.map((r) => (
+          <RecordingPlayer key={r.id} uri={r.uri} />
+        ))}
+      </View>
     );
   }
 
@@ -908,6 +1145,7 @@ export default function PassageDetailScreen() {
                     </View>
                   </Pressable>
                 )}
+                {renderLastSession(true)}
                 {STRATEGIES.map(renderStratRow)}
               </ScrollView>
             </View>
@@ -1071,6 +1309,8 @@ export default function PassageDetailScreen() {
             </View>
           </Pressable>
           )}
+
+          {renderLastSession(false)}
 
           <ThemedText style={styles.heroSectionHeading}>Practice strategies</ThemedText>
           {/* Keyed by viewport width: after a landscape→portrait round-trip the
@@ -1419,6 +1659,46 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: Type.weight.heavy,
     letterSpacing: 0.5,
+    color: Palette.accent,
+  },
+  // "Pick up where you left off" row — reads as one row of the practice log
+  // (same card treatment as history.tsx's entry), with an accent CTA.
+  lastSession: {
+    padding: Spacing.md,
+    gap: Spacing.sm,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
+    ...Lift,
+  },
+  lastSessionMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  lastSessionDot: { width: 10, height: 10, borderRadius: 5 },
+  lastSessionNoteWrap: { gap: 2 },
+  lastSessionNote: {
+    fontSize: Type.size.sm,
+    color: Palette.textSecondary,
+    fontStyle: 'italic',
+  },
+  lastSessionMoreText: {
+    fontSize: Type.size.xs,
+    fontWeight: Type.weight.heavy,
+    color: Palette.accent,
+  },
+  lastSessionTitle: {
+    fontSize: Type.size.md,
+    fontWeight: Type.weight.heavy,
+    color: Palette.text,
+  },
+  lastSessionSub: { fontSize: Type.size.sm, color: Palette.textSecondary },
+  lastSessionCta: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  lastSessionCtaText: {
+    fontSize: Type.size.sm,
+    fontWeight: Type.weight.heavy,
     color: Palette.accent,
   },
   heroSectionHeading: {

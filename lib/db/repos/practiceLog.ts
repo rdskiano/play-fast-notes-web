@@ -145,6 +145,29 @@ export async function countPracticeLogEntries(): Promise<number> {
   return row?.n ?? 0;
 }
 
+// Newest non-recording rows for one passage — feeds the passage screen's
+// "pick up where you left off" row (see lib/practiceLog/lastSession.ts).
+// Deliberately skips the Supabase recordings merge getPracticeLogForPassage
+// does: recordings are never relaunchable, and this runs on every passage
+// focus, so it must stay a single cheap local query.
+export async function getRecentPracticeEntries(
+  piece_id: string,
+  limit = 10,
+): Promise<PracticeLogEntry[]> {
+  const db = getDb();
+  return db.getAllAsync<PracticeLogEntry>(
+    `SELECT pl.id, pl.piece_id, pl.strategy, pl.practiced_at, pl.data_json,
+            pl.exercise_id, e.name AS exercise_name
+     FROM practice_log pl
+     LEFT JOIN exercises e ON e.id = pl.exercise_id
+     WHERE pl.piece_id = ? AND pl.strategy != 'recording' AND pl.deleted_at IS NULL
+     ORDER BY pl.practiced_at DESC
+     LIMIT ?;`,
+    piece_id,
+    limit,
+  );
+}
+
 export async function getPracticeLogForPassage(
   piece_id: string,
 ): Promise<PracticeLogEntry[]> {

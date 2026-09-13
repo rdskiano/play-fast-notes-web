@@ -13,6 +13,7 @@ import {
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { noteForeignAudioUse } from '@/lib/audio/recordingSessionFlag';
 import { Colors } from '@/constants/theme';
 import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -47,6 +48,13 @@ export function RecordingPlayer({ uri, maxWidth }: Props) {
       player.seekTo(0);
     }
     await setAudioModeAsync({ playsInSilentMode: true });
+    // expo-audio playback quietly kills the metronome engine's clock even
+    // though its context still reports running — bump the foreign-audio
+    // stamp so the engine rebuilds its context on next start (see
+    // recordingSessionFlag.ts; Ralph's iPad, 2026-09-03). Matters now that
+    // this player also mounts on the passage screen, where the tools-pill
+    // metronome lives.
+    noteForeignAudioUse();
     player.play();
   }
 

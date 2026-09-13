@@ -263,6 +263,10 @@ export default function RhythmicScreen() {
     if (id && !toolsOnly) {
       await stampLastUsed(id, 'rhythmic');
       const data: Record<string, unknown> = {};
+      // Which grouping was practiced — the one setting this screen takes as a
+      // route param instead of stored config, so the passage screen's "pick
+      // up where you left off" row can relaunch with the same grouping.
+      if (grouping) data.grouping = grouping;
       if (mood) data.mood = mood;
       if (note) data.note = note;
       if (remindNext) data.remindNext = true;

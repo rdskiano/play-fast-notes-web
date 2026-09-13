@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-13-pick-up-where-you-left-off',
+    date: 'September 13, 2026',
+    title: 'Pick up where you left off',
+    body:
+      'The passage screen now shows your most recent practice session right above the strategy list: which strategy, how long ago, the key numbers, your practice note from that session, and any recordings you made that day. Tap the top of the card to jump straight back into that strategy with your saved settings; long notes expand with Show more. Because your last note is now always visible here, the "Remind me of this next time" checkbox is gone from the end-of-session question — whatever you write shows up automatically. And if you have built Rhythmic Variation exercises for a passage, the Rhythmic Variation card now shows a badge like "2 built" that takes you straight to them.',
+  },
+  {
     id: '2026-09-13-log-anything-keyboard-and-empty-save',
     date: 'September 13, 2026',
     title: 'The "log anything?" box lets you type again',

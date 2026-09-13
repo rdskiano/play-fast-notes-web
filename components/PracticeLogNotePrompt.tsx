@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { REMIND_NEXT_CHECKBOX_ENABLED } from '@/constants/experiments';
 import { Lift, Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Overlays, Radii, Spacing, Status, Type } from '@/constants/tokens';
@@ -112,7 +113,8 @@ export function PracticeLogNotePrompt({
   plain = false,
 }: Props) {
   const chips = plain ? [] : chipsForStrategy(strategy, chipContext);
-  const remindable = !plain && strategySupportsReminder(strategy);
+  const remindable =
+    REMIND_NEXT_CHECKBOX_ENABLED && !plain && strategySupportsReminder(strategy);
   // The coach's proposal — session-end flows only (edit flows pass no
   // outcome). Shown as an asterisk on the matching chip + a footnote with
   // the reasoning, inside the ONE classic modal. (The earlier two-stage

@@ -318,6 +318,29 @@ export async function countPracticeLogEntries(): Promise<number> {
   return count ?? 0;
 }
 
+// Newest non-recording rows for one passage — feeds the passage screen's
+// "pick up where you left off" row (see lib/practiceLog/lastSession.ts).
+// Kept to a single cheap query (no exercises join — the row never renders
+// the exercise name) because this runs on every passage focus. Signature
+// identical to the native sibling.
+export async function getRecentPracticeEntries(
+  piece_id: string,
+  limit = 10,
+): Promise<PracticeLogEntry[]> {
+  const { data, error } = await supabase
+    .from('practice_log')
+    .select('id, piece_id, strategy, practiced_at, data_json, exercise_id')
+    .eq('piece_id', piece_id)
+    .neq('strategy', 'recording')
+    .is('deleted_at', null)
+    .order('practiced_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return ((data ?? []) as unknown as Array<Omit<PracticeLogEntry, 'exercise_name'>>).map(
+    (r) => ({ ...r, exercise_name: null }),
+  );
+}
+
 export async function getPracticeLogForPassage(
   piece_id: string,
 ): Promise<PracticeLogEntry[]> {
