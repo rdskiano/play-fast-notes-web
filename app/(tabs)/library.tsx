@@ -699,7 +699,9 @@ export default function LibraryScreen() {
     const offer = viewerLogOffer;
     setViewerLogOffer(null);
     clearViewerSession();
-    if (!offer || !note) return;
+    // Save with an empty box still logs the session (duration + drone say
+    // what happened); only "No thanks" discards it (Ralph, 2026-09-13).
+    if (!offer) return;
     const target = offer.pieceId ?? offer.documentId;
     if (!target) return;
     // Session stamps stay ON: the viewer session marked the clock and reset

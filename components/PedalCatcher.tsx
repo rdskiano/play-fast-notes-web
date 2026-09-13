@@ -10,6 +10,7 @@
 // broken. The on-screen NEXT / Clean / Miss buttons and keyboard shortcuts
 // already cover every action, so a missing pedal is simply silent now.
 
+import { useIsFocused } from '@react-navigation/native';
 import { useRef, useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -57,7 +58,14 @@ export function PedalCatcher({
     isPencilAnnotating,
   );
 
-  if (!active || annotating) return null;
+  // Only the front screen may capture. A screen left behind in the stack
+  // (e.g. the PDF viewer after "‹ Library" from one of its passages) keeps
+  // rendering, and its capture view would go on re-claiming keyboard focus
+  // every second — which yanked the keyboard away from the library's
+  // "Would you like to log anything?" note box (Ralph, 2026-09-13).
+  const focused = useIsFocused();
+
+  if (!active || annotating || !focused) return null;
 
   const Capture = KeyCaptureView;
   // Module missing (shouldn't happen in a proper build): the pedal just

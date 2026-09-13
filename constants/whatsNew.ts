@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-13-log-anything-keyboard-and-empty-save',
+    date: 'September 13, 2026',
+    title: 'The "log anything?" box lets you type again',
+    body:
+      'On the iPad app, the "Would you like to log anything?" question after unguided metronome practice could fight you: the keyboard popped up and instantly disappeared, over and over. The foot-pedal listener was silently grabbing the keyboard back every second, and it now stands down whenever that question is on screen. Also, tapping Save with an empty box now still logs the session (with how long you played); before, an empty Save quietly recorded nothing. "No thanks" is still the way to skip logging entirely.',
+  },
+  {
     id: '2026-09-10-log-folders-in-practice-order',
     date: 'September 10, 2026',
     title: 'The practice log follows your practice order',

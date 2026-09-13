@@ -518,7 +518,9 @@ export default function DocumentScreen() {
     const offer = viewerLogOffer;
     setViewerLogOffer(null);
     clearViewerSession();
-    if (!offer?.pieceId || !note) return;
+    // Save with an empty box still logs the session (duration + drone say
+    // what happened); only "No thanks" discards it (Ralph, 2026-09-13).
+    if (!offer?.pieceId) return;
     // Session stamps stay ON: the viewer session marked the clock and reset
     // the drone tracker when the metronome first ran, so duration + drone
     // describe exactly that stretch of unguided practice. entryKind drives
@@ -991,7 +993,8 @@ export default function DocumentScreen() {
             mode !== 'resize' &&
             renamePromptFor === null &&
             !namePromptOpen &&
-            pendingSectionMark === null
+            pendingSectionMark === null &&
+            viewerLogOffer === null
           }
           onAdvance={() => goTo(currentIndex + 1)}
           onBack={() => goTo(currentIndex - 1)}
