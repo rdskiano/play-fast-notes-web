@@ -381,3 +381,47 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
 - **"Affected surfaces" is the load-bearing field.** It's what stops you fixing on laptop, testing on laptop, and shipping without checking the iPad-native variant of the same component.
 - **The class-scan step is non-negotiable.** Half the time-loss in cross-surface debugging is that fixing one instance leaves three siblings live. Per CLAUDE.md the pattern is: latent web-only code in shared files (DOM globals, raw HTML JSX, browser-only APIs). Grep the class on every fix.
 - **Friend-testers count as a smoke source.** If a friend reports something, log it here verbatim before reaching for a fix. Their phrasing is often the actual repro you need.
+
+### B-090 — Files picker search kicks the user back to the plain picker (Add PDF)
+
+- **Severity:** P1
+- **Surfaces:** ipad-native (others not checked; picker is iOS-only chrome)
+- **Reported:** 2026-09-14 (Ralph, first real-iPad use of the in-modal Add PDF flow, minutes after the 10b831c OTA)
+- **Repro:**
+  1. Library → + Add → Add PDF. The Files picker opens (Recents).
+  2. Tap the picker's search field and search for a document on the device.
+  3. Expected: search results; pick one; name pop-up.
+  4. Actual: "loading files" flashes, then the picker snaps back to the original Recents window. Search never completes.
+- **Notes:** The picker is UIDocumentPickerViewController via expo-document-picker,
+  now presented while the RN Add modal is OPEN underneath (new in 10b831c — the
+  in-modal AddPdfFlow). Prime suspect: the picker's search mode re-presents its
+  view hierarchy and collides with being presented over a modal. Apple forums
+  document sibling bugs where the picker dismisses itself AND its presenting VC
+  (threads 780246, 770930). Diagnosis plan: seed a PDF into the simulator's
+  Files, repro in the sim with the modal open, then try presenting the picker
+  after momentarily hiding the RN Modal (or from the root VC) and see if search
+  survives. Check whether our getDocumentAsync promise resolves canceled during
+  the snap-back (if it does, our card would flip to the menu — Ralph reports the
+  picker stays up instead, suggesting the promise stays pending and this is
+  picker-internal). Workaround for users meanwhile: browse folders instead of
+  searching, or start from the Files app and note the folder.
+- **Status:** Open
+
+### B-091 — Google Drive / Dropbox locations missing from the Add PDF Files picker
+
+- **Severity:** P2 (may be configuration, not code)
+- **Surfaces:** ipad-native (Ralph's iPad)
+- **Reported:** 2026-09-14
+- **Repro:**
+  1. Library → + Add → Add PDF. Picker opens showing Recents.
+  2. Expected: Google Drive / Dropbox reachable as locations (sidebar / Browse).
+  3. Actual: Ralph sees only Recents, no Drive/Dropbox option.
+- **Notes:** Order of checks: (1) are the Drive/Dropbox APPS installed on that
+  iPad and enabled in the Files app itself (Files → Browse → ⋯ → Edit Sidebar)?
+  If they don't appear in the Files app, the picker can't show them either —
+  that's configuration, close as not-a-bug with a help note. (2) If they DO
+  appear in the Files app but not in our picker: check how the picker sheet
+  presents (compact sheet may hide the sidebar; does dragging it full-screen or
+  tapping the top-left sidebar icon reveal locations?). (3) Only then suspect
+  expo-document-picker options. Possibly related to B-090 (same sheet).
+- **Status:** Open — awaiting Ralph's check of the Files app sidebar
