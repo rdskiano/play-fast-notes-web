@@ -33,7 +33,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     date: 'September 13, 2026',
     title: 'Adding music is now one small window',
     body:
-      'Adding a photo, a PDF, or a scan no longer sends you to a full-screen upload page. Everything happens inside the little + Add window: "Add PDF" opens your file browser right away (on the iPad, that is Files, where iCloud, Google Drive, and Dropbox appear once their apps are installed), you pick the file, confirm the name in the same window, done. Photos and paper scans work the same way, and scanning now has its own entry in the menu. No more typing a title before the file is even in. And the very first time you open a part with nothing marked on it, the screen dims and a spotlight points out the "+ Mark passage" button so the next step is obvious.',
+      'Adding a photo, a PDF, or a scan no longer sends you to a full-screen upload page. Everything happens inside the little + Add window: "Add PDF" opens your file browser right away (on the iPad, that is the Files window), you pick the file, confirm the name in the same window, done. Photos and paper scans work the same way, and scanning now has its own entry in the menu. No more typing a title before the file is even in. And the very first time you open a part with nothing marked on it, the screen dims and a spotlight points out the "+ Mark passage" button so the next step is obvious.',
   },
   {
     id: '2026-09-13-icu-boxed-view',

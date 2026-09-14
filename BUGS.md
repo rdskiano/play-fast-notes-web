@@ -443,11 +443,21 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
   instead of searching" is the workaround for everything, not just cloud
   files. (Untested: if the search bar offers a narrower scope chip like
   "On My iPad"/"This folder", that may keep the flaky providers out of it.)
+- **Post-restart outcome (same day):** Ralph found Google Drive stuck at a
+  login inside the picker; after an iPad restart, search "seems ok" — so the
+  residual flake was most likely the half-logged-in Drive extension erroring
+  on every search fan-out, not baseline iOS weather. Drive files still don't
+  LIST on his iPad (identical in the Files app → Google-side, not ours).
+  Per Ralph, all user-facing "Google Drive / Dropbox" promises were removed
+  for now: Add-menu row desc ("Choose from the Files app"), the 09-13
+  What's New entry, and document-upload's From-Files sublabel.
 - **Status:** CLOSED 2026-09-14 — our half (modal collision) is fixed and
   shipped (web 7445299 + production OTA 80cfa49b, runtime 1.1.1, sim + Ralph
-  verified); the residual flake is an iOS picker/provider bug outside the app.
-  Successor work item: share-sheet import (next native build). Candidate
-  help-copy line alongside the B-091 sidebar note.
+  verified); residual flake traced to a broken Drive provider login (restart
+  cured it); Drive/Dropbox copy pulled until the share-sheet import (next
+  native build) makes cloud files a path we control. If a user reports
+  search bouncing: have them open the Drive/Dropbox app, check it's signed
+  in, and restart the device.
 
 ### B-091 — Google Drive / Dropbox locations missing from the Add PDF Files picker
 

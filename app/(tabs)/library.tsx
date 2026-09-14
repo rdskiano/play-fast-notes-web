@@ -1920,7 +1920,7 @@ function AddChooserModal({
       desc:
         Platform.OS === 'web'
           ? 'Choose one PDF, or several at once'
-          : 'From Files: iCloud, Google Drive, Dropbox',
+          : 'Choose from the Files app',
       onPress: onPickDocument,
     },
     ...(Platform.OS !== 'web'

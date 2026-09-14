@@ -282,7 +282,7 @@ export default function DocumentUploadScreen() {
               </ThemedText>
               {!picked && !isBatch && (
                 <ThemedText style={styles.pickSub}>
-                  iCloud, Google Drive, Dropbox
+                  Your PDFs on this iPad or iCloud
                 </ThemedText>
               )}
             </Pressable>
