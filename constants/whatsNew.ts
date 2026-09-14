@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-13-dictation-crash-fix',
+    date: 'September 13, 2026',
+    title: 'Dictating a practice note no longer crashes the app',
+    body:
+      'On the iPad and iPhone app, tapping the keyboard microphone to dictate into the end-of-session notes box could crash the app outright. The metronome engine was still holding the audio system underneath, and dictation taking over the microphone collided with it. The app now fully releases the audio system whenever a notes box is open, so dictation is safe, and the metronome comes back cleanly when you return to practicing.',
+  },
+  {
     id: '2026-09-13-macro-chaining-visual-run-screen',
     date: 'September 13, 2026',
     title: 'Macro-Chaining shows you the chunks and the rests',

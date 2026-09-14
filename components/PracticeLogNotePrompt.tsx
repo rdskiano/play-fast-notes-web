@@ -17,6 +17,10 @@ import { Lift, Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Overlays, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  beginDictationSafeWindow,
+  endDictationSafeWindow,
+} from '@/lib/audio/dictationGuard';
 import { type MetronomeApi } from '@/lib/audio/useMetronome';
 import {
   chipsForStrategy,
@@ -148,21 +152,42 @@ export function PracticeLogNotePrompt({
   // survives across renders so the keep-practicing escape knows whether to
   // restart it. Effect is idempotent: once stopped, `running` is false, so
   // re-runs (the metronome object is a fresh identity each render) no-op.
+  //
+  // Then open a DICTATION-SAFE WINDOW (native): the note box's keyboard has
+  // a mic key, and iOS grabbing the audio session for dictation while an
+  // engine's render thread is alive is a hard crash (log 2026-09-13-155416
+  // — stop() alone leaves the context rendering silence underneath). The
+  // guard winds every live engine all the way down while the prompt is up;
+  // closing the prompt stamps foreign-audio use so the next start rebuilds
+  // fresh. Web siblings are no-ops.
   const metronomeWasRunning = useRef(false);
+  const dictationWindowOpen = useRef(false);
   useEffect(() => {
     if (visible) {
       if (metronome?.running) {
         metronomeWasRunning.current = true;
         metronome.stop();
       }
+      dictationWindowOpen.current = true;
+      beginDictationSafeWindow().catch(() => {});
     } else {
       metronomeWasRunning.current = false;
+      if (dictationWindowOpen.current) {
+        dictationWindowOpen.current = false;
+        endDictationSafeWindow();
+      }
     }
   }, [visible, metronome]);
 
-  // Resume the click only when the user ducks back INTO the session.
+  // Resume the click only when the user ducks back INTO the session. End the
+  // dictation window BEFORE start(): the stamp bump makes start() rebuild
+  // the wound-down context under the settled audio session.
   const keepPracticing = onKeepPracticing
     ? () => {
+        if (dictationWindowOpen.current) {
+          dictationWindowOpen.current = false;
+          endDictationSafeWindow();
+        }
         if (metronomeWasRunning.current) metronome?.start();
         onKeepPracticing();
       }

@@ -22,6 +22,10 @@ import { Lift, Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { Borders, Overlays, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  beginDictationSafeWindow,
+  endDictationSafeWindow,
+} from '@/lib/audio/dictationGuard';
 import { type MetronomeApi } from '@/lib/audio/useMetronome';
 
 type Props = {
@@ -57,20 +61,36 @@ export function ToolsLogPrompt({
   }, [visible]);
 
   // Silence a running click while the box is up; remember whether it was
-  // running so ducking back into the session can resume it.
+  // running so ducking back into the session can resume it. Then open a
+  // dictation-safe window: the mic key on this box's keyboard can hand the
+  // audio session to iOS mid-render, which is a hard crash unless every
+  // engine is fully wound down first (see lib/audio/dictationGuard.ts;
+  // web siblings are no-ops).
   const metronomeWasRunning = useRef(false);
+  const dictationWindowOpen = useRef(false);
   useEffect(() => {
     if (visible) {
       if (metronome?.running) {
         metronomeWasRunning.current = true;
         metronome.stop();
       }
+      dictationWindowOpen.current = true;
+      beginDictationSafeWindow().catch(() => {});
     } else {
       metronomeWasRunning.current = false;
+      if (dictationWindowOpen.current) {
+        dictationWindowOpen.current = false;
+        endDictationSafeWindow();
+      }
     }
   }, [visible, metronome]);
 
   function keepPracticing() {
+    // Stamp first so start() rebuilds the wound-down context fresh.
+    if (dictationWindowOpen.current) {
+      dictationWindowOpen.current = false;
+      endDictationSafeWindow();
+    }
     if (metronomeWasRunning.current) metronome?.start();
     onKeepPracticing();
   }
