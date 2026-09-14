@@ -45,6 +45,23 @@ were cut off from OTAs until 1.2.0 released; art was not worth the delay).
    after a user hits their performance tempo. The app never asks today
    and has almost no ratings.
 
+## Screenshot draft outcome (2026-09-14)
+
+Draft set staged + composed same day (folder "App Store Screenshots
+2026-09": iPhone-raw + iPhone-draft; compose script pattern = petrol
+canvas, Avenir Next Bold, landscape run-screen framed inside an upright
+card). Ralph approved 5 of 6; the COACH card was CUT — his call: "at the
+moment, there is no practice coach." The coach screen is ORPHANED code:
+reachable only by deep link (/passage/<id>/coach), no visible entry point
+anywhere in the current UI (likely lost in the quiet-help rework).
+Follow-up decision for Ralph someday: resurface the coach entry or retire
+the route — until then never market it. Final order:
+1 passage ("Turn your hardest passages into your easiest"),
+2 strategy grid ("Six science-backed strategies, zero mindless reps"),
+3 tempo-ladder run ("The app drives the tempo. You just play."),
+4 practice log ("Your practice log writes itself"),
+5 library ("Every piece and every hard spot in one place").
+
 ## Step 3 — after step 1 verified live
 - Fill in App Store Connect accessibility declarations HONESTLY: audit
   VoiceOver on the main flows first, then declare only what works.
