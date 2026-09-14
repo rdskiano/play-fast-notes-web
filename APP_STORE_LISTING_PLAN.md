@@ -14,11 +14,13 @@ Do NOT relitigate the push-backs at the bottom.
   "Signing in is what saves your music and practice history to your
   account, so everything is here on any device."
 
-## Step 2 — batch with the NEXT version submission (1.3 / next build)
+## Step 2 — MOSTLY DONE: rode the 1.2.0 submission (2026-09-14)
 
-These are version-locked App Store metadata or need a binary. The 1.2.0
-share-sheet submission went ahead WITHOUT them (deliberate: 1.1.1 users
-were cut off from OTAs until 1.2.0 released; art was not worth the delay).
+Plan changed same day: 1.2.0 had not been submitted yet, so items 1-3
+rode it (screenshots at 1284x2778 per ASC's 6.5-inch slot, subtitle
+"Master your hardest passages", description edits pasted). Submitted
+2026-09-14 with build 16. ONLY item 4 (rating prompt) remains for a
+future native build.
 
 1. **iPhone screenshots re-shot UPRIGHT** — highest value. Today 4 of 5
    are landscape (single squint-sized image in search results; portrait
