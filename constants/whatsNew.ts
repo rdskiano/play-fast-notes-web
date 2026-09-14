@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-14-share-sheet-import',
+    date: 'September 14, 2026',
+    title: 'Send PDFs to Play Fast from any app',
+    body:
+      'New in version 1.2.0 on the iPad and iPhone: Play Fast now shows up in the share sheet. Open a PDF in Google Drive, Dropbox, forScore, or Mail, tap Share, and choose Play Fast. The app opens right on the naming step and the part lands in your library. This is now the easiest way to bring in music from cloud services, with no digging through the Files window. Update the app from the App Store to get it.',
+  },
+  {
     id: '2026-09-14-files-picker-search-fix',
     date: 'September 14, 2026',
     title: 'Searching in the Files picker works again',
