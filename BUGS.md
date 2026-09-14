@@ -418,9 +418,27 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
   library → part opens with both pages. Cancel path (close picker with ✕)
   correctly returns to the Add menu. NOT yet verified on Ralph's physical iPad
   (needs the next OTA) — that device is where the bug was reported.
-- **Status:** FIXED 2026-09-14, sim-verified; shipped same day (web push
-  7445299 + production OTA 80cfa49b, runtime 1.1.1). Awaiting Ralph's
-  real-iPad search check (relaunch twice first)
+- **Real-iPad result (2026-09-14, post-OTA):** better but not gone — the
+  instant every-time flip is fixed, but search still bounced back 3 of 5
+  tries, now after a longer wait. Ralph then ran the discriminating tests:
+  (1) the same search in the FILES APP is rock solid; (2) with Google Drive +
+  Dropbox toggled off in the picker sidebar, search in OUR picker is stable;
+  (3) toggling them back on, it flipped again after ~20 s. Root cause of the
+  remainder: the third-party file-provider extensions (Drive/Dropbox) erroring
+  or dying during a search resets the embedded picker to Recents. That is an
+  iOS bug in the picker + provider plumbing — NOT reachable from our code
+  (verified expo-document-picker's iOS source: plain pageSheet presentation,
+  no relevant knobs). The Files app tolerates the same provider hiccups.
+- **Workarounds for cloud files:** browse into the Drive/Dropbox location
+  instead of searching, or search with those providers toggled off when the
+  file is local/iCloud. The REAL fix for the Drive/Dropbox workflow is the
+  agreed next-build share-sheet import (open the PDF in the Drive/Dropbox app
+  → Share → Play Fast Notes), which bypasses this picker entirely.
+- **Status:** CLOSED 2026-09-14 — our half (modal collision) is fixed and
+  shipped (web 7445299 + production OTA 80cfa49b, runtime 1.1.1, sim + Ralph
+  verified); the residual flake is an iOS picker/provider bug outside the app.
+  Successor work item: share-sheet import (next native build). Candidate
+  help-copy line alongside the B-091 sidebar note.
 
 ### B-091 — Google Drive / Dropbox locations missing from the Add PDF Files picker
 
