@@ -130,6 +130,17 @@ export function chainBoundaries(geom: ScoreGeometry, chunkSize: number): Marker[
   return out;
 }
 
+/**
+ * Whether a chain step's rests render as per-boundary badges or as one
+ * banner. Ralph's rule, twice confirmed (2026-09-13): badges ONLY on a
+ * single-line passage. On a multi-line passage a badge anchored to a mark
+ * sits on top of the line above and covers notes — always use the banner
+ * there, no matter how few boundaries the step has.
+ */
+export function overlayUsesBadges(geom: ScoreGeometry, _chunkSize: number): boolean {
+  return geom.rowCount === 1;
+}
+
 /** Start/landing mark array-indices for isolate step `chunkIndex`. */
 export function isolateRange(
   geom: ScoreGeometry,

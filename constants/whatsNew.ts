@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-13-macro-chaining-visual-run-screen',
+    date: 'September 13, 2026',
+    title: 'Macro-Chaining shows you the chunks and the rests',
+    body:
+      'The Macro-Chaining practice screen used to describe each step in a line of small text that was easy to miss. Now the score itself shows you what to do. While drilling, your current chunk stays sharp and everything else fades back. While chaining, the rests appear right on the music: rest symbols above each joining point on short passages, or one clear banner plus small markers on longer ones. And if you prefer, a "Sliced apart" switch physically cuts the passage into chunk strips with the rests sitting between them.',
+  },
+  {
     id: '2026-09-13-free-plan-choose-your-passages',
     date: 'September 13, 2026',
     title: 'Free plan: you choose which passages stay open',

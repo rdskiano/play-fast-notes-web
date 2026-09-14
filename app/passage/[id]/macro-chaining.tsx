@@ -1,9 +1,8 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Image as RNImage,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -38,21 +37,16 @@ import { Lift, Palette } from '@/constants/palette';
 import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { usePracticeClock } from '@/hooks/usePracticeClock';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
 import { MIN_MACRO_MARKS, useMacroChainSession } from '@/hooks/useMacroChainSession';
 import { useScreenTour } from '@/components/tour/TourContext';
 import { tourTag, type TourStep } from '@/components/tour/types';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
+import { MacroScoreView } from '@/components/MacroScoreView';
 import {
-  chunkBoundaryMarks,
-  formatMacroInfo,
-  formatMacroInfoTitle,
   formatMacroInstruction,
   generateMacroSteps,
-  isolateChunkMarks,
-  macroInfoKey,
 } from '@/lib/strategies/macroChain';
 import {
   actionButtonStyle,
@@ -63,8 +57,13 @@ import {
   SCORE_FRAME_BG,
 } from '@/lib/layout/configForm';
 
-// Persisted set of step-kind keys whose ⓘ has auto-opened once already.
-const MACRO_INFO_SEEN_KEY = 'macro_info_seen';
+// Persisted run-screen view choice: 'overlay' (rests float on the whole
+// score — default) or 'sliced' (the photo is cut apart at the beat marks).
+// (The per-step auto-opening QUICK TIP card retired with the 2026-09-13
+// visual redesign — the score now shows what the tips described in words.
+// Its persisted seen-keys setting 'macro_info_seen' is simply unused.)
+const MACRO_VIEW_KEY = 'macro_view_mode';
+type MacroView = 'overlay' | 'sliced';
 
 const MC_MARKING_STEPS: TourStep[] = [
   {
@@ -96,12 +95,22 @@ export default function MacroChainingScreen() {
   const isPhone = Math.min(winWidth, winHeight) < 600;
   const insets = useSafeAreaInsets();
   const isPhoneLandscape = isPhone && winWidth > winHeight;
-  const isTouch = useIsTouchDevice();
   const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   // Momentary look at the source page while setting the tempo (config phase).
   const [peekOpen, setPeekOpen] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
+  // Run-screen view (2026-09-13 redesign): rests-on-score overlay by default,
+  // sliced-apart as the saved alternative. Persisted per account.
+  const [viewMode, setViewMode] = useState<MacroView>('overlay');
+  useEffect(() => {
+    getSetting(MACRO_VIEW_KEY).then((v) => {
+      if (v === 'sliced' || v === 'overlay') setViewMode(v);
+    });
+  }, []);
+  function pickView(v: MacroView) {
+    setViewMode(v);
+    setSetting(MACRO_VIEW_KEY, v).catch(() => {});
+  }
   const session = useMacroChainSession(id);
 
   useEffect(() => {
@@ -151,50 +160,6 @@ export default function MacroChainingScreen() {
   // spotlight tour is off for now — re-enable by restoring:
   //   phase === 'marking' ? MC_MARKING_STEPS : null
   useScreenTour('macro-chaining-marking', null);
-
-  // Auto-open the ⓘ the first time (ever) the user reaches each KIND of step,
-  // like the tutorials. Two layers of dedup:
-  //  - persistedSeenRef: keys seen in a PAST session (loaded from settings) —
-  //    so it never auto-fires again after the first real attempt.
-  //  - openedThisSessionRef: keys auto-opened THIS session, mutated
-  //    synchronously so rapid re-renders / async state can't double-fire it.
-  const persistedSeenRef = useRef<Set<string>>(new Set());
-  const openedThisSessionRef = useRef<Set<string>>(new Set());
-  const [seenLoaded, setSeenLoaded] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    getSetting(MACRO_INFO_SEEN_KEY).then((raw) => {
-      if (cancelled) return;
-      try {
-        if (raw) for (const k of JSON.parse(raw) as string[]) persistedSeenRef.current.add(k);
-      } catch {
-        // ignore malformed
-      }
-      setSeenLoaded(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const liveStep =
-    phase === 'playing' && storedConfig ? storedConfig.steps[currentIndex] : undefined;
-  const liveInfoKey = liveStep ? macroInfoKey(liveStep) : null;
-  useEffect(() => {
-    if (!seenLoaded || !liveInfoKey || celebrating) return;
-    if (
-      openedThisSessionRef.current.has(liveInfoKey) ||
-      persistedSeenRef.current.has(liveInfoKey)
-    )
-      return;
-    // Auto-open the tip the first time (ever) the user reaches each new KIND
-    // of step: the first rep, chaining at each rest count (rest dropped, …),
-    // and when the chunk size doubles. macroInfoKey() defines those kinds.
-    openedThisSessionRef.current.add(liveInfoKey); // synchronous — no double-fire
-    persistedSeenRef.current.add(liveInfoKey);
-    setSetting(MACRO_INFO_SEEN_KEY, JSON.stringify([...persistedSeenRef.current])).catch(() => {});
-    setInfoOpen(true);
-  }, [seenLoaded, liveInfoKey, celebrating]);
 
   // Beats are spaced well apart, so tap-to-place AND tap-to-remove both work
   // here (like Click-Up's beat marking, unlike Micro's close notes).
@@ -381,18 +346,8 @@ export default function MacroChainingScreen() {
 
   // ── PLAYING ────────────────────────────────────────────────────────────
   if (!storedConfig || !passage) return <ThemedView style={{ flex: 1 }} />;
-  const beatCount = storedConfig.marks.length - 1;
   const step = storedConfig.steps[currentIndex];
   const instruction = formatMacroInstruction(step);
-  const info = formatMacroInfo(step, beatCount);
-  const infoTitle = formatMacroInfoTitle(step);
-  // Isolate steps bracket the one chunk being drilled; chain steps flag every
-  // chunk boundary so the grouping/sequence shows.
-  const scoreMarks = !step
-    ? marks
-    : step.kind === 'isolate'
-      ? isolateChunkMarks(marks, step.chunkSize, step.chunkIndex)
-      : chunkBoundaryMarks(marks, step.chunkSize);
 
   return (
     <ThemedView style={{ flex: 1 }}>
@@ -419,10 +374,8 @@ export default function MacroChainingScreen() {
         </Pressable>
         <View style={styles.runInstructionWrap}>
           {/* No manual ⓘ here — it duplicated the global help "i" (bottom-
-              right). The per-step Quick Tip still auto-fires the first time
-              through each new chunk size (see the macroInfoKey effect).
-              paddingRight reserves room for the floating 4-icon tools pill so
-              the instruction wraps BEFORE it instead of running underneath. */}
+              right). paddingRight reserves room for the floating 4-icon tools
+              pill so the instruction wraps BEFORE it instead of underneath. */}
           <ThemedText style={styles.runInstruction} numberOfLines={2}>
             {instruction}
           </ThemedText>
@@ -435,6 +388,44 @@ export default function MacroChainingScreen() {
         onBack={onPrev}
       />
 
+      {/* View switch + step position. Small on purpose — the score area below
+          is the real instruction now. */}
+      <View style={styles.viewRow}>
+        <View style={styles.viewSegGroup}>
+          <Pressable
+            onPress={() => pickView('overlay')}
+            accessibilityRole="button"
+            accessibilityState={{ selected: viewMode === 'overlay' }}
+            style={[
+              styles.viewSeg,
+              styles.viewSegLeft,
+              viewMode === 'overlay' && { backgroundColor: ACCENT, borderColor: ACCENT },
+            ]}>
+            <ThemedText
+              style={[styles.viewSegText, viewMode === 'overlay' && styles.viewSegTextOn]}>
+              Rests on the score
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={() => pickView('sliced')}
+            accessibilityRole="button"
+            accessibilityState={{ selected: viewMode === 'sliced' }}
+            style={[
+              styles.viewSeg,
+              styles.viewSegRight,
+              viewMode === 'sliced' && { backgroundColor: ACCENT, borderColor: ACCENT },
+            ]}>
+            <ThemedText
+              style={[styles.viewSegText, viewMode === 'sliced' && styles.viewSegTextOn]}>
+              Sliced apart
+            </ThemedText>
+          </Pressable>
+        </View>
+        <ThemedText style={styles.stepCount}>
+          Step {currentIndex + 1} of {storedConfig.steps.length}
+        </ThemedText>
+      </View>
+
       <View
         style={[
           styles.contentArea,
@@ -445,14 +436,17 @@ export default function MacroChainingScreen() {
           },
         ]}>
         <View style={{ flex: 1, width: '100%', position: 'relative' }}>
-          {isTouch ? (
-            <ZoomableImage style={StyleSheet.absoluteFill} persistKey={passage.id}>
-              <ScoreWithMarkers uri={passage.source_uri} markers={scoreMarks} mode="play" compact phoneArrows={isPhone} playLiftPx={SCORE_MARK_LIFT} />
-            </ZoomableImage>
-          ) : (
-            <ScoreWithMarkers uri={passage.source_uri} markers={scoreMarks} mode="play" compact phoneArrows={isPhone} playLiftPx={SCORE_MARK_LIFT} />
-          )}
-          {ann.canvas}
+          <MacroScoreView
+            uri={passage.source_uri}
+            aspect={imageAspect}
+            marks={storedConfig.marks}
+            step={step}
+            view={viewMode}
+            accent={ACCENT}
+            isPhone={isPhone}
+            zoomPersistKey={passage.id}
+          />
+          {viewMode === 'overlay' && ann.canvas}
         </View>
       </View>
 
@@ -571,31 +565,6 @@ export default function MacroChainingScreen() {
         }}
       />
 
-      <Modal
-        // Suppress the per-step Quick Tip once the session completes — without
-        // this guard the final step's tip (it auto-opens on arrival at a new
-        // chunk size) paints over the completion log prompt, so finishing the
-        // sequence showed a tutorial instead of the "log your session" card.
-        visible={infoOpen && !celebrating}
-        transparent
-        animationType="fade"
-        supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
-        onRequestClose={() => setInfoOpen(false)}>
-        <Pressable style={styles.infoBackdrop} onPress={() => setInfoOpen(false)}>
-          <Pressable style={styles.infoCard} onPress={(e) => e.stopPropagation()}>
-            <ThemedText style={styles.infoEyebrow}>QUICK TIP</ThemedText>
-            <ThemedText style={styles.infoTitle}>{infoTitle}</ThemedText>
-            <ThemedText style={styles.infoBody}>{info}</ThemedText>
-            <Pressable
-              onPress={() => setInfoOpen(false)}
-              style={styles.gotItBtn}
-              accessibilityLabel="Dismiss tip">
-              <ThemedText style={styles.gotItText}>Got it</ThemedText>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
       <TutorialStep
         id="macro-chaining-play"
         visible={false}
@@ -661,6 +630,41 @@ const styles = StyleSheet.create({
     fontSize: Type.size.sm,
     lineHeight: 18,
     color: Palette.text,
+  },
+
+  // ── Run-screen view switch (rests-on-score / sliced) + step count ──
+  viewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingBottom: 4,
+  },
+  viewSegGroup: { flexDirection: 'row' },
+  viewSeg: {
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    borderColor: Palette.borderStrong,
+    backgroundColor: Palette.card,
+  },
+  viewSegLeft: { borderTopLeftRadius: 999, borderBottomLeftRadius: 999 },
+  viewSegRight: {
+    borderTopRightRadius: 999,
+    borderBottomRightRadius: 999,
+    borderLeftWidth: 0,
+  },
+  viewSegText: {
+    fontSize: 11,
+    fontWeight: Type.weight.heavy,
+    color: Palette.textSecondary,
+  },
+  viewSegTextOn: { color: '#fff' },
+  stepCount: {
+    fontSize: 11,
+    fontWeight: Type.weight.bold,
+    color: Palette.textMuted,
+    fontVariant: ['tabular-nums'],
   },
 
   // ── Reskinned bottom BACK / NEXT + quiet links ───────────────────
@@ -766,39 +770,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     fontWeight: Type.weight.bold,
   },
-  infoBackdrop: {
-    flex: 1,
-    backgroundColor: '#0008',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.lg,
-  },
-  // Matches the guided-tour coachmark card (slate-800 + site orange).
-  infoCard: {
-    width: '100%',
-    maxWidth: 420,
-    borderRadius: Radii['2xl'],
-    padding: Spacing.lg,
-    gap: Spacing.sm,
-    backgroundColor: '#1e293b',
-  },
-  infoEyebrow: {
-    color: Palette.accent,
-    fontSize: Type.size.xs,
-    fontWeight: Type.weight.heavy,
-    letterSpacing: 1,
-  },
-  infoTitle: { color: '#f8fafc', fontSize: Type.size.lg, fontWeight: Type.weight.bold },
-  infoBody: { color: '#cbd5e1', fontSize: Type.size.md, lineHeight: 22 },
-  gotItBtn: {
-    alignSelf: 'flex-end',
-    marginTop: Spacing.xs,
-    backgroundColor: Palette.accent,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radii.md,
-  },
-  gotItText: { color: '#fff', fontWeight: Type.weight.heavy, fontSize: Type.size.md },
   bottomBar: {
     paddingHorizontal: HELP_CLEARANCE,
     paddingTop: Spacing.sm,
