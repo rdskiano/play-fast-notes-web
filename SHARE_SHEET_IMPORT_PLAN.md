@@ -87,6 +87,18 @@ with the name step up, even through the dev-client launcher detour;
 doc add+delete round-tripped on the live account (soft-deleted, verified
 in Supabase).
 
+## Stage 2 — build submitted 2026-09-14
+
+Version bumped to 1.2.0 (commit dbe715d; remote buildNumber auto-bumped
+from 15). EAS production build f09a9043 FINISHED and submitted to App
+Store Connect (submission 3b916cf7) — awaiting Apple processing, then
+Ralph installs via TestFlight and tests real Drive/Dropbox/forScore/Mail
+shares. ⚠️ From dbe715d on, every `eas update` targets runtime 1.2.0:
+users still on App Store 1.1.1 receive NO new OTAs until the 1.2.0 App
+Store release ships and they update. Don't ship OTA-only fixes for 1.1.1
+users during this window. App Store release only after Ralph's TestFlight
+pass.
+
 ## Verification ladder
 
 1. **Simulator (Claude, free)**: local Xcode build per the sim runbook
