@@ -424,4 +424,7 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
   presents (compact sheet may hide the sidebar; does dragging it full-screen or
   tapping the top-left sidebar icon reveal locations?). (3) Only then suspect
   expo-document-picker options. Possibly related to B-090 (same sheet).
-- **Status:** Open — awaiting Ralph's check of the Files app sidebar
+- **Status:** CLOSED 2026-09-14 — not a bug. The locations were just switched
+  off: Edit Sidebar is reachable from inside the picker itself, Ralph enabled
+  Drive/Dropbox there, and they now show up and work. If other users hit this,
+  the answer is that one-time toggle (candidate for a help-copy line later).
