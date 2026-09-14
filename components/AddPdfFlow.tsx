@@ -22,10 +22,12 @@ import { addScannedDocument } from '@/lib/scan/addScannedDocument';
 // The in-modal "add a full part" flow (native). Lives INSIDE the library's
 // little Add window so adding a part never navigates to a full-screen page
 // (Ralph, 2026-09-13: it should feel like "another side of the same little
-// modal"). Tapping Add PDF/Scan in the menu swaps the card to this component,
-// which immediately presents the Files picker or the VisionKit scanner, then
-// flips the card to a name step. Only on success does the app navigate — to
-// the finished part.
+// modal"). Tapping Scan in the menu swaps the card to this component, which
+// presents the VisionKit scanner, then flips the card to a name step. Add PDF
+// works the same on web (browser file dialog); on iOS the LIBRARY presents
+// the Files picker with the modal dismissed (B-090) and mounts this card
+// straight on the name step via initialAssets. Only on success does the app
+// navigate — to the finished part.
 //
 // The IMSLP import path still uses the full /document-upload screen (it needs
 // its download-first instructions); this flow is the everyday path.
@@ -33,10 +35,36 @@ import { addScannedDocument } from '@/lib/scan/addScannedDocument';
 type ScannedPage = { id: string; uri: string };
 type BatchItem = { key: string; uri: string; title: string };
 
+export type PickedPdf = { uri: string; name: string | null };
+
+/**
+ * Present the Files picker and return the chosen PDFs (null = cancelled).
+ * On iOS this must be called while NO RN Modal is up: the picker's built-in
+ * search re-presents its view hierarchy, and doing that over another modal
+ * makes search snap back to Recents without ever showing results (B-090).
+ * The library screen therefore dismisses the Add window first, calls this,
+ * and re-opens the window with the result as `initialAssets`.
+ */
+export async function pickPdfAssets(): Promise<PickedPdf[] | null> {
+  const res = await DocumentPicker.getDocumentAsync({
+    type: 'application/pdf',
+    copyToCacheDirectory: true,
+    multiple: true,
+  });
+  if (res.canceled || !res.assets || res.assets.length === 0) return null;
+  return res.assets.map((a) => ({ uri: a.uri, name: a.name ?? null }));
+}
+
 export type AddPdfFlowProps = {
   /** 'pick' presents the Files picker on mount; 'scan' the camera scanner. */
   start: 'pick' | 'scan';
   folderId: string | null;
+  /**
+   * PDFs already chosen by the parent (native path — see pickPdfAssets).
+   * When set, the flow starts straight on the name step and never opens
+   * the picker itself.
+   */
+  initialAssets?: PickedPdf[];
   /** Success: docId for a single part (open it), null after a batch (stay). */
   onDone: (docId: string | null) => void;
   /** Cancelled with nothing added — flip the card back to the Add menu. */
@@ -49,14 +77,37 @@ function newPageId(): string {
   return `pg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function AddPdfFlow({ start, folderId, onDone, onClose, onBusyChange }: AddPdfFlowProps) {
+export function AddPdfFlow({
+  start,
+  folderId,
+  initialAssets,
+  onDone,
+  onClose,
+  onBusyChange,
+}: AddPdfFlowProps) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
 
-  const [picked, setPicked] = useState<{ uri: string; name: string } | null>(null);
-  const [batch, setBatch] = useState<BatchItem[]>([]);
+  const [picked, setPicked] = useState<{ uri: string; name: string } | null>(() =>
+    initialAssets && initialAssets.length === 1
+      ? { uri: initialAssets[0].uri, name: initialAssets[0].name ?? 'document.pdf' }
+      : null,
+  );
+  const [batch, setBatch] = useState<BatchItem[]>(() =>
+    initialAssets && initialAssets.length > 1
+      ? initialAssets.map((a, i) => ({
+          key: `b_${Date.now()}_${i}`,
+          uri: a.uri,
+          title: (a.name ?? `Part ${i + 1}`).replace(/\.pdf$/i, ''),
+        }))
+      : [],
+  );
   const [scanned, setScanned] = useState<ScannedPage[]>([]);
-  const [name, setName] = useState('');
+  const [name, setName] = useState(() =>
+    initialAssets && initialAssets.length === 1
+      ? (initialAssets[0].name ?? '').replace(/\.pdf$/i, '')
+      : '',
+  );
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,19 +119,15 @@ export function AddPdfFlow({ start, folderId, onDone, onClose, onBusyChange }: A
 
   async function pickPdf() {
     setError(null);
-    const res = await DocumentPicker.getDocumentAsync({
-      type: 'application/pdf',
-      copyToCacheDirectory: true,
-      multiple: true,
-    });
-    if (res.canceled || !res.assets || res.assets.length === 0) {
+    const assets = await pickPdfAssets();
+    if (!assets) {
       // Nothing chosen — flip back to the Add menu.
       if (!picked && batch.length === 0 && scanned.length === 0) onClose();
       return;
     }
     setScanned([]);
-    if (res.assets.length === 1) {
-      const asset = res.assets[0];
+    if (assets.length === 1) {
+      const asset = assets[0];
       setBatch([]);
       setPicked({ uri: asset.uri, name: asset.name ?? 'document.pdf' });
       setName((asset.name ?? '').replace(/\.pdf$/i, ''));
@@ -88,7 +135,7 @@ export function AddPdfFlow({ start, folderId, onDone, onClose, onBusyChange }: A
     }
     setPicked(null);
     setBatch(
-      res.assets.map((a, i) => ({
+      assets.map((a, i) => ({
         key: `b_${Date.now()}_${i}`,
         uri: a.uri,
         title: (a.name ?? `Part ${i + 1}`).replace(/\.pdf$/i, ''),
@@ -138,12 +185,15 @@ export function AddPdfFlow({ start, folderId, onDone, onClose, onBusyChange }: A
   }
 
   // Present the picker/scanner as soon as the card flips to this flow. A
-  // short delay lets the card's own render settle; the picker presents on
-  // top of the open modal, so there's no dismissal transition to race.
+  // short delay lets the card's own render settle. Native 'pick' arrives
+  // with initialAssets already chosen (the library presents the Files
+  // picker with the modal dismissed — B-090), so nothing to open here;
+  // web 'pick' (browser file dialog) and 'scan' still self-present.
   const started = useRef(false);
   useEffect(() => {
     if (started.current) return;
     started.current = true;
+    if (start === 'pick' && initialAssets != null) return;
     const t = setTimeout(() => {
       if (start === 'scan') void scanPages();
       else void pickPdf();

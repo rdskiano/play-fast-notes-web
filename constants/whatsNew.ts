@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-14-files-picker-search-fix',
+    date: 'September 14, 2026',
+    title: 'Searching in the Files picker works again',
+    body:
+      'On the iPad, using the search field inside the Files window that opens from "Add PDF" would flash "loading files" and bounce you back to Recents, so search never finished. Fixed: the little Add window now steps aside while Files is open, which is what the search feature needed. Search for your PDF, pick it, and the naming step appears just like before.',
+  },
+  {
     id: '2026-09-13-add-pdf-straight-to-files',
     date: 'September 13, 2026',
     title: 'Adding music is now one small window',

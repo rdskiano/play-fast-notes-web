@@ -397,15 +397,29 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
   in-modal AddPdfFlow). Prime suspect: the picker's search mode re-presents its
   view hierarchy and collides with being presented over a modal. Apple forums
   document sibling bugs where the picker dismisses itself AND its presenting VC
-  (threads 780246, 770930). Diagnosis plan: seed a PDF into the simulator's
-  Files, repro in the sim with the modal open, then try presenting the picker
-  after momentarily hiding the RN Modal (or from the root VC) and see if search
-  survives. Check whether our getDocumentAsync promise resolves canceled during
-  the snap-back (if it does, our card would flip to the menu — Ralph reports the
-  picker stays up instead, suggesting the promise stays pending and this is
-  picker-internal). Workaround for users meanwhile: browse folders instead of
-  searching, or start from the Files app and note the folder.
-- **Status:** Open
+  (threads 780246, 770930).
+- **Fix (2026-09-14):** stop presenting the picker over the modal. On iOS,
+  tapping Add PDF now dismisses the Add window first (Modal `onDismiss`, with a
+  700 ms timer fallback), presents the Files picker from the root via the new
+  exported `pickPdfAssets()` (components/AddPdfFlow.tsx), and re-opens the Add
+  window straight on the name step with the chosen files passed in as
+  `initialAssets` (cancel re-opens it at the menu). Web keeps the old
+  in-modal path — a browser file dialog has no such collision. Wiring in
+  app/(tabs)/library.tsx (`pendingPickRef` / `runPendingPick` / `pickedAssets`).
+- **Class scan:** same "system picker over the RN Add modal" shape exists in
+  AddPhotoFlow (PHPicker, which also has a search field) and the VisionKit
+  scanner. Neither is reported broken — PHPicker/VisionKit present full-screen
+  and haven't shown the collision — so they were left alone. If photo-picker
+  search ever snaps back the same way, apply the same dismiss-first pattern.
+- **Verified (simulator, 2026-09-14):** seeded a PDF into the sim iPad's
+  Files, ran the dev client on current JS: Add PDF → modal dismisses → picker
+  opens → search field engages, typing "weber" returns the file live, no
+  snap-back → pick → Open → Add window returns on the name step → Add to
+  library → part opens with both pages. Cancel path (close picker with ✕)
+  correctly returns to the Add menu. NOT yet verified on Ralph's physical iPad
+  (needs the next OTA) — that device is where the bug was reported.
+- **Status:** FIXED in code 2026-09-14, sim-verified; awaiting OTA + Ralph's
+  real-iPad search check
 
 ### B-091 — Google Drive / Dropbox locations missing from the Add PDF Files picker
 

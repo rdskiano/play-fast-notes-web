@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
-import { AddPdfFlow } from '@/components/AddPdfFlow';
+import { AddPdfFlow, pickPdfAssets, type PickedPdf } from '@/components/AddPdfFlow';
 import { AddPhotoFlow } from '@/components/AddPhotoFlow';
 import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -531,6 +531,31 @@ export default function LibraryScreen() {
   // addFlowBusy while an add is running so the modal refuses to dismiss.
   const [addFlow, setAddFlow] = useState<null | 'pick' | 'scan' | 'photo'>(null);
   const [addFlowBusy, setAddFlowBusy] = useState(false);
+  // B-090: on iOS the Files picker's search breaks when the picker is
+  // presented over the open Add modal. So the native Add PDF path dismisses
+  // the modal first, presents the picker on its own, and reopens the modal
+  // at the name step with the chosen files (pickedAssets). pendingPickRef
+  // marks "picker owed after this dismissal"; runPendingPick is idempotent
+  // (first caller wins) so the Modal onDismiss and a fallback timer can both
+  // point at it.
+  const [pickedAssets, setPickedAssets] = useState<PickedPdf[] | null>(null);
+  const pendingPickRef = useRef(false);
+  const runPendingPick = useCallback(() => {
+    if (!pendingPickRef.current) return;
+    pendingPickRef.current = false;
+    void (async () => {
+      const assets = await pickPdfAssets().catch(() => null);
+      // Let the picker's own dismissal animation finish before presenting
+      // the Add window again, so the two modal transitions don't collide.
+      setTimeout(() => {
+        if (assets) {
+          setPickedAssets(assets);
+          setAddFlow('pick');
+        }
+        setAddOpen(true);
+      }, 400);
+    })();
+  }, []);
   // Non-null = the paywall is up; the string is the context line explaining
   // which gate was hit. Inert while PAYWALL_ENABLED is false (isPro is
   // always true then).
@@ -1576,17 +1601,24 @@ export default function LibraryScreen() {
         flow={addFlow}
         flowBusy={addFlowBusy}
         folderId={currentFolderId ?? null}
+        pickedAssets={pickedAssets}
+        onNativeDismiss={runPendingPick}
         onClose={() => {
           if (addFlowBusy) return;
           setAddOpen(false);
           setAddFlow(null);
+          setPickedAssets(null);
         }}
-        onBackToMenu={() => setAddFlow(null)}
+        onBackToMenu={() => {
+          setAddFlow(null);
+          setPickedAssets(null);
+        }}
         onFlowBusyChange={setAddFlowBusy}
         onFlowDone={(docId) => {
           setAddOpen(false);
           setAddFlow(null);
           setAddFlowBusy(false);
+          setPickedAssets(null);
           if (docId) {
             router.push(`/document/${docId}` as never);
           } else {
@@ -1614,9 +1646,19 @@ export default function LibraryScreen() {
             setPaywallContext('Full PDF parts are a Practice Pro feature.');
             return;
           }
-          // Flip the little Add window to the in-card flow — no navigation.
-          // The flow opens the Files picker on top of the open modal.
-          setAddFlow('pick');
+          if (Platform.OS === 'web') {
+            // Flip the little Add window to the in-card flow — the browser
+            // file dialog is fine on top of the open modal.
+            setAddFlow('pick');
+            return;
+          }
+          // Native: dismiss the Add window first, THEN present the Files
+          // picker (B-090 — search dies when the picker sits on a modal).
+          // The Modal's onDismiss fires runPendingPick; the timer is a
+          // fallback in case onDismiss ever fails to fire.
+          pendingPickRef.current = true;
+          setAddOpen(false);
+          setTimeout(runPendingPick, 700);
         }}
         onPickScan={() => {
           // Same gate as PDFs — scans produce the same full-part documents,
@@ -1834,12 +1876,18 @@ function AddChooserModal({
   onPickDocument,
   onPickScan,
   onPickFolder,
+  pickedAssets,
+  onNativeDismiss,
 }: {
   visible: boolean;
   /** null = the Add menu; otherwise which in-card add flow is showing. */
   flow: null | 'pick' | 'scan' | 'photo';
   flowBusy: boolean;
   folderId: string | null;
+  /** PDFs the library picked with the modal dismissed (native — B-090). */
+  pickedAssets: PickedPdf[] | null;
+  /** iOS Modal onDismiss — presents an owed Files picker after dismissal. */
+  onNativeDismiss: () => void;
   onClose: () => void;
   onBackToMenu: () => void;
   onFlowBusyChange: (busy: boolean) => void;
@@ -1888,7 +1936,7 @@ function AddChooserModal({
     { icon: 'folder' as const, label: 'Add folder', onPress: onPickFolder },
   ];
   return (
-    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onNativeDismiss}>
       <View style={styles.modalBackdrop}>
         <View style={[styles.modalCard, { backgroundColor: C.background }]}>
           {flow === 'photo' ? (
@@ -1906,6 +1954,7 @@ function AddChooserModal({
               key={flow}
               start={flow}
               folderId={folderId}
+              initialAssets={flow === 'pick' ? (pickedAssets ?? undefined) : undefined}
               onDone={onFlowDone}
               onClose={flowBusy ? () => {} : onBackToMenu}
               onBusyChange={onFlowBusyChange}
