@@ -418,8 +418,9 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
   library → part opens with both pages. Cancel path (close picker with ✕)
   correctly returns to the Add menu. NOT yet verified on Ralph's physical iPad
   (needs the next OTA) — that device is where the bug was reported.
-- **Status:** FIXED in code 2026-09-14, sim-verified; awaiting OTA + Ralph's
-  real-iPad search check
+- **Status:** FIXED 2026-09-14, sim-verified; shipped same day (web push
+  7445299 + production OTA 80cfa49b, runtime 1.1.1). Awaiting Ralph's
+  real-iPad search check (relaunch twice first)
 
 ### B-091 — Google Drive / Dropbox locations missing from the Add PDF Files picker
 
