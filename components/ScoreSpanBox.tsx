@@ -17,7 +17,7 @@ import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 
 import type { Marker } from '@/lib/db/repos/passages';
 import { computeDrawnRect } from '@/lib/layout/containFit';
-import { chunkSlices, computeScoreGeometry } from '@/lib/strategies/macroSlices';
+import { BOX_PAD_LEFT, chunkSlices, computeScoreGeometry } from '@/lib/strategies/macroSlices';
 
 type Props = {
   uri: string;
@@ -42,7 +42,10 @@ export function ScoreSpanBox({ uri, marks, startIndex, endIndex, accent, dim = 0
     const a = Math.max(0, Math.min(last, startIndex - 1));
     const b = Math.max(a, Math.min(last, endIndex - 1));
     if (last < 1 || b <= a) return [];
-    return chunkSlices(geom, a, b);
+    // Tight left edge: these boxes are highlight rings over the intact
+    // score (nothing is cut off), so they hug the span instead of carrying
+    // Macro's cut-safety margin. Ralph's on-iPad call, 2026-09-13.
+    return chunkSlices(geom, a, b, { padLeft: BOX_PAD_LEFT });
   }, [geom, startIndex, endIndex]);
 
   const drawn = computeDrawnRect(box.w, box.h, aspect);

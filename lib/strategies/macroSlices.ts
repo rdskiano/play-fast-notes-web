@@ -50,9 +50,14 @@ const LINE_END = 0.995;
 // Slice padding: room left of the start mark and enough past the end mark
 // to show the landing note it plays into. PAD_LEFT is sized so an
 // ACCIDENTAL on the first note stays inside the cut (Ralph's live check,
-// 2026-09-13 — the original 0.01 clipped a sharp/flat); applies to ICU
-// boxes and Macro strips alike, his call.
+// 2026-09-13 — the original 0.01 clipped a sharp/flat). That protection
+// matters where the photo is literally CUT (Macro's sliced strips); ICU's
+// boxes are only highlight rings over the intact score, so they use the
+// tighter BOX_PAD_LEFT instead (Ralph, same night, on the iPad: the wide
+// boxes read worse and hide nothing).
 const PAD_LEFT = 0.022;
+/** Tight left pad for non-destructive highlight boxes (ICU Boxed view). */
+export const BOX_PAD_LEFT = 0.01;
 const PAD_LANDING = 0.026;
 // The final mark sits ON the last note, so the last slice reaches further.
 const PAD_FINAL = 0.036;
@@ -101,17 +106,23 @@ export function computeScoreGeometry(rawMarks: Marker[]): ScoreGeometry {
  * when the chunk stays on one line; otherwise end-of-line + (full middle
  * lines) + start-of-line pieces, in playing order.
  */
-export function chunkSlices(geom: ScoreGeometry, a: number, b: number): ChunkSlice[] {
+export function chunkSlices(
+  geom: ScoreGeometry,
+  a: number,
+  b: number,
+  opts?: { padLeft?: number },
+): ChunkSlice[] {
   const { marks, rowOf, rowStart } = geom;
+  const padLeft = opts?.padLeft ?? PAD_LEFT;
   const isFinal = b === marks.length - 1;
   const landPad = isFinal ? PAD_FINAL : PAD_LANDING;
   const ra = rowOf[a];
   const rb = rowOf[b];
   if (ra === rb) {
-    return [{ row: ra, x0: Math.max(0, marks[a].x - PAD_LEFT), x1: Math.min(1, marks[b].x + landPad) }];
+    return [{ row: ra, x0: Math.max(0, marks[a].x - padLeft), x1: Math.min(1, marks[b].x + landPad) }];
   }
   const slices: ChunkSlice[] = [
-    { row: ra, x0: Math.max(0, marks[a].x - PAD_LEFT), x1: LINE_END },
+    { row: ra, x0: Math.max(0, marks[a].x - padLeft), x1: LINE_END },
   ];
   for (let r = ra + 1; r < rb; r++) {
     slices.push({ row: r, x0: rowStart[r], x1: LINE_END });
