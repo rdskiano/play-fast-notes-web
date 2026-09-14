@@ -15,10 +15,13 @@
 // The rule, for a free user:
 //   • Every PDF document (source_kind 'pdf') and every passage marked inside
 //     one is Pro-only → locked. (PDF parts were always the Pro workflow.)
-//   • Photo passages (the free-tier unit: non-PDF marked passages) are ranked
-//     OLDEST-first by created_at; the first FREE_PASSAGE_LIMIT stay free, the
-//     rest lock. "Your first N passages" = the ones you made first, a stable
-//     ordering that doesn't shuffle when the user reorders their library.
+//   • Photo passages (the free-tier unit: non-PDF marked passages): the user's
+//     CHOSEN keepers (kept_at set, via the swap-in flow) fill the free slots
+//     first, ranked by when they were chosen; any remaining slots fall back to
+//     OLDEST-first by created_at — so a user who never touches the swap flow
+//     gets the original "your first N passages" behavior. Everything past
+//     FREE_PASSAGE_LIMIT locks. Stable orderings on both halves, so the free
+//     set doesn't shuffle when the user reorders their library.
 
 import { FREE_PASSAGE_LIMIT } from '@/constants/billing';
 import type { Passage } from '@/lib/db/repos/passages';
@@ -29,12 +32,17 @@ export type Locks = {
   lockedDocumentIds: Set<string>;
   /** How many photo passages are locked — for the downgrade message count. */
   lockedPhotoCount: number;
+  /** The photo passages currently occupying the free slots, in slot order —
+   *  the swap-in sheet lists these as the candidates to bench. Empty for Pro
+   *  (nothing is locked, so there is nothing to swap). */
+  freePhotoPassageIds: string[];
 };
 
 const EMPTY: Locks = {
   lockedPassageIds: new Set(),
   lockedDocumentIds: new Set(),
   lockedPhotoCount: 0,
+  freePhotoPassageIds: [],
 };
 
 export function computeLocks(args: {
@@ -55,17 +63,28 @@ export function computeLocks(args: {
   const lockedDocumentIds = new Set<string>(pdfDocIds);
 
   // Photo passages = the free-tier unit: any live passage NOT belonging to a
-  // PDF document (matches countActivePhotoPassages). Rank oldest-first; lock
+  // PDF document (matches countActivePhotoPassages). User-chosen keepers
+  // (kept_at, in choice order) rank ahead of the oldest-first fallback; lock
   // everything past the free allowance.
-  const photoPassages = passages
-    .filter((p) => p.document_id == null || !pdfDocIds.has(p.document_id))
+  const photoPassages = passages.filter(
+    (p) => p.document_id == null || !pdfDocIds.has(p.document_id),
+  );
+  const kept = photoPassages
+    .filter((p) => p.kept_at != null)
+    .sort((a, b) => (a.kept_at ?? 0) - (b.kept_at ?? 0));
+  const unkept = photoPassages
+    .filter((p) => p.kept_at == null)
     .sort((a, b) => a.created_at - b.created_at);
+  const ranked = [...kept, ...unkept];
 
   let lockedPhotoCount = 0;
-  photoPassages.forEach((p, i) => {
+  const freePhotoPassageIds: string[] = [];
+  ranked.forEach((p, i) => {
     if (i >= FREE_PASSAGE_LIMIT) {
       lockedPassageIds.add(p.id);
       lockedPhotoCount += 1;
+    } else {
+      freePhotoPassageIds.push(p.id);
     }
   });
 
@@ -76,5 +95,5 @@ export function computeLocks(args: {
     }
   }
 
-  return { lockedPassageIds, lockedDocumentIds, lockedPhotoCount };
+  return { lockedPassageIds, lockedDocumentIds, lockedPhotoCount, freePhotoPassageIds };
 }

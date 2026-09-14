@@ -48,6 +48,10 @@ create table if not exists pieces (
   -- Tempo Ladder + Click-Up prefill from it when they have no saved config of
   -- their own, and write it back when a session starts. null = never set.
   performance_tempo integer,
+  -- Free-plan "keep this one" (lock-don't-lose swap): epoch ms of when the
+  -- user chose this photo passage as one of their free-tier keepers. Chosen
+  -- passages fill the free slots first; null rows fall back to oldest-first.
+  kept_at bigint,
   created_at bigint not null,
   updated_at bigint not null,
   deleted_at bigint
@@ -61,6 +65,9 @@ alter table pieces add column if not exists due_date bigint;
 -- Migration (added 2026-07-14, ⚠️ RUN BEFORE/AT NEXT WEB DEPLOY): shared
 -- performance tempo (B-013).
 alter table pieces add column if not exists performance_tempo integer;
+-- Migration (added 2026-09-13, ⚠️ RUN BEFORE/AT NEXT WEB DEPLOY): free-plan
+-- "keep this one" swap (user-chosen free passages).
+alter table pieces add column if not exists kept_at bigint;
 alter table pieces enable row level security;
 create policy pieces_owner_all on pieces
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);

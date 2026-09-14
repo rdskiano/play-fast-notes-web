@@ -100,15 +100,18 @@ const METERS = [
   '3/4',
   '4/4',
   '5/4',
+  '2/8',
   '3/8',
   '5/8',
   '6/8',
   '7/8',
   '9/8',
   '12/8',
+  '5/16',
+  '7/16',
 ];
 
-type MeterKind = 'simple' | 'compound' | 'odd8';
+type MeterKind = 'simple' | 'compound' | 'odd8' | 'odd16';
 type SubOption = { value: Subdivision; label: string };
 // Simple meters (x/4) — the beat is a quarter note.
 const SIMPLE_SUBS: SubOption[] = [
@@ -127,6 +130,8 @@ const EIGHTH_SUBS: SubOption[] = [
   { value: 1, label: 'Eighth note' },
   { value: 2, label: 'Two sixteenth notes' },
 ];
+// x/16 meters (5/16, 7/16) — each sixteenth note is its own beat.
+const SIXTEENTH_SUBS: SubOption[] = [{ value: 1, label: 'Sixteenth note' }];
 
 // Tapping a beat cycles through these in order.
 const CYCLE: BeatState[] = ['accent', 'normal', 'mute'];
@@ -136,10 +141,12 @@ const BEAT_ROW_WIDTH = 244;
 const BEAT_GAP = 8;
 
 // x/4 = simple; x/8 with numerator ÷ 3 = compound (dotted-quarter beats);
-// any other x/8 (5/8, 7/8…) = an asymmetric eighth-pulse meter.
+// any other x/8 (2/8, 5/8, 7/8…) = an asymmetric eighth-pulse meter;
+// x/16 (5/16, 7/16) = a sixteenth-pulse meter.
 function meterKind(label: string): MeterKind {
   const [numStr, denStr] = label.split('/');
   const num = parseInt(numStr, 10) || 4;
+  if (denStr === '16') return 'odd16';
   if (denStr !== '8') return 'simple';
   return num % 3 === 0 ? 'compound' : 'odd8';
 }
@@ -156,12 +163,14 @@ function meterBeats(label: string): number {
 function subsFor(kind: MeterKind): SubOption[] {
   if (kind === 'compound') return COMPOUND_SUBS;
   if (kind === 'odd8') return EIGHTH_SUBS;
+  if (kind === 'odd16') return SIXTEENTH_SUBS;
   return SIMPLE_SUBS;
 }
 
 function noteValueFor(sub: Subdivision, kind: MeterKind): NoteValue {
   if (kind === 'compound') return sub === 1 ? 'dottedQuarter' : 'eighths3';
   if (kind === 'odd8') return sub === 1 ? 'eighth' : 'sixteenths2';
+  if (kind === 'odd16') return 'sixteenth';
   if (sub === 1) return 'quarter';
   if (sub === 2) return 'eighths2';
   if (sub === 3) return 'triplet';

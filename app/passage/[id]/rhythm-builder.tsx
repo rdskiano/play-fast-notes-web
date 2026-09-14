@@ -78,7 +78,6 @@ import { buildExerciseHtml } from '@/lib/export/buildExerciseHtml';
 import { exportExercisePdf } from '@/lib/export/exportExercisePdf';
 import { buildExerciseAbc } from '@/lib/notation/buildExerciseAbc';
 import {
-  parseBeatDenominator,
   patternsByGrouping,
   type Grouping,
   type RhythmPattern,
@@ -1336,8 +1335,8 @@ function ExercisesPhase({
   const patterns = patternsByGrouping(grouping);
   const [playingId, setPlayingId] = useState<number | null>(null);
   // Meter-aware tempo (B-018, re-anchored to the BEAT 2026-08-28; fixed
-  // per-meter STARTS 2026-09-03) — GROUPING 4 ONLY (Ralph's calibration
-  // covers sixteenth-run passages; other groupings keep the legacy dial —
+  // per-meter STARTS 2026-09-03; extended to ALL groupings 2026-09-13 —
+  // Ralph dictated one start tempo per meter, shared across groupings —
   // see RHYTHM_TEMPO_PLAN.md). The dial counts the meter's BEAT
   // (rhythmMeterFeel.ts), playback receives beatUnitsPerWhole, and the
   // panel meter follows every ▶ (onMeterChange). Each meter's dial tempo
@@ -1362,7 +1361,7 @@ function ExercisesPhase({
     const first = patterns[0];
     if (!first) return;
     onMeterChange?.(first.timeSig);
-    if (grouping === 4) applyMeterTempo(first.timeSig);
+    applyMeterTempo(first.timeSig);
     // Mount-only: patterns/grouping are fixed for the phase's lifetime.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1403,30 +1402,24 @@ function ExercisesPhase({
       idx = chunkEnd;
     }
     if (freqs.length === 0) return;
-    if (grouping === 4) {
-      const m = pattern.timeSig;
-      const prev = activeMeterRef.current;
-      if (prev !== m) {
-        // Leaving a meter: remember where the player left its dial, then
-        // greet the new meter with ITS remembered/default tempo.
-        if (prev) meterMapRef.current[prev] = Math.round(metronome.bpm);
-        applyMeterTempo(m);
-      } else {
-        // Same meter replayed: the current dial (nudges included) IS the
-        // remembered value.
-        meterMapRef.current[m] = Math.round(metronome.bpm);
-      }
-      onMeterBpmChange?.({ ...meterMapRef.current });
+    const m = pattern.timeSig;
+    const prev = activeMeterRef.current;
+    if (prev !== m) {
+      // Leaving a meter: remember where the player left its dial, then
+      // greet the new meter with ITS remembered/default tempo.
+      if (prev) meterMapRef.current[prev] = Math.round(metronome.bpm);
+      applyMeterTempo(m);
+    } else {
+      // Same meter replayed: the current dial (nudges included) IS the
+      // remembered value.
+      meterMapRef.current[m] = Math.round(metronome.bpm);
     }
+    onMeterBpmChange?.({ ...meterMapRef.current });
     // The panel's meter (and beat dots) follow whatever is playing.
     onMeterChange?.(pattern.timeSig);
-    // Managed groupings hand the scheduler the meter's BEAT so the dial
-    // number means one click; unmanaged ones keep the legacy denominator.
-    const beatUnits =
-      grouping === 4
-        ? beatUnitsPerWhole(pattern.timeSig)
-        : parseBeatDenominator(pattern.timeSig);
-    metronome.playPitchRhythm(freqs, tokens, beatUnits);
+    // The scheduler receives the meter's BEAT so the dial number means one
+    // click (all groupings since 2026-09-13).
+    metronome.playPitchRhythm(freqs, tokens, beatUnitsPerWhole(pattern.timeSig));
     setPlayingId(pattern.id);
   }
 

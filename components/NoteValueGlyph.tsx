@@ -11,6 +11,7 @@ export type NoteValue =
   | 'quarter'
   | 'dottedQuarter'
   | 'eighth'
+  | 'sixteenth'
   | 'eighths2'
   | 'eighths3'
   | 'triplet'
@@ -22,13 +23,15 @@ type Spec = {
   beams: number;
   dotted: boolean;
   triplet: boolean;
-  flag?: boolean;
+  // Flags on a single-note glyph: 1 = eighth, 2 = sixteenth.
+  flags?: 1 | 2;
 };
 
 const SPECS: Record<NoteValue, Spec> = {
   quarter: { notes: 1, beams: 0, dotted: false, triplet: false },
   dottedQuarter: { notes: 1, beams: 0, dotted: true, triplet: false },
-  eighth: { notes: 1, beams: 0, dotted: false, triplet: false, flag: true },
+  eighth: { notes: 1, beams: 0, dotted: false, triplet: false, flags: 1 },
+  sixteenth: { notes: 1, beams: 0, dotted: false, triplet: false, flags: 2 },
   eighths2: { notes: 2, beams: 1, dotted: false, triplet: false },
   eighths3: { notes: 3, beams: 1, dotted: false, triplet: false },
   triplet: { notes: 3, beams: 1, dotted: false, triplet: true },
@@ -52,9 +55,9 @@ export function NoteValueGlyph({
   value: NoteValue;
   color: string;
 }) {
-  const { notes, beams, dotted, triplet, flag } = SPECS[value];
+  const { notes, beams, dotted, triplet, flags } = SPECS[value];
   const width =
-    (notes - 1) * STEP + HEAD_W + (dotted ? 7 : 0) + (flag ? 8 : 0);
+    (notes - 1) * STEP + HEAD_W + (dotted ? 7 : 0) + (flags ? 8 : 0);
 
   const stemX = (i: number) => i * STEP + HEAD_W - STEM_W;
   const stemTop = HEAD_H / 2 + STEM_H; // measured from the box bottom
@@ -89,11 +92,19 @@ export function NoteValueGlyph({
         />
       )}
 
-      {flag && (
+      {(flags ?? 0) >= 1 && (
         <View
           style={[
             styles.flag,
             { backgroundColor: color, left: stemX(0), bottom: stemTop - 9 },
+          ]}
+        />
+      )}
+      {(flags ?? 0) >= 2 && (
+        <View
+          style={[
+            styles.flag,
+            { backgroundColor: color, left: stemX(0), bottom: stemTop - 9 - BEAM_GAP },
           ]}
         />
       )}

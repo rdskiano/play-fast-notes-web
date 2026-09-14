@@ -9,27 +9,28 @@
 // beats. So in 3/8 the same dial number meant two different speeds: the
 // click heard one pulse per bar, playback heard eighths, a factor of 3 apart.
 //
-// Ralph's call 2026-08-28 — how each meter should be felt:
-//   3/8 → dotted quarter (one beat per bar)
-//   2/4 → quarter
-//   5/8 → eighth
-//   7/8 → eighth
+// Ralph's call 2026-08-28 (extended to every pattern meter 2026-09-13) —
+// how each meter should be felt:
+//   2/4, 3/4, 4/4 → quarter
+//   3/8, 6/8      → dotted quarter (compound: one click per 3 eighths)
+//   2/8, 5/8, 7/8 → eighth
+//   5/16, 7/16    → sixteenth
 // Feeding beatUnitsPerWhole() to playPitchRhythm instead of the denominator
 // makes the dial mean THE BEAT everywhere, so the click and the exercise
 // finally agree.
 
 import { meterTempoFactor, parseBeatDenominator } from '@/lib/strategies/rhythmPatterns';
 
-export type BeatFeel = 'quarter' | 'dottedQuarter' | 'eighth';
+export type BeatFeel = 'quarter' | 'dottedQuarter' | 'eighth' | 'sixteenth';
 
 /**
- * The note one click represents, or null for meters we have no opinion about
- * (/16 and friends) — those keep the legacy denominator behaviour and are
- * left off the metronome panel entirely.
+ * The note one click represents, or null for meters we have no opinion
+ * about — those keep the legacy denominator behaviour.
  *
  * Matches MetronomePanel's own meterKind(): a /8 meter whose numerator
  * divides by 3 is compound and beats in dotted quarters; any other /8 beats
- * in eighths.
+ * in eighths; a /16 meter beats in sixteenths (Ralph 2026-09-13 — 5/16 and
+ * 7/16 click the sixteenth).
  */
 export function beatFeelFor(timeSig: string): BeatFeel | null {
   const parts = timeSig.split('/');
@@ -37,6 +38,7 @@ export function beatFeelFor(timeSig: string): BeatFeel | null {
   const den = parseInt(parts[1] ?? '4', 10) || 4;
   if (den <= 4) return 'quarter';
   if (den === 8) return num % 3 === 0 ? 'dottedQuarter' : 'eighth';
+  if (den === 16) return 'sixteenth';
   return null;
 }
 
@@ -49,6 +51,7 @@ export function beatUnitsPerWhole(timeSig: string): number {
   const feel = beatFeelFor(timeSig);
   if (feel === 'quarter') return 4;
   if (feel === 'eighth') return 8;
+  if (feel === 'sixteenth') return 16;
   if (feel === 'dottedQuarter') return 8 / 3;
   return parseBeatDenominator(timeSig);
 }
@@ -74,16 +77,25 @@ export function meterDialFactor(timeSig: string): number {
  * Ralph's call 2026-09-03, replacing the goal-derived seed for rhythm
  * exercises ("I don't think this calculation from the practice tempo of
  * the passage is working" — a fixed, predictable start per meter, then the
- * player's own dial moves are what get remembered):
- *   3/8 → 70 (dotted quarter) · 2/4 → 120 (quarter) ·
- *   5/8 and 7/8 → 380 (eighth; the engine's setBpm ceiling is 600).
- * Meters not listed have no start opinion (legacy behaviour).
+ * player's own dial moves are what get remembered).
+ *
+ * Extended 2026-09-13 to every meter the pattern library uses, one number
+ * per meter across ALL groupings (Ralph's dictation): quarter-felt meters
+ * start at 120, dotted-quarter meters at 70, eighth-felt /8 meters at 380,
+ * 2/8 at 120, sixteenth-felt /16 meters at 380 (the engine's setBpm ceiling
+ * is 600). Meters not listed have no start opinion (legacy behaviour).
  */
 export const METER_START_BPM: Record<string, number> = {
+  '2/8': 120,
   '3/8': 70,
+  '6/8': 70,
   '2/4': 120,
+  '3/4': 120,
+  '4/4': 120,
   '5/8': 380,
   '7/8': 380,
+  '5/16': 380,
+  '7/16': 380,
 };
 
 export function meterStartBpm(timeSig: string): number | null {

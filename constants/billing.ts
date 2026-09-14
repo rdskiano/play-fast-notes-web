@@ -151,3 +151,18 @@ export function lockedContextLine(): string {
 }
 export const LOCKED_PDF_CONTEXT_LINE =
   'Full PDF parts are a Practice Pro feature. Your file is safe — upgrade to open it:';
+
+// The "swap this one in" sheet, shown when a free user taps a locked photo
+// passage: trade one of the free slots for it, or upgrade. (Plain punctuation
+// on purpose — this is shipped user-facing copy.)
+export const KEEP_SWAP_TITLE = 'Keep practicing this one?';
+export function keepSwapIntro(lockedTitle: string): string {
+  return (
+    `"${lockedTitle}" is locked right now. The free plan includes ` +
+    `${FREE_PASSAGE_LIMIT} passages of your choice, so you can swap it in. ` +
+    `Pick which passage to set aside:`
+  );
+}
+export const KEEP_SWAP_FOOTNOTE =
+  'Nothing gets deleted. A passage you set aside just locks, and you can swap it back in anytime.';
+export const KEEP_SWAP_UPGRADE_LABEL = 'Or unlock everything with Pro';

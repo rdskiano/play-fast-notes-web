@@ -43,7 +43,6 @@ import {
   SCORE_FRAME_BG,
 } from '@/lib/layout/configForm';
 import {
-  parseBeatDenominator,
   patternsByGrouping,
   RHYTHM_PATTERNS,
   type Grouping,
@@ -156,13 +155,12 @@ export default function RhythmicScreen() {
   // opens at METER_START_BPM, and within the session the dial value the
   // player leaves a meter at is remembered per meter — everywhere rhythms
   // play, tools-only included.
-  // Ralph's calibration covers grouping 4 ONLY — his explicit call. Other
-  // groupings keep the legacy fixed dial until each gets its own
-  // ear-calibration.
+  // 2026-09-13: extended from grouping 4 to ALL groupings — Ralph dictated
+  // one start tempo per meter, shared across groupings (METER_START_BPM).
   const meterMapRef = useRef<Record<string, number>>({});
   const activeMeterRef = useRef<string | null>(null);
   useEffect(() => {
-    if (phase !== 'playing' || grouping !== 4) return;
+    if (phase !== 'playing') return;
     if (activeMeterRef.current != null) return; // already seeded
     const pat = patterns[currentIndex];
     if (!pat) return;
@@ -183,13 +181,10 @@ export default function RhythmicScreen() {
     if (sig) setToolMeter(sig);
   }, [phase, patterns, currentIndex]);
 
-  // Beat units the rhythm loop schedules against: managed grouping 4 hands
-  // it the meter's BEAT so the dial number means one click; unmanaged
-  // groupings keep the legacy denominator.
+  // Beat units the rhythm loop schedules against: the meter's BEAT, so the
+  // dial number means one click (all groupings since 2026-09-13).
   function loopBeatUnits(pat: RhythmPattern): number {
-    return grouping === 4
-      ? beatUnitsPerWhole(pat.timeSig)
-      : parseBeatDenominator(pat.timeSig);
+    return beatUnitsPerWhole(pat.timeSig);
   }
 
   // Retarget the dial for the pattern about to show. Call BEFORE restarting
@@ -197,8 +192,6 @@ export default function RhythmicScreen() {
   // remembers where the player left its dial (session-local); entering one
   // greets them with its remembered tempo, else METER_START_BPM.
   function retargetTempo(next: RhythmPattern) {
-    // Callers gate on grouping 4 themselves — no guard here, because
-    // startWithGrouping calls this before the grouping state updates.
     const m = next.timeSig;
     const prev = activeMeterRef.current;
     if (prev === m) {
@@ -218,12 +211,10 @@ export default function RhythmicScreen() {
     // Stop any in-flight rhythm loop — the pattern being looped is about
     // to disappear from the visible card.
     metronome.stopRhythmLoop();
-    // Mid-session grouping switch: grouping 4 greets the first pattern's
-    // meter with its remembered/default tempo. Any other grouping drops out
-    // of tempo management entirely — dial stays where the user left it, and
-    // a later return to grouping 4 re-seeds fresh.
-    if (g === 4 && activeMeterRef.current != null) retargetTempo(list[0]);
-    if (g !== 4) activeMeterRef.current = null;
+    // Mid-session grouping switch: greet the first pattern's meter with its
+    // remembered/default tempo. (The initial seed — activeMeterRef still
+    // null — is handled by the phase effect above.)
+    if (activeMeterRef.current != null) retargetTempo(list[0]);
     setGrouping(g);
     setPatterns(list);
     setCurrentIndex(0);
@@ -307,7 +298,7 @@ export default function RhythmicScreen() {
     const next = Math.max(0, currentIndex - 1);
     if (next === currentIndex) return;
     setCurrentIndex(next);
-    if (grouping === 4 && patterns[next]) retargetTempo(patterns[next]);
+    if (patterns[next]) retargetTempo(patterns[next]);
     if (metronome.rhythmLooping && patterns[next]) {
       metronome.startRhythmLoop(patterns[next].notes, loopBeatUnits(patterns[next]));
     }
@@ -319,7 +310,7 @@ export default function RhythmicScreen() {
     advanceCountRef.current += 1;
     const everyN = microbreak.config.rhythmicPatterns || 4;
     if (advanceCountRef.current % everyN === 0) microbreak.trigger();
-    if (grouping === 4 && patterns[next]) retargetTempo(patterns[next]);
+    if (patterns[next]) retargetTempo(patterns[next]);
     if (metronome.rhythmLooping && patterns[next]) {
       metronome.startRhythmLoop(patterns[next].notes, loopBeatUnits(patterns[next]));
     }

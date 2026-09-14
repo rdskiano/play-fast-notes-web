@@ -443,4 +443,10 @@ export const MIGRATIONS: string[] = [
     PRIMARY KEY (document_id, page)
   );
   `,
+  `
+  -- Free-plan "keep this one" (lock-don't-lose swap): epoch ms of when the
+  -- user chose this photo passage as one of their free-tier keepers. Chosen
+  -- passages fill the free slots first; NULL rows fall back to oldest-first.
+  ALTER TABLE pieces ADD COLUMN kept_at INTEGER;
+  `,
 ];

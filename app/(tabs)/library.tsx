@@ -75,7 +75,9 @@ import {
   lockedContextLine,
   trialWelcomeBody,
 } from '@/constants/billing';
+import { KeepSwapModal } from '@/components/KeepSwapModal';
 import { useEntitlement } from '@/lib/billing/entitlements';
+import { swapKeep } from '@/lib/billing/keepSwap';
 import { computeLocks } from '@/lib/billing/locks';
 import {
   getDocument,
@@ -526,6 +528,10 @@ export default function LibraryScreen() {
   // which gate was hit. Inert while PAYWALL_ENABLED is false (isPro is
   // always true then).
   const [paywallContext, setPaywallContext] = useState<string | null>(null);
+  // Non-null = the "swap this one in" sheet is up for that locked passage
+  // (free plan only — a locked photo-passage card was tapped).
+  const [swapTarget, setSwapTarget] = useState<Passage | null>(null);
+  const [swapBusy, setSwapBusy] = useState(false);
   const entitlement = useEntitlement();
   // Lock-don't-lose: which already-saved pieces are locked on the free plan.
   // Inert while the paywall is off (isPro is true → computeLocks returns empty),
@@ -1238,7 +1244,9 @@ export default function LibraryScreen() {
         breadcrumb={passageParentLabel(item.passage)}
         onOpen={() =>
           locked
-            ? setPaywallContext(lockedContextLine())
+            ? // Swap-in sheet instead of a flat paywall: they can trade a free
+              // slot for this passage (lock-don't-lose), or upgrade from there.
+              setSwapTarget(item.passage)
             : router.push(`/passage/${item.passage.id}`)
         }
         onMore={() => setActionTarget({ kind: 'passage', passage: item.passage })}
@@ -1592,6 +1600,38 @@ export default function LibraryScreen() {
           setAddOpen(false);
           setPrompt({ kind: 'new_folder' });
         }}
+      />
+
+      <KeepSwapModal
+        passage={swapTarget}
+        freePassages={locks.freePhotoPassageIds
+          .map((id) => allPassages.find((p) => p.id === id))
+          .filter((p): p is Passage => p != null)}
+        busy={swapBusy}
+        onPickBench={async (benchId) => {
+          if (!swapTarget) return;
+          setSwapBusy(true);
+          try {
+            await swapKeep({
+              keepId: swapTarget.id,
+              benchId,
+              currentFreeIds: locks.freePhotoPassageIds,
+            });
+            setSwapTarget(null);
+            await refresh();
+          } catch (e) {
+            // Leave the sheet up so they can retry; surface the reason in the
+            // library's error banner like any other failed library write.
+            setError(e instanceof Error ? e.message : String(e));
+          } finally {
+            setSwapBusy(false);
+          }
+        }}
+        onUpgrade={() => {
+          setSwapTarget(null);
+          setPaywallContext(lockedContextLine());
+        }}
+        onClose={() => setSwapTarget(null)}
       />
 
       <PaywallModal

@@ -39,6 +39,10 @@ export type Passage = {
   // Strategies prefill from it when they have no saved config of their own
   // and write it back when a session starts. null = never set.
   performance_tempo: number | null;
+  // Free-plan "keep this one" (lock-don't-lose swap): epoch ms of when the
+  // user chose this photo passage as one of their free-tier keepers. Chosen
+  // passages fill the free slots first; null rows fall back to oldest-first.
+  kept_at: number | null;
 };
 
 export function parseMarkers(units_json: string | null): Marker[] {
@@ -106,7 +110,21 @@ export async function insertPassage(p: NewPassage): Promise<Passage> {
     deleted_at: null,
     due_date: null,
     performance_tempo: null,
+    kept_at: null,
   };
+}
+
+// Mark / unmark a passage as one of the free plan's user-chosen keepers.
+// keptAt = epoch ms (relative order among keepers matters, value doesn't);
+// null clears the choice. The pieces UPDATE trigger queues the row for sync.
+export async function setPassageKept(id: string, keptAt: number | null): Promise<void> {
+  const db = getDb();
+  await db.runAsync(
+    'UPDATE pieces SET kept_at = ?, updated_at = ? WHERE id = ?;',
+    keptAt,
+    Date.now(),
+    id,
+  );
 }
 
 export function parseRegions(regions_json: string | null): PassageRegion[] {

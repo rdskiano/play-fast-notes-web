@@ -22,6 +22,20 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-13-free-plan-choose-your-passages',
+    date: 'September 13, 2026',
+    title: 'Free plan: you choose which passages stay open',
+    body:
+      'On the free plan, the three passages you could keep practicing used to be picked for you: whichever three you added first. Now you decide. Tap any locked passage and you can swap it in for one of your current three. Nothing is ever deleted, and you can swap back whenever you like.',
+  },
+  {
+    id: '2026-09-13-rhythm-tempos-all-groupings',
+    date: 'September 13, 2026',
+    title: 'Rhythm exercises: smart tempos for every grouping',
+    body:
+      'Until now, only 4-note groupings got the smart metronome treatment in Rhythmic Variation and the Exercise Builder: the dial counting the beat you actually feel, and each time signature opening at a sensible starting tempo. That now works for every grouping, from 3-note to 8-note, everywhere rhythm patterns play (including the Tools room). The metronome also learned three new time signatures that only appear in those groupings: 2/8, 5/16, and 7/16.',
+  },
+  {
     id: '2026-09-13-pick-up-where-you-left-off',
     date: 'September 13, 2026',
     title: 'Pick up where you left off',

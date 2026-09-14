@@ -668,6 +668,7 @@ async function pushPieces(userId: string): Promise<void> {
         units_json: r.units_json, folder_id: r.folder_id,
         sort_order: r.sort_order ?? 0, due_date: r.due_date,
         performance_tempo: r.performance_tempo,
+        kept_at: r.kept_at ?? null,
         document_id: r.document_id, regions_json: r.regions_json,
         updated_at: r.updated_at, deleted_at: r.deleted_at,
       };
@@ -1256,14 +1257,15 @@ async function applyPiece(c: Row): Promise<void> {
   if (!local) {
     if (c.deleted_at) return; // never materialize already-deleted music
     await db.runAsync(
-      `INSERT INTO pieces (id, title, composer, source_kind, source_uri, thumbnail_uri, original_uri, units_json, folder_id, sort_order, due_date, performance_tempo, document_id, regions_json, annotation_data, annotation_image_uri, annotation_saved_at, annotation_mirrored_at, created_at, updated_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL);`,
+      `INSERT INTO pieces (id, title, composer, source_kind, source_uri, thumbnail_uri, original_uri, units_json, folder_id, sort_order, due_date, performance_tempo, kept_at, document_id, regions_json, annotation_data, annotation_image_uri, annotation_saved_at, annotation_mirrored_at, created_at, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL);`,
       c.id as string, c.title as string, (c.composer as string) ?? null,
       (c.source_kind as string) ?? 'image', (c.source_uri as string) ?? '',
       (c.thumbnail_uri as string) ?? null, (c.original_uri as string) ?? null,
       (c.units_json as string) ?? null, (c.folder_id as string) ?? null,
       (c.sort_order as number) ?? 0, (c.due_date as number) ?? null,
-      (c.performance_tempo as number) ?? null, (c.document_id as string) ?? null,
+      (c.performance_tempo as number) ?? null, (c.kept_at as number) ?? null,
+      (c.document_id as string) ?? null,
       (c.regions_json as string) ?? null, (c.annotation_data as string) ?? null,
       (c.annotation_image_uri as string) ?? null,
       c.created_at as number, c.updated_at as number,
@@ -1274,10 +1276,11 @@ async function applyPiece(c: Row): Promise<void> {
   // Asset URI columns deliberately untouched on updates: local files stay
   // the iPad's source of truth.
   await db.runAsync(
-    `UPDATE pieces SET title = ?, composer = ?, units_json = ?, folder_id = ?, sort_order = ?, due_date = ?, performance_tempo = ?, document_id = ?, regions_json = ?, updated_at = ?, deleted_at = ? WHERE id = ?;`,
+    `UPDATE pieces SET title = ?, composer = ?, units_json = ?, folder_id = ?, sort_order = ?, due_date = ?, performance_tempo = ?, kept_at = ?, document_id = ?, regions_json = ?, updated_at = ?, deleted_at = ? WHERE id = ?;`,
     c.title as string, (c.composer as string) ?? null, (c.units_json as string) ?? null,
     (c.folder_id as string) ?? null, (c.sort_order as number) ?? 0,
     (c.due_date as number) ?? null, (c.performance_tempo as number) ?? null,
+    (c.kept_at as number) ?? null,
     (c.document_id as string) ?? null, (c.regions_json as string) ?? null,
     c.updated_at as number, (c.deleted_at as number) ?? null, c.id as string,
   );
