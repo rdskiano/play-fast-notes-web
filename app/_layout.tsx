@@ -20,7 +20,7 @@
 //     components/HelpContext.
 
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Redirect, router, Stack, usePathname } from 'expo-router';
+import { Redirect, Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, type ReactNode } from 'react';
 import { LogBox, Platform } from 'react-native';
@@ -45,10 +45,7 @@ import { StitchHost } from '@/components/StitchHost';
 import { StrategyColorsProvider } from '@/components/StrategyColorsContext';
 import { TourProvider } from '@/components/tour/TourContext';
 import { ONBOARDING_FUNNEL_ENABLED } from '@/constants/onboardingFunnel';
-import {
-  startIncomingShareListener,
-  subscribeIncomingShare,
-} from '@/lib/files/incomingShare';
+import { startIncomingShareListener } from '@/lib/files/incomingShare';
 import { useSession } from '@/lib/supabase/auth';
 import { registerServiceWorker } from '@/lib/sw/registerServiceWorker';
 import { startupMigrate } from '@/lib/startup/migrate';
@@ -92,21 +89,16 @@ export default function RootLayout() {
     void registerServiceWorker();
   }, []);
 
-  // Share-sheet PDF import (native; web stubs are inert). A PDF shared to us
-  // from another app becomes a "pending share"; this layer only steers the
-  // user to the library, which consumes it into the Add window's name step
-  // on focus (so cold starts through the auth gate work without ordering
-  // games). SHARE_SHEET_IMPORT_PLAN.md has the full picture.
+  // Share-sheet PDF import (native; web stubs are inert). This listener only
+  // CAPTURES the shared file as a "pending share"; navigation is handled by
+  // app/+native-intent.tsx, which rewrites the incoming file path to
+  // /library — where the pending share is consumed into the Add window's
+  // name step on focus. Do not navigate from here as well: an extra
+  // navigate to the already-showing library pushed a fresh copy whose reset
+  // state closed that window (seen in the sim, 2026-09-14).
+  // SHARE_SHEET_IMPORT_PLAN.md has the full picture.
   useEffect(() => {
     startIncomingShareListener();
-    return subscribeIncomingShare(() => {
-      try {
-        router.navigate('/(tabs)/library');
-      } catch {
-        /* router not ready yet — the library consumes the share on its
-           first focus anyway */
-      }
-    });
   }, []);
 
   if (!dbReady) return null;

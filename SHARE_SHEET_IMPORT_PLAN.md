@@ -63,6 +63,30 @@ AirDrop, and forScore. Landing spot: library root (move it later if wanted).
    PDF row desc can say shared-from-other-apps once this ships. Do NOT
    re-add Google Drive/Dropbox picker promises (see BUGS.md B-090 closure).
 
+## Stage 1 — DONE 2026-09-14 (sim-verified)
+
+All implemented and verified in the iPad Air sim (dev client, local
+xcodebuild). TWO bugs found and fixed during verification:
+
+1. First warm test: the Add window opened on the name step and then
+   instantly closed — the layout's own subscription was ALSO navigating to
+   the already-showing library, pushing a fresh copy whose reset state
+   killed the modal. Lesson: never navigate to the route you're on.
+2. Second warm test surfaced the real navigation problem: expo-router
+   consumed the incoming file path as a route → "Unmatched Route" screen.
+   Fix: `app/+native-intent.tsx` (`redirectSystemPath`) rewrites *.pdf
+   system paths to `/library` before routing; everything else passes
+   through. With that in place the layout does NO navigation at all — it
+   only starts the capture listener.
+
+Verified in the sim: share sheet shows "Play Fast" for a PDF; warm share →
+name step → Add → part opens; cancel from the name step returns to the Add
+menu; COLD start (app killed, share from Files) → app boots to the library
+with the name step up, even through the dev-client launcher detour;
+`playfastnotes:///tools` scheme link still routes normally. Cleanup: test
+doc add+delete round-tripped on the live account (soft-deleted, verified
+in Supabase).
+
 ## Verification ladder
 
 1. **Simulator (Claude, free)**: local Xcode build per the sim runbook
