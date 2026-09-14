@@ -82,11 +82,12 @@ export function meterDialFactor(timeSig: string): number {
  * Extended 2026-09-13 to every meter the pattern library uses, one number
  * per meter across ALL groupings (Ralph's dictation): quarter-felt meters
  * start at 120, dotted-quarter meters at 70, eighth-felt /8 meters at 380,
- * 2/8 at 120, sixteenth-felt /16 meters at 380 (the engine's setBpm ceiling
- * is 600). Meters not listed have no start opinion (legacy behaviour).
+ * 2/8 at 170 (Ralph's correction 2026-09-13, was 120), sixteenth-felt /16
+ * meters at 380 (the engine's setBpm ceiling is 600). Meters not listed
+ * have no start opinion (legacy behaviour).
  */
 export const METER_START_BPM: Record<string, number> = {
-  '2/8': 120,
+  '2/8': 170,
   '3/8': 70,
   '6/8': 70,
   '2/4': 120,
