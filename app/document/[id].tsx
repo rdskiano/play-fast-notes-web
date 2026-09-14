@@ -42,6 +42,7 @@ import { PromptModal } from '@/components/PromptModal';
 import { SectionMarkerCapturer } from '@/components/SectionMarkerCapturer';
 import { SectionsModal } from '@/components/SectionsModal';
 import { SessionTopBar } from '@/components/SessionTopBar';
+import { SpotlightHint } from '@/components/SpotlightHint';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -55,6 +56,9 @@ import { getSetting, setSetting } from '@/lib/db/repos/settings';
 // tappable to launch practice. After dismissal (tap or auto-timeout)
 // the flag persists so the toast never appears again, on any PDF.
 const PDF_BOX_COACHED_KEY = 'pdfBox.coached';
+// One-time first-mark spotlight key — the sibling moment: a part with NO
+// passages yet, where the next move ("+ Mark passage") isn't obvious.
+const FIRST_MARK_COACHED_KEY = 'firstMark.coached';
 import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -148,6 +152,9 @@ export default function DocumentScreen() {
   // the persisted flag so we don't flash the toast and then immediately
   // hide it on a returning user.
   const [pdfBoxCoachVisible, setPdfBoxCoachVisible] = useState<boolean | null>(null);
+  // null = not yet decided; true = show the first-mark spotlight now.
+  const [firstMarkHint, setFirstMarkHint] = useState<boolean | null>(null);
+  const markBtnRef = useRef<View | null>(null);
   // Session-only dismissal of the "Mark your first passage" card (the ✕).
   // Deliberately not persisted: the card targets true first-timers on an
   // empty document, and vanishes for good once the first passage exists.
@@ -561,6 +568,46 @@ export default function DocumentScreen() {
     setPdfBoxCoachVisible(false);
     setSetting(PDF_BOX_COACHED_KEY, '1').catch(() => {});
   }
+
+  // One-time first-mark spotlight (Ralph, 2026-09-13): the very first time a
+  // user opens a part that has NO passages yet, dim the screen and spotlight
+  // the "+ Mark passage" button so the next move is obvious. One tap
+  // anywhere dismisses, page turning stays available right after, and the
+  // button itself is live through the spotlight hole. Persisted globally
+  // (one showing, ever) via the same settings pattern as the box coach.
+  // Skipped in coach onboarding, which has its own guidance.
+  useEffect(() => {
+    if (firstMarkHint !== null) return; // already decided
+    if (!doc || pages.length === 0) return; // wait for the real load
+    if (coach) {
+      setFirstMarkHint(false);
+      return;
+    }
+    if (passages.length > 0) {
+      // Not a "what do I do now" moment — and don't burn the flag either:
+      // it should fire on their first EMPTY part, whenever that comes.
+      setFirstMarkHint(false);
+      return;
+    }
+    let cancelled = false;
+    getSetting(FIRST_MARK_COACHED_KEY).then((raw) => {
+      if (cancelled) return;
+      const show = raw !== '1';
+      setFirstMarkHint(show);
+      // Persist at show time (tour-engine convention) so it stays once-ever
+      // even if the user backgrounds the app instead of dismissing.
+      if (show) setSetting(FIRST_MARK_COACHED_KEY, '1').catch(() => {});
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [firstMarkHint, doc, pages.length, passages.length, coach]);
+
+  // The spotlit button is live through the hole — once the user starts
+  // drawing (or any other mode), the hint's moment has passed for good.
+  useEffect(() => {
+    if (firstMarkHint === true && mode !== 'idle') setFirstMarkHint(false);
+  }, [firstMarkHint, mode]);
 
   // Pull per-passage practice status (last date, Tempo Ladder %) on every
   // focus so the box badges reflect what happened during the just-finished
@@ -1118,12 +1165,15 @@ export default function DocumentScreen() {
                     onPress={() => addPageRef.current?.trigger()}
                   />
                 )}
-                <Button
-                  label="+ Mark passage"
-                  variant="primary"
-                  size="sm"
-                  onPress={startDraw}
-                />
+                {/* Wrapper ref anchors the one-time first-mark spotlight. */}
+                <View ref={markBtnRef} collapsable={false}>
+                  <Button
+                    label="+ Mark passage"
+                    variant="primary"
+                    size="sm"
+                    onPress={startDraw}
+                  />
+                </View>
                 <ThemedText style={styles.counter}>
                   {pageCounterLabel(currentIndex, pages.length, viewMode)}
                 </ThemedText>
@@ -1827,6 +1877,22 @@ export default function DocumentScreen() {
       />
 
       {docAnn.overlay}
+
+      {/* One-time first-mark spotlight: dims the screen and rings the
+          "+ Mark passage" button the first time a user ever lands on a
+          part with nothing marked. The button stays live through the
+          hole; a tap anywhere else dismisses. Rendered LAST so its dim
+          layer sits above the floating practice tools (they were drawing
+          over the coaching card when this lived mid-tree). */}
+      <SpotlightHint
+        visible={firstMarkHint === true && mode === 'idle'}
+        targetRef={markBtnRef}
+        title="Mark your first passage"
+        body={
+          'Find a spot you want to practice (turn the pages if it isn’t on this one), then tap + Mark passage and draw a box around it. You can mark as many spots as you like.'
+        }
+        onDismiss={() => setFirstMarkHint(false)}
+      />
     </ThemedView>
   );
 }

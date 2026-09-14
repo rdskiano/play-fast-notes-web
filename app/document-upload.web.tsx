@@ -3,6 +3,7 @@ import { useId, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PromptModal } from '@/components/PromptModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
@@ -27,7 +28,10 @@ export default function DocumentUploadScreen() {
   // Prefilled when arriving from IMSLP (the work title + composer of the score
   // being downloaded), so the imported document is labeled correctly.
   const [title, setTitle] = useState(typeof params.title === 'string' ? params.title : '');
-  const [composer, setComposer] = useState(typeof params.composer === 'string' ? params.composer : '');
+  // Naming happens in a pop-up AFTER the file is picked (Ralph, 2026-09-13);
+  // no inline Title/Composer fields. Composer rides along only from IMSLP.
+  const composer = typeof params.composer === 'string' ? params.composer : '';
+  const [namePromptVisible, setNamePromptVisible] = useState(false);
   const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +50,8 @@ export default function DocumentUploadScreen() {
         const nameNoExt = file.name.replace(/\.pdf$/i, '');
         setTitle(nameNoExt);
       }
+      // File's in — go straight to the name pop-up: pick → confirm name → done.
+      setNamePromptVisible(true);
       return;
     }
     // Several PDFs → batch mode: one row per part, titles from filenames.
@@ -60,13 +66,13 @@ export default function DocumentUploadScreen() {
   }
 
   const isBatch = batch.length > 0;
+  // The name arrives via the pop-up when the button is pressed, so a missing
+  // title no longer disables it (batch rows still each need one).
   const canSave =
     !saving &&
-    (isBatch
-      ? batch.every((b) => b.title.trim().length > 0)
-      : !!picked && title.trim().length > 0);
+    (isBatch ? batch.every((b) => b.title.trim().length > 0) : !!picked);
 
-  async function onSave() {
+  async function onSave(nameArg?: string) {
     if (!canSave) return;
     setError(null);
     if (isBatch) {
@@ -102,11 +108,13 @@ export default function DocumentUploadScreen() {
       return;
     }
     if (!picked) return;
+    const finalTitle = (nameArg ?? title).trim();
+    if (!finalTitle) return;
     setProgress({ phase: 'uploading', pages_done: 0, pages_total: 0 });
     try {
       const document = await uploadPdfDocument({
         file: picked,
-        title: title.trim(),
+        title: finalTitle,
         composer: composer.trim() ? composer.trim() : null,
         folder_id: targetFolderId,
         onProgress: (p) => setProgress(p),
@@ -206,34 +214,6 @@ export default function DocumentUploadScreen() {
             </View>
           )}
 
-          {!isBatch && (
-            <>
-              <ThemedText style={styles.fieldLabel}>Title</ThemedText>
-              <TextInput
-                value={title}
-                onChangeText={setTitle}
-                placeholder="e.g. Mahler 9 — Clarinet I"
-                placeholderTextColor={Palette.textMuted}
-                style={styles.input}
-              />
-            </>
-          )}
-
-          {/* No composer in batch mode — five titles with one shared composer
-              makes no sense (Ralph, 2026-09-02). */}
-          {!isBatch && (
-            <>
-              <ThemedText style={styles.fieldLabel}>Composer (optional)</ThemedText>
-              <TextInput
-                value={composer}
-                onChangeText={setComposer}
-                placeholder="e.g. Gustav Mahler"
-                placeholderTextColor={Palette.textMuted}
-                style={styles.input}
-              />
-            </>
-          )}
-
           {progress && (
             <View style={styles.progressCard}>
               {batchLabel && (
@@ -266,15 +246,40 @@ export default function DocumentUploadScreen() {
       <Pressable
         style={[styles.saveBtn, { backgroundColor: canSave ? Palette.accent : Palette.surfaceSunk }]}
         disabled={!canSave}
-        onPress={onSave}>
+        onPress={() => {
+          // Batch rows carry their own titles; a single PDF gets named in the
+          // pop-up, which doubles as the confirm step.
+          if (isBatch) void onSave();
+          else setNamePromptVisible(true);
+        }}>
         {saving ? (
           <ActivityIndicator color="#fff" />
         ) : (
           <ThemedText style={[styles.saveText, { color: canSave ? '#fff' : Palette.textMuted }]}>
-            {isBatch ? `Upload ${batch.length} parts` : 'Upload + render'}
+            {isBatch ? `Add ${batch.length} parts` : 'Add to library'}
           </ThemedText>
         )}
       </Pressable>
+
+      {/* The one place naming happens: pops right after the PDF is picked and
+          again from the button if the first prompt was dismissed. Pre-filled
+          from the filename / IMSLP title. */}
+      <PromptModal
+        visible={namePromptVisible}
+        title="Name this part"
+        message="So you can find it in your library."
+        initialValue={title}
+        placeholder="e.g. Mahler 9, Clarinet I"
+        submitLabel="Add to library"
+        onSubmit={(name) => {
+          const trimmed = name.trim();
+          if (!trimmed) return;
+          setNamePromptVisible(false);
+          setTitle(trimmed);
+          void onSave(trimmed);
+        }}
+        onCancel={() => setNamePromptVisible(false)}
+      />
 
       <TutorialStep
         id="upload-document"
@@ -282,8 +287,8 @@ export default function DocumentUploadScreen() {
         title="Add a full part (PDF)"
         body={
           "Tap \"Pick PDF\" to choose a multi-page PDF of an entire piece or part. Each page gets rendered into the app so you can mark individual passages on top of it later.\n\n" +
-          "Give it a Title — this is required, and \"Upload + render\" stays greyed out until both a PDF and a title are set. It auto-fills from the file's name once you pick a PDF, but you can edit it. Composer is optional.\n\n" +
-          "Tap \"Upload + render\" to send the PDF up and render its pages. Once it's done you'll land on the PDF viewer, where you can chop the part into the passages you actually want to drill."
+          "As soon as you pick a file, a pop-up asks you to name it — it's pre-filled from the file's name, so usually you just tap \"Add to library\".\n\n" +
+          "Once it's done you'll land on the PDF viewer, where you can chop the part into the passages you actually want to drill."
         }
       />
     </ThemedView>

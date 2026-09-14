@@ -1,7 +1,8 @@
+import Feather from '@expo/vector-icons/Feather';
 import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 // NOTE: react-native-document-scanner-plugin is iOS-only and runs a
 // TurboModule lookup the instant it's imported — which throws on web
@@ -11,6 +12,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View }
 // require()'d inside scanPages() instead (require, not dynamic import(),
 // which breaks Hermes on native).
 
+import { CollapsibleHelp } from '@/components/CollapsibleHelp';
+import { PromptModal } from '@/components/PromptModal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Lift, Palette } from '@/constants/palette';
@@ -42,7 +45,14 @@ function newPageId(): string {
 
 export default function DocumentUploadScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ folder?: string; title?: string; composer?: string; imslp?: string }>();
+  const params = useLocalSearchParams<{
+    folder?: string;
+    title?: string;
+    composer?: string;
+    imslp?: string;
+    pick?: string;
+    scan?: string;
+  }>();
   const folderId = params.folder ? params.folder : null;
   const fromImslp = params.imslp === '1';
   const scheme = useColorScheme() ?? 'light';
@@ -53,25 +63,39 @@ export default function DocumentUploadScreen() {
   const [scanned, setScanned] = useState<ScannedPage[]>([]);
   // Prefilled when arriving from IMSLP, so the imported part is labeled right.
   const [title, setTitle] = useState(typeof params.title === 'string' ? params.title : '');
-  const [composer, setComposer] = useState(typeof params.composer === 'string' ? params.composer : '');
+  // Naming happens in a pop-up AFTER a file/scans are in (Ralph, 2026-09-13:
+  // "nobody's going to be entering it before they upload it") — there are no
+  // inline Title/Composer fields anymore. Composer rides along only when IMSLP
+  // hands it to us.
+  const composer = typeof params.composer === 'string' ? params.composer : '';
+  const [namePromptVisible, setNamePromptVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function pickPdf() {
+  async function pickPdf(opts?: { backOnCancel?: boolean }) {
     setError(null);
     const res = await DocumentPicker.getDocumentAsync({
       type: 'application/pdf',
       copyToCacheDirectory: true,
       multiple: true,
     });
-    if (res.canceled || !res.assets || res.assets.length === 0) return;
+    if (res.canceled || !res.assets || res.assets.length === 0) {
+      // Auto-launched from the library's Add menu: a cancel means there's
+      // nothing to name here, so return to the library instead of stranding
+      // the user on an empty screen they never asked for.
+      if (opts?.backOnCancel) router.back();
+      return;
+    }
     setScanned([]);
     if (res.assets.length === 1) {
       const asset = res.assets[0];
       setBatch([]);
       setPicked({ uri: asset.uri, name: asset.name ?? 'document.pdf' });
       if (!title.trim()) setTitle((asset.name ?? '').replace(/\.pdf$/i, ''));
+      // File's in — go straight to the name pop-up so the whole flow is
+      // pick → confirm name → done.
+      setNamePromptVisible(true);
       return;
     }
     // Several PDFs → batch mode: one row per part, titles from filenames.
@@ -98,11 +122,14 @@ export default function DocumentUploadScreen() {
   }
 
   // First scan starts the page list; later runs append to it ("Scan more pages").
-  async function scanPages() {
+  async function scanPages(opts?: { backOnCancel?: boolean }) {
     setError(null);
     try {
       const imgs = await runScanner();
-      if (!imgs) return;
+      if (!imgs) {
+        if (opts?.backOnCancel) router.back();
+        return;
+      }
       setPicked(null);
       setBatch([]);
       setScanned((prev) => [...prev, ...imgs.map((uri) => ({ id: newPageId(), uri }))]);
@@ -130,17 +157,40 @@ export default function DocumentUploadScreen() {
     }
   }
 
+  // The library's Add menu jumps straight into the Files picker (pick=1) or
+  // the camera scanner (scan=1), so this screen normally appears only once
+  // there's something to name. Fire once on mount; cancelling goes back.
+  const autoLaunched = useRef(false);
+  useEffect(() => {
+    if (autoLaunched.current) return;
+    autoLaunched.current = true;
+    if (params.scan !== '1' && params.pick !== '1') return;
+    // Wait out the Add-menu modal dismissal + the push transition: iOS
+    // refuses to present a picker/scanner view controller while another
+    // presentation is still animating, and the refusal is silent — the
+    // screen just sits there (seen on the 2026-09-13 sim test).
+    const t = setTimeout(() => {
+      if (params.scan === '1') void scanPages({ backOnCancel: true });
+      else void pickPdf({ backOnCancel: true });
+    }, 450);
+    return () => clearTimeout(t);
+    // Mount-only hand-off from the library's Add menu.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const isBatch = batch.length > 0;
   const hasSource = !!picked || isBatch || scanned.length > 0;
+  // The name arrives via the pop-up when Add is tapped, so a missing title
+  // no longer disables the button (batch rows still each need one).
   const canAdd =
     hasSource &&
     !busy &&
-    (isBatch
-      ? batch.every((b) => b.title.trim().length > 0)
-      : title.trim().length > 0);
+    (isBatch ? batch.every((b) => b.title.trim().length > 0) : true);
 
-  async function onAdd() {
+  async function onAdd(nameArg?: string) {
     if (!canAdd) return;
+    const finalTitle = (nameArg ?? title).trim();
+    if (!isBatch && !finalTitle) return;
     setBusy(true);
     setError(null);
     try {
@@ -179,7 +229,7 @@ export default function DocumentUploadScreen() {
       if (picked) {
         ({ docId } = await addPdfDocument({
           fileUri: picked.uri,
-          title,
+          title: finalTitle,
           composer,
           folderId,
           onProgress: setProgress,
@@ -187,7 +237,7 @@ export default function DocumentUploadScreen() {
       } else {
         ({ docId } = await addScannedDocument({
           imageUris: scanned.map((p) => p.uri),
-          title,
+          title: finalTitle,
           composer,
           folderId,
           onProgress: setProgress,
@@ -212,15 +262,10 @@ export default function DocumentUploadScreen() {
             (free — non-members wait ~15 seconds). Save it to Files, then choose
             it below. Title and composer are filled in for you.
           </ThemedText>
-        ) : (
+        ) : hasSource ? null : (
           <ThemedText style={{ opacity: 0.6, fontSize: Type.size.sm }}>
-            Choose a PDF, or scan pages with the camera (auto-cropped and cleaned to
-            black &amp; white). After it&apos;s added you can mark passages inside it.
-            {'\n\n'}Tip: in the scanner, switch Auto to Manual (top right) to check
-            and fix each page&apos;s corners as you shoot.
-            {'\n\n'}Tip: for a bound part (facing pages with a center fold), a
-            dedicated scanner app like Genius Scan splits the pages better.
-            Scan there, save the PDF to Files, then Choose PDF here.
+            Choose a PDF from Files, or scan paper pages with the camera. After
+            it&apos;s added you can mark passages inside it.
           </ThemedText>
         )}
 
@@ -231,24 +276,42 @@ export default function DocumentUploadScreen() {
             <Pressable
               style={[styles.pickBtn, { backgroundColor: C.tint, flex: 1 }]}
               disabled={busy}
-              onPress={pickPdf}>
-              <ThemedText style={styles.pickText}>Choose PDF</ThemedText>
+              onPress={() => pickPdf()}>
+              <ThemedText style={styles.pickText}>
+                {picked || isBatch ? 'Choose a different PDF' : 'From Files'}
+              </ThemedText>
+              {!picked && !isBatch && (
+                <ThemedText style={styles.pickSub}>
+                  iCloud, Google Drive, Dropbox
+                </ThemedText>
+              )}
             </Pressable>
           )}
-          <Pressable
-            style={[styles.pickBtn, { backgroundColor: C.tint, flex: 1 }]}
-            disabled={busy}
-            onPress={scanPages}>
-            <ThemedText style={styles.pickText}>
-              {scanned.length > 0 ? 'Scan more pages' : 'Scan pages'}
-            </ThemedText>
-          </Pressable>
+          {/* A picked PDF is a done deal — scanning would silently replace it,
+              so the scan button only shows while nothing is chosen yet. */}
+          {!picked && !isBatch && (
+            <Pressable
+              style={[styles.pickBtn, { backgroundColor: C.tint, flex: 1 }]}
+              disabled={busy}
+              onPress={() => scanPages()}>
+              <ThemedText style={styles.pickText}>
+                {scanned.length > 0 ? 'Scan more pages' : 'Scan pages'}
+              </ThemedText>
+              {scanned.length === 0 && (
+                <ThemedText style={styles.pickSub}>auto-cropped, black and white</ThemedText>
+              )}
+            </Pressable>
+          )}
         </View>
 
         {picked && (
-          <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.8 }}>
-            Selected: {picked.name}
-          </ThemedText>
+          <View style={styles.fileChip}>
+            <Feather name="file-text" size={16} color={C.tint} />
+            <ThemedText style={styles.fileChipName} numberOfLines={1}>
+              {picked.name}
+            </ThemedText>
+            <Feather name="check" size={18} color={Palette.success} />
+          </View>
         )}
 
         {isBatch && (
@@ -305,42 +368,23 @@ export default function DocumentUploadScreen() {
               ))}
             </ScrollView>
             <ThemedText style={styles.pagesHint}>
-              Tap a page to rescan just that page. Now name your piece below.
+              Tap a page to rescan just that page. Done? Tap Add to library.
             </ThemedText>
           </View>
         )}
 
-        {!isBatch && (
-          <>
-            <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.7 }}>Title</ThemedText>
-            <TextInput
-              value={title}
-              onChangeText={setTitle}
-              editable={!busy}
-              placeholder="e.g. Mahler 9 — Clarinet I"
-              placeholderTextColor={C.icon}
-              style={[styles.input, { borderColor: C.icon, color: C.text }]}
-            />
-          </>
-        )}
-
-        {/* No composer in batch mode — five titles with one shared composer
-            makes no sense (Ralph, 2026-09-02); composer stays a single-part
-            nicety. */}
-        {!isBatch && (
-          <>
+        {/* The scanner coaching used to be a permanent paragraph up top; it
+            only matters when scanning, so it now folds away here. */}
+        {!fromImslp && (scanned.length > 0 || !hasSource) && (
+          <CollapsibleHelp title="Scanning tips">
             <ThemedText style={{ fontSize: Type.size.sm, opacity: 0.7 }}>
-              Composer (optional)
+              In the scanner, switch Auto to Manual (top right) to check and fix
+              each page&apos;s corners as you shoot.
+              {'\n\n'}For a bound part (facing pages with a center fold), a
+              dedicated scanner app like Genius Scan splits the pages better.
+              Scan there, save the PDF to Files, then add it with From Files.
             </ThemedText>
-            <TextInput
-              value={composer}
-              onChangeText={setComposer}
-              editable={!busy}
-              placeholder="e.g. Gustav Mahler"
-              placeholderTextColor={C.icon}
-              style={[styles.input, { borderColor: C.icon, color: C.text }]}
-            />
-          </>
+          </CollapsibleHelp>
         )}
 
         {progress && (
@@ -354,7 +398,12 @@ export default function DocumentUploadScreen() {
       <Pressable
         style={[styles.addBtn, { backgroundColor: canAdd ? C.tint : C.icon }]}
         disabled={!canAdd}
-        onPress={onAdd}>
+        onPress={() => {
+          // Batch rows carry their own titles; single PDF / scans get named
+          // in the pop-up, which is also how the flow confirms the add.
+          if (isBatch) void onAdd();
+          else setNamePromptVisible(true);
+        }}>
         {busy ? (
           <ActivityIndicator color="#fff" />
         ) : (
@@ -363,6 +412,26 @@ export default function DocumentUploadScreen() {
           </ThemedText>
         )}
       </Pressable>
+
+      {/* The one place naming happens: pops right after a PDF is picked, and
+          again from the Add button (scans, or if the first prompt was
+          dismissed). Pre-filled from the filename / IMSLP title. */}
+      <PromptModal
+        visible={namePromptVisible}
+        title="Name this part"
+        message="So you can find it in your library."
+        initialValue={title}
+        placeholder="e.g. Mahler 9, Clarinet I"
+        submitLabel="Add to library"
+        onSubmit={(name) => {
+          const trimmed = name.trim();
+          if (!trimmed) return;
+          setNamePromptVisible(false);
+          setTitle(trimmed);
+          void onAdd(trimmed);
+        }}
+        onCancel={() => setNamePromptVisible(false)}
+      />
     </ThemedView>
   );
 }
@@ -378,6 +447,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pickText: { color: '#fff', fontWeight: Type.weight.bold, fontSize: Type.size.md },
+  pickSub: { color: '#D9EAF1', fontWeight: Type.weight.semibold, fontSize: Type.size.xs },
+  fileChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Palette.card,
+    borderWidth: Borders.thin,
+    borderColor: Palette.border,
+    borderRadius: Radii.lg,
+    padding: Spacing.md,
+    ...Lift,
+  },
+  fileChipName: {
+    flex: 1,
+    fontWeight: Type.weight.semibold,
+    fontSize: Type.size.sm,
+  },
   input: {
     borderWidth: 1,
     borderRadius: Radii.md,
