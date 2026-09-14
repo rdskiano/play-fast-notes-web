@@ -27,11 +27,16 @@ AirDrop, and forScore. Landing spot: library root (move it later if wanted).
      file into our sandbox at `Documents/Inbox/<name>.pdf` and launches the
      app with that file URL. We want the copy (addPdfDocument persists its
      own copy anyway; Inbox is not a place to keep files).
-   - Version: 1.1.1 → **1.2.0**. ⚠️ eas.json has `appVersionSource:
-     "remote"` — bump BOTH app.json's `version` (drives the runtime version
-     that `eas update` computes locally) AND the remote (`eas
-     build:version:get` / `build:version:set`) so the build's runtime and
-     future OTA publishes agree. Mismatch = OTAs that reach nobody.
+   - Version: 1.1.1 → **1.2.0**, but ONLY at Stage 2 (build time), not with
+     the Stage-1 code. Bumping early would make interim `eas update`
+     publishes target runtime 1.2.0 — reaching nobody, since every install
+     is still on 1.1.1. The Stage-1 JS ships dormant on 1.1.1 binaries
+     (they never receive file:// URLs without the Info.plist entry).
+     ⚠️ At bump time: eas.json has `appVersionSource: "remote"` — bump BOTH
+     app.json's `version` (drives the runtime version that `eas update`
+     computes locally) AND the remote (`eas build:version:get` /
+     `build:version:set`) so the build's runtime and future OTA publishes
+     agree. Mismatch = OTAs that reach nobody.
 
 2. **`lib/files/incomingShare.ts`** (native) + `.web.ts` no-op:
    - `Linking.getInitialURL()` (cold start) + `Linking.addEventListener('url')`

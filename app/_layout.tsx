@@ -20,7 +20,7 @@
 //     components/HelpContext.
 
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Redirect, Stack, usePathname } from 'expo-router';
+import { Redirect, router, Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, type ReactNode } from 'react';
 import { LogBox, Platform } from 'react-native';
@@ -45,6 +45,10 @@ import { StitchHost } from '@/components/StitchHost';
 import { StrategyColorsProvider } from '@/components/StrategyColorsContext';
 import { TourProvider } from '@/components/tour/TourContext';
 import { ONBOARDING_FUNNEL_ENABLED } from '@/constants/onboardingFunnel';
+import {
+  startIncomingShareListener,
+  subscribeIncomingShare,
+} from '@/lib/files/incomingShare';
 import { useSession } from '@/lib/supabase/auth';
 import { registerServiceWorker } from '@/lib/sw/registerServiceWorker';
 import { startupMigrate } from '@/lib/startup/migrate';
@@ -86,6 +90,23 @@ export default function RootLayout() {
   // resolves to a no-op via the .ts/.web.ts split, so this is safe unguarded.
   useEffect(() => {
     void registerServiceWorker();
+  }, []);
+
+  // Share-sheet PDF import (native; web stubs are inert). A PDF shared to us
+  // from another app becomes a "pending share"; this layer only steers the
+  // user to the library, which consumes it into the Add window's name step
+  // on focus (so cold starts through the auth gate work without ordering
+  // games). SHARE_SHEET_IMPORT_PLAN.md has the full picture.
+  useEffect(() => {
+    startIncomingShareListener();
+    return subscribeIncomingShare(() => {
+      try {
+        router.navigate('/(tabs)/library');
+      } catch {
+        /* router not ready yet — the library consumes the share on its
+           first focus anyway */
+      }
+    });
   }, []);
 
   if (!dbReady) return null;

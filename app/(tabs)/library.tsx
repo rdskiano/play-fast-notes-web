@@ -17,6 +17,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionSheet, type ActionSheetItem } from '@/components/ActionSheet';
 import { AddPdfFlow, pickPdfAssets, type PickedPdf } from '@/components/AddPdfFlow';
+import {
+  consumePendingShare,
+  subscribeIncomingShare,
+} from '@/lib/files/incomingShare';
 import { AddPhotoFlow } from '@/components/AddPhotoFlow';
 import { Button } from '@/components/Button';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -540,6 +544,27 @@ export default function LibraryScreen() {
   // point at it.
   const [pickedAssets, setPickedAssets] = useState<PickedPdf[] | null>(null);
   const pendingPickRef = useRef(false);
+  // Share-sheet import (native): a PDF pushed to us from another app waits
+  // as a "pending share" until this screen is focused, then opens the Add
+  // window straight on the name step — the same initialAssets plumbing a
+  // Files pick uses. Busy guard: while an add is uploading, leave the share
+  // pending (it opens after) rather than clobbering the running flow.
+  const addFlowBusyRef = useRef(false);
+  addFlowBusyRef.current = addFlowBusy;
+  useFocusEffect(
+    useCallback(() => {
+      const maybeOpenShare = () => {
+        if (addFlowBusyRef.current) return;
+        const f = consumePendingShare();
+        if (!f) return;
+        setPickedAssets([{ uri: f.uri, name: f.name }]);
+        setAddFlow('pick');
+        setAddOpen(true);
+      };
+      maybeOpenShare();
+      return subscribeIncomingShare(maybeOpenShare);
+    }, []),
+  );
   const runPendingPick = useCallback(() => {
     if (!pendingPickRef.current) return;
     pendingPickRef.current = false;
