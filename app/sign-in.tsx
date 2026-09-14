@@ -296,7 +296,7 @@ export default function SignInScreen() {
             ? directSignup
               ? 'Your email is only how we save your music and progress, so everything is here when you come back.'
               : "Your email is only how we save your music and progress (Flight of the Bumblebee, your parts, your practice) so they're here when you come back."
-            : 'Sign in with your email and password.'}
+            : 'Signing in is what saves your music and practice history to your account, so everything is here on any device.'}
         </ThemedText>
 
         {directSignup && (
