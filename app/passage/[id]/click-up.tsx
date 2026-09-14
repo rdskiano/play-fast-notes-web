@@ -36,7 +36,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Fonts } from '@/constants/theme';
 import { Lift, Palette } from '@/constants/palette';
-import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP, SHORTCUT_HINT_NEXT_BACK } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
@@ -49,6 +49,8 @@ import { tourTag, type TourStep } from '@/components/tour/types';
 import { ActionSheet } from '@/components/ActionSheet';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { useMicrobreakTimer } from '@/components/PracticeTimersContext';
+import { ScoreSpanBox } from '@/components/ScoreSpanBox';
+import { getSetting, setSetting } from '@/lib/db/repos/settings';
 import { activePairMarkers, mapUnitsToScore } from '@/lib/strategies/clickUp';
 import {
   actionButtonStyle,
@@ -63,6 +65,14 @@ import {
 // StrategyColors context + the log). Themes the run screen's NEXT button,
 // title dot, and quiet links.
 const ACCENT = Palette.accent;
+
+// Persisted run-screen view choice (2026-09-13, follows Macro-Chaining's
+// pattern): 'arrows' (the classic green ▼ pair — DEFAULT until Ralph has
+// practiced with the alternative) or 'boxed' (the whole photo lightly
+// faded, the active span in full contrast inside green boxes that grow as
+// the climb adds units). Guided onboarding sessions always use arrows.
+const ICU_VIEW_KEY = 'icu_view_mode';
+type IcuView = 'arrows' | 'boxed';
 
 // How far (px, pre-zoom) the unit number/arrow floats ABOVE the tapped note —
 // so the user taps right on the note and the cue registers clearly above it.
@@ -151,6 +161,18 @@ export default function ClickUpScreen() {
   const [notePromptVisible, setNotePromptVisible] = useState(false);
   // Momentary look at the source page while setting tempos (config phase).
   const [peekOpen, setPeekOpen] = useState(false);
+  // Run-screen view: classic green arrows (default) or the boxed active
+  // span. Persisted per account; guided sessions always show arrows.
+  const [icuView, setIcuView] = useState<IcuView>('arrows');
+  useEffect(() => {
+    getSetting(ICU_VIEW_KEY).then((v) => {
+      if (v === 'arrows' || v === 'boxed') setIcuView(v);
+    });
+  }, []);
+  function pickIcuView(v: IcuView) {
+    setIcuView(v);
+    setSetting(ICU_VIEW_KEY, v).catch(() => {});
+  }
   const session = useClickUpSession(id, isGuided, {
     startScale: startScale ? parseFloat(startScale) : undefined,
   });
@@ -850,6 +872,10 @@ export default function ClickUpScreen() {
     activePair != null
       ? markers.filter((m) => m.index === activePair[0] || m.index === activePair[1])
       : [];
+  // Boxed view swaps the two ▼ arrows for full-contrast boxes around the
+  // active span (ScoreSpanBox). Guided onboarding always keeps the arrows —
+  // its coach copy teaches them.
+  const boxed = !isGuided && icuView === 'boxed' && activePair != null;
   // Capstone steps get their own label: "UNITS 1–4" undersells the moment.
   const unitLabel = step?.runThrough
     ? 'FULL RUN'
@@ -968,11 +994,55 @@ export default function ClickUpScreen() {
               screens keep it. */}
           {!isPhoneLandscape && (
             <ThemedText style={styles.playHelper}>
-              {step?.runThrough
-                ? 'Goal tempo! Play everything between the green arrows ▼ in one run, then add the next unit.'
-                : 'Play from one green arrow ▼ to the next.'}
+              {boxed
+                ? step?.runThrough
+                  ? 'Goal tempo! Play everything in the green boxes in one run, then add the next unit.'
+                  : 'Play everything inside the green boxes.'
+                : step?.runThrough
+                  ? 'Goal tempo! Play everything between the green arrows ▼ in one run, then add the next unit.'
+                  : 'Play from one green arrow ▼ to the next.'}
             </ThemedText>
           )}
+
+          {/* View switch: classic arrows or the boxed active span. */}
+          <View style={styles.viewRow}>
+            <View style={styles.viewSegGroup}>
+              <Pressable
+                onPress={() => pickIcuView('arrows')}
+                accessibilityRole="button"
+                accessibilityState={{ selected: icuView === 'arrows' }}
+                style={[
+                  styles.viewSeg,
+                  styles.viewSegLeft,
+                  icuView === 'arrows' && {
+                    backgroundColor: ACCENT,
+                    borderColor: ACCENT,
+                  },
+                ]}>
+                <ThemedText
+                  style={[styles.viewSegText, icuView === 'arrows' && styles.viewSegTextOn]}>
+                  Arrows
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => pickIcuView('boxed')}
+                accessibilityRole="button"
+                accessibilityState={{ selected: icuView === 'boxed' }}
+                style={[
+                  styles.viewSeg,
+                  styles.viewSegRight,
+                  icuView === 'boxed' && {
+                    backgroundColor: ACCENT,
+                    borderColor: ACCENT,
+                  },
+                ]}>
+                <ThemedText
+                  style={[styles.viewSegText, icuView === 'boxed' && styles.viewSegTextOn]}>
+                  Boxed
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
         </>
       )}
 
@@ -1025,15 +1095,20 @@ export default function ClickUpScreen() {
           },
         ]}>
         <View style={{ flex: 1, width: '100%', position: 'relative' }}>
-          {isTouch ? (
-            // Phone: wrap the score in a pinch+pan container so notes
-            // are readable on a small screen. ScoreWithMarkers's ▼
-            // arrow markers live inside the same transform, so they
-            // zoom and pan in lockstep with the underlying image and
-            // stay pinned to their correct positions on the staff.
-            <ZoomableImage
-              style={StyleSheet.absoluteFill}
-              persistKey={passage.id}>
+          {(() => {
+            // Boxed view: whole photo lightly faded, active span boxed in
+            // green. Arrows view: the classic ▼ pair. Both live inside the
+            // same pinch+pan container on touch devices so their overlays
+            // zoom in lockstep with the image.
+            const score = boxed && activePair != null ? (
+              <ScoreSpanBox
+                uri={passage.source_uri}
+                marks={markers}
+                startIndex={activePair[0]}
+                endIndex={activePair[1]}
+                accent={Status.success}
+              />
+            ) : (
               <ScoreWithMarkers
                 uri={passage.source_uri}
                 markers={activeMarkers}
@@ -1041,16 +1116,15 @@ export default function ClickUpScreen() {
                 activePair={activePair}
                 playLiftPx={ICU_MARK_LIFT}
               />
-            </ZoomableImage>
-          ) : (
-            <ScoreWithMarkers
-              uri={passage.source_uri}
-              markers={activeMarkers}
-              mode="play"
-              activePair={activePair}
-              playLiftPx={ICU_MARK_LIFT}
-            />
-          )}
+            );
+            return isTouch ? (
+              <ZoomableImage style={StyleSheet.absoluteFill} persistKey={passage.id}>
+                {score}
+              </ZoomableImage>
+            ) : (
+              score
+            );
+          })()}
           {ann.canvas}
         </View>
         {/* Guided: just a collapsed metronome tab (no note → starts closed),
@@ -1392,6 +1466,34 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     lineHeight: 18,
   },
+  // ── Run-screen view switch (arrows / boxed) — same furniture as
+  // Macro-Chaining's toggle so the two screens read as one convention. ──
+  viewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 4,
+  },
+  viewSegGroup: { flexDirection: 'row' },
+  viewSeg: {
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    borderColor: Palette.borderStrong,
+    backgroundColor: Palette.card,
+  },
+  viewSegLeft: { borderTopLeftRadius: 999, borderBottomLeftRadius: 999 },
+  viewSegRight: {
+    borderTopRightRadius: 999,
+    borderBottomRightRadius: 999,
+    borderLeftWidth: 0,
+  },
+  viewSegText: {
+    fontSize: 11,
+    fontWeight: Type.weight.heavy,
+    color: Palette.textSecondary,
+  },
+  viewSegTextOn: { color: '#fff' },
   // ── Reskinned run top bar (mirrors Tempo Ladder) ─────────────────
   // Phone variants: Exit row on top (tools pill floats at its right), the
   // tracker pill on its own full-width row beneath (2026-09-03).

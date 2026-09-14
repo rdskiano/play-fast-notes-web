@@ -47,9 +47,12 @@ const BAND_PAD = 0.02;
 const ROW_START_PAD = 0.038;
 // Where a line of music ends, normalized (staff lines run to the photo edge).
 const LINE_END = 0.995;
-// Slice padding: a little room left of the start mark, and enough past the
-// end mark to show the landing note it plays into.
-const PAD_LEFT = 0.01;
+// Slice padding: room left of the start mark and enough past the end mark
+// to show the landing note it plays into. PAD_LEFT is sized so an
+// ACCIDENTAL on the first note stays inside the cut (Ralph's live check,
+// 2026-09-13 — the original 0.01 clipped a sharp/flat); applies to ICU
+// boxes and Macro strips alike, his call.
+const PAD_LEFT = 0.022;
 const PAD_LANDING = 0.026;
 // The final mark sits ON the last note, so the last slice reaches further.
 const PAD_FINAL = 0.036;

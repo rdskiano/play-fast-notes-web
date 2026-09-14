@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-13-icu-boxed-view',
+    date: 'September 13, 2026',
+    title: 'Interleaved Click-Up: a boxed view of what to play',
+    body:
+      'The Click-Up practice screen has a new optional look. Instead of the two green arrows, a "Boxed" switch shows your whole passage lightly faded with the part you are playing right now sitting sharp inside green boxes, and the boxes grow as your climb adds units. The classic arrows stay the default; the switch sits right under the tempo pill, and the app remembers your choice.',
+  },
+  {
     id: '2026-09-13-dictation-crash-fix',
     date: 'September 13, 2026',
     title: 'Dictating a practice note no longer crashes the app',
