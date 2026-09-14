@@ -434,6 +434,15 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
   file is local/iCloud. The REAL fix for the Drive/Dropbox workflow is the
   agreed next-build share-sheet import (open the PDF in the Drive/Dropbox app
   → Share → Play Fast Notes), which bypasses this picker entirely.
+- **Clarification (Ralph, same day):** he was NOT searching for cloud
+  content — the flips happened searching for LOCAL files with Drive/Dropbox
+  merely enabled. Consistent with the mechanism: the picker's search fans out
+  to every enabled provider regardless of the query or starting location. So
+  the accurate statement is: with third-party providers enabled, picker
+  search is unreliable for ANY file; browsing is always reliable. "Browse
+  instead of searching" is the workaround for everything, not just cloud
+  files. (Untested: if the search bar offers a narrower scope chip like
+  "On My iPad"/"This folder", that may keep the flaky providers out of it.)
 - **Status:** CLOSED 2026-09-14 — our half (modal collision) is fixed and
   shipped (web 7445299 + production OTA 80cfa49b, runtime 1.1.1, sim + Ralph
   verified); the residual flake is an iOS picker/provider bug outside the app.
