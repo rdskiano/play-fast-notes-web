@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-15-custom-ladder-resume-fix',
+    date: 'September 15, 2026',
+    title: 'Custom tempo patterns remember when you slowed down',
+    body:
+      'If you started a Custom tempo pattern at one speed, turned the metronome down during the session, and finished at the slower speed, the next day could bring you back to the faster number you started at. Now it picks up from where you actually ended, one step above your last clean take, just like the regular Step ladder already did.',
+  },
+  {
     id: '2026-09-14-share-sheet-import',
     date: 'September 14, 2026',
     title: 'Send PDFs to Play Fast from any app',

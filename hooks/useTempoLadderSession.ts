@@ -365,11 +365,14 @@ export function useTempoLadderSession(
         // For Custom mode, current_tempo represents the live BASE tempo (the
         // value that climbs by increment per clean set), and the block/rep
         // indices hold the within-set position. The pattern itself is
-        // fetched separately by id.
+        // fetched separately by id. Resume from the banked base even when it
+        // sits below start_tempo: a mid-session dial-down (start 96, played
+        // clean at 90, banked 91) must come back at 91, not the stale 96 —
+        // the same F20 rule as step mode below.
         const effectiveBase =
           existing.current_tempo >= existing.goal_tempo
             ? existing.start_tempo
-            : Math.max(existing.start_tempo, existing.current_tempo);
+            : existing.current_tempo || existing.start_tempo;
         setStartTempo(String(effectiveBase));
         setGoalTempo(String(existing.goal_tempo));
         setCustomBase(effectiveBase);
