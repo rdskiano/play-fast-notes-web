@@ -72,10 +72,11 @@ function groupingCounts(): Record<Grouping, number> {
 // Rhythm-in-top-row geometry (phone sideways). Measured, not guessed:
 // the phone run-bar Exit box is 59 wide; the phone tools pill is 4 keys x 44
 // + 3 x 4 gap + 6 padding = 194 (PracticeToolsBar); the Loop / ← / → buttons
-// around the music take ~160 including their gaps (RhythmBar).
+// around the music take ~160 including their gaps (RhythmBar), plus the white
+// card's 4px padding and hairline border on each side.
 const TOP_ROW_EXIT_W = 60;
 const PHONE_TOOLS_PILL_W = 194;
-const RHYTHM_CLUSTER_CHROME_W = 160;
+const RHYTHM_CLUSTER_CHROME_W = 170;
 
 export default function RhythmicScreen() {
   usePracticeClock();
@@ -500,6 +501,7 @@ export default function RhythmicScreen() {
             </View>
             {rhythmInTopRow ? (
               <View style={styles.runCenterRhythm}>
+                <View style={styles.rhythmCard}>
                 <RhythmBar
                   bare
                   compact
@@ -513,6 +515,7 @@ export default function RhythmicScreen() {
                   canPrev={currentIndex > 0}
                   canNext={currentIndex < patterns.length - 1}
                 />
+                </View>
               </View>
             ) : (
             <View
@@ -970,6 +973,17 @@ const styles = StyleSheet.create({
   // rhythm gets the rest of the row.
   runSideTight: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' },
   runCenterRhythm: { flex: 1, minWidth: 0, alignItems: 'center' },
+  // The rhythm reads on white (Ralph), in a card that matches the tools pill.
+  rhythmCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 4,
+    borderRadius: Radii.lg,
+    backgroundColor: Palette.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    ...Lift,
+  },
   runSidePhone: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', alignItems: 'flex-start' },
   // ── Phone tap targets (B-093) ──────────────────────────────────────────
   // hitSlop is a NO-OP in react-native-web, so on phone the box itself has to
