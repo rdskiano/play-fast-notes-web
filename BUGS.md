@@ -566,9 +566,9 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
   - **`renderPill` / `styles.stratPill` (131x38) — dead code.** Nothing called
     `renderPill` in `app/passage/[id]/index.tsx`; the screen uses
     `renderStratCard` (hub) and `renderStratRow` (landscape panel) instead.
-    DELETED in a follow-up commit, along with `stratPill`, `stratLabel` and
-    the `pillRow` container, which were used only by it. The same-named styles
-    in `history.tsx` and `tempo-ladder.tsx` are separate and still in use.
+    DELETED in c7a824d, along with `stratPill`, `stratLabel` and the `pillRow`
+    container, which were used only by it. The same-named styles in
+    `history.tsx` and `tempo-ladder.tsx` are separate and still in use.
   - **ToolDock's ⊖/⊕ sizer keys (22x22)** never render on a touch device
     (`!IS_TOUCH_DEVICE`), so they are laptop-mouse-only.
   - **Metronome beat dots and gap segments.** Their size is computed to fit N
@@ -581,13 +581,15 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
     `RecorderPanel*`, `AddPhotoFlow*`, `AddPdfFlow*`, `SpotlightHint`,
     `SelfLedSheet`, `PromptBanner`, `InkSwatchRow`, `CustomPatternEditor`,
     `RecordingPlayer`. None are on the phone practice path this audit covered.
-- **Status:** FIXED in the working tree; VERIFIED BY MEASUREMENT at 375x812 in
-  a browser (and tablet 1024 confirmed unchanged). tsc clean,
-  `expo export -p web` clean. **NOT yet eyeballed on a real iPhone and NOT
-  deployed.** What Ralph should look at on a phone, since bigger boxes can
-  reflow a tight row: the practice-tools pill in the top-right corner (its
-  keys are 44 now, so the pill is ~50 tall and its dropdown panel starts
-  lower), the run-screen top bar on a **landscape** phone (UNDO / CLEAR /
-  NEXT and `Exit` are ~8 px taller, so the score gets slightly less height),
-  the library card `⋯` and folder-tile `⋯`, the drone switch in the metronome,
+- **Status:** FIXED and committed 2026-09-15 (4bd0fa5, plus c7a824d for the
+  dead pill code and 6cb233d for an indentation tidy); VERIFIED BY MEASUREMENT
+  at 375x812 in a browser (and tablet 1024 confirmed unchanged). tsc clean,
+  `expo export -p web` clean. **NOT yet eyeballed on a real iPhone, NOT pushed
+  and NOT deployed** — needs a web push plus an OTA for iphone-native. What
+  Ralph should look at on a phone, since bigger boxes can reflow a tight row:
+  the practice-tools pill in the top-right corner (its keys are 44 now, so the
+  pill is ~50 tall and its dropdown panel starts lower), the run-screen top
+  bar on a **landscape** phone (UNDO / CLEAR / NEXT and `Exit` are ~8 px
+  taller, so the score gets slightly less height), the library card `⋯` and
+  folder-tile `⋯`, the drone switch in the metronome,
   and the `−`/`+` tempo keys on the Evaluate screen in landscape.
