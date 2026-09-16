@@ -480,3 +480,29 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
   off: Edit Sidebar is reachable from inside the picker itself, Ralph enabled
   Drive/Dropbox there, and they now show up and work. If other users hit this,
   the answer is that one-time toggle (candidate for a help-copy line later).
+
+### B-092 — Back/EXIT button in the top-left is too small and too high to tap on a phone
+
+- **Severity:** P1 (user-reported; the only way out of a score screen)
+- **Surfaces:** iphone-web (reported), iphone-native (same component, same sizes)
+- **Reported:** 2026-09-15 by a user (snash791@gmail.com, iPhone iOS 18.7 Safari,
+  on `/document/d_1789495737224_5nnywnff`): "sometimes the Exit is too high in
+  the upper left for me to successfully click on it."
+- **Repro:**
+  1. Open any document or practice screen on a phone-width browser.
+  2. Try to tap the top-left `‹` / `EXIT` control with a thumb.
+  3. Actual: it often misses. Measured on a 375x812 viewport, the pressable box
+     was **16x32 px**, 8 px below the top of the viewport.
+- **Cause:** `SessionTopBar` relied on `hitSlop={8}` to pad a bare `‹` glyph.
+  **`hitSlop` is a no-op in react-native-web** — only the legacy `Touchable`
+  implements it, `Pressable` ignores it — so on web the tap target was exactly
+  the text box. House rule (DESIGN_RULES) is 44 px minimum. And with Safari's
+  `env(safe-area-inset-top)` at 0, `Spacing.sm` parked it on the screen edge.
+- **Fix (2026-09-15):** phone-only branch in `components/SessionTopBar.tsx` —
+  exit button is now a real 44x44 target, the lone chevron is drawn at 22 px,
+  the bar's top padding goes from 8 to 12 on phone, and the button gained an
+  accessibility label. Tablet/desktop geometry is untouched (verified 16x32 at
+  y=8 on a 1024 px viewport, same as before).
+- **Status:** FIXED in the working tree, VERIFIED by measurement in a 375x812
+  browser viewport (44x44 at y=12). NOT yet verified on a real iPhone, and NOT
+  yet deployed — needs a web push plus an OTA for iphone-native.
