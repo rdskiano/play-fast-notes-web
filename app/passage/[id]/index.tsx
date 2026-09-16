@@ -708,10 +708,10 @@ export default function PassageDetailScreen() {
               setDemoId(demo);
             }}
             style={[
-                  styles.stratHelp,
-                  isPhone && styles.stratHelpPhone,
-                  { borderColor: color + '55' },
-                ]}>
+              styles.stratHelp,
+              isPhone && styles.stratHelpPhone,
+              { borderColor: color + '55' },
+            ]}>
             <ThemedText style={[styles.stratHelpText, { color }]}>?</ThemedText>
           </Pressable>
         )}
