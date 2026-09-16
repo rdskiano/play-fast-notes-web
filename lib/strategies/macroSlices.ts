@@ -36,10 +36,21 @@ export type ScoreGeometry = {
 
 export type ChunkSlice = { row: number; x0: number; x1: number };
 
-// A new row begins when a mark's y jumps by more than this. Staff systems on
-// a phone/scanned part sit ~0.2-0.3 apart normalized; marks on one line vary
-// by well under 0.1 (measured on real passages).
+// Row (line-of-music) detection, mark by mark in playing order:
+//  - A mark whose y sits more than ROW_BREAK from its row's top-most mark
+//    starts a new row, UNLESS it moved on to the right (by MIN_ADVANCE) and
+//    only a small step from the previous mark. That exception keeps a
+//    melody that drifts up or down across one line as a single row (Ralph's
+//    "45" strip, 2026-09-16: the last mark on a low note read as a second
+//    line and squashed every box to a thin sliver above the notes).
+//  - A mark that jumps far back LEFT and a little DOWN always starts a new
+//    row: that is what a line break looks like, even on a dense page whose
+//    staves sit closer together than ROW_BREAK.
+// Checked against all 264 saved passages; every changed split read better.
 const ROW_BREAK = 0.12;
+const MIN_ADVANCE = 0.02;
+const LINE_WRAP_DX = 0.25;
+const LINE_WRAP_DY = 0.05;
 // Band edges sit this far above the row's top-most mark.
 const BAND_PAD = 0.02;
 // A continuation slice starts this far left of the row's first mark (room
@@ -75,7 +86,14 @@ export function computeScoreGeometry(rawMarks: Marker[]): ScoreGeometry {
   for (let i = 0; i < marks.length; i++) {
     const y = marks[i].y;
     const r = rowYMin.length - 1;
-    if (r < 0 || Math.abs(y - rowYMin[r]) > ROW_BREAK) {
+    const dx = i > 0 ? marks[i].x - marks[i - 1].x : 0;
+    const dy = i > 0 ? y - marks[i - 1].y : 0;
+    const wrapped = dx < -LINE_WRAP_DX && dy > LINE_WRAP_DY;
+    const farFromRow =
+      r >= 0 &&
+      Math.abs(y - rowYMin[r]) > ROW_BREAK &&
+      (Math.abs(dy) > ROW_BREAK || dx < MIN_ADVANCE);
+    if (r < 0 || wrapped || farFromRow) {
       rowYMin.push(y);
       rowFirst.push(i);
     } else if (y < rowYMin[r]) {

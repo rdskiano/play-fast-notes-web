@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-16-boxes-melody-contour-fix',
+    date: 'September 16, 2026',
+    title: 'Boxes cover the notes on one-line passages',
+    body:
+      'On some one-line passages, where the melody climbs or drops a lot, the green boxes in Interleaved Click-Up shrank to a thin strip above the notes. The app was mistaking a low note for the start of a new line. Boxes now cover the whole line, and the Macro-Chaining views get the same fix.',
+  },
+  {
     id: '2026-09-16-icu-boxed-left-edge',
     date: 'September 16, 2026',
     title: 'Boxed click-up view makes room for accidentals',
