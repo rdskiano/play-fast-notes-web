@@ -30,7 +30,7 @@ import { ZoomableImage } from '@/components/ZoomableImage';
 import { PRACTICE_TOOLS_HELP, SHORTCUT_HINT_LINE } from '@/constants/helpCopy';
 import { inheritedGoalForPassage } from '@/lib/coach/evaluation';
 import { Colors, Fonts } from '@/constants/theme';
-import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, PhoneTap, PhoneTapH, Radii, Spacing, Type } from '@/constants/tokens';
 import { Palette, Lift } from '@/constants/palette';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
@@ -691,7 +691,7 @@ function Icu2ScreenInner() {
                     onPress={() => setPeekPassage(it.passage)}
                     hitSlop={8}
                     accessibilityLabel={`View the score for ${it.passage.title}`}
-                    style={styles.eyeBtn}>
+                    style={[styles.eyeBtn, isPhone && styles.eyeBtnPhone]}>
                     <Feather name="eye" size={16} color={Palette.textSecondary} />
                   </Pressable>
                 ) : (
@@ -888,7 +888,7 @@ function Icu2ScreenInner() {
           isPhone && { paddingTop: insets.top + 4, paddingBottom: 2 },
         ]}>
         <View style={styles.runSide}>
-          <Pressable onPress={exitSession} hitSlop={8} style={styles.runExit}>
+          <Pressable onPress={exitSession} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
             <Feather name="log-out" size={15} color={Palette.danger} />
             <ThemedText style={styles.runExitText}>Exit</ThemedText>
           </Pressable>
@@ -1452,6 +1452,12 @@ const styles = StyleSheet.create({
     color: Palette.text,
     letterSpacing: -0.2,
   },
+  // ── Phone tap targets (B-093) ──────────────────────────────────────────
+  // hitSlop is a NO-OP in react-native-web, so on phone the box itself has to
+  // carry the 44px house minimum (DESIGN_RULES §12). Phone only.
+  tapPhone: PhoneTap,
+  tapPhoneH: { ...PhoneTapH, minWidth: 44, alignItems: 'center' },
+  eyeBtnPhone: { width: 44, height: 44 },
   eyeBtn: {
     width: 34,
     height: 34,

@@ -39,7 +39,7 @@ import { Lift, Palette } from '@/constants/palette';
 import { COACH_BUTTON_ENABLED } from '@/constants/coach';
 import { Colors, Fonts } from '@/constants/theme';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
-import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, Opacity, PhoneTapH, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { useScoreAnnotation } from '@/hooks/useScoreAnnotation';
@@ -616,7 +616,11 @@ export default function PassageDetailScreen() {
                   e.stopPropagation?.();
                   openBuiltRhythms();
                 }}
-                style={[styles.stratPct, { backgroundColor: color + '22' }]}>
+                style={[
+                  styles.stratPct,
+                  isPhone && styles.stratPctPhone,
+                  { backgroundColor: color + '22' },
+                ]}>
                 <ThemedText style={[styles.stratPctText, { color }]}>
                   {rhythmBuiltCount} built ›
                 </ThemedText>
@@ -630,7 +634,11 @@ export default function PassageDetailScreen() {
                   e.stopPropagation?.();
                   setDemoId(demo);
                 }}
-                style={[styles.stratHelp, { borderColor: color + '55' }]}>
+                style={[
+                  styles.stratHelp,
+                  isPhone && styles.stratHelpPhone,
+                  { borderColor: color + '55' },
+                ]}>
                 <ThemedText style={[styles.stratHelpText, { color }]}>?</ThemedText>
               </Pressable>
             )}
@@ -703,7 +711,11 @@ export default function PassageDetailScreen() {
               setPracticeOpen(false);
               openBuiltRhythms();
             }}
-            style={[styles.stratPct, { backgroundColor: color + '22' }]}>
+            style={[
+              styles.stratPct,
+              isPhone && styles.stratPctPhone,
+              { backgroundColor: color + '22' },
+            ]}>
             <ThemedText style={[styles.stratPctText, { color }]}>
               {rhythmBuiltCount} built ›
             </ThemedText>
@@ -718,7 +730,11 @@ export default function PassageDetailScreen() {
               setPracticeOpen(false);
               setDemoId(demo);
             }}
-            style={[styles.stratHelp, { borderColor: color + '55' }]}>
+            style={[
+                  styles.stratHelp,
+                  isPhone && styles.stratHelpPhone,
+                  { borderColor: color + '55' },
+                ]}>
             <ThemedText style={[styles.stratHelpText, { color }]}>?</ThemedText>
           </Pressable>
         )}
@@ -845,7 +861,7 @@ export default function PassageDetailScreen() {
               <Pressable
                 onPress={() => setRhythmicSheetOpen(false)}
                 hitSlop={10}
-                style={[styles.sheetCloseBtn, { borderColor: C.icon }]}>
+                style={[styles.sheetCloseBtn, isPhone && styles.iconBtnPhone, { borderColor: C.icon }]}>
                 <ThemedText style={{ color: C.text, fontWeight: Type.weight.heavy }}>✕</ThemedText>
               </Pressable>
             </View>
@@ -1046,13 +1062,13 @@ export default function PassageDetailScreen() {
                       )
                     }
                     hitSlop={10}
-                    style={styles.lsChip}>
+                    style={[styles.lsChip, isPhone && styles.lsChipPhone]}>
                     <ThemedText style={styles.lsChipText} numberOfLines={1}>
                       ‹ Full Part
                     </ThemedText>
                   </Pressable>
                 ) : (
-                  <Pressable onPress={() => router.back()} hitSlop={10} style={styles.lsChip}>
+                  <Pressable onPress={() => router.back()} hitSlop={10} style={[styles.lsChip, isPhone && styles.lsChipPhone]}>
                     <ThemedText style={styles.lsChipText}>‹ Back</ThemedText>
                   </Pressable>
                 )}
@@ -1076,7 +1092,7 @@ export default function PassageDetailScreen() {
                   onPress={() => guardedNav(() => router.push(`/passage/${passage.id}/history`))}
                   hitSlop={8}
                   accessibilityLabel="Practice Log"
-                  style={styles.lsIconBtn}>
+                  style={[styles.lsIconBtn, isPhone && styles.iconBtnPhone]}>
                   <Feather name="book-open" size={18} color={Palette.text} />
                 </Pressable>
               </View>
@@ -1114,7 +1130,7 @@ export default function PassageDetailScreen() {
                 <Pressable
                   onPress={() => setPracticeOpen(false)}
                   hitSlop={8}
-                  style={styles.lsPanelClose}>
+                  style={[styles.lsPanelClose, isPhone && styles.iconBtnPhone]}>
                   <Feather name="x" size={18} color={Palette.text} />
                 </Pressable>
               </View>
@@ -1186,13 +1202,16 @@ export default function PassageDetailScreen() {
                 )
               }
               hitSlop={12}
-              style={styles.backBtn}>
+              style={[styles.backBtn, isPhone && styles.backBtnPhone]}>
               <ThemedText style={[styles.backLabel, { color: Palette.accent }]} numberOfLines={1}>
                 ‹ Full Part
               </ThemedText>
             </Pressable>
           ) : (
-            <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={12}
+              style={[styles.backBtn, isPhone && styles.backBtnPhone]}>
               <ThemedText style={[styles.backArrow, { color: Palette.accent }]}>‹</ThemedText>
             </Pressable>
           )}
@@ -1201,7 +1220,7 @@ export default function PassageDetailScreen() {
               onPress={() => guardedNav(() => router.push(`/passage/${passage.id}/history`))}
               hitSlop={8}
               accessibilityLabel="Practice Log"
-              style={styles.heroIconBtn}>
+              style={[styles.heroIconBtn, isPhone && styles.iconBtnPhone]}>
               <Feather name="book-open" size={18} color={Palette.text} />
             </Pressable>
           </View>
@@ -1254,12 +1273,12 @@ export default function PassageDetailScreen() {
               </View>
             )}
             {!annotating && prev && (
-              <Pressable onPress={goPrev} hitSlop={8} style={[styles.heroNav, styles.heroNavLeft]}>
+              <Pressable onPress={goPrev} hitSlop={8} style={[styles.heroNav, isPhone && styles.iconBtnPhone, styles.heroNavLeft]}>
                 <ThemedText style={styles.heroNavGlyph}>‹</ThemedText>
               </Pressable>
             )}
             {!annotating && next && (
-              <Pressable onPress={goNext} hitSlop={8} style={[styles.heroNav, styles.heroNavRight]}>
+              <Pressable onPress={goNext} hitSlop={8} style={[styles.heroNav, isPhone && styles.iconBtnPhone, styles.heroNavRight]}>
                 <ThemedText style={styles.heroNavGlyph}>›</ThemedText>
               </Pressable>
             )}
@@ -1733,6 +1752,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Phone tap targets (B-093) — hitSlop is a no-op on web, so the box itself
+  // has to carry the 44. `iconBtnPhone` is the shared round-icon growth.
+  iconBtnPhone: { width: 44, height: 44, borderRadius: 22 },
+  backBtnPhone: { ...PhoneTapH, minWidth: 44 },
+  lsChipPhone: PhoneTapH,
+  // Deliberate partial: a strategy card is 165 px wide on a 375 px phone, so a
+  // 44-WIDE "?" beside the 38 px monogram and the "n built ›" chip overflows
+  // the card's top row (38 + 54 + 6 + 44 = 142 > 141.5 of inner width). Full
+  // height, narrower box — still three times the old 24x24 area.
+  stratHelpPhone: { width: 32, height: 44, borderRadius: 16 },
+  stratPctPhone: PhoneTapH,
   stratHelpText: { fontSize: Type.size.sm, fontWeight: Type.weight.heavy, lineHeight: Type.size.sm + 4 },
   stratMono: {
     width: 38,

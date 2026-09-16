@@ -29,7 +29,7 @@ import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { PRACTICE_TOOLS_HELP, SHORTCUT_HINT_LINE } from '@/constants/helpCopy';
 import { Colors, Fonts } from '@/constants/theme';
-import { Borders, Opacity, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, Opacity, PhoneTap, PhoneTapH, Radii, Spacing, Type } from '@/constants/tokens';
 import { Palette, Lift } from '@/constants/palette';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
@@ -732,7 +732,7 @@ function InterleavedScreenInner() {
               endSession();
             }}
             hitSlop={8}
-            style={styles.runExit}>
+            style={[styles.runExit, isPhone && styles.tapPhoneH]}>
             <Feather name="log-out" size={15} color={Palette.danger} />
             <ThemedText style={styles.runExitText}>Exit</ThemedText>
           </Pressable>
@@ -1203,6 +1203,11 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   runSide: { flex: 1, justifyContent: 'center' },
+  // ── Phone tap targets (B-093) ──────────────────────────────────────────
+  // hitSlop is a NO-OP in react-native-web, so on phone the box itself has to
+  // carry the 44px house minimum (DESIGN_RULES §12). Phone only.
+  tapPhone: PhoneTap,
+  tapPhoneH: { ...PhoneTapH, minWidth: 44, alignItems: 'center' },
   runExit: {
     flexDirection: 'row',
     alignItems: 'center',

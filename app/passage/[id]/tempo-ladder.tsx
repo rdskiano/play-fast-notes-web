@@ -26,7 +26,7 @@ import { ZoomableImage } from '@/components/ZoomableImage';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { Palette, Lift } from '@/constants/palette';
 import { Colors, Fonts } from '@/constants/theme';
-import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, PhoneTap, PhoneTapH, Radii, Spacing, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP, SHORTCUT_HINT_LINE } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePracticeClock } from '@/hooks/usePracticeClock';
@@ -281,7 +281,10 @@ export default function TempoLadderScreen() {
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
-          <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={8}
+            style={isPhone && styles.tapPhone}>
             <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
               ‹ Back
             </ThemedText>
@@ -323,7 +326,7 @@ export default function TempoLadderScreen() {
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
-          <Pressable onPress={goBackToTempo} hitSlop={8}>
+          <Pressable onPress={goBackToTempo} hitSlop={8} style={isPhone && styles.tapPhone}>
             <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
               ‹ Back
             </ThemedText>
@@ -411,7 +414,10 @@ export default function TempoLadderScreen() {
           ]}>
           {/* Big-title header (DESIGN_RULES §3) — replaces the old EXIT top bar
               + inline title. Back link, then a monogram chip beside the title. */}
-          <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={8}
+            style={isPhone && styles.tapPhone}>
             <ThemedText style={styles.backLink}>‹ Back</ThemedText>
           </Pressable>
           <View style={styles.headerRow}>
@@ -950,7 +956,7 @@ export default function TempoLadderScreen() {
           { paddingTop: insets.top + 10 },
         ]}>
         <View style={[styles.runSide, isPhone && styles.runSidePhone]}>
-          <Pressable onPress={onEndPress} hitSlop={8} style={styles.runExit}>
+          <Pressable onPress={onEndPress} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
             <Feather name="log-out" size={15} color={Palette.danger} />
             <ThemedText style={styles.runExitText}>Exit</ThemedText>
           </Pressable>
@@ -1227,7 +1233,7 @@ export default function TempoLadderScreen() {
             <Pressable
               onPress={dismissSlowDown}
               hitSlop={8}
-              style={styles.slowDismiss}>
+              style={[styles.slowDismiss, isPhone && styles.tapPhoneH]}>
               <ThemedText style={styles.slowDismissText}>No thanks</ThemedText>
             </Pressable>
           </View>
@@ -1323,6 +1329,10 @@ function ModeCard({
   onDelete?: () => void;
   dashed?: boolean;
 }) {
+  // The 22px edit/delete glyphs are the smallest targets on this screen and
+  // hitSlop is a no-op on web (B-093).
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
   return (
     <Pressable
       onPress={onPress}
@@ -1370,7 +1380,7 @@ function ModeCard({
             <Pressable
               onPress={onEdit}
               hitSlop={8}
-              style={styles.modeCardActionBtn}
+              style={[styles.modeCardActionBtn, isPhone && styles.modeCardActionBtnPhone]}
               accessibilityLabel="Edit pattern">
               <Feather name="edit-2" size={16} color={Palette.textMuted} />
             </Pressable>
@@ -1379,7 +1389,7 @@ function ModeCard({
             <Pressable
               onPress={onDelete}
               hitSlop={8}
-              style={styles.modeCardActionBtn}
+              style={[styles.modeCardActionBtn, isPhone && styles.modeCardActionBtnPhone]}
               accessibilityLabel="Delete pattern">
               <Feather name="trash-2" size={16} color={Palette.textMuted} />
             </Pressable>
@@ -1614,6 +1624,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 2,
   },
+  tapPhone: PhoneTap,
+  tapPhoneH: { ...PhoneTapH, minWidth: 44, alignItems: 'center' },
+  // Phone tap targets (B-093) — hitSlop does nothing in a mobile browser.
+  modeCardActionBtnPhone: { width: 44, height: 44 },
   modeCardActionBtn: {
     width: 22,
     height: 22,

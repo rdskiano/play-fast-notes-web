@@ -506,3 +506,84 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
 - **Status:** FIXED in the working tree, VERIFIED by measurement in a 375x812
   browser viewport (44x44 at y=12). NOT yet verified on a real iPhone, and NOT
   yet deployed — needs a web push plus an OTA for iphone-native.
+
+### B-093 — Every other phone-web tap target under 44 px (the rest of B-092's class)
+
+- **Severity:** P1 (same class as B-092: reachable controls a thumb misses)
+- **Surfaces:** iphone-web (measured), iphone-native (same styles, but native
+  `hitSlop` DOES work there, so native was already padded — this is web-shaped)
+- **Found:** 2026-09-15, auditing the class behind B-092 instead of the one
+  instance ("when you fix one, scan for siblings").
+- **Cause:** the same root cause as B-092 — **`hitSlop` is a no-op in
+  react-native-web** (only the legacy `Touchable` implements it, `Pressable`
+  ignores it), and the repo leans on it 251 times. Every one of those controls
+  is exactly its rendered box in a mobile browser. DESIGN_RULES §12 says 44 px.
+- **How it was measured (repeatable):** a throwaway `app/tap-probe.tsx` route
+  that renders the real house components plus a verbatim copy of each
+  screen-local pressable, `/tap-probe` temporarily whitelisted in the
+  `isPublic` list in `app/_layout.tsx`, opened at a 375x812 viewport and read
+  with `getBoundingClientRect()` on every `[tabindex="0"]`. Probe + gate patch
+  deleted afterwards. **Nothing here was measured by driving a live signed-in
+  screen** — the staging account's password is Ralph's, so the screens' own
+  controls were measured as isolated copies of their exact styles.
+- **Measured BEFORE (375x812 phone web), worst first:**
+  - document viewer: first-passage CTA dismiss ✕ **11x24**, coach-mode
+    `‹ Back` **39x24**, page chevrons 40x40
+  - library home: search-clear ✕ **12x24**, folder-up `‹` (bare) 24 tall,
+    `⋯` card actions 32 wide, folder-tile `⋯` 28x28, undo-move toast 39x28,
+    `+ New folder` 24 tall
+  - passage hub: `‹ Full Part` 62x36, practice-log icon 38x38, score chevrons
+    38x38, landscape chips 64x40 / icons 38x38, panel close 34x34, rhythmic
+    sheet close 32x32, phone `⋯` menu 36x36, `?` demo circle 24x24
+  - run screens (click-up / micro / macro / tempo ladder / rhythmic / ICU2 /
+    Rep Rotator): top-bar UNDO / CLEAR / NEXT 56x36, run-screen `Exit` 53x36,
+    config-screen `‹ Back` links 45x24, `← Setup` / `Done — log it` 24 tall,
+    grouping chip 28x30, `✓ Done — log it` 86x40, pattern edit/delete 22x22
+  - practice tools pill: every tool key 32x32
+  - metronome: DONE 69x40, drone switch 50x28; timer tray ⚙/? 36 wide,
+    serial chip 39x32, cue checkbox 22x22; ToolDock collapse ✕ 24x24
+  - shared: `Button` size xs **45x38** / sm **97x40**, BpmStepper −/+ 40x40
+    (32x32 compact), floating metronome collapse 32x32 + nudges 37x38,
+    install prompt "Don't show this again" row 32 tall
+- **Fix (2026-09-15):** new `PhoneTap` / `PhoneTapH` tokens in
+  `constants/tokens.ts` (44x44 / 44-tall, contents centred) spread into a
+  **phone-only** style branch at each call site, following
+  `components/SessionTopBar.tsx`'s pattern. Tablet and desktop geometry is
+  untouched everywhere. Four controls keep their small LOOK and grow the
+  pressable around them instead (the drone switch, the cue checkbox, the
+  ToolDock collapse ✕ — whose extra area grows down-right into the padding the
+  panels already reserve — and, in effect, every icon chip that was already
+  centred). `evaluate`'s landscape-phone "short" key variants now lose to the
+  44 floor on purpose, costing ~12 px of score height.
+- **Measured AFTER:** every control listed above is ≥ 44 in both directions at
+  375x812, except two deliberate exceptions, plus tablet spot-checks at 1024
+  unchanged (SessionTopBar exit still 16x32, BpmStepper keys still 40x40,
+  tools-pill keys still 32x32, timer ⚙ still 36x46).
+- **Deliberately NOT changed (and why):**
+  - **Strategy-card `?` demo button: 32x44, not 44x44.** The card is 165 px
+    wide on a 375 px phone; a 44-wide `?` beside the 38 px monogram and the
+    "n built ›" chip overflows the card's top row (142 > 141.5 of inner width).
+  - **`renderPill` / `styles.stratPill` (131x38) — dead code.** Nothing calls
+    `renderPill` in `app/passage/[id]/index.tsx`; worth deleting separately.
+  - **ToolDock's ⊖/⊕ sizer keys (22x22)** never render on a touch device
+    (`!IS_TOUCH_DEVICE`), so they are laptop-mouse-only.
+  - **Metronome beat dots and gap segments.** Their size is computed to fit N
+    across a ~300 px panel; 44 each cannot fit. Needs a layout rethink, not a
+    min-size, so it stays Ralph's design call.
+  - Screens outside the audited set still use `hitSlop` on small boxes:
+    `sign-in`, `account`, `community`, `imslp`, `upload*`, `document-upload*`,
+    `multi-page.web`, `import-supabase`, the three `*-log` screens, `tools/`,
+    `PassagePicker`, `ScorePeekModal`, `CropView`, `VolumeSlider`,
+    `RecorderPanel*`, `AddPhotoFlow*`, `AddPdfFlow*`, `SpotlightHint`,
+    `SelfLedSheet`, `PromptBanner`, `InkSwatchRow`, `CustomPatternEditor`,
+    `RecordingPlayer`. None are on the phone practice path this audit covered.
+- **Status:** FIXED in the working tree; VERIFIED BY MEASUREMENT at 375x812 in
+  a browser (and tablet 1024 confirmed unchanged). tsc clean,
+  `expo export -p web` clean. **NOT yet eyeballed on a real iPhone and NOT
+  deployed.** What Ralph should look at on a phone, since bigger boxes can
+  reflow a tight row: the practice-tools pill in the top-right corner (its
+  keys are 44 now, so the pill is ~50 tall and its dropdown panel starts
+  lower), the run-screen top bar on a **landscape** phone (UNDO / CLEAR /
+  NEXT and `Exit` are ~8 px taller, so the score gets slightly less height),
+  the library card `⋯` and folder-tile `⋯`, the drone switch in the metronome,
+  and the `−`/`+` tempo keys on the Evaluate screen in landscape.

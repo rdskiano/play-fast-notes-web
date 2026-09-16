@@ -23,7 +23,7 @@ import { TutorialStep } from '@/components/TutorialStep';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Colors } from '@/constants/theme';
 import { Lift, Palette } from '@/constants/palette';
-import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, PhoneTap, PhoneTapH, Radii, Spacing, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
@@ -334,7 +334,7 @@ export default function RhythmicScreen() {
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
-          <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Pressable onPress={() => router.back()} hitSlop={8} style={isPhone && styles.tapPhone}>
             <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
               ‹ Back
             </ThemedText>
@@ -386,7 +386,7 @@ export default function RhythmicScreen() {
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
-          <Pressable onPress={() => setPhase('intro')} hitSlop={8}>
+          <Pressable onPress={() => setPhase('intro')} hitSlop={8} style={isPhone && styles.tapPhone}>
             <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
               ‹ Back
             </ThemedText>
@@ -450,7 +450,7 @@ export default function RhythmicScreen() {
               { paddingTop: insets.top + 10 },
             ]}>
             <View style={[styles.runSide, isPhone && styles.runSidePhone]}>
-              <Pressable onPress={exitSession} hitSlop={8} style={styles.runExit}>
+              <Pressable onPress={exitSession} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
                 <Feather name="log-out" size={15} color={Palette.danger} />
                 <ThemedText style={styles.runExitText}>Exit</ThemedText>
               </Pressable>
@@ -466,7 +466,11 @@ export default function RhythmicScreen() {
                   onPress={() => setPickerOpen(true)}
                   hitSlop={6}
                   accessibilityLabel="Change note grouping"
-                  style={[styles.groupingChipRun, { backgroundColor: ACCENT + '1A' }]}>
+                  style={[
+              styles.groupingChipRun,
+              isPhone && styles.tapPhoneH,
+              { backgroundColor: ACCENT + '1A' },
+            ]}>
                   <ThemedText style={[styles.groupingChipRunText, { color: ACCENT }]}>
                     {grouping}-note
                   </ThemedText>
@@ -634,7 +638,11 @@ export default function RhythmicScreen() {
           <Pressable
             onPress={doneSession}
             hitSlop={8}
-            style={[styles.runDoneBtn, { backgroundColor: ACCENT }]}>
+            style={[
+              styles.runDoneBtn,
+              isPhone && styles.tapPhoneH,
+              { backgroundColor: ACCENT },
+            ]}>
             <ThemedText style={styles.runDoneBtnText}>✓ Done — log it</ThemedText>
           </Pressable>
         </View>
@@ -881,6 +889,12 @@ const styles = StyleSheet.create({
   // Column layout: flex:1 children of an auto-height column can collapse
   // to zero — pin the Exit row to its content height on phone.
   runSidePhone: { flex: 0, alignItems: 'flex-start' },
+  // ── Phone tap targets (B-093) ──────────────────────────────────────────
+  // hitSlop is a NO-OP in react-native-web, so on phone the box itself has to
+  // carry the 44px house minimum (DESIGN_RULES §12). Phone only — the iPad
+  // layouts are deliberately tight.
+  tapPhone: PhoneTap,
+  tapPhoneH: { ...PhoneTapH, minWidth: 44, alignItems: 'center' },
   runExit: {
     flexDirection: 'row',
     alignItems: 'center',

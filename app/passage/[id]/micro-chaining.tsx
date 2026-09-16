@@ -35,7 +35,7 @@ import { TutorialStep } from '@/components/TutorialStep';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { Colors, Fonts } from '@/constants/theme';
 import { Lift, Palette } from '@/constants/palette';
-import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
+import { Borders, Opacity, PhoneTap, PhoneTapH, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
@@ -199,7 +199,7 @@ export default function MicroChainingScreen() {
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
-          <Pressable onPress={exitSession} hitSlop={8}>
+          <Pressable onPress={exitSession} hitSlop={8} style={isPhone && styles.tapPhone}>
             <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
               ‹ Back
             </ThemedText>
@@ -260,13 +260,17 @@ export default function MicroChainingScreen() {
               borderBottomWidth: StyleSheet.hairlineWidth,
               borderBottomColor: C.icon + '33',
             }}>
-            <Pressable onPress={goBackToTempo} hitSlop={8}>
+            <Pressable onPress={goBackToTempo} hitSlop={8} style={isPhone && styles.tapPhone}>
               <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
                 ‹ Back
               </ThemedText>
             </Pressable>
             <View style={{ flexDirection: 'row', gap: Spacing.lg }}>
-              <Pressable onPress={undoMark} hitSlop={6} disabled={marks.length === 0}>
+              <Pressable
+                onPress={undoMark}
+                hitSlop={6}
+                disabled={marks.length === 0}
+                style={isPhone && styles.tapPhone}>
                 <ThemedText
                   style={{
                     color: C.tint,
@@ -276,7 +280,11 @@ export default function MicroChainingScreen() {
                   Undo
                 </ThemedText>
               </Pressable>
-              <Pressable onPress={clearMarks} hitSlop={6} disabled={marks.length === 0}>
+              <Pressable
+                onPress={clearMarks}
+                hitSlop={6}
+                disabled={marks.length === 0}
+                style={isPhone && styles.tapPhone}>
                 <ThemedText
                   style={{
                     color: Palette.danger,
@@ -355,14 +363,22 @@ export default function MicroChainingScreen() {
                 onPress={undoMark}
                 hitSlop={6}
                 disabled={marks.length === 0}
-                style={[styles.topBtn, { opacity: marks.length === 0 ? 0.35 : 1 }]}>
+                style={[
+                  styles.topBtn,
+                  isPhone && styles.tapPhoneH,
+                  { opacity: marks.length === 0 ? 0.35 : 1 },
+                ]}>
                 <ThemedText style={[styles.topBtnText, { color: C.tint }]}>UNDO</ThemedText>
               </Pressable>
               <Pressable
                 onPress={clearMarks}
                 hitSlop={6}
                 disabled={marks.length === 0}
-                style={[styles.topBtn, { opacity: marks.length === 0 ? 0.35 : 1 }]}>
+                style={[
+                  styles.topBtn,
+                  isPhone && styles.tapPhoneH,
+                  { opacity: marks.length === 0 ? 0.35 : 1 },
+                ]}>
                 <ThemedText style={[styles.topBtnText, { color: Palette.danger }]}>CLEAR</ThemedText>
               </Pressable>
               <Pressable
@@ -372,6 +388,7 @@ export default function MicroChainingScreen() {
                 {...tourTag('mc-next')}
                 style={[
                   styles.topBtn,
+                  isPhone && styles.tapPhoneH,
                   { backgroundColor: canContinue ? Palette.success : C.icon + '55' },
                 ]}>
                 <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>NEXT →</ThemedText>
@@ -569,14 +586,18 @@ export default function MicroChainingScreen() {
                 onPress={undoProblemNote}
                 hitSlop={6}
                 disabled={highlights.length === 0}
-                style={[styles.topBtn, { opacity: highlights.length === 0 ? 0.35 : 1 }]}>
+                style={[
+                  styles.topBtn,
+                  isPhone && styles.tapPhoneH,
+                  { opacity: highlights.length === 0 ? 0.35 : 1 },
+                ]}>
                 <ThemedText style={[styles.topBtnText, { color: C.tint }]}>UNDO</ThemedText>
               </Pressable>
               <Pressable
                 onPress={goBackToConfig}
                 hitSlop={6}
                 accessibilityLabel="Back to setup"
-                style={styles.topBtn}>
+                style={[styles.topBtn, isPhone && styles.tapPhoneH]}>
                 <ThemedText style={[styles.topBtnText, { color: C.tint }]}>← Setup</ThemedText>
               </Pressable>
             </View>
@@ -665,7 +686,10 @@ export default function MicroChainingScreen() {
             Play from the first arrow ▼ to the last, and repeat until it feels
             comfortable.
           </ThemedText>
-          <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={8}>
+          <Pressable
+            onPress={() => setNotePromptVisible(true)}
+            hitSlop={8}
+            style={isPhone && styles.tapPhone}>
             <ThemedText
               style={{ color: C.tint, fontWeight: Type.weight.bold, fontSize: Type.size.md }}>
               Done
@@ -680,7 +704,7 @@ export default function MicroChainingScreen() {
         <>
           <View style={[styles.runTopBar, { paddingTop: insets.top + 10 }]}>
             <View style={styles.runSide}>
-              <Pressable onPress={exitSession} hitSlop={8} style={styles.runExit}>
+              <Pressable onPress={exitSession} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
                 <Feather name="log-out" size={15} color={Palette.danger} />
                 <ThemedText style={styles.runExitText}>Exit</ThemedText>
               </Pressable>
@@ -836,11 +860,14 @@ export default function MicroChainingScreen() {
             <ThemedText style={styles.runNextBtnText}>Next →</ThemedText>
           </Pressable>
           <View style={[styles.runLinksLandscape, { bottom: insets.bottom + 8 }]}>
-            <Pressable onPress={goBackToConfig} hitSlop={6}>
+            <Pressable onPress={goBackToConfig} hitSlop={6} style={isPhone && styles.tapPhoneH}>
               <ThemedText style={[styles.runLink, { color: ACCENT }]}>← Setup</ThemedText>
             </Pressable>
             <ThemedText style={styles.runLinkDot}>·</ThemedText>
-            <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={6}>
+            <Pressable
+              onPress={() => setNotePromptVisible(true)}
+              hitSlop={6}
+              style={isPhone && styles.tapPhoneH}>
               <ThemedText style={[styles.runLink, { color: ACCENT }]}>Done — log it</ThemedText>
             </Pressable>
           </View>
@@ -867,10 +894,13 @@ export default function MicroChainingScreen() {
             </Pressable>
           </View>
           <View style={styles.runLinks}>
-            <Pressable onPress={goBackToConfig} hitSlop={6}>
+            <Pressable onPress={goBackToConfig} hitSlop={6} style={isPhone && styles.tapPhoneH}>
               <ThemedText style={[styles.runLink, { color: ACCENT }]}>← Setup</ThemedText>
             </Pressable>
-            <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={6}>
+            <Pressable
+              onPress={() => setNotePromptVisible(true)}
+              hitSlop={6}
+              style={isPhone && styles.tapPhoneH}>
               <ThemedText style={[styles.runLink, { color: ACCENT }]}>Done — log it</ThemedText>
             </Pressable>
           </View>
@@ -1155,6 +1185,12 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
 
+  // ── Phone tap targets (B-093) ──────────────────────────────────────────
+  // hitSlop is a NO-OP in react-native-web, so on phone the box itself has to
+  // carry the 44px house minimum (DESIGN_RULES §12). Phone only — the iPad
+  // layouts are deliberately tight.
+  tapPhone: PhoneTap,
+  tapPhoneH: { ...PhoneTapH, minWidth: 44, alignItems: 'center' },
   topBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radii.md },
   topBtnText: { fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
   topCenter: { textAlign: 'center', fontWeight: Type.weight.bold, fontSize: Type.size.sm },

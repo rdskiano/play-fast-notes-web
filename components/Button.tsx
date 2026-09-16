@@ -1,10 +1,16 @@
 import Feather from '@expo/vector-icons/Feather';
-import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
-import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, PhoneTapH, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 // DESIGN_RULES §5 button hierarchy:
@@ -51,6 +57,10 @@ export function Button({
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  // xs / sm render 38 / 40 tall, under the 44 house minimum — and hitSlop
+  // can't help on web (B-093). Grow them on phone only; lg is already 56.
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   const sizeStyle =
     size === 'xs' ? styles.sizeXs : size === 'sm' ? styles.sizeSm : styles.sizeLg;
@@ -91,6 +101,7 @@ export function Button({
       style={({ pressed }) => [
         styles.base,
         sizeStyle,
+        isPhone && size !== 'lg' && styles.sizePhone,
         {
           backgroundColor: bg,
           borderColor: border,
@@ -132,6 +143,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderRadius: Radii.lg,
   },
+  sizePhone: PhoneTapH,
   labelXs: {
     fontSize: Type.size.sm,
     fontWeight: Type.weight.heavy,

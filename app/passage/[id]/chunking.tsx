@@ -20,7 +20,7 @@ import { ZoomableImage } from '@/components/ZoomableImage';
 import { Button } from '@/components/Button';
 import { PRACTICE_TOOLS_EDGE_HELP } from '@/constants/helpCopy';
 import { Colors } from '@/constants/theme';
-import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, PhoneTap, PhoneTapH, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import { usePracticeClock } from '@/hooks/usePracticeClock';
@@ -120,7 +120,7 @@ export default function ChunkingScreen() {
             <Pressable
               onPress={() => setHelpOpen(true)}
               hitSlop={6}
-              style={[styles.helpBtn, { borderColor: C.icon }]}>
+              style={[styles.helpBtn, isPhone && styles.tapPhoneH, { borderColor: C.icon }]}>
               <ThemedText style={[styles.helpBtnText, { color: C.icon }]}>How to chunk</ThemedText>
             </Pressable>
             <Button label="DONE" size="sm" onPress={onDone} />
@@ -254,6 +254,11 @@ function ChunkingHelpModal({
 const styles = StyleSheet.create({
   topCenter: { fontWeight: Type.weight.bold, fontSize: Type.size.md },
   rightRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  // ── Phone tap targets (B-093) ──────────────────────────────────────────
+  // hitSlop is a NO-OP in react-native-web, so on phone the box itself has to
+  // carry the 44px house minimum (DESIGN_RULES §12). Phone only.
+  tapPhone: PhoneTap,
+  tapPhoneH: { ...PhoneTapH, minWidth: 44, alignItems: 'center' },
   helpBtn: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,

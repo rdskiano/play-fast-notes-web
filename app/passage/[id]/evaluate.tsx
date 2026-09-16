@@ -39,7 +39,7 @@ import { ThemedView } from '@/components/themed-view';
 import { ZoomableImage } from '@/components/ZoomableImage';
 import { Lift, Palette } from '@/constants/palette';
 import { Fonts } from '@/constants/theme';
-import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, PhoneTap, PhoneTapH, Radii, Spacing, Type } from '@/constants/tokens';
 import { usePracticeClock } from '@/hooks/usePracticeClock';
 import { useMetronome } from '@/lib/audio/useMetronome';
 import {
@@ -227,7 +227,10 @@ export default function EvaluateScreen() {
     return (
       <View style={styles.hdr}>
         <View style={styles.hdrRow}>
-          <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={8}
+            style={phone && styles.tapPhone}>
             <ThemedText style={styles.backLink}>‹ Back</ThemedText>
           </Pressable>
           <View style={styles.prog}>
@@ -301,7 +304,11 @@ export default function EvaluateScreen() {
         onPress={() => nudge(-1)}
         onLongPress={() => nudge(-5)}
         hitSlop={6}
-        style={[styles.nudgeBtn, phoneLandscape && styles.nudgeBtnShort]}>
+        style={[
+              styles.nudgeBtn,
+              phoneLandscape && styles.nudgeBtnShort,
+              phone && styles.nudgeBtnPhone,
+            ]}>
         <ThemedText style={styles.nudgeGlyph}>−</ThemedText>
       </Pressable>
       <View style={styles.sliderWrap}>
@@ -332,7 +339,11 @@ export default function EvaluateScreen() {
         onPress={() => nudge(1)}
         onLongPress={() => nudge(5)}
         hitSlop={6}
-        style={[styles.nudgeBtn, phoneLandscape && styles.nudgeBtnShort]}>
+        style={[
+              styles.nudgeBtn,
+              phoneLandscape && styles.nudgeBtnShort,
+              phone && styles.nudgeBtnPhone,
+            ]}>
         <ThemedText style={styles.nudgeGlyph}>+</ThemedText>
       </Pressable>
       </View>
@@ -361,7 +372,11 @@ export default function EvaluateScreen() {
                 <Pressable
                   onPress={() => (step === 'unsure' ? setStep('goal') : router.back())}
                   hitSlop={8}
-                  style={[styles.phoneBack, { top: insets.top + 6, left: insets.left + 10 }]}>
+                  style={[
+            styles.phoneBack,
+            styles.tapPhone,
+            { top: insets.top + 6, left: insets.left + 10 },
+          ]}>
                   <ThemedText style={styles.phoneBackText}>‹ Back</ThemedText>
                 </Pressable>
                 <View
@@ -442,7 +457,7 @@ export default function EvaluateScreen() {
                         <Pressable
                           onPress={() => setStep('goal')}
                           hitSlop={8}
-                          style={styles.ghost}>
+                          style={[styles.ghost, phone && styles.tapPhoneH]}>
                           <ThemedText style={styles.ghostText}>‹ back to the metronome</ThemedText>
                         </Pressable>
                       </ScrollView>
@@ -494,7 +509,7 @@ export default function EvaluateScreen() {
                   <Pressable onPress={lockGoal} style={styles.cta}>
                     <ThemedText style={styles.ctaText}>Lock in ♩ = {bpm}</ThemedText>
                   </Pressable>
-                  <Pressable onPress={() => setStep('unsure')} hitSlop={8} style={styles.ghost}>
+                  <Pressable onPress={() => setStep('unsure')} hitSlop={8} style={[styles.ghost, phone && styles.tapPhoneH]}>
                     <ThemedText style={styles.ghostText}>Not sure? Help me pick a tempo</ThemedText>
                   </Pressable>
                 </View>
@@ -533,7 +548,7 @@ export default function EvaluateScreen() {
                   <Pressable onPress={lockGoal} style={styles.cta}>
                     <ThemedText style={styles.ctaText}>Lock in ♩ = {bpm}</ThemedText>
                   </Pressable>
-                  <Pressable onPress={() => setStep('goal')} hitSlop={8} style={styles.ghost}>
+                  <Pressable onPress={() => setStep('goal')} hitSlop={8} style={[styles.ghost, phone && styles.tapPhoneH]}>
                     <ThemedText style={styles.ghostText}>‹ back</ThemedText>
                   </Pressable>
                 </View>
@@ -607,7 +622,7 @@ export default function EvaluateScreen() {
                       </Pressable>
                     ))}
                   </View>
-                  <Pressable onPress={() => setStep('handoff')} hitSlop={8} style={styles.ghost}>
+                  <Pressable onPress={() => setStep('handoff')} hitSlop={8} style={[styles.ghost, phone && styles.tapPhoneH]}>
                     <ThemedText style={styles.ghostText}>skip</ThemedText>
                   </Pressable>
                 </View>
@@ -633,7 +648,7 @@ export default function EvaluateScreen() {
                       {saving ? 'Saving…' : 'Set up my ladder'}
                     </ThemedText>
                   </Pressable>
-                  <Pressable onPress={() => router.back()} hitSlop={8} style={styles.ghost}>
+                  <Pressable onPress={() => router.back()} hitSlop={8} style={[styles.ghost, phone && styles.tapPhoneH]}>
                     <ThemedText style={styles.ghostText}>or pick a tool yourself</ThemedText>
                   </Pressable>
                   <ThemedText style={styles.footnote}>
@@ -845,7 +860,8 @@ const styles = StyleSheet.create({
   // Vertical-only compaction for the phone-landscape strip: same widths and
   // slider, shorter everything, so the score above keeps more height.
   metroCardShort: { paddingVertical: 4 },
-  playBtnShort: { width: 40, height: 40, borderRadius: 20 },
+  // 44 is the floor even in the space-starved landscape layout (B-093).
+  playBtnShort: { width: 44, height: 44, borderRadius: 22 },
   readoutBpmShort: { fontSize: 26, lineHeight: 30 },
   nudgeBtnShort: { height: 32 },
 
@@ -889,6 +905,14 @@ const styles = StyleSheet.create({
   ctaText: { fontSize: Type.size.lg, fontWeight: Type.weight.heavy, color: '#fff' },
   ctaMissText: { color: Palette.danger },
   ghost: { alignSelf: 'center', paddingVertical: 6 },
+  // ── Phone tap targets (B-093) ──────────────────────────────────────────
+  // hitSlop is a NO-OP in react-native-web, so the box carries the 44 itself.
+  tapPhone: PhoneTap,
+  tapPhoneH: { ...PhoneTapH, minWidth: 44, alignItems: 'center' },
+  // Applied AFTER nudgeBtnShort so the 44 floor wins even in the
+  // space-starved landscape layout. Costs 12px of score height; the keys
+  // being reliably tappable is worth more (B-093).
+  nudgeBtnPhone: { height: 44 },
   ghostText: { fontSize: Type.size.sm, fontWeight: Type.weight.semibold, color: Palette.accent },
   footnote: {
     fontSize: Type.size.xs,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { SubdivisionGlyph } from '@/components/SubdivisionGlyph';
 import { ThemedText } from '@/components/themed-text';
@@ -57,6 +57,9 @@ function FloatingMetronomeWeb({
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  // The card's own controls are 32-38px; hitSlop can't help on web (B-093).
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [pos, setPos] = useState(() => {
@@ -208,7 +211,11 @@ function FloatingMetronomeWeb({
           <Pressable
             onPress={() => setCollapsed((c) => !c)}
             hitSlop={10}
-            style={[styles.collapseBtn, { borderColor: C.icon }]}>
+            style={[
+              styles.collapseBtn,
+              isPhone && styles.collapseBtnPhone,
+              { borderColor: C.icon },
+            ]}>
             <ThemedText style={[styles.collapseText, { color: C.text }]}>
               {collapsed ? '▾' : '▴'}
             </ThemedText>
@@ -229,7 +236,11 @@ function FloatingMetronomeWeb({
               <Pressable
                 onPress={() => onBpm(Math.max(BPM_MIN, bpm - 1))}
                 hitSlop={6}
-                style={[styles.nudgeBtn, { borderColor: C.icon }]}>
+                style={[
+                  styles.nudgeBtn,
+                  isPhone && styles.nudgeBtnPhone,
+                  { borderColor: C.icon },
+                ]}>
                 <ThemedText style={[styles.nudgeText, { color: C.icon }]}>−</ThemedText>
               </Pressable>
               <View style={styles.tempoDisplay}>
@@ -239,7 +250,11 @@ function FloatingMetronomeWeb({
               <Pressable
                 onPress={() => onBpm(Math.min(BPM_MAX, bpm + 1))}
                 hitSlop={6}
-                style={[styles.nudgeBtn, { borderColor: C.icon }]}>
+                style={[
+                  styles.nudgeBtn,
+                  isPhone && styles.nudgeBtnPhone,
+                  { borderColor: C.icon },
+                ]}>
                 <ThemedText style={[styles.nudgeText, { color: C.icon }]}>+</ThemedText>
               </Pressable>
             </View>
@@ -307,6 +322,9 @@ const styles = StyleSheet.create({
   },
   dragBars: { alignItems: 'center', gap: 3, flex: 1 },
   dragBar: { width: 44, height: 3, borderRadius: 2 },
+  // Phone tap targets (B-093) — hitSlop is a no-op in a mobile browser.
+  collapseBtnPhone: { width: 44, height: 44, borderRadius: 22 },
+  nudgeBtnPhone: { minWidth: 44, minHeight: 44, justifyContent: 'center' },
   collapseBtn: {
     position: 'absolute',
     right: 0,

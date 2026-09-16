@@ -47,7 +47,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
-import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, PhoneTap, Radii, Spacing, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { getSetting, setSetting } from '@/lib/db/repos/settings';
 
@@ -1225,7 +1225,12 @@ export default function DocumentScreen() {
               borderBottomColor: C.icon + '22',
             },
           ]}>
-          <Pressable onPress={() => router.back()} hitSlop={10}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            style={isPhone && styles.coachBackBtn}>
             <ThemedText style={[styles.coachBack, { color: C.tint }]}>‹ Back</ThemedText>
           </Pressable>
           <ThemedText numberOfLines={2} style={styles.coachInstruction}>
@@ -1520,7 +1525,12 @@ export default function DocumentScreen() {
                   <Pressable
                     onPress={() => goTo(currentIndex - 1)}
                     hitSlop={10}
-                    style={[styles.spotNavBtn, styles.spotNavLeft, { borderColor: C.icon }]}
+                    style={[
+                    styles.spotNavBtn,
+                    isPhone && styles.spotNavBtnPhone,
+                    styles.spotNavLeft,
+                    { borderColor: C.icon },
+                  ]}
                     accessibilityLabel="Previous page">
                     <ThemedText style={[styles.spotNavGlyph, { color: C.tint }]}>‹</ThemedText>
                   </Pressable>
@@ -1529,7 +1539,12 @@ export default function DocumentScreen() {
                   <Pressable
                     onPress={() => goTo(currentIndex + 1)}
                     hitSlop={10}
-                    style={[styles.spotNavBtn, styles.spotNavRight, { borderColor: C.icon }]}
+                    style={[
+                    styles.spotNavBtn,
+                    isPhone && styles.spotNavBtnPhone,
+                    styles.spotNavRight,
+                    { borderColor: C.icon },
+                  ]}
                     accessibilityLabel="Next page">
                     <ThemedText style={[styles.spotNavGlyph, { color: C.tint }]}>›</ThemedText>
                   </Pressable>
@@ -1685,7 +1700,10 @@ export default function DocumentScreen() {
                 onPress={() => setFirstPassageCtaDismissed(true)}
                 hitSlop={10}
                 accessibilityLabel="Dismiss"
-                style={styles.firstPassageDismiss}>
+                style={[
+                  styles.firstPassageDismiss,
+                  isPhone && styles.firstPassageDismissPhone,
+                ]}>
                 <ThemedText style={styles.firstPassageDismissText}>✕</ThemedText>
               </Pressable>
               <ThemedText style={styles.firstPassageTitle}>
@@ -2023,6 +2041,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   coachBack: { fontSize: Type.size.md, fontWeight: Type.weight.semibold },
+  // Bare text links render 24 tall and hitSlop is a no-op on web (B-093), so
+  // the box itself carries the 44 on phone.
+  coachBackBtn: PhoneTap,
   coachInstruction: {
     flex: 1,
     fontSize: Type.size.md,
@@ -2109,6 +2130,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  spotNavBtnPhone: { width: 44, height: 44, borderRadius: 22 },
   spotNavLeft: { left: 8 },
   spotNavRight: { right: 8 },
   spotNavGlyph: { fontSize: 28, lineHeight: 30, fontWeight: Type.weight.heavy },
@@ -2206,6 +2228,16 @@ const styles = StyleSheet.create({
     top: 8,
     right: 10,
     zIndex: 1,
+  },
+  // Pulled into the corner so the glyph stays about where it was while the
+  // box grows to a thumb-sized 44 (B-093).
+  firstPassageDismissPhone: {
+    top: 0,
+    right: 0,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   firstPassageDismissText: {
     color: '#94a3b8',

@@ -690,7 +690,8 @@ function DroneOverlay({
 
   // Cap the body height so the card never runs off a short screen (phone
   // landscape) — it scrolls beyond that.
-  const { height: vpH } = useWindowDimensions();
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   return (
     <Modal supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
@@ -707,7 +708,7 @@ function DroneOverlay({
             <Pressable
               onPress={onClose}
               hitSlop={8}
-              style={[styles.doneBtn, styles.raised]}>
+              style={[styles.doneBtn, isPhone && styles.doneBtnPhone, styles.raised]}>
               <ThemedText style={styles.doneText}>Done</ThemedText>
             </Pressable>
           </View>
@@ -726,24 +727,31 @@ function DroneOverlay({
               <ThemedText style={styles.droneSwitchCaption}>
                 {m.droneEnabled ? 'ON' : 'OFF'}
               </ThemedText>
+              {/* A switch has to LOOK like a 28-tall switch, so on phone the
+                  pressable grows AROUND the track instead of stretching it
+                  (hitSlop can't do it on web — B-093). On tablet the wrapper
+                  shrink-wraps the track, so geometry there is unchanged. */}
               <Pressable
                 onPress={() => onToggle(!m.droneEnabled)}
                 accessibilityRole="switch"
                 accessibilityState={{ checked: m.droneEnabled }}
                 accessibilityLabel="Drone tone"
                 hitSlop={8}
-                style={[
-                  styles.droneSwitchTrack,
-                  {
-                    backgroundColor: m.droneEnabled ? DEVICE.tone : DEVICE.mute,
-                  },
-                ]}>
+                style={isPhone && styles.droneSwitchHit}>
                 <View
                   style={[
-                    styles.droneSwitchKnob,
-                    { transform: [{ translateX: m.droneEnabled ? 24 : 2 }] },
-                  ]}
-                />
+                    styles.droneSwitchTrack,
+                    {
+                      backgroundColor: m.droneEnabled ? DEVICE.tone : DEVICE.mute,
+                    },
+                  ]}>
+                  <View
+                    style={[
+                      styles.droneSwitchKnob,
+                      { transform: [{ translateX: m.droneEnabled ? 24 : 2 }] },
+                    ]}
+                  />
+                </View>
               </Pressable>
             </View>
           </View>
@@ -837,7 +845,8 @@ function RhythmsOverlay({
   const grooves = groovesForMeter(meter);
   // Cap the list height so it never runs off a short screen (phone landscape)
   // — it scrolls beyond that.
-  const { height: vpH } = useWindowDimensions();
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   function pick(id: string | null) {
     onPick(id);
@@ -849,7 +858,7 @@ function RhythmsOverlay({
         <Pressable style={styles.droneCard} onPress={(e) => e.stopPropagation()}>
           <View style={styles.overlayHeader}>
             <ThemedText style={styles.overlayTitle}>Rhythms · {meter}</ThemedText>
-            <Pressable onPress={onClose} hitSlop={8} style={[styles.doneBtn, styles.raised]}>
+            <Pressable onPress={onClose} hitSlop={8} style={[styles.doneBtn, isPhone && styles.doneBtnPhone, styles.raised]}>
               <ThemedText style={styles.doneText}>Done</ThemedText>
             </Pressable>
           </View>
@@ -932,7 +941,8 @@ function GapsOverlay({
 }) {
   const pct = Math.round(m.dropChance * 100);
   // Cap the body height so it scrolls instead of running off a short screen.
-  const { height: vpH } = useWindowDimensions();
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
   return (
     <Modal
       supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
@@ -944,7 +954,7 @@ function GapsOverlay({
         <Pressable style={styles.droneCard} onPress={(e) => e.stopPropagation()}>
           <View style={styles.overlayHeader}>
             <ThemedText style={styles.overlayTitle}>Random gaps</ThemedText>
-            <Pressable onPress={onClose} hitSlop={8} style={[styles.doneBtn, styles.raised]}>
+            <Pressable onPress={onClose} hitSlop={8} style={[styles.doneBtn, isPhone && styles.doneBtnPhone, styles.raised]}>
               <ThemedText style={styles.doneText}>Done</ThemedText>
             </Pressable>
           </View>
@@ -1286,6 +1296,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
+  // Phone tap targets (B-093) — hitSlop is a no-op in a mobile browser.
+  doneBtnPhone: { minHeight: 44, justifyContent: 'center' },
+  droneSwitchHit: { height: 44, justifyContent: 'center' },
   droneSwitchTrack: {
     width: 50,
     height: 28,

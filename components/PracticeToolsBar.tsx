@@ -380,7 +380,7 @@ export function PracticeToolsBar({
                   setOpen((o) => (o === key ? null : key));
                 }}
                 accessibilityLabel={key}
-                style={[styles.iconBtn, active && styles.iconBtnActive]}>
+                style={[styles.iconBtn, isPhone && styles.iconBtnPhone, active && styles.iconBtnActive]}>
                 <MaterialCommunityIcons
                   name={ICONS[key]}
                   size={20}
@@ -399,7 +399,7 @@ export function PracticeToolsBar({
             <Pressable
               onPress={pencil.onUndo}
               accessibilityLabel="Undo last pencil mark"
-              style={[styles.iconBtn, styles.undoBtn]}>
+              style={[styles.iconBtn, isPhone && styles.iconBtnPhone, styles.undoBtn]}>
               <MaterialCommunityIcons name="undo-variant" size={20} color="#fff" />
             </Pressable>
           )}
@@ -407,7 +407,7 @@ export function PracticeToolsBar({
             <Pressable
               onPress={pencil.onToggle}
               accessibilityLabel={pencil.active ? 'Done drawing' : 'Pencil'}
-              style={[styles.iconBtn, pencil.active && styles.iconBtnActive]}>
+              style={[styles.iconBtn, isPhone && styles.iconBtnPhone, pencil.active && styles.iconBtnActive]}>
               <MaterialCommunityIcons
                 name={pencil.active ? 'check' : 'pencil-outline'}
                 size={20}
@@ -426,6 +426,7 @@ export function PracticeToolsBar({
           <View
             style={[
               styles.panel,
+              isPhone && styles.panelPhone,
               size.bg === 'transparent' && styles.panelBare,
               {
                 width: size.w,
@@ -491,6 +492,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 32 is under the 44 house minimum and hitSlop is a no-op on web (B-093),
+  // so on phone the keys themselves grow. The pill goes 38 -> 50 tall, which
+  // is why the anchored panel drops to `panelPhone`'s top.
+  iconBtnPhone: { width: 44, height: 44, borderRadius: 22 },
   iconBtnActive: { backgroundColor: Palette.accent },
   undoBtn: { backgroundColor: Palette.danger },
   dot: {
@@ -511,6 +516,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...Lift,
   },
+  panelPhone: { top: 56 },
   // The phone's collapsed-recorder dot: no card chrome, no shadow.
   panelBare: {
     borderWidth: 0,

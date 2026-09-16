@@ -14,7 +14,7 @@ import {
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { Palette } from '@/constants/palette';
-import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, PhoneTap, PhoneTapH, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   getSnapshot as getSerialSnapshot,
@@ -120,6 +120,10 @@ export function PracticeTimersPill({
   bare = false,
   device,
 }: PracticeTimersPillProps = {}) {
+  // The ⚙ / ? keys are 36 wide and the serial chip 32 tall — under the 44
+  // house minimum, and hitSlop does nothing on web (B-093).
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const dev: DeviceColors = device ?? {
@@ -202,6 +206,7 @@ export function PracticeTimersPill({
             hitSlop={6}
             style={[
               styles.serialChip,
+              isPhone && styles.serialChipPhone,
               { backgroundColor: chipExpired ? Palette.danger : C.tint },
             ]}>
             <ThemedText style={styles.serialChipText}>
@@ -276,14 +281,22 @@ export function PracticeTimersPill({
           onPress={() => setSettingsOpen(true)}
           hitSlop={6}
           accessibilityLabel="Timer settings"
-          style={[styles.utilityKey, { backgroundColor: dev.keyOff }]}>
+          style={[
+            styles.utilityKey,
+            isPhone && styles.utilityKeyPhone,
+            { backgroundColor: dev.keyOff },
+          ]}>
           <ThemedText style={[styles.utilityKeyText, { color: dev.help }]}>⚙</ThemedText>
         </Pressable>
         <Pressable
           onPress={() => setInfoOpen(true)}
           hitSlop={6}
           accessibilityLabel="Timer help"
-          style={[styles.utilityKey, { backgroundColor: dev.keyOff }]}>
+          style={[
+            styles.utilityKey,
+            isPhone && styles.utilityKeyPhone,
+            { backgroundColor: dev.keyOff },
+          ]}>
           <ThemedText style={[styles.utilityKeyText, { color: dev.help }]}>?</ThemedText>
         </Pressable>
       </View>
@@ -862,16 +875,22 @@ function TimerSettingsModal({
                           ? `Remove from today's rotation: ${cue.text}`
                           : `Add to today's rotation: ${cue.text}`
                       }
-                      style={[
-                        styles.promptCheck,
-                        {
-                          borderColor: cue.active ? C.tint : C.icon + '77',
-                          backgroundColor: cue.active ? C.tint : 'transparent',
-                        },
-                      ]}>
-                      {cue.active ? (
-                        <ThemedText style={styles.promptCheckMark}>✓</ThemedText>
-                      ) : null}
+                      style={isPhone ? styles.promptCheckHit : undefined}>
+                      {/* A checkbox has to keep LOOKING like a 22px box, so on
+                          phone the pressable grows around it instead of
+                          stretching it (hitSlop is a no-op on web — B-093). */}
+                      <View
+                        style={[
+                          styles.promptCheck,
+                          {
+                            borderColor: cue.active ? C.tint : C.icon + '77',
+                            backgroundColor: cue.active ? C.tint : 'transparent',
+                          },
+                        ]}>
+                        {cue.active ? (
+                          <ThemedText style={styles.promptCheckMark}>✓</ThemedText>
+                        ) : null}
+                      </View>
                     </Pressable>
                     <ThemedText
                       style={[
@@ -890,7 +909,8 @@ function TimerSettingsModal({
                         })
                       }
                       hitSlop={8}
-                      accessibilityLabel={`Remove cue: ${cue.text}`}>
+                      accessibilityLabel={`Remove cue: ${cue.text}`}
+                      style={isPhone && styles.tapPhone}>
                       <ThemedText style={[styles.promptRowDelete, { color: C.icon }]}>
                         ✕
                       </ThemedText>
@@ -920,7 +940,8 @@ function TimerSettingsModal({
               <Pressable
                 onPress={() => setComposeOpen(false)}
                 hitSlop={10}
-                accessibilityLabel="Done adding cues">
+                accessibilityLabel="Done adding cues"
+                style={isPhone && styles.tapPhone}>
                 <ThemedText style={[styles.composeDone, { color: C.tint }]}>
                   Done
                 </ThemedText>
@@ -1159,6 +1180,11 @@ const styles = StyleSheet.create({
 
   // Timer settings sheet
   settingsBlock: { gap: 8 },
+  // Phone tap targets (B-093) — hitSlop is a no-op in a mobile browser.
+  tapPhone: PhoneTap,
+  serialChipPhone: { ...PhoneTap, alignItems: 'center' },
+  utilityKeyPhone: { width: 44 },
+  promptCheckHit: { ...PhoneTap },
   promptCheck: {
     width: 22,
     height: 22,

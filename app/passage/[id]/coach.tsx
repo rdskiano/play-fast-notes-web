@@ -14,7 +14,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
@@ -23,7 +23,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Lift, Palette } from '@/constants/palette';
 import { Fonts } from '@/constants/theme';
-import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, PhoneTap, PhoneTapH, Radii, Spacing, Type } from '@/constants/tokens';
 import { TOOL_ROUTE, type ToolKey } from '@/lib/coach/engine';
 import { CARD_TOOL_NAME, suggestFromTrail, type CoachCard, type LadderSnapshot } from '@/lib/coach/suggest';
 import { getOrCreateExercise } from '@/lib/db/repos/exercises';
@@ -65,6 +65,9 @@ export default function CoachScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Text links render 24-32 tall and hitSlop is a no-op on web (B-093).
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   const [loading, setLoading] = useState(true);
   const [passage, setPassage] = useState<Passage | null>(null);
@@ -188,7 +191,7 @@ export default function CoachScreen() {
 
       {/* Big-title header (DESIGN_RULES §3 — left-aligned page title) */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={() => router.back()} hitSlop={8} style={isPhone && styles.tapPhone}>
           <ThemedText style={styles.backLink}>‹ Back</ThemedText>
         </Pressable>
         <ThemedText type="title">Practice coach · beta</ThemedText>
@@ -224,7 +227,7 @@ export default function CoachScreen() {
                 <ThemedText style={styles.thumbLabel}>Not really</ThemedText>
               </Pressable>
             </View>
-            <Pressable onPress={() => rateFeedback(null)} hitSlop={8} style={styles.ghost}>
+            <Pressable onPress={() => rateFeedback(null)} hitSlop={8} style={[styles.ghost, isPhone && styles.tapPhoneH]}>
               <ThemedText style={styles.ghostText}>skip</ThemedText>
             </Pressable>
           </View>
@@ -250,7 +253,7 @@ export default function CoachScreen() {
                 <Pressable
                   onPress={() => setDemoId(DEMO_FOR_TOOL[card.tool])}
                   hitSlop={8}
-                  style={styles.seeDemo}>
+                  style={[styles.seeDemo, isPhone && styles.tapPhoneH]}>
                   <ThemedText style={styles.seeDemoText}>▷ See how it works</ThemedText>
                 </Pressable>
               )}
@@ -363,6 +366,11 @@ const styles = StyleSheet.create({
   },
   pickLabel: { fontSize: Type.size.md, fontWeight: Type.weight.semibold, color: Palette.text },
   pickChevron: { fontSize: Type.size.lg, color: Palette.textMuted },
+  // ── Phone tap targets (B-093) ──────────────────────────────────────────
+  // hitSlop is a NO-OP in react-native-web, so on phone the box itself has to
+  // carry the 44px house minimum (DESIGN_RULES §12). Phone only.
+  tapPhone: PhoneTap,
+  tapPhoneH: { ...PhoneTapH, minWidth: 44, alignItems: 'center' },
   ghost: { alignSelf: 'flex-start', paddingVertical: 8 },
   ghostText: { fontSize: Type.size.sm, color: Palette.textMuted },
 });

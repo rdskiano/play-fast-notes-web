@@ -1,10 +1,10 @@
 import Slider from '@react-native-community/slider';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Lift, Palette } from '@/constants/palette';
 import { Colors } from '@/constants/theme';
-import { Borders, Spacing, Type } from '@/constants/tokens';
+import { Borders, PhoneTap, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useMetronome } from '@/lib/audio/useMetronome';
 
@@ -39,6 +39,11 @@ export function BpmStepper({
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   const accentColor = accent ?? C.tint;
+  // The -/+ keys are 40 (32 compact), under the 44 house minimum, and hitSlop
+  // does nothing on web (B-093). The tempo row is space-between, so widening
+  // them on phone costs no layout.
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   const parsed = parseInt(value, 10);
   const numValue = !isNaN(parsed) ? clamp(parsed, min, max) : min;
@@ -71,7 +76,11 @@ export function BpmStepper({
           onPress={() => setBpm(numValue - 1)}
           onLongPress={() => setBpm(numValue - 5)}
           hitSlop={6}
-          style={[styles.stepBtn, compact && styles.stepBtnCompact]}>
+          style={[
+            styles.stepBtn,
+            compact && styles.stepBtnCompact,
+            isPhone && styles.stepBtnPhone,
+          ]}>
           <ThemedText style={styles.stepText}>−</ThemedText>
         </Pressable>
         <View style={styles.tempoDisplay}>
@@ -84,7 +93,11 @@ export function BpmStepper({
           onPress={() => setBpm(numValue + 1)}
           onLongPress={() => setBpm(numValue + 5)}
           hitSlop={6}
-          style={[styles.stepBtn, compact && styles.stepBtnCompact]}>
+          style={[
+            styles.stepBtn,
+            compact && styles.stepBtnCompact,
+            isPhone && styles.stepBtnPhone,
+          ]}>
           <ThemedText style={styles.stepText}>+</ThemedText>
         </Pressable>
       </View>
@@ -152,6 +165,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   stepBtnCompact: { width: 32, height: 32, borderRadius: 16 },
+  // Wins over stepBtnCompact — order matters in the style array below.
+  stepBtnPhone: { ...PhoneTap, width: 44, height: 44, borderRadius: 22 },
   tempoNumCompact: { fontSize: 24, lineHeight: 28 },
   playBtnCompact: { height: 34, paddingHorizontal: Spacing.md },
   tempoRow: {

@@ -46,6 +46,31 @@ export const Type = {
   },
 } as const;
 
+/**
+ * Minimum tap target on phone (DESIGN_RULES §12 — 44px).
+ *
+ * `hitSlop` is a NO-OP in react-native-web: only the legacy `Touchable`
+ * implements it, `Pressable` ignores it. So in a mobile browser a control is
+ * exactly its rendered box, and the box itself has to carry the 44 (B-092 /
+ * B-093). Spread these into a PHONE-ONLY style branch —
+ * `style={[styles.btn, isPhone && styles.btnPhone]}` — and leave tablet /
+ * desktop geometry alone: those layouts are deliberately tight.
+ *
+ *   PhoneTap  — square 44x44, contents centred (icon buttons, glyph chips).
+ *   PhoneTapH — height only, for controls that must stay content-wide.
+ */
+export const PhoneTap = {
+  minWidth: 44,
+  minHeight: 44,
+  alignItems: 'center',
+  justifyContent: 'center',
+} as const;
+
+export const PhoneTapH = {
+  minHeight: 44,
+  justifyContent: 'center',
+} as const;
+
 export const Borders = {
   thin: 1,
   medium: 1.5,

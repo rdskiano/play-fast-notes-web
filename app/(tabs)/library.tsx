@@ -36,7 +36,16 @@ import { ONBOARDING_FUNNEL_ENABLED } from '@/constants/onboardingFunnel';
 import { Colors, Fonts } from '@/constants/theme';
 import { Lift, Palette } from '@/constants/palette';
 import { applySignupProfile } from '@/lib/onboarding/applySignupProfile';
-import { Borders, Opacity, Overlays, Radii, Spacing, Type } from '@/constants/tokens';
+import {
+  Borders,
+  Opacity,
+  Overlays,
+  PhoneTap,
+  PhoneTapH,
+  Radii,
+  Spacing,
+  Type,
+} from '@/constants/tokens';
 
 // v2 reskin — Tempo-progress bar color by how close the passage is to its goal
 // tempo (matches the prototype's red → amber → green gradient). Purely
@@ -142,12 +151,15 @@ type UndoMove = {
 // action sheet (rename / move / delete / reorder). Replaces the old "Edit mode"
 // inline controls.
 function MoreButton({ onPress }: { onPress: () => void }) {
+  // 32 wide isn't a thumb target and hitSlop is a no-op on web (B-093).
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
   return (
     <Pressable
       onPress={onPress}
       hitSlop={8}
       accessibilityLabel="More actions"
-      style={styles.moreBtn}>
+      style={[styles.moreBtn, isPhone && styles.moreBtnPhone]}>
       <ThemedText style={styles.moreGlyph}>⋯</ThemedText>
     </Pressable>
   );
@@ -404,6 +416,8 @@ function FolderTile({
   onMore: () => void;
 }) {
   const tint = folderTint(color, tintIndex);
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhoneTile = Math.min(vpW, vpH) < 600;
   return (
     <View style={styles.folderTile}>
       <Pressable
@@ -425,7 +439,7 @@ function FolderTile({
         onPress={onMore}
         hitSlop={8}
         accessibilityLabel="More actions"
-        style={styles.tileMore}>
+        style={[styles.tileMore, isPhoneTile && styles.tileMorePhone]}>
         <ThemedText style={styles.moreGlyph}>⋯</ThemedText>
       </Pressable>
     </View>
@@ -435,8 +449,10 @@ function FolderTile({
 // v2 reskin — small brand-colored action that sits to the right of a section
 // title (e.g. "+ New folder", "+ Add").
 function SectionAction({ label, onPress }: { label: string; onPress: () => void }) {
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
   return (
-    <Pressable onPress={onPress} hitSlop={6}>
+    <Pressable onPress={onPress} hitSlop={6} style={isPhone && styles.tapPhone}>
       <ThemedText style={styles.sectionAction}>{label}</ThemedText>
     </Pressable>
   );
@@ -1259,7 +1275,11 @@ export default function LibraryScreen() {
           returnKeyType="search"
         />
         {searchQuery.length > 0 && (
-          <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+          <Pressable
+            onPress={() => setSearchQuery('')}
+            hitSlop={8}
+            accessibilityLabel="Clear search"
+            style={isPhone && styles.tapPhone}>
             <ThemedText style={[styles.searchClear, { color: C.icon }]}>✕</ThemedText>
           </Pressable>
         )}
@@ -1359,7 +1379,11 @@ export default function LibraryScreen() {
             !isPhonePortrait && { flex: 1 },
           ]}>
           {path.length > 0 && (
-            <Pressable onPress={goUp} hitSlop={8} style={styles.backBtn}>
+            <Pressable
+              onPress={goUp}
+              hitSlop={8}
+              accessibilityLabel="Up one folder"
+              style={[styles.backBtn, isPhone && styles.tapPhone]}>
               <ThemedText style={[styles.backArrow, { color: C.tint }]}>‹</ThemedText>
             </Pressable>
           )}
@@ -1515,7 +1539,11 @@ export default function LibraryScreen() {
                     <ThemedText style={styles.welcomeTitle}>🎉 {TRIAL_WELCOME_TITLE}</ThemedText>
                     <ThemedText style={styles.welcomeBody}>{trialWelcomeBody()}</ThemedText>
                   </View>
-                  <Pressable onPress={dismissWelcome} hitSlop={8} accessibilityLabel="Dismiss">
+                  <Pressable
+                    onPress={dismissWelcome}
+                    hitSlop={8}
+                    accessibilityLabel="Dismiss"
+                    style={isPhone && styles.tapPhone}>
                     <ThemedText style={styles.welcomeClose}>✕</ThemedText>
                   </Pressable>
                 </View>
@@ -1878,7 +1906,10 @@ export default function LibraryScreen() {
               },
             ]}>
             <ThemedText style={styles.toastText}>{undoMove.label}</ThemedText>
-            <Pressable onPress={onUndoMove} hitSlop={8} style={styles.toastBtn}>
+            <Pressable
+              onPress={onUndoMove}
+              hitSlop={8}
+              style={[styles.toastBtn, isPhone && styles.toastBtnPhone]}>
               <ThemedText style={[styles.toastBtnText, { color: C.tint }]}>Undo</ThemedText>
             </Pressable>
           </View>
@@ -2043,6 +2074,11 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   backBtn: { paddingHorizontal: Spacing.xs },
+  // Phone tap targets (B-093): hitSlop does nothing in a mobile browser, so
+  // every one of these boxes has to be 44 on its own.
+  tapPhone: PhoneTap,
+  moreBtnPhone: { width: 44 },
+  toastBtnPhone: { ...PhoneTapH, minWidth: 44, alignItems: 'center' },
   backArrow: { fontSize: 32, fontWeight: '400', lineHeight: 34 },
   // One-line add-content prompt at the library root. Sized like a
   // tagline (Type.size.md) rather than a hint so first-time users
@@ -2220,6 +2256,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Pulled to the tile's corner so the ⋯ stays put while the box grows.
+  tileMorePhone: { top: 0, right: 0, width: 44, height: 44 },
   breadcrumb: {
     fontSize: 11,
     fontStyle: 'italic',

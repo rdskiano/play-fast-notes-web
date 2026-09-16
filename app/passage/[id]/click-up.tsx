@@ -36,7 +36,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Fonts } from '@/constants/theme';
 import { Lift, Palette } from '@/constants/palette';
-import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
+import { Borders, Opacity, PhoneTap, PhoneTapH, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP, SHORTCUT_HINT_NEXT_BACK } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
@@ -326,7 +326,7 @@ export default function ClickUpScreen() {
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
-          <Pressable onPress={exitSession} hitSlop={8}>
+          <Pressable onPress={exitSession} hitSlop={8} style={isPhone && styles.tapPhone}>
             <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
               ‹ Back
             </ThemedText>
@@ -372,7 +372,7 @@ export default function ClickUpScreen() {
       <ThemedView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={{ paddingTop: insets.top + 10, paddingHorizontal: Spacing.lg }}>
-          <Pressable onPress={goBackToTempo} hitSlop={8}>
+          <Pressable onPress={goBackToTempo} hitSlop={8} style={isPhone && styles.tapPhone}>
             <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
               ‹ Back
             </ThemedText>
@@ -438,13 +438,17 @@ export default function ClickUpScreen() {
               alignItems: 'center',
               justifyContent: 'space-between',
             }}>
-            <Pressable onPress={goBackToExample} hitSlop={8}>
+            <Pressable onPress={goBackToExample} hitSlop={8} style={isPhone && styles.tapPhone}>
               <ThemedText style={{ color: C.tint, fontWeight: Type.weight.bold }}>
                 ‹ Back
               </ThemedText>
             </Pressable>
             <View style={{ flexDirection: 'row', gap: Spacing.lg }}>
-              <Pressable onPress={undoMarker} disabled={markers.length === 0} hitSlop={6}>
+              <Pressable
+                onPress={undoMarker}
+                disabled={markers.length === 0}
+                hitSlop={6}
+                style={isPhone && styles.tapPhone}>
                 <ThemedText
                   style={{
                     color: C.tint,
@@ -454,7 +458,11 @@ export default function ClickUpScreen() {
                   Undo
                 </ThemedText>
               </Pressable>
-              <Pressable onPress={clearMarkers} disabled={markers.length === 0} hitSlop={6}>
+              <Pressable
+                onPress={clearMarkers}
+                disabled={markers.length === 0}
+                hitSlop={6}
+                style={isPhone && styles.tapPhone}>
                 <ThemedText
                   style={{
                     color: Palette.danger,
@@ -570,6 +578,7 @@ export default function ClickUpScreen() {
                 disabled={markers.length === 0}
                 style={[
                   styles.topBtn,
+                  isPhone && styles.tapPhoneH,
                   { opacity: markers.length === 0 ? 0.35 : 1 },
                 ]}>
                 <ThemedText style={[styles.topBtnText, { color: C.tint }]}>
@@ -582,6 +591,7 @@ export default function ClickUpScreen() {
                 disabled={markers.length === 0}
                 style={[
                   styles.topBtn,
+                  isPhone && styles.tapPhoneH,
                   { opacity: markers.length === 0 ? 0.35 : 1 },
                 ]}>
                 <ThemedText style={[styles.topBtnText, { color: Palette.danger }]}>
@@ -601,6 +611,7 @@ export default function ClickUpScreen() {
                 {...tourTag('cu-next')}
                 style={[
                   styles.topBtn,
+                  isPhone && styles.tapPhoneH,
                   {
                     backgroundColor: canContinue ? Palette.success : C.icon + '55',
                   },
@@ -915,7 +926,10 @@ export default function ClickUpScreen() {
               Play from one green arrow ▼ to the next.
             </ThemedText>
           </View>
-          <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={8}>
+          <Pressable
+            onPress={() => setNotePromptVisible(true)}
+            hitSlop={8}
+            style={isPhone && styles.tapPhone}>
             <ThemedText style={[styles.guidedBarDone, { color: C.tint }]}>
               Done
             </ThemedText>
@@ -937,7 +951,7 @@ export default function ClickUpScreen() {
               { paddingTop: insets.top + 10 },
             ]}>
             <View style={[styles.runSide, isPhone && styles.runSidePhone]}>
-              <Pressable onPress={exitSession} hitSlop={8} style={styles.runExit}>
+              <Pressable onPress={exitSession} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
                 <Feather name="log-out" size={15} color={Palette.danger} />
                 <ThemedText style={styles.runExitText}>Exit</ThemedText>
               </Pressable>
@@ -1200,11 +1214,14 @@ export default function ClickUpScreen() {
             <ThemedText style={styles.runNextBtnText}>Next →</ThemedText>
           </Pressable>
           <View style={[styles.runLinksLandscape, { bottom: insets.bottom + 8 }]}>
-            <Pressable onPress={goBackToConfig} hitSlop={6}>
+            <Pressable onPress={goBackToConfig} hitSlop={6} style={isPhone && styles.tapPhoneH}>
               <ThemedText style={styles.runLink}>← Setup</ThemedText>
             </Pressable>
             <ThemedText style={styles.runLinkDot}>·</ThemedText>
-            <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={6}>
+            <Pressable
+              onPress={() => setNotePromptVisible(true)}
+              hitSlop={6}
+              style={isPhone && styles.tapPhoneH}>
               <ThemedText style={styles.runLink}>Done — log it</ThemedText>
             </Pressable>
           </View>
@@ -1231,10 +1248,13 @@ export default function ClickUpScreen() {
             </Pressable>
           </View>
           <View style={styles.runLinks}>
-            <Pressable onPress={goBackToConfig} hitSlop={6}>
+            <Pressable onPress={goBackToConfig} hitSlop={6} style={isPhone && styles.tapPhoneH}>
               <ThemedText style={styles.runLink}>← Tempo setup</ThemedText>
             </Pressable>
-            <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={6}>
+            <Pressable
+              onPress={() => setNotePromptVisible(true)}
+              hitSlop={6}
+              style={isPhone && styles.tapPhoneH}>
               <ThemedText style={styles.runLink}>Done — log it</ThemedText>
             </Pressable>
           </View>
@@ -1436,6 +1456,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
   },
+  // ── Phone tap targets (B-093) ──────────────────────────────────────────
+  // hitSlop is a NO-OP in react-native-web, so on phone the box itself has to
+  // carry the 44px house minimum (DESIGN_RULES §12). Phone only — the iPad
+  // layouts are deliberately tight.
+  tapPhone: PhoneTap,
+  tapPhoneH: { ...PhoneTapH, minWidth: 44, alignItems: 'center' },
   topBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radii.md },
   topBtnText: { fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
   topCenter: { textAlign: 'center', fontWeight: Type.weight.bold, fontSize: Type.size.sm },

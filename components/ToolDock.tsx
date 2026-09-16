@@ -146,6 +146,7 @@ export function ToolDock({
   // A docked panel fills the screen height in landscape (so it covers the
   // header); in portrait it's content-height so it isn't a giant empty strip.
   const dockedLandscape = winW > winH;
+  const isPhone = Math.min(winW, winH) < 600;
   const dockedPanelH = docked && dockedLandscape ? winH : panelHeight;
   // Portrait: start the panel below the status bar / notch so its × close
   // button isn't hidden under the phone's speaker. Landscape fills from y=0.
@@ -317,12 +318,21 @@ export function ToolDock({
               confused (the old failure mode was tapping − to "close" and
               just shrinking the card). */}
           <View pointerEvents="box-none" style={styles.closeWrap}>
+            {/* On phone the pressable grows to 44 AROUND the 24px chip — the
+                chip has to stay small (it overlays the tool's own controls)
+                and hitSlop is a no-op in a mobile browser (B-093). */}
             <Pressable
               onPress={() => setOpen(false)}
               hitSlop={8}
               accessibilityLabel={`Collapse ${label}`}
-              style={styles.closeBtn}>
-              <ThemedText style={styles.closeGlyph}>×</ThemedText>
+              style={isPhone ? styles.closeHit : styles.closeBtn}>
+              {isPhone ? (
+                <View style={styles.closeBtn}>
+                  <ThemedText style={styles.closeGlyph}>×</ThemedText>
+                </View>
+              ) : (
+                <ThemedText style={styles.closeGlyph}>×</ThemedText>
+              )}
             </Pressable>
           </View>
           {/* Top-right resize affordance. Sits inside the scaled card
@@ -554,6 +564,15 @@ const styles = StyleSheet.create({
     top: 4,
     left: 4,
     zIndex: 10,
+  },
+  // The chip stays exactly where it was (top-left corner); the extra hit area
+  // grows down and to the right, into the padding the panels already reserve
+  // for this × (see MetronomePanel's VOL label note).
+  closeHit: {
+    width: 44,
+    height: 44,
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
   },
   closeBtn: {
     width: 24,

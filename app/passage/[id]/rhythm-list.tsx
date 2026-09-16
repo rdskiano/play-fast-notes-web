@@ -6,6 +6,7 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -18,7 +19,7 @@ import { ThemedView } from '@/components/themed-view';
 import { TutorialStep } from '@/components/TutorialStep';
 import { Colors } from '@/constants/theme';
 import { Palette } from '@/constants/palette';
-import { Borders, Radii, Spacing, Type } from '@/constants/tokens';
+import { Borders, PhoneTap, PhoneTapH, Radii, Spacing, Type } from '@/constants/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   insertExercise,
@@ -66,6 +67,10 @@ export default function RhythmListScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
+  // Edit mode's ↑ / ↓ / Rename / Delete controls are 28px boxes and hitSlop is
+  // a no-op on web (B-093).
+  const { width: vpW, height: vpH } = useWindowDimensions();
+  const isPhone = Math.min(vpW, vpH) < 600;
 
   const [passage, setPassage] = useState<Passage | null>(null);
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -242,7 +247,11 @@ export default function RhythmListScreen() {
                         hitSlop={6}
                         onPress={index > 0 ? () => moveExercise(item.id, -1) : undefined}
                         disabled={index === 0}
-                        style={[styles.reorderBtn, { opacity: index > 0 ? 1 : 0.25 }]}>
+                        style={[
+                          styles.reorderBtn,
+                          isPhone && styles.reorderBtnPhone,
+                          { opacity: index > 0 ? 1 : 0.25 },
+                        ]}>
                         <ThemedText style={[styles.reorderArrow, { color: C.icon }]}>↑</ThemedText>
                       </Pressable>
                       <Pressable
@@ -255,6 +264,7 @@ export default function RhythmListScreen() {
                         disabled={index >= exercises.length - 1}
                         style={[
                           styles.reorderBtn,
+                          isPhone && styles.reorderBtnPhone,
                           { opacity: index < exercises.length - 1 ? 1 : 0.25 },
                         ]}>
                         <ThemedText style={[styles.reorderArrow, { color: C.icon }]}>↓</ThemedText>
@@ -266,7 +276,7 @@ export default function RhythmListScreen() {
                         onPress={() =>
                           setPrompt({ kind: 'rename', id: item.id, initial: label })
                         }
-                        style={styles.editActionBtn}>
+                        style={[styles.editActionBtn, isPhone && styles.tapPhoneH]}>
                         <ThemedText style={[styles.editActionText, { color: '#9b59b6' }]}>
                           Rename
                         </ThemedText>
@@ -274,7 +284,7 @@ export default function RhythmListScreen() {
                       <Pressable
                         hitSlop={6}
                         onPress={() => confirmDelete(item, label)}
-                        style={styles.editActionBtn}>
+                        style={[styles.editActionBtn, isPhone && styles.tapPhoneH]}>
                         <ThemedText style={[styles.editActionText, { color: Palette.danger }]}>
                           Delete
                         </ThemedText>
@@ -385,6 +395,12 @@ const styles = StyleSheet.create({
   editActionBtn: { paddingHorizontal: 6, paddingVertical: 2 },
   editActionText: { fontSize: Type.size.sm, fontWeight: Type.weight.bold },
   reorderColumn: { alignItems: 'center', gap: 2 },
+  // ── Phone tap targets (B-093) ──────────────────────────────────────────
+  // hitSlop is a NO-OP in react-native-web, so on phone the box itself has to
+  // carry the 44px house minimum (DESIGN_RULES §12). Phone only.
+  tapPhone: PhoneTap,
+  tapPhoneH: { ...PhoneTapH, minWidth: 44, alignItems: 'center' },
+  reorderBtnPhone: { width: 44, height: 44 },
   reorderBtn: {
     width: 28,
     height: 28,

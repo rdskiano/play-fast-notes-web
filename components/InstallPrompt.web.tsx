@@ -257,11 +257,14 @@ const styles = StyleSheet.create({
     fontSize: Type.size.sm,
     lineHeight: 20,
   },
+  // This modal only ever shows on phone web, so the 44px house minimum
+  // applies unconditionally — and hitSlop can't deliver it (B-093).
   checkRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     paddingVertical: Spacing.xs,
+    minHeight: 44,
   },
   checkbox: {
     width: 22,

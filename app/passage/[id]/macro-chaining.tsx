@@ -34,7 +34,7 @@ import { TutorialStep } from '@/components/TutorialStep';
 import { useStrategyColors } from '@/components/StrategyColorsContext';
 import { Colors } from '@/constants/theme';
 import { Lift, Palette } from '@/constants/palette';
-import { Borders, Opacity, Radii, Spacing, Status, Type } from '@/constants/tokens';
+import { Borders, Opacity, PhoneTap, PhoneTapH, Radii, Spacing, Status, Type } from '@/constants/tokens';
 import { PRACTICE_TOOLS_HELP } from '@/constants/helpCopy';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePracticeClock } from '@/hooks/usePracticeClock';
@@ -189,14 +189,22 @@ export default function MacroChainingScreen() {
                 onPress={undoMark}
                 hitSlop={6}
                 disabled={marks.length === 0}
-                style={[styles.topBtn, { opacity: marks.length === 0 ? 0.35 : 1 }]}>
+                style={[
+                  styles.topBtn,
+                  isPhone && styles.tapPhoneH,
+                  { opacity: marks.length === 0 ? 0.35 : 1 },
+                ]}>
                 <ThemedText style={[styles.topBtnText, { color: C.tint }]}>UNDO</ThemedText>
               </Pressable>
               <Pressable
                 onPress={clearMarks}
                 hitSlop={6}
                 disabled={marks.length === 0}
-                style={[styles.topBtn, { opacity: marks.length === 0 ? 0.35 : 1 }]}>
+                style={[
+                  styles.topBtn,
+                  isPhone && styles.tapPhoneH,
+                  { opacity: marks.length === 0 ? 0.35 : 1 },
+                ]}>
                 <ThemedText style={[styles.topBtnText, { color: Palette.danger }]}>CLEAR</ThemedText>
               </Pressable>
               <Pressable
@@ -206,6 +214,7 @@ export default function MacroChainingScreen() {
                 {...tourTag('mac-next')}
                 style={[
                   styles.topBtn,
+                  isPhone && styles.tapPhoneH,
                   { backgroundColor: canContinue ? Palette.success : C.icon + '55' },
                 ]}>
                 <ThemedText style={[styles.topBtnText, { color: '#fff' }]}>NEXT →</ThemedText>
@@ -368,7 +377,7 @@ export default function MacroChainingScreen() {
             paddingRight: insets.right + Spacing.md,
           },
         ]}>
-        <Pressable onPress={exitSession} hitSlop={8} style={styles.runExit}>
+        <Pressable onPress={exitSession} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
           <Feather name="log-out" size={15} color={Palette.danger} />
           <ThemedText style={styles.runExitText}>Exit</ThemedText>
         </Pressable>
@@ -485,11 +494,14 @@ export default function MacroChainingScreen() {
             <ThemedText style={styles.runNextBtnText}>Next →</ThemedText>
           </Pressable>
           <View style={[styles.runLinksLandscape, { bottom: insets.bottom + 8 }]}>
-            <Pressable onPress={goBackToConfig} hitSlop={6}>
+            <Pressable onPress={goBackToConfig} hitSlop={6} style={isPhone && styles.tapPhoneH}>
               <ThemedText style={[styles.runLink, { color: ACCENT }]}>← Setup</ThemedText>
             </Pressable>
             <ThemedText style={styles.runLinkDot}>·</ThemedText>
-            <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={6}>
+            <Pressable
+              onPress={() => setNotePromptVisible(true)}
+              hitSlop={6}
+              style={isPhone && styles.tapPhoneH}>
               <ThemedText style={[styles.runLink, { color: ACCENT }]}>Done — log it</ThemedText>
             </Pressable>
           </View>
@@ -516,10 +528,13 @@ export default function MacroChainingScreen() {
             </Pressable>
           </View>
           <View style={styles.runLinks}>
-            <Pressable onPress={goBackToConfig} hitSlop={6}>
+            <Pressable onPress={goBackToConfig} hitSlop={6} style={isPhone && styles.tapPhoneH}>
               <ThemedText style={[styles.runLink, { color: ACCENT }]}>← Setup</ThemedText>
             </Pressable>
-            <Pressable onPress={() => setNotePromptVisible(true)} hitSlop={6}>
+            <Pressable
+              onPress={() => setNotePromptVisible(true)}
+              hitSlop={6}
+              style={isPhone && styles.tapPhoneH}>
               <ThemedText style={[styles.runLink, { color: ACCENT }]}>Done — log it</ThemedText>
             </Pressable>
           </View>
@@ -723,6 +738,12 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
 
+  // ── Phone tap targets (B-093) ──────────────────────────────────────────
+  // hitSlop is a NO-OP in react-native-web, so on phone the box itself has to
+  // carry the 44px house minimum (DESIGN_RULES §12). Phone only — the iPad
+  // layouts are deliberately tight.
+  tapPhone: PhoneTap,
+  tapPhoneH: { ...PhoneTapH, minWidth: 44, alignItems: 'center' },
   topBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radii.md },
   topBtnText: { fontWeight: Type.weight.heavy, fontSize: Type.size.sm },
   topCenter: { textAlign: 'center', fontWeight: Type.weight.bold, fontSize: Type.size.sm },
