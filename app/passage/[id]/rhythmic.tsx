@@ -68,6 +68,15 @@ function groupingCounts(): Record<Grouping, number> {
   return out;
 }
 
+
+// Rhythm-in-top-row geometry (phone sideways). Measured, not guessed:
+// the phone run-bar Exit box is 59 wide; the phone tools pill is 4 keys x 44
+// + 3 x 4 gap + 6 padding = 194 (PracticeToolsBar); the Loop / ← / → buttons
+// around the music take ~160 including their gaps (RhythmBar).
+const TOP_ROW_EXIT_W = 60;
+const PHONE_TOOLS_PILL_W = 194;
+const RHYTHM_CLUSTER_CHROME_W = 160;
+
 export default function RhythmicScreen() {
   usePracticeClock();
   const params = useLocalSearchParams<{ id: string; grouping?: string; guided?: string }>();
@@ -430,6 +439,25 @@ export default function RhythmicScreen() {
 
   const counts = groupingCounts();
 
+  // Phone sideways with music: the rhythm itself takes the Pattern pill's
+  // seat in the top row and the separate rhythm band goes away, so the score
+  // gets that band's height back. The pattern counter and grouping chip are
+  // dropped here — Ralph's call (2026-09-16): given the choice, the rhythm
+  // matters more. Grouping is still chosen on entry.
+  const rhythmInTopRow = isPhoneLandscape && !toolsOnly && patterns.length > 0;
+  // Width the music may take: the row minus the notch insets and bar padding,
+  // the Exit button, the floating tools pill it must not slide under, the
+  // row gaps, and the Loop / ← / → buttons around the music.
+  const musicRoom =
+    vpW -
+    insets.left -
+    insets.right -
+    2 * Spacing.md -
+    TOP_ROW_EXIT_W -
+    PHONE_TOOLS_PILL_W -
+    2 * Spacing.sm -
+    RHYTHM_CLUSTER_CHROME_W;
+
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -460,12 +488,33 @@ export default function RhythmicScreen() {
               },
             ]}>
             <View
-              style={[styles.runSide, isPhone && !isPhoneLandscape && styles.runSidePhone]}>
+              style={[
+                styles.runSide,
+                isPhone && !isPhoneLandscape && styles.runSidePhone,
+                rhythmInTopRow && styles.runSideTight,
+              ]}>
               <Pressable onPress={exitSession} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
                 <Feather name="log-out" size={isPhone ? 18 : 15} color={Palette.danger} />
                 <ThemedText style={[styles.runExitText, isPhone && styles.runExitTextPhone]}>Exit</ThemedText>
               </Pressable>
             </View>
+            {rhythmInTopRow ? (
+              <View style={styles.runCenterRhythm}>
+                <RhythmBar
+                  bare
+                  compact
+                  dense
+                  maxMusicWidth={musicRoom}
+                  pattern={patterns[currentIndex]}
+                  rhythmLooping={metronome.rhythmLooping}
+                  onToggleRhythm={toggleRhythm}
+                  onPrev={onPrev}
+                  onNext={onNext}
+                  canPrev={currentIndex > 0}
+                  canNext={currentIndex < patterns.length - 1}
+                />
+              </View>
+            ) : (
             <View
               style={[
                 styles.runCenter,
@@ -493,14 +542,22 @@ export default function RhythmicScreen() {
                 </Pressable>
               </View>
             </View>
-            {/* Right spacer keeps the pill centred; landscape phone needs it
-                too now that the bar is one row (clears the tools pill). */}
-            {(!isPhone || isPhoneLandscape) && <View style={styles.runSide} />}
+            )}
+            {/* Right side: with the rhythm in the row, reserve exactly the
+                floating tools pill's width so the → button never slides under
+                it. Otherwise a spacer keeps the pill centred (landscape phone
+                needs it too now that the bar is one row). */}
+            {rhythmInTopRow ? (
+              <View style={{ width: PHONE_TOOLS_PILL_W }} />
+            ) : (
+              (!isPhone || isPhoneLandscape) && <View style={styles.runSide} />
+            )}
           </View>
 
           {/* Loop band — ▶ Loop · ‹ · rhythm notation · › (no score in Tools
-              mode, where the staff is the centerpiece in the body instead). */}
-          {!toolsOnly && patterns.length > 0 && (
+              mode, where the staff is the centerpiece in the body instead).
+              Not on a sideways phone: the rhythm sits in the top row there. */}
+          {!toolsOnly && patterns.length > 0 && !rhythmInTopRow && (
             <RhythmBar
               pattern={patterns[currentIndex]}
               rhythmLooping={metronome.rhythmLooping}
@@ -909,6 +966,10 @@ const styles = StyleSheet.create({
   // NOT `flex: 0`: react-native-web expands that to `0 1 0%`, a zero-height
   // row, and the 44px Exit centred on it hung 12px off the top of the
   // screen (B-094, Suzanne's "too high in the upper left"). Size to content.
+  // Rhythm-in-top-row (phone sideways): Exit takes only its own width so the
+  // rhythm gets the rest of the row.
+  runSideTight: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' },
+  runCenterRhythm: { flex: 1, minWidth: 0, alignItems: 'center' },
   runSidePhone: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', alignItems: 'flex-start' },
   // ── Phone tap targets (B-093) ──────────────────────────────────────────
   // hitSlop is a NO-OP in react-native-web, so on phone the box itself has to

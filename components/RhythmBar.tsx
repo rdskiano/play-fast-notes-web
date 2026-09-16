@@ -44,6 +44,11 @@ type Props = {
    *  draw the rhythm smaller and trim the band's vertical padding. The arrow
    *  and Loop buttons keep their 44px tap height. */
   dense?: boolean;
+  /** Render just the [Loop][←][music][→] cluster, no band around it — for a
+   *  host that seats the rhythm in its own top row (phone sideways). */
+  bare?: boolean;
+  /** Cap on the music slot's width when the host has measured its room. */
+  maxMusicWidth?: number;
   /** Far-start slot (landscape merged header) — e.g. EXIT + grouping chip. */
   leading?: ReactNode;
   /** Far-end slot (landscape merged header) — e.g. DONE. */
@@ -62,6 +67,8 @@ export function RhythmBar({
   canNext,
   compact = false,
   dense = false,
+  bare = false,
+  maxMusicWidth,
   leading,
   trailing,
   withSafeArea = false,
@@ -102,7 +109,10 @@ export function RhythmBar({
   // flanking buttons overflow the screen edges and get clipped (fine in
   // landscape, which has width to spare). Cap the music to the width left after
   // the buttons + padding (~215px) so Loop / ← / → always stay on-screen.
-  const maxNotationW = compact ? Math.max(110, vpW - 215) : 480;
+  const maxNotationW = Math.min(
+    compact ? Math.max(110, vpW - 215) : 480,
+    maxMusicWidth ?? Infinity,
+  );
   const notationW = Math.round(
     Math.min(
       Math.max(
@@ -171,6 +181,8 @@ export function RhythmBar({
       </Pressable>
     </View>
   );
+
+  if (bare) return cluster;
 
   return (
     <View
