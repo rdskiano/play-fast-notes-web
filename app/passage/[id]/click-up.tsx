@@ -951,7 +951,13 @@ export default function ClickUpScreen() {
               // stack cost ~100px of a 375-tall screen above the score
               // (2026-09-15, Ralph: "too much space above the music").
               isPhone && !isPhoneLandscape && styles.runTopBarPhone,
-              { paddingTop: insets.top + 10 },
+              // Sideways on a notched iPhone the cutout covers this corner;
+              // pad by the side insets like SessionTopBar does (B-094).
+              {
+                paddingTop: insets.top + 10,
+                paddingLeft: insets.left + Spacing.md,
+                paddingRight: insets.right + Spacing.md,
+              },
             ]}>
             <View
               style={[
@@ -959,8 +965,8 @@ export default function ClickUpScreen() {
                 isPhone && !isPhoneLandscape && styles.runSidePhone,
               ]}>
               <Pressable onPress={exitSession} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
-                <Feather name="log-out" size={15} color={Palette.danger} />
-                <ThemedText style={styles.runExitText}>Exit</ThemedText>
+                <Feather name="log-out" size={isPhone ? 18 : 15} color={Palette.danger} />
+                <ThemedText style={[styles.runExitText, isPhone && styles.runExitTextPhone]}>Exit</ThemedText>
               </Pressable>
             </View>
             <View
@@ -1538,7 +1544,10 @@ const styles = StyleSheet.create({
   // Phone variants: Exit row on top (tools pill floats at its right), the
   // tracker pill on its own full-width row beneath (2026-09-03).
   runTopBarPhone: { flexDirection: 'column', alignItems: 'stretch' },
-  runSidePhone: { flex: 0, alignItems: 'flex-start' },
+  // NOT `flex: 0`: react-native-web expands that to `0 1 0%`, a zero-height
+  // row, and the 44px Exit centred on it hung 12px off the top of the
+  // screen (B-094, Suzanne's "too high in the upper left"). Size to content.
+  runSidePhone: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', alignItems: 'flex-start' },
   runCenterPhone: { alignItems: 'center', paddingTop: 2 },
   runTopBar: {
     flexDirection: 'row',
@@ -1561,6 +1570,8 @@ const styles = StyleSheet.create({
     fontWeight: Type.weight.heavy,
     fontSize: Type.size.md,
   },
+  // The label itself was 14px — findable, not just tappable, on phone.
+  runExitTextPhone: { fontSize: Type.size.lg },
   runCenter: { alignItems: 'center', gap: 6 },
   runTitleRow: { flexDirection: 'row', alignItems: 'center' },
   runAccentDot: {

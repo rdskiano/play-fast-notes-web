@@ -40,6 +40,10 @@ type Props = {
   canNext: boolean;
   /** Portrait band: shrink the notation + drop the Loop button's text label. */
   compact?: boolean;
+  /** Phone on its side: the band sits above a score on a ~375-tall screen, so
+   *  draw the rhythm smaller and trim the band's vertical padding. The arrow
+   *  and Loop buttons keep their 44px tap height. */
+  dense?: boolean;
   /** Far-start slot (landscape merged header) — e.g. EXIT + grouping chip. */
   leading?: ReactNode;
   /** Far-end slot (landscape merged header) — e.g. DONE. */
@@ -57,6 +61,7 @@ export function RhythmBar({
   canPrev,
   canNext,
   compact = false,
+  dense = false,
   leading,
   trailing,
   withSafeArea = false,
@@ -72,13 +77,20 @@ export function RhythmBar({
   // Height must clear the stems + beams, which hang below the single line. Too
   // short clips the beams (worst case = 16th-note double beams). Verified the
   // 16th double-beam fits at h64/scale1.1 and h68/scale1.2.
-  const notationScale = merged ? 1.1 : compact ? 1.1 : 1.2;
+  // Dense (phone landscape) scales the verified h64/1.1 slot down in proportion,
+  // so the double beams keep the same clearance they had at full size. 1.0 is
+  // the floor: below it abcjs's fixed padding stops shrinking with the scale
+  // and the right edge clips (0.85 clipped 79 of the 174 patterns; 1.0 clips
+  // none — every pattern checked, 2026-09-16).
+  const notationScale = dense ? 1.0 : merged ? 1.1 : compact ? 1.1 : 1.2;
   // A tuplet ('3') adds a bracket + number below the beams, making the notation
   // noticeably taller. Without extra room the web staff (bottom-aligned, cropped
   // to its bbox) clips the TOP — the time signature disappears off the top edge.
   // Give tuplet patterns a taller slot so the whole thing fits.
   const hasTuplet = pattern.notes.some((t) => t.endsWith('t'));
-  const notationH = (notationScale >= 1.2 ? 68 : 64) + (hasTuplet ? 24 : 0);
+  const notationH = dense
+    ? Math.round((64 + (hasTuplet ? 24 : 0)) * (notationScale / 1.1))
+    : (notationScale >= 1.2 ? 68 : 64) + (hasTuplet ? 24 : 0);
 
   // Size the staff to its own content (note count × scale) so the flanking
   // arrows hug it. AbcStaffView fills its `width` and renders the staff at
@@ -92,7 +104,16 @@ export function RhythmBar({
   // the buttons + padding (~215px) so Loop / ← / → always stay on-screen.
   const maxNotationW = compact ? Math.max(110, vpW - 215) : 480;
   const notationW = Math.round(
-    Math.min(Math.max(150, (50 + pattern.notes.length * 42) * (notationScale / 1.1)), maxNotationW),
+    Math.min(
+      Math.max(
+        150,
+        // Dense keeps the full-size slot width: the engraving doesn't narrow
+        // in proportion to the scale, so a proportional slot clipped the last
+        // note + barline. Landscape has width to spare; height is the saving.
+        (50 + pattern.notes.length * 42) * (dense ? 1 : notationScale / 1.1),
+      ),
+      maxNotationW,
+    ),
   );
 
   const loopBtn = (
@@ -156,6 +177,7 @@ export function RhythmBar({
       style={[
         styles.bar,
         merged ? styles.barSpread : styles.barCentered,
+        dense && styles.barDense,
         withSafeArea && {
           paddingTop: insets.top,
           paddingLeft: Spacing.md + insets.left,
@@ -186,6 +208,7 @@ const styles = StyleSheet.create({
   // so EXIT/grouping sit left, DONE right, and the cluster lands in the middle.
   barCentered: { justifyContent: 'center' },
   barSpread: { justifyContent: 'space-between' },
+  barDense: { paddingVertical: 2 },
   cluster: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   navBtn: {
     minWidth: 48,

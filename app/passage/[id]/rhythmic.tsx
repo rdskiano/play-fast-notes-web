@@ -93,6 +93,7 @@ export default function RhythmicScreen() {
   // Phone density flag — drives the scrollable score below.
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  const isPhoneLandscape = isPhone && vpW > vpH;
   const isTouch = useIsTouchDevice();
 
   const rawGrouping = Array.isArray(params.grouping)
@@ -446,16 +447,30 @@ export default function RhythmicScreen() {
           <View
             style={[
               styles.runTopBar,
-              isPhone && styles.runTopBarPhone,
-              { paddingTop: insets.top + 10 },
+              // Landscape keeps ONE row, as Click-up / Tempo Ladder do: height
+              // is the scarce axis there, and the stack spent ~130px of a
+              // 375-tall screen above the music (Ralph, 2026-09-16).
+              isPhone && !isPhoneLandscape && styles.runTopBarPhone,
+              // Sideways on a notched iPhone the cutout covers this corner;
+              // pad by the side insets like SessionTopBar does (B-094).
+              {
+                paddingTop: insets.top + 10,
+                paddingLeft: insets.left + Spacing.md,
+                paddingRight: insets.right + Spacing.md,
+              },
             ]}>
-            <View style={[styles.runSide, isPhone && styles.runSidePhone]}>
+            <View
+              style={[styles.runSide, isPhone && !isPhoneLandscape && styles.runSidePhone]}>
               <Pressable onPress={exitSession} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
-                <Feather name="log-out" size={15} color={Palette.danger} />
-                <ThemedText style={styles.runExitText}>Exit</ThemedText>
+                <Feather name="log-out" size={isPhone ? 18 : 15} color={Palette.danger} />
+                <ThemedText style={[styles.runExitText, isPhone && styles.runExitTextPhone]}>Exit</ThemedText>
               </Pressable>
             </View>
-            <View style={[styles.runCenter, isPhone && styles.runCenterPhone]}>
+            <View
+              style={[
+                styles.runCenter,
+                isPhone && !isPhoneLandscape && styles.runCenterPhone,
+              ]}>
               <View style={styles.runStatPill}>
                 <ThemedText style={styles.runStatLabel}>Pattern</ThemedText>
                 <ThemedText style={styles.runStatCount}>
@@ -478,7 +493,9 @@ export default function RhythmicScreen() {
                 </Pressable>
               </View>
             </View>
-            {!isPhone && <View style={styles.runSide} />}
+            {/* Right spacer keeps the pill centred; landscape phone needs it
+                too now that the bar is one row (clears the tools pill). */}
+            {(!isPhone || isPhoneLandscape) && <View style={styles.runSide} />}
           </View>
 
           {/* Loop band — ▶ Loop · ‹ · rhythm notation · › (no score in Tools
@@ -493,6 +510,7 @@ export default function RhythmicScreen() {
               canPrev={currentIndex > 0}
               canNext={currentIndex < patterns.length - 1}
               compact={isPhone}
+              dense={isPhoneLandscape}
             />
           )}
         </>
@@ -888,7 +906,10 @@ const styles = StyleSheet.create({
   runSide: { flex: 1, justifyContent: 'center' },
   // Column layout: flex:1 children of an auto-height column can collapse
   // to zero — pin the Exit row to its content height on phone.
-  runSidePhone: { flex: 0, alignItems: 'flex-start' },
+  // NOT `flex: 0`: react-native-web expands that to `0 1 0%`, a zero-height
+  // row, and the 44px Exit centred on it hung 12px off the top of the
+  // screen (B-094, Suzanne's "too high in the upper left"). Size to content.
+  runSidePhone: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', alignItems: 'flex-start' },
   // ── Phone tap targets (B-093) ──────────────────────────────────────────
   // hitSlop is a NO-OP in react-native-web, so on phone the box itself has to
   // carry the 44px house minimum (DESIGN_RULES §12). Phone only — the iPad
@@ -908,6 +929,8 @@ const styles = StyleSheet.create({
     fontWeight: Type.weight.heavy,
     fontSize: Type.size.md,
   },
+  // The label itself was 14px — findable, not just tappable, on phone.
+  runExitTextPhone: { fontSize: Type.size.lg },
   runCenter: { alignItems: 'center' },
   runStatPill: {
     flexDirection: 'row',

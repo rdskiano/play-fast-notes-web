@@ -593,3 +593,41 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
   taller, so the score gets slightly less height), the library card `⋯` and
   folder-tile `⋯`, the drone switch in the metronome,
   and the `−`/`+` tempo keys on the Evaluate screen in landscape.
+
+### B-094 — Run-screen Exit hangs off the top of the screen on phone (the rest of Suzanne's report)
+
+- **Severity:** P1 (user-reported twice; the only way out of a practice run)
+- **Surfaces:** iphone-web (reported: Rhythmic Variations, phone sideways),
+  iphone-native (same styles). Same bar on Click-up and Tempo Ladder.
+- **Reported:** 2026-09-16, Suzanne's reply to the B-092 fix: "the issue
+  persists" — screenshot from Rhythmic Variations, where the Exit is not the
+  shared `SessionTopBar` but each run screen's own top bar.
+- **Cause:** `runSidePhone: { flex: 0 }`. **react-native-web expands `flex: 0`
+  to `flex: 0 1 0%`**, so the Exit's row computed to **height 0**, and the
+  `justifyContent: center` parent centred the 44px Exit on a line 10px from the
+  top. Measured on the REAL screen (tools mode) at 812x375: Exit box at
+  **y = -12**, a quarter of it off the glass, the label jammed in the corner.
+  The Exit row also stopped taking space, so the Pattern pill slid up beside
+  it. The same style is in `click-up.tsx` and `tempo-ladder.tsx` (upright
+  phone there, since B-093 made their landscape bars one row).
+- **Why B-093 missed it:** that audit measured each control as an isolated
+  copy of its style. The box WAS 44x44 — the bug is in the row around it, and
+  only shows up in the real layout.
+- **Fix (2026-09-16):**
+  - all three screens: `runSidePhone` is `flexGrow 0 / flexShrink 0 /
+    flexBasis auto` (sizes to content); run bar pads by the side safe-area
+    insets (notch); phone Exit label 16px / icon 18px (was 14 / 15).
+  - Rhythmic: sideways phone keeps the run bar on ONE row, matching Click-up
+    and Tempo Ladder. Bar height 130 → 76 at 812x375.
+  - `RhythmBar` `dense` (sideways phone only): notation scale 1.1 → 1.0,
+    band padding 6 → 2. Band ~14-16px shorter. Scale 1.0 is the floor —
+    0.85 clipped the right edge of 79 of the 174 patterns; 1.0 clips none.
+- **Verified:** real Rhythmic screen via `/passage/__tools__/rhythmic` with the
+  route temporarily let past the sign-in gate. Sideways: Exit 44 tall at y=17.
+  Upright: Exit row 44 tall, Exit at y=10, no overlap with the pill. All 174
+  patterns rendered in the dense band and checked for clipping on all four
+  edges, against a baseline of the current band (0 clipped). tsc + web export
+  clean.
+- **NOT verified:** the band inside a real piece (needs sign-in), Click-up in
+  the browser (no tools mode), anything on a real phone.
+- **Status:** FIXED in the tree, not yet deployed.
