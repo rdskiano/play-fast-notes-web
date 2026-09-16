@@ -28,8 +28,6 @@ export type ScoreGeometry = {
   rowOf: number[];
   /** Vertical photo band per row, normalized. */
   bands: ScoreRowBand[];
-  /** Normalized x where each row's music resumes (for continuation slices). */
-  rowStart: number[];
   rowCount: number;
   beatCount: number;
 };
@@ -53,9 +51,12 @@ const LINE_WRAP_DX = 0.25;
 const LINE_WRAP_DY = 0.05;
 // Band edges sit this far above the row's top-most mark.
 const BAND_PAD = 0.02;
-// A continuation slice starts this far left of the row's first mark (room
-// for the first notehead; the clef stays out of it).
-const ROW_START_PAD = 0.038;
+// Where a line a chunk wraps onto starts: its left edge, clef included.
+// This used to be "just left of the line's first mark", which cut out any
+// notes before that mark (Ralph's "51", 2026-09-16: a unit wrapping onto
+// line 2 lost the tied E-flat before mark 2). Ralph chose the clef showing
+// over missing notes, for ICU boxes and Macro strips alike.
+const LINE_START = 0;
 // Where a line of music ends, normalized (staff lines run to the photo edge).
 const LINE_END = 0.995;
 // Slice padding: room left of the start mark and enough past the end mark
@@ -82,7 +83,6 @@ export function computeScoreGeometry(rawMarks: Marker[]): ScoreGeometry {
   const marks = [...rawMarks].sort((a, b) => a.index - b.index);
   const rowOf: number[] = [];
   const rowYMin: number[] = [];
-  const rowFirst: number[] = [];
   for (let i = 0; i < marks.length; i++) {
     const y = marks[i].y;
     const r = rowYMin.length - 1;
@@ -95,7 +95,6 @@ export function computeScoreGeometry(rawMarks: Marker[]): ScoreGeometry {
       (Math.abs(dy) > ROW_BREAK || dx < MIN_ADVANCE);
     if (r < 0 || wrapped || farFromRow) {
       rowYMin.push(y);
-      rowFirst.push(i);
     } else if (y < rowYMin[r]) {
       rowYMin[r] = y;
     }
@@ -109,12 +108,10 @@ export function computeScoreGeometry(rawMarks: Marker[]): ScoreGeometry {
           top: Math.max(0, yMin - BAND_PAD),
           bot: k + 1 < rowCount ? Math.max(0, rowYMin[k + 1] - BAND_PAD) : 1,
         }));
-  const rowStart = rowFirst.map((fi) => Math.max(0, marks[fi].x - ROW_START_PAD));
   return {
     marks,
     rowOf,
     bands,
-    rowStart,
     rowCount,
     beatCount: Math.max(0, marks.length - 1),
   };
@@ -130,19 +127,10 @@ export function chunkSlices(
   geom: ScoreGeometry,
   a: number,
   b: number,
-  opts?: {
-    padLeft?: number;
-    /** Where a line the chunk wraps onto starts, overriding the row's
-     *  "just left of its first mark" guess. ICU boxes pass 0 (the line's
-     *  left edge): the guess drops notes whenever a line's first mark sits
-     *  past its first notes (Ralph's "51", 2026-09-16: a unit wrapping onto
-     *  line 2 lost the tied E-flat before mark 2). */
-    lineStart?: number;
-  },
+  opts?: { padLeft?: number },
 ): ChunkSlice[] {
   const { marks, rowOf } = geom;
   const padLeft = opts?.padLeft ?? PAD_LEFT;
-  const startOf = (r: number) => opts?.lineStart ?? geom.rowStart[r];
   const isFinal = b === marks.length - 1;
   const landPad = isFinal ? PAD_FINAL : PAD_LANDING;
   const ra = rowOf[a];
@@ -154,9 +142,9 @@ export function chunkSlices(
     { row: ra, x0: Math.max(0, marks[a].x - padLeft), x1: LINE_END },
   ];
   for (let r = ra + 1; r < rb; r++) {
-    slices.push({ row: r, x0: startOf(r), x1: LINE_END });
+    slices.push({ row: r, x0: LINE_START, x1: LINE_END });
   }
-  const x0 = startOf(rb);
+  const x0 = LINE_START;
   const x1 = Math.min(1, marks[b].x + landPad);
   if (x1 - x0 > MIN_SLICE_W) slices.push({ row: rb, x0, x1 });
   return slices;

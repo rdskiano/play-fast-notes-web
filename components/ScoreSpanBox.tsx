@@ -45,9 +45,7 @@ export function ScoreSpanBox({ uri, marks, startIndex, endIndex, accent, dim = 0
     // Tight left edge: these boxes are highlight rings over the intact
     // score (nothing is cut off), so they hug the span instead of carrying
     // Macro's cut-safety margin. Ralph's on-iPad call, 2026-09-13.
-    // A box that wraps onto the next line starts at that line's left edge,
-    // so no notes before the line's first mark are left out (Ralph's "51").
-    return chunkSlices(geom, a, b, { padLeft: BOX_PAD_LEFT, lineStart: 0 });
+    return chunkSlices(geom, a, b, { padLeft: BOX_PAD_LEFT });
   }, [geom, startIndex, endIndex]);
 
   const drawn = computeDrawnRect(box.w, box.h, aspect);
