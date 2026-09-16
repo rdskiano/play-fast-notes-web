@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-16-boxes-wrap-to-line-start',
+    date: 'September 16, 2026',
+    title: 'Boxes that wrap to the next line keep every note',
+    body:
+      'In the boxed Click-Up view, a unit that carries over onto the next line could lose the notes at the start of that line, such as a tied note. The box on the new line now starts at the beginning of the line, so nothing is left out.',
+  },
+  {
     id: '2026-09-16-boxes-melody-contour-fix',
     date: 'September 16, 2026',
     title: 'Boxes cover the notes on one-line passages',

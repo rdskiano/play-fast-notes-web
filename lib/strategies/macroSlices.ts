@@ -130,10 +130,19 @@ export function chunkSlices(
   geom: ScoreGeometry,
   a: number,
   b: number,
-  opts?: { padLeft?: number },
+  opts?: {
+    padLeft?: number;
+    /** Where a line the chunk wraps onto starts, overriding the row's
+     *  "just left of its first mark" guess. ICU boxes pass 0 (the line's
+     *  left edge): the guess drops notes whenever a line's first mark sits
+     *  past its first notes (Ralph's "51", 2026-09-16: a unit wrapping onto
+     *  line 2 lost the tied E-flat before mark 2). */
+    lineStart?: number;
+  },
 ): ChunkSlice[] {
-  const { marks, rowOf, rowStart } = geom;
+  const { marks, rowOf } = geom;
   const padLeft = opts?.padLeft ?? PAD_LEFT;
+  const startOf = (r: number) => opts?.lineStart ?? geom.rowStart[r];
   const isFinal = b === marks.length - 1;
   const landPad = isFinal ? PAD_FINAL : PAD_LANDING;
   const ra = rowOf[a];
@@ -145,9 +154,9 @@ export function chunkSlices(
     { row: ra, x0: Math.max(0, marks[a].x - padLeft), x1: LINE_END },
   ];
   for (let r = ra + 1; r < rb; r++) {
-    slices.push({ row: r, x0: rowStart[r], x1: LINE_END });
+    slices.push({ row: r, x0: startOf(r), x1: LINE_END });
   }
-  const x0 = rowStart[rb];
+  const x0 = startOf(rb);
   const x1 = Math.min(1, marks[b].x + landPad);
   if (x1 - x0 > MIN_SLICE_W) slices.push({ row: rb, x0, x1 });
   return slices;
