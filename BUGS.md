@@ -563,8 +563,12 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
   - **Strategy-card `?` demo button: 32x44, not 44x44.** The card is 165 px
     wide on a 375 px phone; a 44-wide `?` beside the 38 px monogram and the
     "n built ›" chip overflows the card's top row (142 > 141.5 of inner width).
-  - **`renderPill` / `styles.stratPill` (131x38) — dead code.** Nothing calls
-    `renderPill` in `app/passage/[id]/index.tsx`; worth deleting separately.
+  - **`renderPill` / `styles.stratPill` (131x38) — dead code.** Nothing called
+    `renderPill` in `app/passage/[id]/index.tsx`; the screen uses
+    `renderStratCard` (hub) and `renderStratRow` (landscape panel) instead.
+    DELETED in a follow-up commit, along with `stratPill`, `stratLabel` and
+    the `pillRow` container, which were used only by it. The same-named styles
+    in `history.tsx` and `tempo-ladder.tsx` are separate and still in use.
   - **ToolDock's ⊖/⊕ sizer keys (22x22)** never render on a touch device
     (`!IS_TOUCH_DEVICE`), so they are laptop-mouse-only.
   - **Metronome beat dots and gap segments.** Their size is computed to fit N

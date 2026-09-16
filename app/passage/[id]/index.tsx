@@ -543,29 +543,6 @@ export default function PassageDetailScreen() {
     );
   }
 
-  function renderPill(s: StrategyDef) {
-    const isTempoLadder = s.key === 'tempo_ladder';
-    const pct =
-      isTempoLadder && tempoLadderProgress !== null
-        ? Math.round(tempoLadderProgress * 100)
-        : null;
-    const label = pct !== null ? `${s.label} ${pct}%` : s.label;
-    const color = strategyColors[s.key] ?? C.icon;
-    return (
-      <Pressable
-        key={s.key}
-        disabled={!s.enabled}
-        hitSlop={4}
-        onPress={() => openStrategy(s.key)}
-        style={[
-          styles.stratPill,
-          { backgroundColor: color, opacity: s.enabled ? 1 : 0.35 },
-        ]}>
-        <ThemedText style={styles.stratLabel}>{label}</ThemedText>
-      </Pressable>
-    );
-  }
-
   // Capped score "hero" height for the phone layout. The score is reference;
   // the strategies below are the verbs — so cap the score so the suggestion
   // card and the first strategy row peek above the fold rather than living a
@@ -1477,15 +1454,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   phoneMenuGlyph: { fontSize: 20, lineHeight: 22, fontWeight: '700' },
-  pillRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  stratPill: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: Radii.xl },
-  stratLabel: { color: '#fff', fontWeight: Type.weight.bold, fontSize: Type.size.sm },
   outlinePill: {
     borderWidth: Borders.thin,
     borderRadius: Radii.xl,
