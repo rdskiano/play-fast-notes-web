@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-16-icu-boxed-left-edge',
+    date: 'September 16, 2026',
+    title: 'Boxed click-up view makes room for accidentals',
+    body:
+      'In Interleaved Click-Up, the boxed view now reaches a little further left of each unit, so a sharp or flat in front of the first note sits inside the box instead of being cut off.',
+  },
+  {
     id: '2026-09-15-custom-ladder-resume-fix',
     date: 'September 15, 2026',
     title: 'Custom tempo patterns remember when you slowed down',

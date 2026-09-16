@@ -56,8 +56,10 @@ const LINE_END = 0.995;
 // tighter BOX_PAD_LEFT instead (Ralph, same night, on the iPad: the wide
 // boxes read worse and hide nothing).
 const PAD_LEFT = 0.022;
-/** Tight left pad for non-destructive highlight boxes (ICU Boxed view). */
-export const BOX_PAD_LEFT = 0.01;
+/** Left pad for non-destructive highlight boxes (ICU Boxed view). Tried
+ *  0.01 (clipped accidentals) and 0.022 (too wide); Ralph asked for the
+ *  middle, just enough to take in a sharp/flat, 2026-09-16. */
+export const BOX_PAD_LEFT = 0.016;
 const PAD_LANDING = 0.026;
 // The final mark sits ON the last note, so the last slice reaches further.
 const PAD_FINAL = 0.036;
