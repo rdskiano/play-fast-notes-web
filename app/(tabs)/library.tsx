@@ -747,21 +747,9 @@ export default function LibraryScreen() {
     }, [refresh]),
   );
 
-  // Leaving the library resets it to its homepage, so the Library button
-  // always lands at the top instead of deep inside the folder you were
-  // browsing (Ralph, 2026-09-08: three taps of "up" after every practice
-  // session). Deliberately a SEPARATE focus effect with no deps — the one
-  // above re-runs whenever refresh's identity changes, so a reset in its
-  // cleanup would fire on every in-library folder step. This cleanup runs
-  // only on real blur/unmount, while the screen is hidden.
-  useFocusEffect(
-    useCallback(() => {
-      return () => {
-        setCurrentFolderId(null);
-        setPath([]);
-      };
-    }, []),
-  );
+  // Leaving the library deliberately KEEPS the folder you were in, so
+  // returning from a passage or PDF lands back in that folder. (A 2026-09-08
+  // reset-to-homepage-on-blur was reverted 2026-09-16 after user complaints.)
 
   // Unguided practice offer: if the metronome ran on the passage or PDF
   // viewer with no strategy behind it, landing back on the library offers a

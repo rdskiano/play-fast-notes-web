@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-16-library-remembers-folder',
+    date: 'September 16, 2026',
+    title: 'The library remembers your folder again',
+    body:
+      'When you leave a piece and go back to the library, you now land in the folder you were working in, not the library homepage. That is how it used to work, and several of you asked for it back.',
+  },
+  {
     id: '2026-09-16-boxes-wrap-to-line-start',
     date: 'September 16, 2026',
     title: 'Boxes that wrap to the next line keep every note',
