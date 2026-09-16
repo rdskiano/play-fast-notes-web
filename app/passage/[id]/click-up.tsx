@@ -944,19 +944,30 @@ export default function ClickUpScreen() {
           <View
             style={[
               styles.runTopBar,
-              // Phone: the floating tools pill (top-right) overlapped the
-              // centered pill — tracker drops to its own row (same fix as
-              // Rhythmic Variation / Tempo Ladder, 2026-09-03).
-              isPhone && styles.runTopBarPhone,
+              // Phone PORTRAIT: the floating tools pill (top-right) overlapped
+              // the centered pill — tracker drops to its own row (same fix as
+              // Rhythmic Variation / Tempo Ladder, 2026-09-03). Landscape keeps
+              // ONE row: there the scarce axis is height, not width, and the
+              // stack cost ~100px of a 375-tall screen above the score
+              // (2026-09-15, Ralph: "too much space above the music").
+              isPhone && !isPhoneLandscape && styles.runTopBarPhone,
               { paddingTop: insets.top + 10 },
             ]}>
-            <View style={[styles.runSide, isPhone && styles.runSidePhone]}>
+            <View
+              style={[
+                styles.runSide,
+                isPhone && !isPhoneLandscape && styles.runSidePhone,
+              ]}>
               <Pressable onPress={exitSession} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
                 <Feather name="log-out" size={15} color={Palette.danger} />
                 <ThemedText style={styles.runExitText}>Exit</ThemedText>
               </Pressable>
             </View>
-            <View style={[styles.runCenter, isPhone && styles.runCenterPhone]}>
+            <View
+              style={[
+                styles.runCenter,
+                isPhone && !isPhoneLandscape && styles.runCenterPhone,
+              ]}>
               {/* Strategy + passage title — desktop / iPad only. Dropped on
                   phone to save a row (practice runs in landscape there). */}
               {!isPhone && (
@@ -1000,7 +1011,10 @@ export default function ClickUpScreen() {
                 </ThemedText>
               </Animated.View>
             </View>
-            {!isPhone && <View style={styles.runSide} />}
+            {/* Right spacer balances the left one so the tracker pill sits
+                truly centred. Landscape phone needs it too now that the bar is
+                a single row; it clears the floating tools pill at 812 wide. */}
+            {(!isPhone || isPhoneLandscape) && <View style={styles.runSide} />}
           </View>
 
           {/* Phone landscape drops the standalone reminder (scarce vertical

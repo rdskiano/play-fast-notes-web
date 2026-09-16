@@ -949,19 +949,22 @@ export default function TempoLadderScreen() {
       <View
         style={[
           styles.runTopBar,
-          // Phone: the floating tools pill (top-right) overlapped the
+          // Phone PORTRAIT: the floating tools pill (top-right) overlapped the
           // centered pill — the tracker drops to its own row (same fix as
-          // Rhythmic Variation, 2026-09-03).
-          isPhone && styles.runTopBarPhone,
+          // Rhythmic Variation, 2026-09-03). Landscape keeps ONE row: there
+          // height is the scarce axis, and the stack cost ~100px of a 375-tall
+          // screen above the score (2026-09-15, Ralph: "too much space above
+          // the music").
+          isPhone && !isLandscape && styles.runTopBarPhone,
           { paddingTop: insets.top + 10 },
         ]}>
-        <View style={[styles.runSide, isPhone && styles.runSidePhone]}>
+        <View style={[styles.runSide, isPhone && !isLandscape && styles.runSidePhone]}>
           <Pressable onPress={onEndPress} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
             <Feather name="log-out" size={15} color={Palette.danger} />
             <ThemedText style={styles.runExitText}>Exit</ThemedText>
           </Pressable>
         </View>
-        <View style={[styles.runCenter, isPhone && styles.runCenterPhone]}>
+        <View style={[styles.runCenter, isPhone && !isLandscape && styles.runCenterPhone]}>
           {/* Strategy + passage title — desktop / iPad only. Dropped on phone
               to save a whole line (practice runs in landscape there, where
               vertical space is scarce). The tracker pill stays centred. */}
@@ -986,7 +989,10 @@ export default function TempoLadderScreen() {
             {trackerDots(true)}
           </View>
         </View>
-        {!isPhone && <View style={styles.runSide} />}
+        {/* Right spacer balances the left one so the tracker pill sits truly
+            centred. Landscape phone needs it too now that the bar is a single
+            row; it clears the floating tools pill at 812 wide. */}
+        {(!isPhone || isLandscape) && <View style={styles.runSide} />}
       </View>
 
       {/* ── Score ──────────────────────────────────────────────────── */}

@@ -26,6 +26,12 @@ export function SessionTopBar({
   const insets = useSafeAreaInsets();
   const { width: vpW, height: vpH } = useWindowDimensions();
   const isPhone = Math.min(vpW, vpH) < 600;
+  // A phone on its side is only ~375 tall, and this bar sits above the score.
+  // The buttons keep their 44 floor; what gets trimmed is the empty band
+  // around them (2026-09-15, Ralph: "too much space at the top ... a fair
+  // amount of dead space"). insets.top is kept so a notched device in the
+  // native app still clears it.
+  const isPhoneLandscape = isPhone && vpW > vpH;
   const scheme = useColorScheme() ?? 'light';
   const C = Colors[scheme];
   // On phone the exit slot is a bare "‹" glyph. Its text box is only 16pt
@@ -42,7 +48,19 @@ export function SessionTopBar({
         {
           // Phones sit the bar a little lower: in Safari the safe-area inset
           // is 0, so Spacing.sm alone parks the button on the screen edge.
-          paddingTop: insets.top + (isPhone ? Spacing.md : Spacing.sm),
+          paddingTop:
+            insets.top +
+            (isPhoneLandscape ? Spacing.xs : isPhone ? Spacing.md : Spacing.sm),
+          paddingBottom: isPhoneLandscape ? Spacing.xs : Spacing.sm,
+          // Sideways on a notched iPhone the cutout eats the upper-LEFT
+          // corner - exactly where the exit button lives - because the web
+          // build paints edge to edge (viewport-fit=cover in +html.tsx) and
+          // the native app has no bars either. Other screens already pad by
+          // insets.left (evaluate.tsx, the floating run controls); this bar,
+          // shared by 24 screens, did not. Unproven as the cause of the
+          // 2026-09-15 report, but it is the same corner.
+          paddingLeft: insets.left + 10,
+          paddingRight: insets.right + 10,
           borderBottomColor: C.icon + '44',
         },
       ]}>
@@ -72,8 +90,7 @@ export function SessionTopBar({
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingHorizontal: 10,
-    paddingBottom: Spacing.sm,
+    // paddingLeft/Right are set inline - they carry the safe-area insets.
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   row: {
