@@ -972,31 +972,35 @@ export default function ClickUpScreen() {
                   <Feather name="log-out" size={isPhone ? 18 : 15} color={Palette.danger} />
                   <ThemedText style={[styles.runExitText, isPhone && styles.runExitTextPhone]}>Exit</ThemedText>
                 </Pressable>
-                <View style={styles.viewSegGroup}>
-                  {(['arrows', 'boxed'] as const).map((v) => {
-                    const on = icuView === v;
-                    return (
-                      <Pressable
-                        key={v}
-                        onPress={() => pickIcuView(v)}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: on }}
-                        // Phone: the pressable is 44 tall around the small
-                        // segment (hitSlop is a no-op on web, B-093).
-                        style={isPhone && styles.viewSegHitPhone}>
-                        <View
-                          style={[
-                            styles.viewSeg,
-                            v === 'arrows' ? styles.viewSegLeft : styles.viewSegRight,
-                            on && { backgroundColor: ACCENT, borderColor: ACCENT },
-                          ]}>
-                          <ThemedText style={[styles.viewSegText, on && styles.viewSegTextOn]}>
-                            {v === 'arrows' ? 'Arrows' : 'Boxed'}
-                          </ThemedText>
-                        </View>
-                      </Pressable>
-                    );
-                  })}
+                {/* The switch centres in the gap between Exit and the
+                    tracker pill (2026-09-17, Ralph). */}
+                <View style={styles.viewSwitchSlot}>
+                  <View style={styles.viewSegGroup}>
+                    {(['arrows', 'boxed'] as const).map((v) => {
+                      const on = icuView === v;
+                      return (
+                        <Pressable
+                          key={v}
+                          onPress={() => pickIcuView(v)}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: on }}
+                          // Phone: the pressable is 44 tall around the small
+                          // segment (hitSlop is a no-op on web, B-093).
+                          style={isPhone && styles.viewSegHitPhone}>
+                          <View
+                            style={[
+                              styles.viewSeg,
+                              v === 'arrows' ? styles.viewSegLeft : styles.viewSegRight,
+                              on && { backgroundColor: ACCENT, borderColor: ACCENT },
+                            ]}>
+                            <ThemedText style={[styles.viewSegText, on && styles.viewSegTextOn]}>
+                              {v === 'arrows' ? 'Arrows' : 'Boxed'}
+                            </ThemedText>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </View>
               </View>
             </View>
@@ -1511,7 +1515,9 @@ const styles = StyleSheet.create({
   },
   // ── Run-screen view switch (arrows / boxed), in the top bar beside Exit — same furniture as
   // Macro-Chaining's toggle so the two screens read as one convention. ──
-  runSideRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  runSideRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  // The switch sits centred in what's left between Exit and the tracker pill.
+  viewSwitchSlot: { flex: 1, alignItems: 'center' },
   viewSegGroup: { flexDirection: 'row', alignItems: 'center' },
   viewSegHitPhone: { minHeight: 44, justifyContent: 'center' },
   viewSeg: {
