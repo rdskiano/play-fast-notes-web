@@ -657,4 +657,4 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
   (her first 80+ step session since D64): after dismissing it, Next still
   worked. tsc + web export clean.
 - **NOT verified:** the real ICU screen (needs sign-in), a real iPhone.
-- **Status:** FIXED in the tree, not yet deployed.
+- **Status:** SHIPPED 2026-09-17 (commit 226f9b0; web push + production OTA 33087f63). Real-phone check owed.
