@@ -859,7 +859,12 @@ export default function MicroChainingScreen() {
             ]}>
             <ThemedText style={styles.runNextBtnText}>Next →</ThemedText>
           </Pressable>
-          <View style={[styles.runLinksLandscape, { bottom: insets.bottom + 8 }]}>
+          {/* Full-width strip layered ABOVE the corner Back/Next: box-none so its
+              empty space passes taps through. Without it the 44px phone links
+              (B-093) made the strip cover Next entirely (B-095). */}
+          <View
+            pointerEvents="box-none"
+            style={[styles.runLinksLandscape, { bottom: insets.bottom + 8 }]}>
             <Pressable onPress={goBackToConfig} hitSlop={6} style={isPhone && styles.tapPhoneH}>
               <ThemedText style={[styles.runLink, { color: ACCENT }]}>← Setup</ThemedText>
             </Pressable>

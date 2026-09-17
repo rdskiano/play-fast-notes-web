@@ -631,3 +631,30 @@ When you're done, total bugs logged is the laptop-web bug count. Triage by sever
 - **NOT verified:** the band inside a real piece (needs sign-in), Click-up in
   the browser (no tools mode), anything on a real phone.
 - **Status:** FIXED in the tree, not yet deployed.
+
+### B-095 — Next does nothing on a sideways phone (ICU, Micro-, Macro-Chaining)
+
+- **Severity:** P0 (the main control of three strategies; user-reported)
+- **Surfaces:** iphone-web (reported: ICU, iOS 18.7 Safari), iphone-native
+  (same layout). Phone landscape only.
+- **Reported:** 2026-09-17 by Suzanne (snash791), feedback form: "Next stopped
+  working in ICU". Her log backs it: a 113-step ICU session logged at step 0
+  of 113 after 80 seconds.
+- **Cause:** a regression from B-093. In phone landscape the "← Setup · Done —
+  log it" links sit in a FULL-WIDTH absolute strip (`runLinksLandscape`,
+  zIndex 6) layered above the corner Back/Next (`cornerBtn`, zIndex 5). The
+  strip was ~20px tall, so it only covered Next's lower half. B-093 made each
+  link 44px tall, so the strip grew to 44px and now covers Next (120x44 at
+  bottom 4) except a ~4px sliver at its bottom edge. Taps land on the strip's
+  empty space and do nothing.
+- **Fix (2026-09-17):** `pointerEvents="box-none"` on the strip in
+  click-up.tsx, micro-chaining.tsx, macro-chaining.tsx, so its empty space
+  passes taps through. The links themselves still take taps.
+- **Verified:** probe route copying the exact bottom-row styles at 812x375.
+  Old: `elementFromPoint` on Next's centre and top hit the strip; two real
+  clicks on Next = 0 advances. Fixed: all points hit Next; two clicks = 2;
+  "Done — log it" still hit. Also ruled out the "Big session ahead" popup
+  (her first 80+ step session since D64): after dismissing it, Next still
+  worked. tsc + web export clean.
+- **NOT verified:** the real ICU screen (needs sign-in), a real iPhone.
+- **Status:** FIXED in the tree, not yet deployed.

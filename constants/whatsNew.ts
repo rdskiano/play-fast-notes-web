@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-17-next-button-sideways-phone',
+    date: 'September 17, 2026',
+    title: 'Next button works again on a sideways phone',
+    body:
+      'On a phone turned sideways, the Next button in Interleaved Click-Up, Micro-Chaining, and Macro-Chaining could stop responding after this week\'s update. It works again. Thank you to the player who wrote in about it.',
+  },
+  {
     id: '2026-09-17-boxes-fit-the-line',
     date: 'September 17, 2026',
     title: 'Boxes stay on the line you marked',
