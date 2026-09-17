@@ -82,9 +82,11 @@ const MIN_SLICE_W = 0.02;
 
 // When the photo's lines of music are known (read from its pixels), a row's
 // band reaches past its staves by up to this many staff-heights, and never
-// past halfway to the neighboring line of music. Room for ledger lines,
-// dynamics and hairpins. 0.8 read tight on Ralph's photos (2026-09-17).
-const SYSTEM_REACH = 1.3;
+// past halfway to the neighboring line of music. Ralph (2026-09-17): height
+// only has to show the notes clearly, so be generous; left-right is what
+// makes the tool accurate. Between two lines this means "halfway"; the
+// limit only bites at the photo's top and bottom edges.
+const SYSTEM_REACH = 2.5;
 
 export function computeScoreGeometry(
   rawMarks: Marker[],
