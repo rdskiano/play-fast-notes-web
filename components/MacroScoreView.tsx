@@ -127,19 +127,21 @@ export function MacroScoreView({
     const { a, b } = isolateRange(geom, step.chunkSize, step.chunkIndex);
     const slices = chunkSlices(geom, a, b);
     return (
-      <View style={[styles.column, { gap: isPhone ? 10 : 18, justifyContent: 'center' }]}>
-        <MiniMap uri={uri} aspect={aspect} slices={slices} geom={geom} accent={accent} isPhone={isPhone} />
-        <View style={styles.stripRowCenter}>
-          <StripCard
-            uri={uri}
-            aspect={aspect}
-            slices={slices}
-            geom={geom}
-            height={isPhone ? 84 : 116}
-            caption={beatsCaption(a, b)}
-          />
+      <SlicedZoom enabled={isTouch} persistKey={zoomPersistKey}>
+        <View style={[styles.column, { gap: isPhone ? 10 : 18, justifyContent: 'center' }]}>
+          <MiniMap uri={uri} aspect={aspect} slices={slices} geom={geom} accent={accent} isPhone={isPhone} />
+          <View style={styles.stripRowCenter}>
+            <StripCard
+              uri={uri}
+              aspect={aspect}
+              slices={slices}
+              geom={geom}
+              height={isPhone ? 84 : 116}
+              caption={beatsCaption(a, b)}
+            />
+          </View>
         </View>
-      </View>
+      </SlicedZoom>
     );
   }
 
@@ -150,27 +152,56 @@ export function MacroScoreView({
   }
   const stripH = isPhone ? 44 : step.chunkSize >= 4 ? 72 : 58;
   return (
-    <ScrollView
-      style={{ flex: 1, width: '100%' }}
-      contentContainerStyle={styles.chainScroll}>
-      <View style={[styles.chainRow, { rowGap: isPhone ? 26 : 34 }]}>
-        {chunks.map(({ a, b }, i) => (
-          <View key={a} style={styles.chunkPair}>
-            <StripCard
-              uri={uri}
-              aspect={aspect}
-              slices={chunkSlices(geom, a, b)}
-              geom={geom}
-              height={stripH}
-              caption={beatsCaption(a, b)}
-            />
-            {i < chunks.length - 1 && (
-              <RestSlot restBeats={step.restBeats} accent={accent} soft={soft} isPhone={isPhone} />
-            )}
-          </View>
-        ))}
-      </View>
-    </ScrollView>
+    <SlicedZoom enabled={isTouch} persistKey={zoomPersistKey}>
+      <ScrollView
+        style={{ flex: 1, width: '100%' }}
+        contentContainerStyle={styles.chainScroll}>
+        <View style={[styles.chainRow, { rowGap: isPhone ? 26 : 34 }]}>
+          {chunks.map(({ a, b }, i) => (
+            <View key={a} style={styles.chunkPair}>
+              <StripCard
+                uri={uri}
+                aspect={aspect}
+                slices={chunkSlices(geom, a, b)}
+                geom={geom}
+                height={stripH}
+                caption={beatsCaption(a, b)}
+              />
+              {i < chunks.length - 1 && (
+                <RestSlot restBeats={step.restBeats} accent={accent} soft={soft} isPhone={isPhone} />
+              )}
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </SlicedZoom>
+  );
+}
+
+// The sliced strips are small on a phone — the whole chain has to fit at a
+// glance — so a pinch magnifies them in place, the same gesture the photo
+// view already offers (2026-09-17, Ralph: "workable on the phone, just too
+// small"). Its own persistKey: the zoom you dial in here is remembered
+// separately from the photo view's, so the two don't overwrite each other.
+// Mouse/desktop keeps the plain layout — nothing to pinch with.
+function SlicedZoom({
+  enabled,
+  persistKey,
+  children,
+}: {
+  enabled: boolean;
+  persistKey?: string;
+  children: ReactNode;
+}) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <View style={{ flex: 1, width: '100%' }}>
+      <ZoomableImage
+        style={StyleSheet.absoluteFill}
+        persistKey={persistKey ? `${persistKey}:sliced` : undefined}>
+        {children}
+      </ZoomableImage>
+    </View>
   );
 }
 

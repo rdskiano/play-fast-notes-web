@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-17-macro-sliced-pinch',
+    date: 'September 17, 2026',
+    title: 'Pinch the sliced view to make it bigger',
+    body:
+      'In Macro-Chaining, the "Sliced apart" view keeps the whole chain on one screen, which makes the strips small on a phone. You can now pinch to zoom in on them, and double-tap to go back. The size you set is remembered.',
+  },
+  {
     id: '2026-09-17-icu-switch-in-top-bar',
     date: 'September 17, 2026',
     title: 'More room for the music while you practice',
