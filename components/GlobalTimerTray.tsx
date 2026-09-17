@@ -337,7 +337,7 @@ export function PracticeTimersPill({
 
 const MOVE_ON_INTERVAL_OPTS = [1, 2, 3, 5, 10] as const;
 const BODY_MOVE_INTERVAL_OPTS = [15, 20, 30, 45, 60] as const;
-const MICROBREAK_SECONDS_OPTS = [8, 12, 20, 30] as const;
+const MICROBREAK_SECONDS_OPTS = [10, 15] as const;
 // Per-strategy cadence options for the Micro timer.
 const TL_REPS_OPTS = [2, 3, 4, 5] as const;
 const ICU2_REPS_OPTS = [2, 3, 4, 5] as const;
@@ -617,7 +617,7 @@ function TimerSettingsModal({
                   value={
                     (MICROBREAK_SECONDS_OPTS.find(
                       (v) => v === microbreak.config.breakSeconds,
-                    ) ?? MICROBREAK_SECONDS_OPTS[1]) as (typeof MICROBREAK_SECONDS_OPTS)[number]
+                    ) ?? MICROBREAK_SECONDS_OPTS[0]) as (typeof MICROBREAK_SECONDS_OPTS)[number]
                   }
                   onChange={(v) => microbreak.setConfig({ breakSeconds: v })}
                   unit=" s"

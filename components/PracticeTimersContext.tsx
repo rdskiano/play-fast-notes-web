@@ -57,7 +57,7 @@ export type PromptsConfig = {
 const DEFAULT_MOVE_ON: MoveOnConfig = { enabled: false, intervalMin: 3 };
 const DEFAULT_MICROBREAK: MicrobreakConfig = {
   enabled: false,
-  breakSeconds: 12,
+  breakSeconds: 10,
   tempoLadderReps: 3,
   rhythmicPatterns: 4,
   microChainNotes: 3,
@@ -210,7 +210,9 @@ export function PracticeTimersProvider({ children }: { children: ReactNode }) {
         loadJson<PromptsConfig>(KEY_PROMPTS, DEFAULT_PROMPTS),
       ]);
       setMoveOnCfg(mo);
-      setMicrobreakCfg(mb);
+      // Rest length is 10 or 15 s only (Ralph, 2026-09-17). Older saved
+      // values (8/12/20/30) snap to the nearer of the two.
+      setMicrobreakCfg({ ...mb, breakSeconds: mb.breakSeconds <= 12 ? 10 : 15 });
       setPlayItColdCfg(pc);
       setBodyMoveCfg(bm);
       setPromptsCfg({

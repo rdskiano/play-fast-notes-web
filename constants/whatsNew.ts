@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-17-micro-rest-10-15',
+    date: 'September 17, 2026',
+    title: 'Micro timer rests are now 10 or 15 seconds',
+    body:
+      'The Micro timer used to offer rests of 8, 12, 20, or 30 seconds. It now offers just two: 10 seconds and 15 seconds. If you had picked a different length, the app moved you to the closer of the two, and you can switch any time in the timer settings.',
+  },
+  {
     id: '2026-09-16-library-remembers-folder',
     date: 'September 16, 2026',
     title: 'The library remembers your folder again',
