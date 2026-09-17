@@ -83,8 +83,8 @@ const MIN_SLICE_W = 0.02;
 // When the photo's lines of music are known (read from its pixels), a row's
 // band reaches past its staves by up to this many staff-heights, and never
 // past halfway to the neighboring line of music. Room for ledger lines,
-// dynamics and hairpins.
-const SYSTEM_REACH = 0.8;
+// dynamics and hairpins. 0.8 read tight on Ralph's photos (2026-09-17).
+const SYSTEM_REACH = 1.3;
 
 export function computeScoreGeometry(
   rawMarks: Marker[],
