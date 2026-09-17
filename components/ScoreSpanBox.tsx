@@ -16,6 +16,7 @@ import { useMemo, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 
 import type { Marker } from '@/lib/db/repos/passages';
+import { useStaffSystems } from '@/lib/image/useStaffSystems';
 import { computeDrawnRect } from '@/lib/layout/containFit';
 import { BOX_PAD_LEFT, chunkSlices, computeScoreGeometry } from '@/lib/strategies/macroSlices';
 
@@ -35,7 +36,9 @@ type Props = {
 export function ScoreSpanBox({ uri, marks, startIndex, endIndex, accent, dim = 0.55 }: Props) {
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [aspect, setAspect] = useState<number | null>(null);
-  const geom = useMemo(() => computeScoreGeometry(marks), [marks]);
+  // The photo's lines of music keep each box to the line its marks are on.
+  const systems = useStaffSystems(uri);
+  const geom = useMemo(() => computeScoreGeometry(marks, systems), [marks, systems]);
 
   const slices = useMemo(() => {
     const last = geom.marks.length - 1;

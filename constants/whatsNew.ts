@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-17-boxes-fit-the-line',
+    date: 'September 17, 2026',
+    title: 'Boxes stay on the line you marked',
+    body:
+      'If your photo held several lines of music and you marked beats on just one, the green boxes in Interleaved Click-Up could stretch the full height of the photo. The app now finds the staff lines in the photo and keeps each box to the line you marked, including two-staff lines like piano or a Clarinet I and II part. Macro-Chaining gets the same fix.',
+  },
+  {
     id: '2026-09-17-micro-rest-10-15',
     date: 'September 17, 2026',
     title: 'Micro timer rests are now 10 or 15 seconds',

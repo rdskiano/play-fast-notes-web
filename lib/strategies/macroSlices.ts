@@ -19,6 +19,7 @@
 // at every boundary) or multi-line (one banner + small boundary markers).
 
 import type { Marker } from '@/lib/db/repos/passages';
+import type { StaffSystem } from '@/lib/image/staffSystems';
 
 export type ScoreRowBand = { top: number; bot: number };
 export type ScoreGeometry = {
@@ -79,7 +80,16 @@ const PAD_FINAL = 0.036;
 // next line) is dropped — the previous slice's line-end already shows it.
 const MIN_SLICE_W = 0.02;
 
-export function computeScoreGeometry(rawMarks: Marker[]): ScoreGeometry {
+// When the photo's lines of music are known (read from its pixels), a row's
+// band reaches past its staves by up to this many staff-heights, and never
+// past halfway to the neighboring line of music. Room for ledger lines,
+// dynamics and hairpins.
+const SYSTEM_REACH = 0.8;
+
+export function computeScoreGeometry(
+  rawMarks: Marker[],
+  systems?: StaffSystem[] | null,
+): ScoreGeometry {
   const marks = [...rawMarks].sort((a, b) => a.index - b.index);
   const rowOf: number[] = [];
   const rowYMin: number[] = [];
@@ -108,13 +118,68 @@ export function computeScoreGeometry(rawMarks: Marker[]): ScoreGeometry {
           top: Math.max(0, yMin - BAND_PAD),
           bot: k + 1 < rowCount ? Math.max(0, rowYMin[k + 1] - BAND_PAD) : 1,
         }));
+  const fitted = systems?.length ? fitBandsToSystems(bands, marks, rowOf, rowCount, systems) : null;
   return {
     marks,
     rowOf,
-    bands,
+    bands: fitted ?? bands,
     rowCount,
     beatCount: Math.max(0, marks.length - 1),
   };
+}
+
+/**
+ * Tightens each row's band to the line of music its marks sit on. Before
+ * this, a passage marked on ONE line boxed the whole photo top to bottom
+ * (Ralph's "W horns", 2026-09-17: three two-staff lines in the photo, marks
+ * on the middle one), and the LAST row of any passage ran to the photo's
+ * bottom edge. Returns null (keep the mark-only bands) when the rows don't
+ * map one-to-one onto lines of music in reading order.
+ */
+function fitBandsToSystems(
+  bands: ScoreRowBand[],
+  marks: Marker[],
+  rowOf: number[],
+  rowCount: number,
+  systems: StaffSystem[],
+): ScoreRowBand[] | null {
+  const sysOf: number[] = [];
+  for (let r = 0; r < rowCount; r++) {
+    const ys = marks.filter((_, i) => rowOf[i] === r).map((m) => m.y).sort((a, b) => a - b);
+    const y = ys[Math.floor(ys.length / 2)];
+    let best = 0;
+    let bestD = Infinity;
+    systems.forEach((sy, k) => {
+      const d = y < sy.top ? sy.top - y : y > sy.bot ? y - sy.bot : 0;
+      if (d < bestD) {
+        bestD = d;
+        best = k;
+      }
+    });
+    if (r > 0 && best <= sysOf[r - 1]) return null;
+    // Marks sit at or above their notes, so a row whose marks hang below the
+    // matched line of music belongs to a staff the reader missed (a small
+    // inset staff, say). Don't trust the reading then.
+    const sy = systems[best];
+    if (y > sy.bot + ((sy.bot - sy.top) / sy.staffCount) * 0.25) return null;
+    sysOf.push(best);
+  }
+  const out = bands.map((band, r) => {
+    const k = sysOf[r];
+    const sy = systems[k];
+    const reach = ((sy.bot - sy.top) / sy.staffCount) * SYSTEM_REACH;
+    const prev = systems[k - 1];
+    const next = systems[k + 1];
+    const top = Math.max(sy.top - reach, prev ? (prev.bot + sy.top) / 2 : 0);
+    const bot = Math.min(sy.bot + reach, next ? (sy.bot + next.top) / 2 : 1);
+    // Every mark stays inside its band, with room for the note under it.
+    const ys = marks.filter((_, i) => rowOf[i] === r).map((m) => m.y);
+    return {
+      top: Math.max(0, Math.min(top, Math.min(...ys) - BAND_PAD)),
+      bot: Math.min(band.bot, Math.max(bot, Math.max(...ys) + BAND_PAD * 1.5)),
+    };
+  });
+  return out.every((b) => b.bot - b.top > BAND_PAD) ? out : null;
 }
 
 /**

@@ -37,6 +37,7 @@ import { Palette } from '@/constants/palette';
 import { Type } from '@/constants/tokens';
 import { useIsTouchDevice } from '@/hooks/useIsTouchDevice';
 import type { Marker } from '@/lib/db/repos/passages';
+import { useStaffSystems } from '@/lib/image/useStaffSystems';
 import { computeDrawnRect } from '@/lib/layout/containFit';
 import type { MacroStep } from '@/lib/strategies/macroChain';
 import {
@@ -80,7 +81,8 @@ export function MacroScoreView({
   annotationOverlay,
 }: Props) {
   const isTouch = useIsTouchDevice();
-  const geom = useMemo(() => computeScoreGeometry(marks), [marks]);
+  const systems = useStaffSystems(uri);
+  const geom = useMemo(() => computeScoreGeometry(marks, systems), [marks, systems]);
   const soft = accent + '20';
 
   // Whole-passage finale (or no step yet): the plain photo, both views.

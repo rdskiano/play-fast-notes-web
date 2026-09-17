@@ -30,7 +30,7 @@ function hashString(s: string): number {
 // can't, so cropping that page threw and the save silently failed (the drawn box
 // just stayed on screen). Download remote URLs to the cache first, then crop the
 // local copy. Local file:// URIs pass straight through.
-async function ensureLocalFile(uri: string): Promise<string> {
+export async function ensureLocalFile(uri: string): Promise<string> {
   if (!/^https?:\/\//i.test(uri)) return uri;
   const dir = new Directory(Paths.cache, 'crop-src');
   if (!dir.exists) dir.create({ intermediates: true });
