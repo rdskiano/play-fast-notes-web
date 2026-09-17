@@ -964,10 +964,41 @@ export default function ClickUpScreen() {
                 styles.runSide,
                 isPhone && !isPhoneLandscape && styles.runSidePhone,
               ]}>
-              <Pressable onPress={exitSession} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
-                <Feather name="log-out" size={isPhone ? 18 : 15} color={Palette.danger} />
-                <ThemedText style={[styles.runExitText, isPhone && styles.runExitTextPhone]}>Exit</ThemedText>
-              </Pressable>
+              {/* Exit + the arrows/boxed switch share the left side, so the
+                  switch no longer costs its own row above the score
+                  (2026-09-17, Ralph: "takes up valuable vertical space"). */}
+              <View style={styles.runSideRow}>
+                <Pressable onPress={exitSession} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
+                  <Feather name="log-out" size={isPhone ? 18 : 15} color={Palette.danger} />
+                  <ThemedText style={[styles.runExitText, isPhone && styles.runExitTextPhone]}>Exit</ThemedText>
+                </Pressable>
+                <View style={styles.viewSegGroup}>
+                  {(['arrows', 'boxed'] as const).map((v) => {
+                    const on = icuView === v;
+                    return (
+                      <Pressable
+                        key={v}
+                        onPress={() => pickIcuView(v)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        // Phone: the pressable is 44 tall around the small
+                        // segment (hitSlop is a no-op on web, B-093).
+                        style={isPhone && styles.viewSegHitPhone}>
+                        <View
+                          style={[
+                            styles.viewSeg,
+                            v === 'arrows' ? styles.viewSegLeft : styles.viewSegRight,
+                            on && { backgroundColor: ACCENT, borderColor: ACCENT },
+                          ]}>
+                          <ThemedText style={[styles.viewSegText, on && styles.viewSegTextOn]}>
+                            {v === 'arrows' ? 'Arrows' : 'Boxed'}
+                          </ThemedText>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
             </View>
             <View
               style={[
@@ -1038,45 +1069,6 @@ export default function ClickUpScreen() {
             </ThemedText>
           )}
 
-          {/* View switch: classic arrows or the boxed active span. */}
-          <View style={styles.viewRow}>
-            <View style={styles.viewSegGroup}>
-              <Pressable
-                onPress={() => pickIcuView('arrows')}
-                accessibilityRole="button"
-                accessibilityState={{ selected: icuView === 'arrows' }}
-                style={[
-                  styles.viewSeg,
-                  styles.viewSegLeft,
-                  icuView === 'arrows' && {
-                    backgroundColor: ACCENT,
-                    borderColor: ACCENT,
-                  },
-                ]}>
-                <ThemedText
-                  style={[styles.viewSegText, icuView === 'arrows' && styles.viewSegTextOn]}>
-                  Arrows
-                </ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => pickIcuView('boxed')}
-                accessibilityRole="button"
-                accessibilityState={{ selected: icuView === 'boxed' }}
-                style={[
-                  styles.viewSeg,
-                  styles.viewSegRight,
-                  icuView === 'boxed' && {
-                    backgroundColor: ACCENT,
-                    borderColor: ACCENT,
-                  },
-                ]}>
-                <ThemedText
-                  style={[styles.viewSegText, icuView === 'boxed' && styles.viewSegTextOn]}>
-                  Boxed
-                </ThemedText>
-              </Pressable>
-            </View>
-          </View>
         </>
       )}
 
@@ -1517,15 +1509,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     lineHeight: 18,
   },
-  // ── Run-screen view switch (arrows / boxed) — same furniture as
+  // ── Run-screen view switch (arrows / boxed), in the top bar beside Exit — same furniture as
   // Macro-Chaining's toggle so the two screens read as one convention. ──
-  viewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: 4,
-  },
-  viewSegGroup: { flexDirection: 'row' },
+  runSideRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  viewSegGroup: { flexDirection: 'row', alignItems: 'center' },
+  viewSegHitPhone: { minHeight: 44, justifyContent: 'center' },
   viewSeg: {
     paddingVertical: 4,
     paddingHorizontal: 12,

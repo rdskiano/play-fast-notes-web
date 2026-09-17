@@ -358,6 +358,57 @@ export default function MacroChainingScreen() {
   const step = storedConfig.steps[currentIndex];
   const instruction = formatMacroInstruction(step);
 
+  // The view switch used to own a row above the score (2026-09-17, Ralph:
+  // "takes up valuable vertical space"). It now rides along with existing
+  // furniture: the top bar beside Exit on iPad/desktop, and the bottom
+  // Setup/Done strip on a phone held sideways. The strip only has room on a
+  // phone at least 760 wide — below that (iPhone SE) the switch would land on
+  // the Back button, so those keep the old row.
+  const switchInStrip = isPhoneLandscape && winWidth >= MACRO_STRIP_MIN_WIDTH;
+  const switchInTopBar = !isPhoneLandscape && winWidth >= MACRO_BAR_MIN_WIDTH;
+  const switchOnOwnRow = !switchInStrip && !switchInTopBar;
+  const viewSwitch = (
+    <View style={styles.viewSegGroup}>
+      {(['overlay', 'sliced'] as const).map((v) => {
+        const on = viewMode === v;
+        const label =
+          v === 'overlay'
+            ? isPhone
+              ? 'On score'
+              : 'Rests on the score'
+            : isPhone
+              ? 'Sliced'
+              : 'Sliced apart';
+        return (
+          <Pressable
+            key={v}
+            onPress={() => pickView(v)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            // Phone: 44 tall pressable around the small segment (hitSlop is a
+            // no-op on web — B-093).
+            style={isPhone && styles.viewSegHitPhone}>
+            <View
+              style={[
+                styles.viewSeg,
+                v === 'overlay' ? styles.viewSegLeft : styles.viewSegRight,
+                on && { backgroundColor: ACCENT, borderColor: ACCENT },
+              ]}>
+              <ThemedText style={[styles.viewSegText, on && styles.viewSegTextOn]}>
+                {label}
+              </ThemedText>
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+  const stepCount = (
+    <ThemedText style={styles.stepCount}>
+      Step {currentIndex + 1} of {storedConfig.steps.length}
+    </ThemedText>
+  );
+
   return (
     <ThemedView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -377,10 +428,18 @@ export default function MacroChainingScreen() {
             paddingRight: insets.right + Spacing.md,
           },
         ]}>
-        <Pressable onPress={exitSession} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
-          <Feather name="log-out" size={15} color={Palette.danger} />
-          <ThemedText style={styles.runExitText}>Exit</ThemedText>
-        </Pressable>
+        <View style={styles.runSideRow}>
+          <Pressable onPress={exitSession} hitSlop={8} style={[styles.runExit, isPhone && styles.tapPhoneH]}>
+            <Feather name="log-out" size={15} color={Palette.danger} />
+            <ThemedText style={styles.runExitText}>Exit</ThemedText>
+          </Pressable>
+          {switchInTopBar && (
+            <>
+              {viewSwitch}
+              {stepCount}
+            </>
+          )}
+        </View>
         <View style={styles.runInstructionWrap}>
           {/* No manual ⓘ here — it duplicated the global help "i" (bottom-
               right). paddingRight reserves room for the floating 4-icon tools
@@ -397,44 +456,14 @@ export default function MacroChainingScreen() {
         onBack={onPrev}
       />
 
-      {/* View switch + step position. Small on purpose — the score area below
-          is the real instruction now. */}
-      <View style={styles.viewRow}>
-        <View style={styles.viewSegGroup}>
-          <Pressable
-            onPress={() => pickView('overlay')}
-            accessibilityRole="button"
-            accessibilityState={{ selected: viewMode === 'overlay' }}
-            style={[
-              styles.viewSeg,
-              styles.viewSegLeft,
-              viewMode === 'overlay' && { backgroundColor: ACCENT, borderColor: ACCENT },
-            ]}>
-            <ThemedText
-              style={[styles.viewSegText, viewMode === 'overlay' && styles.viewSegTextOn]}>
-              Rests on the score
-            </ThemedText>
-          </Pressable>
-          <Pressable
-            onPress={() => pickView('sliced')}
-            accessibilityRole="button"
-            accessibilityState={{ selected: viewMode === 'sliced' }}
-            style={[
-              styles.viewSeg,
-              styles.viewSegRight,
-              viewMode === 'sliced' && { backgroundColor: ACCENT, borderColor: ACCENT },
-            ]}>
-            <ThemedText
-              style={[styles.viewSegText, viewMode === 'sliced' && styles.viewSegTextOn]}>
-              Sliced apart
-            </ThemedText>
-          </Pressable>
+      {/* Fallback: screens too narrow for either home (iPad held upright, a
+          small browser window, an iPhone SE sideways) keep the old row. */}
+      {switchOnOwnRow && (
+        <View style={styles.viewRow}>
+          {viewSwitch}
+          {stepCount}
         </View>
-        <ThemedText style={styles.stepCount}>
-          Step {currentIndex + 1} of {storedConfig.steps.length}
-        </ThemedText>
-      </View>
-
+      )}
       <View
         style={[
           styles.contentArea,
@@ -499,6 +528,12 @@ export default function MacroChainingScreen() {
           <View
             pointerEvents="box-none"
             style={[styles.runLinksLandscape, { bottom: insets.bottom + 8 }]}>
+            {switchInStrip && (
+              <>
+                {viewSwitch}
+                <ThemedText style={styles.runLinkDot}>·</ThemedText>
+              </>
+            )}
             <Pressable onPress={goBackToConfig} hitSlop={6} style={isPhone && styles.tapPhoneH}>
               <ThemedText style={[styles.runLink, { color: ACCENT }]}>← Setup</ThemedText>
             </Pressable>
@@ -603,6 +638,15 @@ export default function MacroChainingScreen() {
   );
 }
 
+// Widths measured in a copy of the real bars (2026-09-17), so the switch only
+// leaves its own row where it actually fits:
+//   · bottom Setup/Done strip (sideways phone): content is 306 wide and the
+//     Back / Next corners reach 200 and w-200 — 812 clears, 667 collides.
+//   · top bar (iPad / desktop): the longest step instruction still fits its
+//     two lines at 960 and clips at 900.
+const MACRO_STRIP_MIN_WIDTH = 760;
+const MACRO_BAR_MIN_WIDTH = 980;
+
 const styles = StyleSheet.create({
   configContainer: { flexGrow: 1, padding: 20, gap: 14, paddingBottom: HELP_CLEARANCE + 20 },
 
@@ -660,7 +704,9 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingBottom: 4,
   },
-  viewSegGroup: { flexDirection: 'row' },
+  runSideRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  viewSegGroup: { flexDirection: 'row', alignItems: 'center' },
+  viewSegHitPhone: { minHeight: 44, justifyContent: 'center' },
   viewSeg: {
     paddingVertical: 4,
     paddingHorizontal: 12,

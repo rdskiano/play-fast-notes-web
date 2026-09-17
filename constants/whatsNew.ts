@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-17-icu-switch-in-top-bar',
+    date: 'September 17, 2026',
+    title: 'More room for the music while you practice',
+    body:
+      'The view switch used to sit on its own row above the music. In Interleaved Click-Up it now sits in the top bar next to Exit, and in Macro-Chaining it moves into the top bar on a tablet or computer and down beside the Setup link on a sideways phone. Either way the score gets that space back.',
+  },
+  {
     id: '2026-09-17-next-button-sideways-phone',
     date: 'September 17, 2026',
     title: 'Next button works again on a sideways phone',
