@@ -22,6 +22,13 @@ export type WhatsNewEntry = {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-09-18-boxes-pick-the-line-below',
+    date: 'September 18, 2026',
+    title: 'Green boxes no longer swallow the whole photo',
+    body:
+      'When a photo holds several lines of music and your marks sat in the space above a line with high notes, the green boxes in Interleaved Click-Up could stretch over every line in the photo. The app was unsure which line the marks belonged to. Boxes now hug the line under your marks, and Macro-Chaining gets the same fix.',
+  },
+  {
     id: '2026-09-17-macro-sliced-pinch',
     date: 'September 17, 2026',
     title: 'Pinch the sliced view to make it bigger',

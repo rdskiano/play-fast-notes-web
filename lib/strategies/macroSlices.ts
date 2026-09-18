@@ -149,21 +149,26 @@ function fitBandsToSystems(
   for (let r = 0; r < rowCount; r++) {
     const ys = marks.filter((_, i) => rowOf[i] === r).map((m) => m.y).sort((a, b) => a - b);
     const y = ys[Math.floor(ys.length / 2)];
-    let best = 0;
+    // Marks sit at or above their notes, so a line of music the marks hang
+    // well below can't be theirs: marks in the gap between two lines belong
+    // to the LOWER line, however close the upper one is. Picking the plain
+    // nearest line boxed the whole photo (Suzanne's "210 arpeggios",
+    // 2026-09-18: marks above line 2's high notes sat a hair nearer line 1,
+    // which was then rejected for hanging below it).
+    let best = -1;
     let bestD = Infinity;
     systems.forEach((sy, k) => {
+      if (y > sy.bot + ((sy.bot - sy.top) / sy.staffCount) * 0.25) return;
       const d = y < sy.top ? sy.top - y : y > sy.bot ? y - sy.bot : 0;
       if (d < bestD) {
         bestD = d;
         best = k;
       }
     });
+    // Marks below every line the reader found belong to a staff it missed
+    // (a small inset staff, say). Don't trust the reading then.
+    if (best < 0) return null;
     if (r > 0 && best <= sysOf[r - 1]) return null;
-    // Marks sit at or above their notes, so a row whose marks hang below the
-    // matched line of music belongs to a staff the reader missed (a small
-    // inset staff, say). Don't trust the reading then.
-    const sy = systems[best];
-    if (y > sy.bot + ((sy.bot - sy.top) / sy.staffCount) * 0.25) return null;
     sysOf.push(best);
   }
   const out = bands.map((band, r) => {
